@@ -1,5 +1,10 @@
 // 사이트 전역 상수 — 하드코딩 분산 방지(추후 DB 마스터로 이관 가능).
 
+// /jobs 필터 옵션
+export const JOB_SPECIALTIES = ["중환자실", "응급실", "수술실", "병동", "외래", "요양병원", "정신과", "마취과", "투석실"] as const;
+export const EMPLOYMENT_TYPES = ["정규직", "계약직", "파트타임", "인턴"] as const;
+export const DATE_FILTERS: ReadonlyArray<readonly [string, string]> = [["1", "최근 1일"], ["3", "최근 3일"], ["7", "최근 7일"], ["14", "최근 14일"]];
+
 export const POPULAR_SEARCHES = [
   "중환자실",
   "응급실",

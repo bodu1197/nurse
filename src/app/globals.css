@@ -10,4 +10,7 @@
 
 body {
   font-family: var(--font-sans);
+  /* 한글은 어절(공백) 단위로만 줄바꿈 — 단어 중간 '로그인하/세요' 분리 방지 */
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }

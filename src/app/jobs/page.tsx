@@ -3,11 +3,10 @@ import { getJobs, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
 import { getCurrentUser } from "@/lib/data/user";
 import { applyToJob, saveSearch } from "./actions";
 import FilterBar from "@/components/FilterBar";
+import { daysAgo } from "@/lib/date";
 
 // 시드 샘플 데이터 단계 — 실제 워크넷/직접등록 데이터 전까지 noindex.
 export const metadata = { title: "채용 검색 — 널스넷", robots: { index: false } };
-
-const daysAgo = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
 
 function Stars({ rating }: { rating: number }) {
   return (
