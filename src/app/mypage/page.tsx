@@ -20,7 +20,7 @@ const NURSE_ITEMS: Item[] = [
   { title: "채용 알림", desc: "저장한 검색 조건의 새 공고를 메일로 받습니다." },
 ];
 const HOSPITAL_ITEMS: Item[] = [
-  { title: "공고 등록", desc: "새 채용공고를 등록합니다." },
+  { title: "공고 등록", desc: "새 채용공고를 등록합니다.", href: "/mypage/jobs/new" },
   { title: "공고 관리", desc: "등록한 공고를 수정·마감합니다." },
   { title: "받은 지원자", desc: "공고에 지원한 간호사를 확인합니다." },
   { title: "병원 정보", desc: "병원 정보를 1회 입력하면 공고에 자동 반영됩니다." },

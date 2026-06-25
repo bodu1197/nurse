@@ -30,3 +30,45 @@ export async function verifyHospitalBusiness(formData: FormData) {
 
   redirect("/mypage/verify?ok=1");
 }
+
+// 공고 등록 — 인증된 병원만. 미claim 병원이면 claim 후 jobs 저장(서버 검증).
+export async function createJob(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const admin = createAdminClient();
+  const { data: prof } = await admin.from("profiles").select("role, business_verified").eq("id", user.id).maybeSingle();
+  if (!prof || prof.role !== "hospital") redirect("/mypage");
+  if (!prof.business_verified) redirect("/mypage/verify");
+
+  const s = (k: string) => String(formData.get(k) ?? "").trim();
+  const hospitalId = s("hospital_id");
+  const title = s("title");
+  if (!hospitalId || !title) redirect("/mypage/jobs/new?error=missing");
+
+  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region").eq("id", hospitalId).maybeSingle();
+  if (!hosp) redirect("/mypage/jobs/new?error=hospital");
+  if (hosp.owner_profile_id && hosp.owner_profile_id !== user.id) redirect("/mypage/jobs/new?error=claimed");
+  if (!hosp.owner_profile_id) {
+    await admin.from("hospitals").update({ owner_profile_id: user.id, is_claimed: true }).eq("id", hospitalId);
+    await admin.from("profiles").update({ claimed_hospital_id: hospitalId }).eq("id", user.id);
+  }
+
+  const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
+  const { error } = await admin.from("jobs").insert({
+    hospital_id: hospitalId,
+    title,
+    specialty: s("specialty") || null,
+    location: s("location") || hosp.region || null,
+    employment_type: s("employment_type") || null,
+    salary_text: s("salary_text") || null,
+    description: s("description") || null,
+    benefits,
+    source: "direct",
+    status: "open",
+  });
+  if (error) redirect("/mypage/jobs/new?error=save");
+
+  redirect("/jobs");
+}
