@@ -58,7 +58,7 @@ export default async function JobsPage({
       <SiteHeader user={user} />
 
       <div className="border-b border-slate-200">
-        <div className="mx-auto max-w-6xl px-4 py-4">
+        <div className="mx-auto max-w-[1280px] px-4 py-4">
           <form action="/jobs" method="get" className="flex flex-col gap-2 rounded-xl border border-slate-300 p-1.5 shadow-sm focus-within:border-teal-500 sm:flex-row sm:items-center sm:rounded-full">
             <label className="flex flex-1 items-center gap-2 px-3 py-2">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-slate-400" aria-hidden><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
@@ -76,7 +76,7 @@ export default async function JobsPage({
         </div>
       </div>
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5">
+      <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-5">
         <p className="text-sm text-slate-600">
           <a href={user ? "/mypage/resume" : "/signup"} className="font-semibold text-teal-700 hover:underline">
             {user ? "내 이력서 관리" : "이력서를 등록하세요"}

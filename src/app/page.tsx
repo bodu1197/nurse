@@ -15,7 +15,7 @@ export default async function Home() {
       <main className="flex-1">
         {/* ── 히어로 ───────────────────────── */}
         <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-br from-teal-50 via-white to-emerald-50/50">
-          <div className="mx-auto max-w-4xl px-4 pb-12 pt-10 text-center sm:pt-12">
+          <div className="mx-auto max-w-[1280px] px-4 pb-12 pt-10 text-center sm:pt-12">
             {/* 검색창 위에는 텍스트 없음 — 검색 우선 */}
             <form action="/jobs" method="get" className="mx-auto flex w-full max-w-[840px] items-center gap-1 rounded-[22px] border border-slate-300 bg-white p-1.5 pl-2 shadow-md transition focus-within:border-teal-500 focus-within:shadow-lg">
               <label className="flex min-w-0 flex-1 items-center gap-2 px-2">
@@ -39,7 +39,7 @@ export default async function Home() {
           </div>
         </section>
 
-        <div className="mx-auto max-w-5xl px-4">
+        <div className="mx-auto max-w-[1280px] px-4">
           {/* ── 최신 채용공고 ───────────────── */}
           <section className="mt-12 pb-16">
             <div className="flex items-end justify-between">
@@ -76,7 +76,7 @@ export default async function Home() {
 
       {/* ── 푸터 ─────────────────────────── */}
       <footer className="border-t border-slate-200 bg-slate-50">
-        <div className="mx-auto max-w-5xl px-4 py-10">
+        <div className="mx-auto max-w-[1280px] px-4 py-10">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <span className="text-lg font-bold text-teal-700">✚ 널스넷</span>

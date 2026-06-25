@@ -28,7 +28,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
-      <div className="mx-auto flex h-16 max-w-6xl items-center px-4">
+      <div className="mx-auto flex h-16 max-w-[1280px] items-center px-4">
         <a
           href="/"
           aria-label="널스넷 홈"
@@ -37,7 +37,14 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
           <Logo />
         </a>
 
-        <div className="ml-auto flex items-center gap-1">
+        <nav className="ml-7 hidden items-center gap-5 text-sm font-medium text-slate-600 sm:flex">
+          <a href="/" className="hover:text-teal-700">홈</a>
+          <a href="/jobs" className="hover:text-teal-700">채용공고</a>
+          <a href="/reviews" className="hover:text-teal-700">병원 리뷰</a>
+        </nav>
+
+        <div className="ml-auto flex items-center gap-1.5">
+          <a href="/hospital" className="hidden items-center px-3 text-sm font-medium text-slate-600 hover:text-teal-700 sm:inline-flex">병원 회원·공고등록</a>
           {user ? (
             <>
               <a href="/mypage" className="hidden rounded px-2 text-sm font-medium text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:inline">{user.displayName}님</a>
