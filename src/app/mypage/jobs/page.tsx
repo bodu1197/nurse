@@ -23,7 +23,7 @@ export default async function MyJobsPage({
         <a href="/mypage" className="text-sm text-teal-700 hover:underline">← 마이페이지</a>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-slate-900">공고 관리</h1>
-          <a href="/mypage/jobs/new" className="rounded-[20px] bg-teal-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">공고 등록</a>
+          <a href="/mypage/jobs/new" className="rounded-[12px] bg-teal-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">공고 등록</a>
         </div>
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
@@ -48,11 +48,11 @@ export default async function MyJobsPage({
                     <form action={setJobStatus} className="inline">
                       <input type="hidden" name="job_id" value={j.id} />
                       <input type="hidden" name="status" value={open ? "closed" : "open"} />
-                      <button type="submit" className="rounded-[20px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">{open ? "마감하기" : "다시 게시"}</button>
+                      <button type="submit" className="rounded-[12px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">{open ? "마감하기" : "다시 게시"}</button>
                     </form>
                     <form action={deleteJob} className="inline">
                       <input type="hidden" name="job_id" value={j.id} />
-                      <button type="submit" className="rounded-[20px] px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">삭제</button>
+                      <button type="submit" className="rounded-[12px] px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">삭제</button>
                     </form>
                   </div>
                 </li>

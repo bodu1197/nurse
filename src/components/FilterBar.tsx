@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { JOB_SPECIALTIES, EMPLOYMENT_TYPES, DATE_FILTERS } from "@/lib/constants";
 
 const selectClass =
-  "rounded-[20px] border border-slate-300 bg-white px-3.5 py-1.5 text-sm text-slate-700 outline-none hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-teal-600";
+  "rounded-[12px] border border-slate-300 bg-white px-3.5 py-1.5 text-sm text-slate-700 outline-none hover:border-slate-400 focus-visible:ring-2 focus-visible:ring-teal-600";
 
 export default function FilterBar() {
   const router = useRouter();

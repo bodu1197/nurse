@@ -51,7 +51,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
               <form action={signOut}>
                 <button
                   type="submit"
-                  className="inline-flex min-h-11 items-center rounded-[20px] border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+                  className="inline-flex min-h-11 items-center rounded-[12px] border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
                 >
                   로그아웃
                 </button>
@@ -60,11 +60,8 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
           ) : (
             <a
               href="/login"
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-[20px] bg-teal-600 px-4 text-sm font-semibold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+              className="inline-flex min-h-11 items-center rounded px-2 text-sm font-medium text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
-              </svg>
               로그인
             </a>
           )}

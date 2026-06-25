@@ -40,7 +40,7 @@ export default async function AlertsPage() {
                 </a>
                 <form action={deleteSavedSearch} className="inline">
                   <input type="hidden" name="id" value={s.id} />
-                  <button type="submit" className="shrink-0 rounded-[20px] px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">삭제</button>
+                  <button type="submit" className="shrink-0 rounded-[12px] px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">삭제</button>
                 </form>
               </li>
             ))}

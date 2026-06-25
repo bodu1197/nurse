@@ -19,7 +19,7 @@ function StatusButton({ id, status, label, cls }: { id: string; status: string; 
     <form action={updateApplicationStatus} className="inline">
       <input type="hidden" name="application_id" value={id} />
       <input type="hidden" name="status" value={status} />
-      <button type="submit" className={`rounded-[20px] px-3 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${cls}`}>{label}</button>
+      <button type="submit" className={`rounded-[12px] px-3 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${cls}`}>{label}</button>
     </form>
   );
 }
@@ -67,7 +67,7 @@ export default async function ApplicantsPage({
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-xs text-slate-400">{fmt(a.created_at)} 지원</span>
                   <span className="ml-auto flex items-center gap-2">
-                    <a href={`/mypage/messages?with=${a.applicant_id}&name=${encodeURIComponent(a.resume?.name ?? "지원자")}`} className="rounded-[20px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">메시지</a>
+                    <a href={`/mypage/messages?with=${a.applicant_id}&name=${encodeURIComponent(a.resume?.name ?? "지원자")}`} className="rounded-[12px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">메시지</a>
                     <StatusButton id={a.id} status="accepted" label="합격" cls="bg-teal-600 text-white hover:bg-teal-700" />
                     <StatusButton id={a.id} status="rejected" label="불합격" cls="border border-slate-300 text-slate-600 hover:bg-slate-50" />
                   </span>

@@ -38,7 +38,7 @@ export default function LoginButtons() {
         type="button"
         onClick={kakao}
         disabled={loading !== null}
-        className="flex h-12 items-center justify-center gap-2 rounded-[20px] bg-[#FEE500] font-semibold text-[#191600] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-12 items-center justify-center gap-2 rounded-[12px] bg-[#FEE500] font-semibold text-[#191600] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span aria-hidden>💬</span>
         {loading === "kakao" ? "로그인 중…" : "카카오로 시작하기"}
@@ -46,7 +46,7 @@ export default function LoginButtons() {
 
       <a
         href="/auth/naver/start"
-        className="flex h-12 items-center justify-center gap-2 rounded-[20px] bg-[#03C75A] font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
+        className="flex h-12 items-center justify-center gap-2 rounded-[12px] bg-[#03C75A] font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2"
       >
         <span aria-hidden className="font-extrabold">N</span>
         네이버로 시작하기
