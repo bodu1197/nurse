@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import Logo from "@/components/Logo";
-import Button from "@/components/Button";
 import { HEADER_MENU } from "@/lib/constants";
 import { signOut } from "@/app/(auth)/actions";
 
@@ -50,12 +49,12 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
             <>
               <a href="/mypage" className="hidden rounded px-2 text-sm font-medium text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:inline">{user.displayName}님</a>
               <form action={signOut}>
-                <Button type="submit" variant="outline" size="md">
+                <button type="submit" className="inline-flex min-h-11 items-center gap-1.5 rounded px-2 text-sm font-medium text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                     <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
                   </svg>
                   로그아웃
-                </Button>
+                </button>
               </form>
             </>
           ) : (
