@@ -3,7 +3,7 @@ import Logo from "@/components/Logo";
 import DismissibleError from "@/components/DismissibleError";
 import SubmitButton from "@/components/SubmitButton";
 import { AUTH_ERROR_MESSAGES } from "@/lib/constants";
-import { signInWithEmail } from "../actions";
+import { signInWithId } from "../actions";
 
 export const metadata = {
   title: "로그인 — 널스넷",
@@ -32,10 +32,10 @@ export default async function LoginPage({
 
         {message && <DismissibleError message={message} />}
 
-        <form action={signInWithEmail} className="mt-6 flex flex-col gap-3">
+        <form action={signInWithId} className="mt-6 flex flex-col gap-3">
           <div className="flex flex-col gap-1">
-            <label htmlFor="email" className="text-sm font-medium text-slate-700">이메일</label>
-            <input id="email" name="email" type="email" autoComplete="email" required className={inputClass} />
+            <label htmlFor="loginId" className="text-sm font-medium text-slate-700">아이디</label>
+            <input id="loginId" name="loginId" type="text" autoComplete="username" placeholder="아이디 또는 이메일" required className={inputClass} />
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="password" className="text-sm font-medium text-slate-700">비밀번호</label>
