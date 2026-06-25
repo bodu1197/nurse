@@ -209,6 +209,68 @@ export type Database = {
           },
         ]
       }
+      resumes: {
+        Row: {
+          created_at: string
+          desired_employment_type: string | null
+          desired_location: string | null
+          desired_salary: string | null
+          education: string | null
+          experience_years: number | null
+          intro: string | null
+          is_public: boolean
+          license_no: string | null
+          license_type: string | null
+          name: string | null
+          phone: string | null
+          profile_id: string
+          specialties: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          desired_employment_type?: string | null
+          desired_location?: string | null
+          desired_salary?: string | null
+          education?: string | null
+          experience_years?: number | null
+          intro?: string | null
+          is_public?: boolean
+          license_no?: string | null
+          license_type?: string | null
+          name?: string | null
+          phone?: string | null
+          profile_id: string
+          specialties?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          desired_employment_type?: string | null
+          desired_location?: string | null
+          desired_salary?: string | null
+          education?: string | null
+          experience_years?: number | null
+          intro?: string | null
+          is_public?: boolean
+          license_no?: string | null
+          license_type?: string | null
+          name?: string | null
+          phone?: string | null
+          profile_id?: string
+          specialties?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "resumes_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       reviews: {
         Row: {
           author_id: string

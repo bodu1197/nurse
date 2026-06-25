@@ -14,7 +14,7 @@ type Item = { title: string; desc: string; href?: string; badge?: { text: string
 
 // 역할별 메뉴 — 병원(공고 등록 측)과 구직자(지원 측)는 기능이 완전히 다름.
 const NURSE_ITEMS: Item[] = [
-  { title: "내 이력서", desc: "이력서를 작성하고 병원에 지원하세요. (무료)" },
+  { title: "내 이력서", desc: "이력서를 작성하고 병원에 지원하세요. (무료)", href: "/mypage/resume" },
   { title: "저장한 공고", desc: "관심 있는 채용공고를 모아 봅니다." },
   { title: "지원 내역", desc: "지원한 공고의 진행 상황을 확인합니다." },
   { title: "채용 알림", desc: "저장한 검색 조건의 새 공고를 메일로 받습니다." },

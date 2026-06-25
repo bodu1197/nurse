@@ -79,7 +79,9 @@ export default async function JobsPage({
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-5">
         <p className="text-sm text-slate-600">
-          <a href="/signup" className="font-semibold text-teal-700 hover:underline">이력서를 등록하세요</a> — 손쉽게 지원하세요
+          <a href={user ? "/mypage/resume" : "/signup"} className="font-semibold text-teal-700 hover:underline">
+            {user ? "내 이력서 관리" : "이력서를 등록하세요"}
+          </a> — 손쉽게 지원하세요
         </p>
         <p className="mt-1 text-sm text-slate-500">
           {kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{jobs.length}건</span>{loc ? `, ${loc}` : ""} · 정렬: 연관성

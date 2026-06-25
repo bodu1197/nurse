@@ -72,3 +72,35 @@ export async function createJob(formData: FormData) {
 
   redirect("/jobs");
 }
+
+// 간호사 이력서 저장(upsert) — RLS로 본인만.
+export async function saveResume(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (prof?.role !== "nurse") redirect("/mypage");
+
+  const s = (k: string) => { const v = String(formData.get(k) ?? "").trim(); return v || null; };
+  const eyRaw = String(formData.get("experience_years") ?? "").trim();
+  const ey = eyRaw === "" ? null : Number(eyRaw);
+  const specialties = String(formData.get("specialties") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+
+  const { error } = await supabase.from("resumes").upsert({
+    profile_id: user.id,
+    name: s("name"),
+    phone: s("phone"),
+    license_type: s("license_type"),
+    license_no: s("license_no"),
+    experience_years: ey !== null && Number.isFinite(ey) ? ey : null,
+    education: s("education"),
+    specialties,
+    desired_location: s("desired_location"),
+    desired_employment_type: s("desired_employment_type"),
+    desired_salary: s("desired_salary"),
+    intro: s("intro"),
+    is_public: formData.get("is_public") === "on",
+  });
+  if (error) redirect("/mypage/resume?error=save");
+  redirect("/mypage/resume?ok=1");
+}
