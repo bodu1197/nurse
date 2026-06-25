@@ -2,8 +2,8 @@
 // ponytail: 정적. 검색 폼은 /jobs(GET)로 전송 — 결과 페이지는 다음 단계.
 
 import SiteHeader from "@/components/SiteHeader";
-
-const POPULAR = ["중환자실", "응급실", "수술실", "병동", "요양병원", "신규간호사"];
+import Logo from "@/components/Logo";
+import { POPULAR_SEARCHES, FOOTER_NAV } from "@/lib/constants";
 
 export default function Home() {
   return (
@@ -54,7 +54,7 @@ export default function Home() {
 
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 px-2 text-sm text-slate-500">
             <span>인기 검색</span>
-            {POPULAR.map((k) => (
+            {POPULAR_SEARCHES.map((k) => (
               <a key={k} href={`/jobs?q=${encodeURIComponent(k)}`} className="text-teal-700 hover:underline">
                 {k}
               </a>
@@ -64,10 +64,7 @@ export default function Home() {
 
         {/* ── 히어로 ───────────────────────── */}
         <section className="mx-auto max-w-2xl px-4 py-16 text-center sm:py-24">
-          <div className="flex items-center justify-center gap-1.5 text-5xl font-extrabold tracking-tight sm:text-6xl">
-            <span aria-hidden className="text-teal-600">✚</span>
-            <span>널스<span className="text-teal-600">넷</span></span>
-          </div>
+          <Logo className="text-5xl sm:text-6xl" />
 
           <h1 className="mt-6 text-2xl font-bold text-slate-900 sm:text-3xl">
             여기서 다음 근무가 시작됩니다
@@ -105,11 +102,11 @@ export default function Home() {
       <footer className="border-t border-slate-200 bg-slate-50">
         <div className="mx-auto max-w-6xl px-4 py-8 text-sm">
           <nav className="flex flex-wrap gap-x-5 gap-y-2 text-slate-600">
-            <a href="/jobs" className="hover:text-teal-700">채용공고 찾아보기</a>
-            <a href="/salaries" className="hover:text-teal-700">급여</a>
-            <a href="/reviews" className="hover:text-teal-700">병원 리뷰</a>
-            <a href="/hospital" className="hover:text-teal-700">병원 서비스</a>
-            <a href="/about" className="hover:text-teal-700">회사 소개</a>
+            {FOOTER_NAV.map((l) => (
+              <a key={l.href} href={l.href} className="hover:text-teal-700">
+                {l.label}
+              </a>
+            ))}
           </nav>
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-200 pt-4 text-xs text-slate-400">
             <span>© 2026 널스넷 (NurseNet)</span>

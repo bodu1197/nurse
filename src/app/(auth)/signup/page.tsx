@@ -1,14 +1,17 @@
 import LoginButtons from "@/components/LoginButtons";
+import Logo from "@/components/Logo";
 
-export const metadata = { title: "회원가입 — 널스넷" };
+export const metadata = {
+  title: "회원가입 — 널스넷",
+  robots: { index: false, follow: false },
+};
 
 export default function SignupPage() {
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
-        <a href="/" className="flex items-center justify-center gap-1.5 text-3xl font-extrabold tracking-tight">
-          <span aria-hidden className="text-teal-600">✚</span>
-          <span>널스<span className="text-teal-600">넷</span></span>
+        <a href="/" aria-label="널스넷 홈" className="flex justify-center">
+          <Logo className="text-3xl" />
         </a>
 
         <h1 className="mt-8 text-center text-xl font-bold text-slate-900">

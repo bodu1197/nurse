@@ -44,3 +44,6 @@ next-env.d.ts
 !.env.example
 .vercel
 .env*
+
+# review8 게이트 로컬 마커 (워킹트리 상태 해시 — 커밋 금지)
+.claude/.review8-hash
