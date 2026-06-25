@@ -18,9 +18,6 @@ export async function createReview(formData: FormData) {
     redirect("/reviews/new?error=invalid");
   }
 
-  const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (prof?.role !== "nurse") redirect("/reviews/new?error=nurse_only");
-
   const { error } = await supabase
     .from("reviews")
     .insert({ hospital_id: hospitalId, author_id: user.id, rating, content, work_period: workPeriod });

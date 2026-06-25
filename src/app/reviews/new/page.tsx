@@ -23,7 +23,6 @@ export default async function NewReviewPage({
 }: Readonly<{ searchParams: Promise<{ error?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
-  if (p.role !== "nurse") redirect("/reviews");
   const { error } = await searchParams;
 
   return (

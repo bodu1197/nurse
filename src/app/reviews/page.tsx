@@ -21,8 +21,8 @@ export default async function ReviewsPage({
 }: Readonly<{ searchParams: Promise<{ ok?: string }> }>) {
   const [profile, reviews] = await Promise.all([getMyProfile(), getRecentReviews(30)]);
   const { ok } = await searchParams;
-  // 리뷰는 간호사만 작성 가능 — 비간호사(병원/관리자)에겐 버튼 숨김(무안내 튕김 방지)
-  const canWrite = !profile || profile.role === "nurse";
+  // 로그인 사용자만 리뷰 작성 버튼 노출(로그아웃엔 숨김). 역할 제한 없음.
+  const canWrite = !!profile;
 
   return (
     <>
