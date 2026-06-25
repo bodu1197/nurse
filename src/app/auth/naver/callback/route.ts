@@ -90,7 +90,8 @@ export async function GET(request: Request) {
     type: "magiclink",
     email,
   });
-  if (linkErr || !link?.properties?.hashed_token) return fail("naver_session");
+  const hashedToken = link?.properties?.hashed_token;
+  if (linkErr || !hashedToken) return fail("naver_session");
 
   // 5) 세션 발급: verifyOtp의 setAll이 쿠키를 res에 기록. 실패 시 아래에서 fail()로 응답을
   //    교체하므로(res 폐기) 무음 실패 없음. 성공 시에만 세션 쿠키가 담긴 res 반환.
@@ -105,7 +106,7 @@ export async function GET(request: Request) {
   });
   const { error: otpErr } = await supabase.auth.verifyOtp({
     type: "email",
-    token_hash: link.properties.hashed_token,
+    token_hash: hashedToken,
   });
   if (otpErr) return fail("naver_verify");
 

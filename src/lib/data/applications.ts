@@ -33,6 +33,7 @@ export type ReceivedApplication = {
   status: string;
   message: string | null;
   created_at: string;
+  applicant_id: string;
   job: { id: string; title: string } | null;
   resume: { name: string | null; phone: string | null; experience_years: number | null; specialties: string[]; intro: string | null } | null;
 };
@@ -46,7 +47,7 @@ export async function getReceivedApplications(): Promise<ReceivedApplication[]> 
     .from("applications")
     .select("id,status,message,created_at,applicant_id,job:jobs(id,title)")
     .order("created_at", { ascending: false })
-    .returns<Array<Omit<ReceivedApplication, "resume"> & { applicant_id: string }>>();
+    .returns<Array<Omit<ReceivedApplication, "resume">>>();
   if (!apps || apps.length === 0) return [];
 
   const ids = [...new Set(apps.map((a) => a.applicant_id))];
@@ -56,5 +57,5 @@ export async function getReceivedApplications(): Promise<ReceivedApplication[]> 
     .in("profile_id", ids);
   const byId = new Map((resumes ?? []).map((r) => [r.profile_id, r]));
 
-  return apps.map(({ applicant_id, ...a }) => ({ ...a, resume: byId.get(applicant_id) ?? null }));
+  return apps.map((a) => ({ ...a, resume: byId.get(a.applicant_id) ?? null }));
 }

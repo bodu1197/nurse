@@ -22,6 +22,6 @@ export async function getMyResume(): Promise<Resume | null> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data } = await supabase.from("resumes").select(COLS).eq("profile_id", user.id).maybeSingle();
-  return (data as Resume) ?? null;
+  const { data } = await supabase.from("resumes").select(COLS).eq("profile_id", user.id).limit(1).returns<Resume[]>();
+  return data?.[0] ?? null;
 }

@@ -148,3 +148,19 @@ export async function deleteSavedSearch(formData: FormData) {
   if (id) await supabase.from("saved_searches").delete().eq("id", id);
   redirect("/mypage/alerts");
 }
+
+// 1:1 메시지 전송. 상대 표시명 비정규화 저장.
+export async function sendMessage(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const recipientId = String(formData.get("recipient_id") ?? "");
+  const recipientName = String(formData.get("recipient_name") ?? "").trim() || null;
+  const body = String(formData.get("body") ?? "").trim();
+  if (!recipientId || !body) redirect("/mypage/messages");
+  const { data: me } = await supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
+  await supabase.from("messages").insert({
+    sender_id: user.id, recipient_id: recipientId, sender_name: me?.display_name ?? null, recipient_name: recipientName, body,
+  });
+  redirect("/mypage/messages?with=" + recipientId);
+}

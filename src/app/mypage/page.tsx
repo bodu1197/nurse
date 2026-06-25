@@ -18,12 +18,14 @@ const NURSE_ITEMS: Item[] = [
   { title: "저장한 공고", desc: "관심 있는 채용공고를 모아 봅니다." },
   { title: "지원 내역", desc: "지원한 공고의 진행 상황을 확인합니다.", href: "/mypage/applications" },
   { title: "채용 알림", desc: "검색 조건을 저장하고 빠르게 다시 찾습니다.", href: "/mypage/alerts" },
+  { title: "메시지", desc: "병원과 1:1 대화를 나눕니다.", href: "/mypage/messages" },
 ];
 const HOSPITAL_ITEMS: Item[] = [
   { title: "공고 등록", desc: "새 채용공고를 등록합니다.", href: "/mypage/jobs/new" },
   { title: "공고 관리", desc: "등록한 공고를 수정·마감합니다.", href: "/mypage/jobs" },
   { title: "받은 지원자", desc: "공고에 지원한 간호사를 확인합니다.", href: "/mypage/applicants" },
   { title: "병원 정보", desc: "병원 정보를 1회 입력하면 공고에 자동 반영됩니다." },
+  { title: "메시지", desc: "지원자와 1:1 대화를 나눕니다.", href: "/mypage/messages" },
 ];
 const ADMIN_ITEMS: Item[] = [
   { title: "회원 관리", desc: "간호사·병원 회원을 관리합니다." },
