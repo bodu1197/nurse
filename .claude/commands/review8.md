@@ -161,8 +161,24 @@ node .claude/hooks/review8-mark.mjs
 
 ---
 
+## 프로젝트 예외 (알려진 비결함 — 오탐 금지)
+
+아래는 의도된 설계다. **CRITICAL/WARNING 으로 올리지 말 것**(이미 검증됨):
+
+- **네이버 OAuth 토큰 요청의 `state` 는 필수** — 네이버 공식 사양(비표준, RFC6749와 다름). 제거하면 로그인 깨짐. RFC 근거로 제거 권고 금지.
+- **`middleware.ts` 없음, `proxy.ts` 사용** — Next 16에서 middleware→proxy 이름변경. `proxy.ts`/`export function proxy` 정상.
+- **준비중(스텁) 페이지의 `robots: { index:false }`** — 빈 페이지 색인 방지 의도. "메타데이터 누락"으로 보지 말 것.
+- **`server.ts` 의 `setAll` 빈 catch** — @supabase/ssr 공식 패턴(proxy가 매 요청 세션 갱신). 무음 실패 아님.
+- **카카오/네이버 버튼의 `bg-[#hex]`** — 브랜드 공식색(예외 허용).
+- **카카오 Supabase 시크릿 없음** — 레거시 카카오 앱과 동일 구성(의도).
+- **og:image 는 `opengraph-image.tsx`(next/og)로 자동 생성** — 별도 정적 파일 불필요.
+
+> 외부 API/라이브러리 사양을 근거로 CRITICAL 판정하기 전, **공식문서/레거시 코드로 실제 확인**할 것. 일반 표준과 다른 비표준(특히 국내 SNS)일 수 있다. 확인 못 하면 CRITICAL 아닌 `UNVERIFIED`.
+
 ## 중요 규칙
 - **8명 모두 Explore subagent 로 병렬 호출**(직렬 금지).
-- **CLEAN 은 증거 기반.** 확인 못 했으면 `UNVERIFIED`.
+- **8/8 결과 필수.** 어느 한 분야라도 결과가 없거나 비면 그 분야는 `UNVERIFIED` 로 표기하고 **해당 분야만 재호출**한다. 8명 전원 결과를 받기 전에는 **PASS 판정 금지**(부분 결과로 PASS 절대 불가). 재호출 후에도 누락이면 최종 `FAIL`.
+- **CLEAN 은 증거 기반.** 확인 못 했으면 `UNVERIFIED`(= PASS 아님).
+- **검증 대상은 이 프로젝트(nurse-app)뿐.** 상위/형제 디렉터리(옛 PHP 레거시 등) 스캔 금지 — `git diff HEAD` 또는 프로젝트 내부 경로만.
 - **자동 수정 금지** — /review8 은 검증만. 수정은 보고 후.
 - **게이트 우회 금지** — FAIL 상태 `--no-verify`/마커 수동 조작 금지.

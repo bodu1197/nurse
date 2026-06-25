@@ -17,7 +17,7 @@ export default function DismissibleError({ message }: Readonly<{ message: string
         type="button"
         onClick={() => setShow(false)}
         aria-label="알림 닫기"
-        className="shrink-0 rounded p-0.5 leading-none hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+        className="-my-1 flex h-11 w-11 shrink-0 items-center justify-center rounded leading-none hover:bg-red-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
       >
         ✕
       </button>
