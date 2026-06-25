@@ -13,35 +13,41 @@ export default async function Home() {
       <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
 
       <main className="flex-1">
-        {/* ── 히어로(검색 중심) ───────────────── */}
-        <section className="border-b border-slate-200 bg-gradient-to-b from-teal-50/70 to-white">
-          <div className="mx-auto max-w-3xl px-4 pb-10 pt-12 text-center sm:pt-16">
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
-              간호사 전문 채용 플랫폼
+        {/* ── 히어로 ───────────────────────── */}
+        <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-br from-teal-50 via-white to-emerald-50/50">
+          <div className="mx-auto max-w-3xl px-4 pb-12 pt-12 text-center sm:pt-16">
+            <h1 className="text-[1.8rem] font-extrabold leading-[1.25] tracking-tight text-slate-900 sm:text-[2.6rem]">
+              전국 <span className="text-teal-600">79,000개</span> 병원 공고,<br />
+              진짜 다 모았습니다.
             </h1>
-            <p className="mx-auto mt-3 max-w-xl text-slate-600">
-              전국 79,000여 개 병원의 채용을 한곳에서. 검색 한 번으로 나에게 맞는 간호사 공고를 찾으세요.
+            <p className="mx-auto mt-4 max-w-md text-slate-500 sm:text-lg">
+              단 한 번의 검색으로 나에게 딱 맞는 간호사 채용 기회를 잡으세요.
             </p>
 
-            <form action="/jobs" method="get" className="mx-auto mt-7 flex max-w-2xl flex-col gap-2 rounded-2xl border border-slate-300 bg-white p-2 shadow-md transition focus-within:border-teal-500 focus-within:shadow-lg sm:flex-row sm:items-center sm:rounded-full">
-              <label className="flex flex-1 items-center gap-2 px-3 py-2.5">
+            {/* 신뢰 통계 */}
+            <div className="mt-5 flex items-center justify-center divide-x divide-slate-200 text-sm">
+              <div className="px-5"><span className="text-base font-extrabold text-teal-700">79,000+</span> <span className="text-slate-500">병원</span></div>
+              <div className="px-5"><span className="text-base font-extrabold text-teal-700">16,000+</span> <span className="text-slate-500">간호사 회원</span></div>
+              <div className="px-5"><span className="text-base font-extrabold text-teal-700">100%</span> <span className="text-slate-500">이력서 무료</span></div>
+            </div>
+
+            {/* 검색바 */}
+            <form action="/jobs" method="get" className="mx-auto mt-7 flex max-w-2xl items-center gap-1 rounded-full border border-slate-300 bg-white p-1.5 pl-2 shadow-md transition focus-within:border-teal-500 focus-within:shadow-lg">
+              <label className="flex min-w-0 flex-1 items-center gap-2 px-2">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-teal-600" aria-hidden><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
-                <span className="sr-only">검색어</span>
-                <input name="q" aria-label="직무, 진료과, 병원 검색" className="w-full bg-transparent text-base outline-none placeholder:text-slate-400" placeholder="진료과, 직무, 병원명 (예: 중환자실)" />
+                <input name="q" aria-label="직무, 진료과, 병원 검색" className="w-full bg-transparent py-2.5 text-base outline-none placeholder:text-slate-400" placeholder="진료과·병원명 (예: 중환자실)" />
               </label>
-              <span className="mx-1 hidden h-7 w-px bg-slate-200 sm:block" />
-              <label className="flex items-center gap-2 px-3 py-2.5 sm:w-60">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-teal-600" aria-hidden><path d="M12 21s-7-6.3-7-11a7 7 0 1114 0c0 4.7-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
-                <span className="sr-only">지역</span>
-                <input name="l" aria-label="지역 검색" className="w-full bg-transparent text-base outline-none placeholder:text-slate-400" placeholder="지역 (예: 서울)" />
+              <span className="h-6 w-px shrink-0 bg-slate-300" />
+              <label className="flex w-28 items-center gap-1.5 px-2 sm:w-44">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-teal-600" aria-hidden><path d="M12 21s-7-6.3-7-11a7 7 0 1114 0c0 4.7-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
+                <input name="l" aria-label="지역 검색" className="w-full bg-transparent py-2.5 text-base outline-none placeholder:text-slate-400" placeholder="지역" />
               </label>
-              <button type="submit" className="rounded-full bg-teal-600 px-7 py-3 text-base font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">검색</button>
+              <button type="submit" className="shrink-0 rounded-full bg-teal-600 px-6 py-2.5 text-base font-bold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">검색</button>
             </form>
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              <span className="text-sm text-slate-400">인기 검색</span>
               {POPULAR_SEARCHES.map((k) => (
-                <a key={k} href={`/jobs?q=${encodeURIComponent(k)}`} className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 hover:border-teal-400 hover:text-teal-700">
+                <a key={k} href={`/jobs?q=${encodeURIComponent(k)}`} className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm text-slate-600 shadow-sm transition hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700">
                   {k}
                 </a>
               ))}
@@ -50,24 +56,36 @@ export default async function Home() {
         </section>
 
         <div className="mx-auto max-w-5xl px-4">
-          {/* 비로그인: 가치 CTA (로그인 사용자는 헤더 메뉴 사용 — 중간 인사박스 제거) */}
+          {/* 비로그인: 타겟 CTA 카드 */}
           {!profile && (
-            <section className="mt-8 grid gap-3 sm:grid-cols-2">
-              <a href="/signup" className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-teal-400 hover:shadow-sm">
-                <p className="font-bold text-slate-900">간호사세요?</p>
-                <p className="mt-1 text-sm text-slate-500">이력서를 무료로 등록하고 간편하게 지원하세요. →</p>
+            <section className="-mt-6 grid gap-3 sm:grid-cols-2">
+              <a href="/signup" className="group flex items-center gap-4 rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm transition hover:border-teal-300 hover:shadow-md">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-teal-600 text-white" aria-hidden>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A3.5 3.5 0 0 0 12 6 3.5 3.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" /></svg>
+                </span>
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-900">간호사세요?</p>
+                  <p className="mt-0.5 text-sm text-slate-500">이력서 무료 등록 · 간편지원</p>
+                </div>
+                <span className="ml-auto text-teal-600 transition group-hover:translate-x-1" aria-hidden>→</span>
               </a>
-              <a href="/hospital" className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-teal-400 hover:shadow-sm">
-                <p className="font-bold text-slate-900">병원 채용담당자세요?</p>
-                <p className="mt-1 text-sm text-slate-500">사업자 인증 후 공고를 무료로 등록하세요. →</p>
+              <a href="/hospital" className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm transition hover:border-teal-300 hover:shadow-md">
+                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-slate-700 text-white" aria-hidden>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M6 21V7l6-4 6 4v14M10 9h4M10 13h4M10 17h4" /></svg>
+                </span>
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-900">병원 채용담당자세요?</p>
+                  <p className="mt-0.5 text-sm text-slate-500">사업자 인증 후 공고 무료 등록</p>
+                </div>
+                <span className="ml-auto text-teal-600 transition group-hover:translate-x-1" aria-hidden>→</span>
               </a>
             </section>
           )}
 
           {/* ── 최신 채용공고 ───────────────── */}
-          <section className="mt-8 pb-16">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-900">최신 채용공고</h2>
+          <section className="mt-10 pb-16">
+            <div className="flex items-end justify-between">
+              <h2 className="text-xl font-bold text-slate-900">최신 채용공고</h2>
               <a href="/jobs" className="text-sm font-semibold text-teal-700 hover:underline">전체 보기 →</a>
             </div>
             {latest.length === 0 ? (
@@ -76,17 +94,17 @@ export default async function Home() {
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                 {latest.map((job) => (
                   <li key={job.id}>
-                    <a href={`/jobs?j=${job.id}`} className="block h-full rounded-xl border border-slate-200 bg-white p-4 hover:border-teal-400 hover:shadow-sm">
+                    <a href={`/jobs?j=${job.id}`} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-semibold leading-snug text-slate-900">{job.title}</h3>
-                        {job.is_featured && <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700">추천</span>}
+                        <h3 className="font-bold leading-snug text-slate-900">{job.title}</h3>
+                        {job.is_featured && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">추천</span>}
                       </div>
-                      <div className="mt-1.5 text-sm text-slate-600">{job.hospital?.name ?? ""}</div>
-                      <div className="text-sm text-slate-500">{job.location}</div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">{SOURCE_LABEL[job.source]}</span>
-                        {job.salary_text && <span className="text-slate-500">{job.salary_text}</span>}
-                        <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
+                      <p className="mt-1.5 text-sm text-slate-500">
+                        {job.hospital?.name ?? ""}{job.location ? ` · ${job.location}` : ""}
+                      </p>
+                      <div className="mt-3 flex items-end justify-between gap-2 border-t border-slate-100 pt-3">
+                        <span className="font-bold text-teal-700">{job.salary_text ?? "급여 협의"}</span>
+                        <span className="shrink-0 text-xs text-slate-400">{SOURCE_LABEL[job.source]} · {daysAgo(job.posted_at)}일 전</span>
                       </div>
                     </a>
                   </li>
