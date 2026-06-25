@@ -40,7 +40,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
         <div className="ml-auto flex items-center gap-1">
           {user ? (
             <>
-              <span className="hidden px-2 text-sm font-medium text-slate-700 sm:inline">{user.displayName}님</span>
+              <a href="/mypage" className="hidden rounded px-2 text-sm font-medium text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:inline">{user.displayName}님</a>
               <form action={signOut}>
                 <button
                   type="submit"
@@ -84,7 +84,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
             id="site-menu"
             className="absolute right-2 top-[60px] z-30 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
           >
-            {HEADER_MENU.map((m, i) => (
+            {(user ? [{ label: "마이페이지", href: "/mypage" }, ...HEADER_MENU.filter((m) => m.href !== "/signup")] : HEADER_MENU).map((m, i) => (
               <a
                 key={m.href}
                 href={m.href}

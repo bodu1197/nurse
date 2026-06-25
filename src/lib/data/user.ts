@@ -15,3 +15,29 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     "회원";
   return { displayName };
 }
+
+export type MyProfile = {
+  username: string | null;
+  displayName: string;
+  email: string;
+  role: "nurse" | "hospital" | "admin";
+};
+
+// 마이페이지용 — 본인 프로필 전체(RLS: 본인 select 허용). 비로그인=null.
+export async function getMyProfile(): Promise<MyProfile | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from("profiles")
+    .select("username, display_name, email, role")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    username: data.username,
+    displayName: data.display_name ?? user.email?.split("@")[0] ?? "회원",
+    email: data.email ?? user.email ?? "",
+    role: data.role,
+  };
+}
