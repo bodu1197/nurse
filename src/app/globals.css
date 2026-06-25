@@ -8,6 +8,11 @@
     "Malgun Gothic", "맑은 고딕", system-ui, Roboto, "Helvetica Neue", sans-serif;
 }
 
+/* 일반 텍스트 한 단계 확대: 루트 16→18px (rem 기반 텍스트 전반 +1 step, 비율 유지) */
+html {
+  font-size: 18px;
+}
+
 body {
   font-family: var(--font-sans);
   /* 한글은 어절(공백) 단위로만 줄바꿈 — 단어 중간 '로그인하/세요' 분리 방지 */

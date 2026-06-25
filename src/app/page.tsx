@@ -40,12 +40,15 @@ export default async function Home() {
             {/* 비로그인 전용 안내 — 로그인 후 숨김 */}
             {!profile && (
               <div className="mt-8">
-                <p className="text-lg font-semibold text-slate-800">여기서 다음 직무가 시작됩니다</p>
+                <p className="text-2xl font-semibold text-slate-800">여기서 다음 직무가 시작됩니다</p>
                 <p className="mt-1 text-sm text-slate-500">
                   맞춤형 채용공고 추천을 확인하려면{" "}
                   <a href="/signup" className="font-medium text-teal-700 hover:underline">계정을 만들거나</a>{" "}
                   <a href="/login" className="font-medium text-teal-700 hover:underline">로그인</a>하세요.
                 </p>
+                <a href="/signup" className="mt-5 inline-flex items-center gap-2 rounded-full bg-teal-600 px-7 py-3 text-base font-bold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+                  시작하기 <span aria-hidden>→</span>
+                </a>
               </div>
             )}
           </div>
