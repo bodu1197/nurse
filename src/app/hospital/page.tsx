@@ -36,11 +36,11 @@ export default async function HospitalPage() {
           <div className="mt-8">
             {!p ? (
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <a href="/signup" className="rounded-full bg-teal-600 px-7 py-3 text-base font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">병원 회원가입</a>
-                <a href="/login" className="rounded-full border border-slate-300 px-7 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50">로그인</a>
+                <a href="/signup" className="rounded-[20px] bg-teal-600 px-7 py-3 text-base font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">병원 회원가입</a>
+                <a href="/login" className="rounded-[20px] border border-slate-300 px-7 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50">로그인</a>
               </div>
             ) : p.role === "hospital" ? (
-              <a href="/mypage/jobs/new" className="inline-flex items-center gap-2 rounded-full bg-teal-600 px-7 py-3 text-base font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+              <a href="/mypage/jobs/new" className="inline-flex items-center gap-2 rounded-[20px] bg-teal-600 px-7 py-3 text-base font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
                 공고 등록하기 <span aria-hidden>→</span>
               </a>
             ) : (
