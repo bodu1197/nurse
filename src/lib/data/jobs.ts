@@ -32,7 +32,11 @@ const SELECT =
 // PostgREST or 필터 주입 방지: %,(),쉼표 제거
 const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
 
-export async function getJobs(keyword: string, location: string): Promise<JobRow[]> {
+export type JobFilters = { specialty?: string; employmentType?: string; days?: number };
+
+const DAY_MS = 86_400_000;
+
+export async function getJobs(keyword: string, location: string, filters: JobFilters = {}): Promise<JobRow[]> {
   const supabase = await createClient();
   let query = supabase
     .from("jobs")
@@ -46,6 +50,9 @@ export async function getJobs(keyword: string, location: string): Promise<JobRow
   if (kw) query = query.or(`title.ilike.%${kw}%,specialty.ilike.%${kw}%`);
   const loc = clean(location);
   if (loc) query = query.ilike("location", `%${loc}%`);
+  if (filters.specialty) query = query.eq("specialty", filters.specialty);
+  if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
+  if (filters.days && filters.days > 0) query = query.gte("posted_at", new Date(Date.now() - filters.days * DAY_MS).toISOString());
 
   const { data, error } = await query.returns<JobRow[]>();
   if (error) {

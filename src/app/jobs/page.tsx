@@ -2,11 +2,11 @@ import SiteHeader from "@/components/SiteHeader";
 import { getJobs, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
 import { getCurrentUser } from "@/lib/data/user";
 import { applyToJob, saveSearch } from "./actions";
+import FilterBar from "@/components/FilterBar";
 
 // 시드 샘플 데이터 단계 — 실제 워크넷/직접등록 데이터 전까지 noindex.
 export const metadata = { title: "채용 검색 — 널스넷", robots: { index: false } };
 
-const FILTERS = ["급여", "지역", "진료과", "근무형태", "게시일"];
 const daysAgo = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
 
 function Stars({ rating }: { rating: number }) {
@@ -30,18 +30,24 @@ function Bookmark() {
 
 export default async function JobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string }> }>) {
-  const { q, l, j, saved } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string }> }>) {
+  const { q, l, j, saved, spec, et, days } = await searchParams;
   const kw = (q ?? "").trim();
   const loc = (l ?? "").trim();
 
-  const [jobs, user] = await Promise.all([getJobs(kw, loc), getCurrentUser()]);
+  const [jobs, user] = await Promise.all([
+    getJobs(kw, loc, { specialty: spec, employmentType: et, days: days ? Number(days) : undefined }),
+    getCurrentUser(),
+  ]);
   const selected: JobRow | undefined = jobs.find((x) => x.id === j) ?? jobs[0];
 
   const href = (jobId?: string) => {
     const p = new URLSearchParams();
     if (kw) p.set("q", kw);
     if (loc) p.set("l", loc);
+    if (spec) p.set("spec", spec);
+    if (et) p.set("et", et);
+    if (days) p.set("days", days);
     if (jobId) p.set("j", jobId);
     const s = p.toString();
     return "/jobs" + (s ? `?${s}` : "");
@@ -67,14 +73,7 @@ export default async function JobsPage({
             <button type="submit" className="rounded-full bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">검색</button>
           </form>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            {FILTERS.map((f) => (
-              <button key={f} type="button" className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-3.5 py-1.5 text-sm text-slate-700 hover:border-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
-                {f}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M6 9l6 6 6-6" /></svg>
-              </button>
-            ))}
-          </div>
+          <FilterBar />
         </div>
       </div>
 
