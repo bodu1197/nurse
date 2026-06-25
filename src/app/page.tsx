@@ -1,7 +1,7 @@
 import SiteHeader from "@/components/SiteHeader";
 import { getMyProfile } from "@/lib/data/user";
 import { getJobs, SOURCE_LABEL } from "@/lib/data/jobs";
-import { POPULAR_SEARCHES, FOOTER_NAV } from "@/lib/constants";
+import { FOOTER_NAV } from "@/lib/constants";
 import { daysAgo } from "@/lib/date";
 
 export default async function Home() {
@@ -30,16 +30,8 @@ export default async function Home() {
               <button type="submit" className="shrink-0 rounded-[16px] bg-teal-600 px-6 py-2.5 text-base font-bold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">검색</button>
             </form>
 
-            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-              {POPULAR_SEARCHES.map((k) => (
-                <a key={k} href={`/jobs?q=${encodeURIComponent(k)}`} className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-sm text-slate-600 shadow-sm transition hover:border-teal-400 hover:bg-teal-50 hover:text-teal-700">
-                  {k}
-                </a>
-              ))}
-            </div>
-
             {/* 신뢰 통계 (검색창 아래) — 79,000은 병원 DB 수(실측), 공고 수 아님 */}
-            <div className="mt-7 flex items-center justify-center divide-x divide-slate-200 text-sm">
+            <div className="mt-6 flex items-center justify-center divide-x divide-slate-200 text-sm">
               <div className="px-4 sm:px-5"><span className="text-base font-extrabold text-teal-700">79,000+</span> <span className="text-slate-500">병원</span></div>
               <div className="px-4 sm:px-5"><span className="text-base font-extrabold text-teal-700">16,000+</span> <span className="text-slate-500">간호사 회원</span></div>
               <div className="px-4 sm:px-5"><span className="text-base font-extrabold text-teal-700">100%</span> <span className="text-slate-500">이력서 무료</span></div>
@@ -48,34 +40,8 @@ export default async function Home() {
         </section>
 
         <div className="mx-auto max-w-5xl px-4">
-          {/* 비로그인: 타겟 CTA 카드 */}
-          {!profile && (
-            <section className="-mt-6 grid gap-3 sm:grid-cols-2">
-              <a href="/signup" className="group flex items-center gap-4 rounded-2xl border border-teal-100 bg-gradient-to-br from-teal-50 to-white p-5 shadow-sm transition hover:border-teal-300 hover:shadow-md">
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-teal-600 text-white" aria-hidden>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A3.5 3.5 0 0 0 12 6 3.5 3.5 0 0 0 2 8.5c0 2.29 1.51 4.04 3 5.5l7 7Z" /></svg>
-                </span>
-                <div className="min-w-0">
-                  <p className="font-bold text-slate-900">간호사세요?</p>
-                  <p className="mt-0.5 text-sm text-slate-500">이력서 무료 등록 · 간편지원</p>
-                </div>
-                <span className="ml-auto text-teal-600 transition group-hover:translate-x-1" aria-hidden>→</span>
-              </a>
-              <a href="/hospital" className="group flex items-center gap-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm transition hover:border-teal-300 hover:shadow-md">
-                <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-slate-700 text-white" aria-hidden>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21h18M6 21V7l6-4 6 4v14M10 9h4M10 13h4M10 17h4" /></svg>
-                </span>
-                <div className="min-w-0">
-                  <p className="font-bold text-slate-900">병원 채용담당자세요?</p>
-                  <p className="mt-0.5 text-sm text-slate-500">사업자 인증 후 공고 무료 등록</p>
-                </div>
-                <span className="ml-auto text-teal-600 transition group-hover:translate-x-1" aria-hidden>→</span>
-              </a>
-            </section>
-          )}
-
           {/* ── 최신 채용공고 ───────────────── */}
-          <section className="mt-10 pb-16">
+          <section className="mt-12 pb-16">
             <div className="flex items-end justify-between">
               <h2 className="text-xl font-bold text-slate-900">최신 채용공고</h2>
               <a href="/jobs" className="text-sm font-semibold text-teal-700 hover:underline">전체 보기 →</a>
