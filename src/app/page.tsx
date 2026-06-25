@@ -1,4 +1,5 @@
 import SiteHeader from "@/components/SiteHeader";
+import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { getJobs, SOURCE_LABEL } from "@/lib/data/jobs";
 import { FOOTER_NAV } from "@/lib/constants";
@@ -28,7 +29,7 @@ export default async function Home() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-teal-600" aria-hidden><path d="M12 21s-7-6.3-7-11a7 7 0 1114 0c0 4.7-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
                 <input name="l" aria-label="지역 검색" className="w-full bg-transparent py-2.5 text-base outline-none placeholder:text-slate-400" placeholder="지역" />
               </label>
-              <button type="submit" className="w-full rounded-[12px] bg-teal-600 px-6 py-3 text-base font-bold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 sm:w-auto sm:shrink-0 sm:py-2.5">검색</button>
+              <Button type="submit" size="lg" className="w-full sm:w-auto sm:shrink-0">검색</Button>
             </form>
 
             {/* 신뢰 통계 (검색창 아래) — 79,000은 병원 DB 수(실측), 공고 수 아님. 모바일은 wrap */}
@@ -47,9 +48,9 @@ export default async function Home() {
                   <a href="/signup" className="font-medium text-teal-700 hover:underline">계정을 만들거나</a>{" "}
                   <a href="/login" className="font-medium text-teal-700 hover:underline">로그인</a>하세요.
                 </p>
-                <a href="/signup" className="mt-5 inline-flex items-center gap-2 rounded-[12px] bg-teal-600 px-7 py-3 text-base font-bold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+                <Button href="/signup" size="lg" className="mt-5">
                   시작하기 <span aria-hidden>→</span>
-                </a>
+                </Button>
               </div>
             )}
           </div>

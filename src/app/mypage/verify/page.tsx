@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SubmitButton from "@/components/SubmitButton";
+import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { verifyHospitalBusiness } from "../actions";
 
@@ -37,7 +38,7 @@ export default async function VerifyPage({
           <div className="mt-6 rounded-2xl border border-teal-200 bg-teal-50 p-6 text-center">
             <p className="text-lg font-bold text-teal-800">✓ 사업자 인증 완료</p>
             <p className="mt-1 text-sm text-teal-700">이제 공고를 등록할 수 있습니다.</p>
-            <a href="/mypage" className="mt-4 inline-block rounded-[12px] bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700">마이페이지로</a>
+            <Button href="/mypage" size="md" className="mt-4">마이페이지로</Button>
           </div>
         ) : (
           <>

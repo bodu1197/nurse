@@ -1,4 +1,5 @@
 import SiteHeader from "@/components/SiteHeader";
+import Button from "@/components/Button";
 import { getCurrentUser } from "@/lib/data/user";
 import { getRecentReviews } from "@/lib/data/reviews";
 
@@ -27,9 +28,9 @@ export default async function ReviewsPage({
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-slate-900">병원 리뷰</h1>
-          <a href="/reviews/new" className="rounded-[12px] bg-teal-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+          <Button href="/reviews/new" size="md">
             리뷰 작성
-          </a>
+          </Button>
         </div>
         <p className="mt-1 text-sm text-slate-500">간호사들이 직접 남긴 병원 근무 후기입니다. (비실명)</p>
 

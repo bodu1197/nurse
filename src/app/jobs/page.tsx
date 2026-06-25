@@ -1,4 +1,5 @@
 import SiteHeader from "@/components/SiteHeader";
+import Button from "@/components/Button";
 import { getJobs, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
 import { getCurrentUser } from "@/lib/data/user";
 import { applyToJob, saveSearch } from "./actions";
@@ -69,7 +70,7 @@ export default async function JobsPage({
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-slate-400" aria-hidden><path d="M12 21s-7-6.3-7-11a7 7 0 1114 0c0 4.7-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
               <input name="l" defaultValue={loc} aria-label="지역 검색" placeholder="지역" className={inputClass} />
             </label>
-            <button type="submit" className="rounded-[12px] bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">검색</button>
+            <Button type="submit" size="md">검색</Button>
           </form>
 
           <FilterBar />
@@ -90,9 +91,9 @@ export default async function JobsPage({
             <form action={saveSearch}>
               <input type="hidden" name="q" value={kw} />
               <input type="hidden" name="l" value={loc} />
-              <button type="submit" className="inline-flex items-center gap-1 rounded-[12px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-teal-400 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+              <Button type="submit" variant="outline" size="sm" className="hover:border-teal-400 hover:text-teal-700">
                 🔔 검색 저장
-              </button>
+              </Button>
             </form>
           )}
         </div>
@@ -154,16 +155,16 @@ export default async function JobsPage({
                       user ? (
                         <form action={applyToJob}>
                           <input type="hidden" name="job_id" value={selected.id} />
-                          <button type="submit" className="rounded-[12px] bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">간편지원</button>
+                          <Button type="submit" size="md">간편지원</Button>
                         </form>
                       ) : (
-                        <a href="/login" className="rounded-[12px] bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">간편지원</a>
+                        <Button href="/login" size="md">간편지원</Button>
                       )
                     ) : (
-                      <a href={selected.external_url ?? "#"} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-[12px] bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+                      <Button href={selected.external_url ?? "#"} target="_blank" rel="noopener noreferrer" size="md">
                         원본 사이트에서 지원
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M7 17L17 7M7 7h10v10" /></svg>
-                      </a>
+                      </Button>
                     )}
                     <button aria-label="공고 저장" className="rounded-md border border-slate-300 p-2.5 text-slate-500 hover:bg-slate-50"><Bookmark /></button>
                   </div>

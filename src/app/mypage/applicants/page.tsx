@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
+import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { getReceivedApplications, STATUS_LABEL } from "@/lib/data/applications";
 import { updateApplicationStatus } from "../actions";
@@ -14,12 +15,12 @@ const tone: Record<string, string> = {
   rejected: "bg-red-100 text-red-700",
 };
 
-function StatusButton({ id, status, label, cls }: { id: string; status: string; label: string; cls: string }) {
+function StatusButton({ id, status, label, variant }: { id: string; status: string; label: string; variant: "primary" | "outline" }) {
   return (
     <form action={updateApplicationStatus} className="inline">
       <input type="hidden" name="application_id" value={id} />
       <input type="hidden" name="status" value={status} />
-      <button type="submit" className={`rounded-[12px] px-3 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${cls}`}>{label}</button>
+      <Button type="submit" variant={variant} size="sm">{label}</Button>
     </form>
   );
 }
@@ -67,9 +68,9 @@ export default async function ApplicantsPage({
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-xs text-slate-400">{fmt(a.created_at)} 지원</span>
                   <span className="ml-auto flex items-center gap-2">
-                    <a href={`/mypage/messages?with=${a.applicant_id}&name=${encodeURIComponent(a.resume?.name ?? "지원자")}`} className="rounded-[12px] border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">메시지</a>
-                    <StatusButton id={a.id} status="accepted" label="합격" cls="bg-teal-600 text-white hover:bg-teal-700" />
-                    <StatusButton id={a.id} status="rejected" label="불합격" cls="border border-slate-300 text-slate-600 hover:bg-slate-50" />
+                    <Button href={`/mypage/messages?with=${a.applicant_id}&name=${encodeURIComponent(a.resume?.name ?? "지원자")}`} variant="outline" size="sm">메시지</Button>
+                    <StatusButton id={a.id} status="accepted" label="합격" variant="primary" />
+                    <StatusButton id={a.id} status="rejected" label="불합격" variant="outline" />
                   </span>
                 </div>
               </li>

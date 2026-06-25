@@ -1,4 +1,5 @@
 import SiteHeader from "@/components/SiteHeader";
+import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 
 const HOSP_TITLE = "병원 서비스 — 간호사 채용 무료 등록 | 널스넷";
@@ -36,13 +37,13 @@ export default async function HospitalPage() {
           <div className="mt-8">
             {!p ? (
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <a href="/signup" className="rounded-[12px] bg-teal-600 px-7 py-3 text-base font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">병원 회원가입</a>
-                <a href="/login" className="rounded-[12px] border border-slate-300 px-7 py-3 text-base font-semibold text-slate-700 hover:bg-slate-50">로그인</a>
+                <Button href="/signup" size="lg">병원 회원가입</Button>
+                <Button href="/login" variant="outline" size="lg">로그인</Button>
               </div>
             ) : p.role === "hospital" ? (
-              <a href="/mypage/jobs/new" className="inline-flex items-center gap-2 rounded-[12px] bg-teal-600 px-7 py-3 text-base font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+              <Button href="/mypage/jobs/new" size="lg">
                 공고 등록하기 <span aria-hidden>→</span>
-              </a>
+              </Button>
             ) : (
               <p className="rounded-xl bg-slate-50 px-5 py-4 text-sm text-slate-500">
                 공고 등록은 병원 회원만 가능합니다. 병원 계정으로 로그인해 주세요.

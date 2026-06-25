@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
+import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { getMySavedSearches } from "@/lib/data/jobs";
 import { deleteSavedSearch } from "../actions";
@@ -40,7 +41,7 @@ export default async function AlertsPage() {
                 </a>
                 <form action={deleteSavedSearch} className="inline">
                   <input type="hidden" name="id" value={s.id} />
-                  <button type="submit" className="shrink-0 rounded-[12px] px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">삭제</button>
+                  <Button type="submit" variant="danger" size="sm" className="shrink-0">삭제</Button>
                 </form>
               </li>
             ))}

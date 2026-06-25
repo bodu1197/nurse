@@ -1,6 +1,7 @@
 "use client";
 
 import { useFormStatus } from "react-dom";
+import { buttonClass } from "@/components/Button";
 
 export default function SubmitButton({
   children,
@@ -8,11 +9,7 @@ export default function SubmitButton({
 }: Readonly<{ children: React.ReactNode; pendingText?: string }>) {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="h-12 rounded-[12px] bg-teal-600 font-semibold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-    >
+    <button type="submit" disabled={pending} className={buttonClass("primary", "lg")}>
       {pending ? pendingText : children}
     </button>
   );

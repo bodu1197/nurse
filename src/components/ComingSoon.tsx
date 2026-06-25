@@ -1,4 +1,5 @@
 import Logo from "@/components/Logo";
+import Button from "@/components/Button";
 
 export default function ComingSoon({ title, desc }: Readonly<{ title: string; desc?: string }>) {
   return (
@@ -9,9 +10,9 @@ export default function ComingSoon({ title, desc }: Readonly<{ title: string; de
       <span className="mt-8 rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700">준비 중</span>
       <h1 className="mt-4 text-2xl font-bold text-slate-900">{title}</h1>
       <p className="mt-3 max-w-sm text-slate-500">{desc ?? "이 페이지는 준비 중입니다. 곧 만나요!"}</p>
-      <a href="/" className="mt-8 rounded-[12px] bg-teal-600 px-6 py-3 text-sm font-bold text-white hover:bg-teal-700">
+      <Button href="/" size="md" className="mt-8">
         홈으로 →
-      </a>
+      </Button>
     </main>
   );
 }

@@ -2,6 +2,7 @@ import LoginButtons from "@/components/LoginButtons";
 import Logo from "@/components/Logo";
 import DismissibleError from "@/components/DismissibleError";
 import SubmitButton from "@/components/SubmitButton";
+import Button from "@/components/Button";
 import { AUTH_ERROR_MESSAGES } from "@/lib/constants";
 import { signUpWithEmail } from "../actions";
 
@@ -32,9 +33,9 @@ export default async function SignupPage({
           <p className="mt-3 text-sm text-slate-500">
             메일의 링크를 눌러 가입을 완료한 뒤 로그인해 주세요.
           </p>
-          <a href="/login" className="mt-8 inline-block rounded-[12px] bg-teal-600 px-6 py-3 text-sm font-bold text-white hover:bg-teal-700">
+          <Button href="/login" size="md" className="mt-8">
             로그인으로 →
-          </a>
+          </Button>
         </div>
       </main>
     );
