@@ -55,6 +55,45 @@ export async function getJobs(keyword: string, location: string): Promise<JobRow
   return data ?? [];
 }
 
+export type MyJob = { id: string; title: string; status: string; posted_at: string; applicant_count: number };
+
+// 병원 — 내가 소유한 병원의 공고 목록 + 지원자 수.
+export async function getMyJobs(): Promise<MyJob[]> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data: hosps } = await supabase.from("hospitals").select("id").eq("owner_profile_id", user.id);
+  const ids = (hosps ?? []).map((h) => h.id);
+  if (ids.length === 0) return [];
+
+  type Raw = { id: string; title: string; status: string; posted_at: string; applications: { count: number }[] };
+  const { data } = await supabase
+    .from("jobs")
+    .select("id,title,status,posted_at,applications(count)")
+    .in("hospital_id", ids)
+    .order("posted_at", { ascending: false })
+    .returns<Raw[]>();
+  return (data ?? []).map((j) => ({
+    id: j.id, title: j.title, status: j.status, posted_at: j.posted_at,
+    applicant_count: j.applications?.[0]?.count ?? 0,
+  }));
+}
+
+export type SavedSearch = { id: string; keyword: string | null; location: string | null; created_at: string };
+
+export async function getMySavedSearches(): Promise<SavedSearch[]> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data } = await supabase
+    .from("saved_searches")
+    .select("id,keyword,location,created_at")
+    .eq("profile_id", user.id)
+    .order("created_at", { ascending: false })
+    .returns<SavedSearch[]>();
+  return data ?? [];
+}
+
 export async function getJob(id: string): Promise<JobRow | null> {
   const supabase = await createClient();
   const { data, error } = await supabase

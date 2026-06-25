@@ -116,3 +116,35 @@ export async function updateApplicationStatus(formData: FormData) {
   await supabase.from("applications").update({ status }).eq("id", id);
   redirect("/mypage/applicants?ok=1");
 }
+
+// 병원 — 공고 마감/재개 (RLS로 소유 공고만).
+export async function setJobStatus(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const id = String(formData.get("job_id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!id || !["open", "closed"].includes(status)) redirect("/mypage/jobs");
+  await supabase.from("jobs").update({ status }).eq("id", id);
+  redirect("/mypage/jobs?ok=1");
+}
+
+// 병원 — 공고 삭제 (RLS로 소유 공고만).
+export async function deleteJob(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const id = String(formData.get("job_id") ?? "");
+  if (id) await supabase.from("jobs").delete().eq("id", id);
+  redirect("/mypage/jobs?ok=1");
+}
+
+// 저장한 검색 삭제 (RLS로 본인만).
+export async function deleteSavedSearch(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const id = String(formData.get("id") ?? "");
+  if (id) await supabase.from("saved_searches").delete().eq("id", id);
+  redirect("/mypage/alerts");
+}

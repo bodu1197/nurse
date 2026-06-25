@@ -24,3 +24,19 @@ export async function applyToJob(formData: FormData) {
 
   redirect("/mypage/applications?ok=1");
 }
+
+// 검색 저장(채용 알림 기반) — 로그인 사용자.
+export async function saveSearch(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const keyword = String(formData.get("q") ?? "").trim() || null;
+  const location = String(formData.get("l") ?? "").trim() || null;
+  if (!keyword && !location) redirect("/jobs");
+  await supabase.from("saved_searches").insert({ profile_id: user.id, keyword, location });
+  const p = new URLSearchParams();
+  if (keyword) p.set("q", keyword);
+  if (location) p.set("l", location);
+  p.set("saved", "1");
+  redirect("/jobs?" + p.toString());
+}

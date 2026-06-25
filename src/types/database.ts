@@ -370,6 +370,38 @@ export type Database = {
           },
         ]
       }
+      saved_searches: {
+        Row: {
+          created_at: string
+          id: string
+          keyword: string | null
+          location: string | null
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          keyword?: string | null
+          location?: string | null
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          keyword?: string | null
+          location?: string | null
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_searches_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

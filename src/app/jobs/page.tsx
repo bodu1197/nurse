@@ -1,7 +1,7 @@
 import SiteHeader from "@/components/SiteHeader";
 import { getJobs, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
 import { getCurrentUser } from "@/lib/data/user";
-import { applyToJob } from "./actions";
+import { applyToJob, saveSearch } from "./actions";
 
 // 시드 샘플 데이터 단계 — 실제 워크넷/직접등록 데이터 전까지 noindex.
 export const metadata = { title: "채용 검색 — 널스넷", robots: { index: false } };
@@ -30,8 +30,8 @@ function Bookmark() {
 
 export default async function JobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string }> }>) {
-  const { q, l, j } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string }> }>) {
+  const { q, l, j, saved } = await searchParams;
   const kw = (q ?? "").trim();
   const loc = (l ?? "").trim();
 
@@ -84,9 +84,25 @@ export default async function JobsPage({
             {user ? "내 이력서 관리" : "이력서를 등록하세요"}
           </a> — 손쉽게 지원하세요
         </p>
-        <p className="mt-1 text-sm text-slate-500">
-          {kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{jobs.length}건</span>{loc ? `, ${loc}` : ""} · 정렬: 연관성
-        </p>
+        <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-slate-500">
+            {kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{jobs.length}건</span>{loc ? `, ${loc}` : ""} · 정렬: 연관성
+          </p>
+          {user && (kw || loc) && (
+            <form action={saveSearch}>
+              <input type="hidden" name="q" value={kw} />
+              <input type="hidden" name="l" value={loc} />
+              <button type="submit" className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-teal-400 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                🔔 검색 저장
+              </button>
+            </form>
+          )}
+        </div>
+        {saved === "1" && (
+          <div role="status" className="mt-2 rounded-lg border border-teal-200 bg-teal-50 px-4 py-2 text-sm text-teal-800">
+            검색이 저장되었습니다. <a href="/mypage/alerts" className="font-semibold underline">채용 알림</a>에서 확인하세요.
+          </div>
+        )}
 
         {jobs.length === 0 ? (
           <p className="py-20 text-center text-slate-500">검색 결과가 없습니다. 다른 키워드로 검색해 보세요.</p>
