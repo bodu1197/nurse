@@ -105,7 +105,7 @@ export default async function JobsPage({
         {jobs.length === 0 ? (
           <p className="py-20 text-center text-slate-500">검색 결과가 없습니다. 다른 키워드로 검색해 보세요.</p>
         ) : (
-          <div className="mt-4 lg:grid lg:grid-cols-[minmax(0,400px)_1fr] lg:gap-4">
+          <div className="mt-4 lg:grid lg:grid-cols-[minmax(0,470px)_1fr] lg:gap-4">
             <ul className={`space-y-3 ${j ? "hidden lg:block" : ""}`}>
               {jobs.map((job) => {
                 const on = selected?.id === job.id;
