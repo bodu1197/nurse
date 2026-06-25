@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import type { Database } from "@/types/database";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -9,7 +10,7 @@ export async function createClient() {
     throw new Error("Supabase 환경변수 누락: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
 
-  return createServerClient(
+  return createServerClient<Database>(
     url,
     key,
     {

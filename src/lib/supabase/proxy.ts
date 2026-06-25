@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import type { Database } from "@/types/database";
 
 // Next.js 16 proxy(구 middleware)에서 호출 — Supabase 세션 토큰 갱신.
 export async function updateSession(request: NextRequest) {
@@ -9,7 +10,7 @@ export async function updateSession(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) return supabaseResponse;
 
-  const supabase = createServerClient(url, key, {
+  const supabase = createServerClient<Database>(url, key, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

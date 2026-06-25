@@ -1,4 +1,5 @@
 import { createBrowserClient } from "@supabase/ssr";
+import type { Database } from "@/types/database";
 
 export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -6,5 +7,5 @@ export function createClient() {
   if (!url || !key) {
     throw new Error("Supabase 환경변수 누락: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY");
   }
-  return createBrowserClient(url, key);
+  return createBrowserClient<Database>(url, key);
 }

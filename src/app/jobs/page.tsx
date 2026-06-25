@@ -1,10 +1,11 @@
 import SiteHeader from "@/components/SiteHeader";
-import { MOCK_JOBS, SOURCE_LABEL, type Job } from "@/lib/mock-jobs";
+import { getJobs, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
 
-// 아직 mock 데이터 — 실데이터(Supabase jobs) 연결 전까지 noindex.
+// 시드 샘플 데이터 단계 — 실제 워크넷/직접등록 데이터 전까지 noindex.
 export const metadata = { title: "채용 검색 — 널스넷", robots: { index: false } };
 
 const FILTERS = ["급여", "지역", "진료과", "근무형태", "게시일"];
+const daysAgo = (iso: string) => Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
 
 function Stars({ rating }: { rating: number }) {
   return (
@@ -32,12 +33,8 @@ export default async function JobsPage({
   const kw = (q ?? "").trim();
   const loc = (l ?? "").trim();
 
-  const jobs = MOCK_JOBS.filter((job) => {
-    const mq = !kw || `${job.title} ${job.hospital} ${job.specialty}`.includes(kw);
-    const ml = !loc || job.location.includes(loc);
-    return mq && ml;
-  });
-  const selected: Job | undefined = jobs.find((x) => x.id === j) ?? jobs[0];
+  const jobs = await getJobs(kw, loc);
+  const selected: JobRow | undefined = jobs.find((x) => x.id === j) ?? jobs[0];
 
   const href = (jobId?: string) => {
     const p = new URLSearchParams();
@@ -53,7 +50,6 @@ export default async function JobsPage({
     <>
       <SiteHeader />
 
-      {/* 검색바 + 필터 */}
       <div className="border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-4">
           <form action="/jobs" method="get" className="flex flex-col gap-2 rounded-xl border border-slate-300 p-1.5 shadow-sm focus-within:border-teal-500 sm:flex-row sm:items-center sm:rounded-full">
@@ -102,12 +98,12 @@ export default async function JobsPage({
                         <h3 className="font-semibold leading-snug text-slate-900">{job.title}</h3>
                         <span className="shrink-0"><Bookmark /></span>
                       </div>
-                      <div className="mt-1.5 text-sm text-slate-700">{job.hospital}</div>
+                      <div className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? "병원 미상"}</div>
                       <div className="text-sm text-slate-500">{job.location}</div>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">{SOURCE_LABEL[job.source]}</span>
-                        <span className="text-slate-500">{job.salary}</span>
-                        <span className="text-slate-400">{job.postedDays}일 전</span>
+                        {job.salary_text && <span className="text-slate-500">{job.salary_text}</span>}
+                        <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
                       </div>
                     </a>
                   </li>
@@ -122,22 +118,27 @@ export default async function JobsPage({
                   <h2 className="text-2xl font-bold leading-snug text-slate-900">{selected.title}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                     <a href="/reviews" className="inline-flex items-center gap-1 font-medium text-teal-700 hover:underline">
-                      {selected.hospital}
+                      {selected.hospital?.name ?? "병원 미상"}
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M7 17L17 7M7 7h10v10" /></svg>
                     </a>
-                    {selected.rating && (<><Stars rating={selected.rating} /><span className="text-xs text-slate-500">리뷰 {selected.reviews}</span></>)}
+                    {Number(selected.hospital?.rating_avg) > 0 && (
+                      <>
+                        <Stars rating={Number(selected.hospital?.rating_avg)} />
+                        <span className="text-xs text-slate-500">리뷰 {selected.hospital?.rating_count}</span>
+                      </>
+                    )}
                   </div>
                   <div className="mt-1 text-slate-600">{selected.location}</div>
-                  <div className="text-slate-600">{selected.employmentType} · {selected.salary}</div>
+                  <div className="text-slate-600">{[selected.employment_type, selected.salary_text].filter(Boolean).join(" · ")}</div>
 
                   <div className="mt-4 flex items-center gap-2">
                     {selected.source === "direct" ? (
                       <button className="rounded-md bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">간편지원</button>
                     ) : (
-                      <button className="inline-flex items-center gap-1 rounded-md bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+                      <a href={selected.external_url ?? "#"} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
                         원본 사이트에서 지원
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M7 17L17 7M7 7h10v10" /></svg>
-                      </button>
+                      </a>
                     )}
                     <button aria-label="공고 저장" className="rounded-md border border-slate-300 p-2.5 text-slate-500 hover:bg-slate-50"><Bookmark /></button>
                   </div>
@@ -146,24 +147,36 @@ export default async function JobsPage({
 
                   <h3 className="font-bold text-slate-900">채용 상세 정보</h3>
                   <dl className="mt-3 space-y-2 text-sm">
-                    <div><dt className="text-slate-500">채용공고 유형</dt><dd className="mt-0.5"><span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">{selected.employmentType}</span></dd></div>
-                    <div><dt className="text-slate-500">진료과</dt><dd className="mt-0.5 text-slate-800">{selected.specialty}</dd></div>
-                    <div><dt className="text-slate-500">급여</dt><dd className="mt-0.5 font-medium text-slate-800">{selected.salary}</dd></div>
+                    {selected.employment_type && (<div><dt className="text-slate-500">채용공고 유형</dt><dd className="mt-0.5"><span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">{selected.employment_type}</span></dd></div>)}
+                    {selected.specialty && (<div><dt className="text-slate-500">진료과</dt><dd className="mt-0.5 text-slate-800">{selected.specialty}</dd></div>)}
+                    {selected.salary_text && (<div><dt className="text-slate-500">급여</dt><dd className="mt-0.5 font-medium text-slate-800">{selected.salary_text}</dd></div>)}
                   </dl>
 
-                  <h3 className="mt-5 font-bold text-slate-900">지역</h3>
-                  <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-700">
-                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-400" aria-hidden><path d="M12 21s-7-6.3-7-11a7 7 0 1114 0c0 4.7-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
-                    {selected.location}
-                  </p>
+                  {selected.location && (
+                    <>
+                      <h3 className="mt-5 font-bold text-slate-900">지역</h3>
+                      <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-700">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-400" aria-hidden><path d="M12 21s-7-6.3-7-11a7 7 0 1114 0c0 4.7-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
+                        {selected.location}
+                      </p>
+                    </>
+                  )}
 
-                  <h3 className="mt-5 font-bold text-slate-900">상세 직무 내용</h3>
-                  <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{selected.description}</p>
+                  {selected.description && (
+                    <>
+                      <h3 className="mt-5 font-bold text-slate-900">상세 직무 내용</h3>
+                      <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{selected.description}</p>
+                    </>
+                  )}
 
-                  <h3 className="mt-5 font-bold text-slate-900">복리후생</h3>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {selected.benefits.map((b) => (<span key={b} className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{b}</span>))}
-                  </div>
+                  {selected.benefits.length > 0 && (
+                    <>
+                      <h3 className="mt-5 font-bold text-slate-900">복리후생</h3>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {selected.benefits.map((b) => (<span key={b} className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{b}</span>))}
+                      </div>
+                    </>
+                  )}
                 </article>
               </section>
             )}
