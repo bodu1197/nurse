@@ -18,7 +18,7 @@ export default function SiteHeader() {
       <div className="mx-auto flex h-16 max-w-6xl items-center px-4">
         <a href="/" className="flex items-center gap-1.5 text-2xl font-extrabold tracking-tight">
           <span aria-hidden className="text-teal-600">✚</span>
-          <span>널스<span className="text-teal-600">잡</span></span>
+          <span>널스<span className="text-teal-600">넷</span></span>
         </a>
 
         <div className="ml-auto flex items-center gap-2">

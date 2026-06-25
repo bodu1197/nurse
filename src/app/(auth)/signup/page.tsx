@@ -1,6 +1,6 @@
 import LoginButtons from "@/components/LoginButtons";
 
-export const metadata = { title: "회원가입 — 널스잡" };
+export const metadata = { title: "회원가입 — 널스넷" };
 
 export default function SignupPage() {
   return (
@@ -8,14 +8,14 @@ export default function SignupPage() {
       <div className="w-full max-w-sm">
         <a href="/" className="flex items-center justify-center gap-1.5 text-3xl font-extrabold tracking-tight">
           <span aria-hidden className="text-teal-600">✚</span>
-          <span>널스<span className="text-teal-600">잡</span></span>
+          <span>널스<span className="text-teal-600">넷</span></span>
         </a>
 
         <h1 className="mt-8 text-center text-xl font-bold text-slate-900">
-          3초 회원가입
+          회원가입
         </h1>
         <p className="mt-2 text-center text-sm text-slate-500">
-          SNS 계정으로 가입하세요. 별도 입력 없이 바로 시작합니다.
+          카카오 또는 네이버 계정으로 가입하세요.
         </p>
 
         <div className="mt-8">

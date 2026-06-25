@@ -1,4 +1,4 @@
-// 널스잡 랜딩 (Indeed 코리아 벤치마크) — 미니멀 검색 중심.
+// 널스넷 랜딩 (Indeed 코리아 벤치마크) — 미니멀 검색 중심.
 // ponytail: 정적. 검색 폼은 /jobs(GET)로 전송 — 결과 페이지는 다음 단계.
 
 import SiteHeader from "@/components/SiteHeader";
@@ -66,7 +66,7 @@ export default function Home() {
         <section className="mx-auto max-w-2xl px-4 py-16 text-center sm:py-24">
           <div className="flex items-center justify-center gap-1.5 text-5xl font-extrabold tracking-tight sm:text-6xl">
             <span aria-hidden className="text-teal-600">✚</span>
-            <span>널스<span className="text-teal-600">잡</span></span>
+            <span>널스<span className="text-teal-600">넷</span></span>
           </div>
 
           <h1 className="mt-6 text-2xl font-bold text-slate-900 sm:text-3xl">
@@ -112,7 +112,7 @@ export default function Home() {
             <a href="/about" className="hover:text-teal-700">회사 소개</a>
           </nav>
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-200 pt-4 text-xs text-slate-400">
-            <span>© 2026 널스잡 (NurseJob)</span>
+            <span>© 2026 널스넷 (NurseNet)</span>
             <a href="/privacy" className="hover:text-slate-600">개인정보처리방침</a>
             <a href="/terms" className="hover:text-slate-600">이용약관</a>
           </div>

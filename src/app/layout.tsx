@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "널스잡 — 간호사 채용, 검색 한 번으로",
+  title: "널스넷 — 간호사 채용, 검색 한 번으로",
   description:
     "간호사·간호조무사 채용공고를 한곳에서. 진료과·지역·근무형태로 검색하고 간편지원하세요.",
 };
