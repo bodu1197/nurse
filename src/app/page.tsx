@@ -15,24 +15,9 @@ export default async function Home() {
       <main className="flex-1">
         {/* ── 히어로 ───────────────────────── */}
         <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-br from-teal-50 via-white to-emerald-50/50">
-          <div className="mx-auto max-w-3xl px-4 pb-12 pt-12 text-center sm:pt-16">
-            <h1 className="text-[1.8rem] font-extrabold leading-[1.25] tracking-tight text-slate-900 sm:text-[2.6rem]">
-              전국 <span className="text-teal-600">79,000개</span> 병원 공고,<br />
-              진짜 다 모았습니다.
-            </h1>
-            <p className="mx-auto mt-4 max-w-md text-slate-500 sm:text-lg">
-              단 한 번의 검색으로 나에게 딱 맞는 간호사 채용 기회를 잡으세요.
-            </p>
-
-            {/* 신뢰 통계 */}
-            <div className="mt-5 flex items-center justify-center divide-x divide-slate-200 text-sm">
-              <div className="px-5"><span className="text-base font-extrabold text-teal-700">79,000+</span> <span className="text-slate-500">병원</span></div>
-              <div className="px-5"><span className="text-base font-extrabold text-teal-700">16,000+</span> <span className="text-slate-500">간호사 회원</span></div>
-              <div className="px-5"><span className="text-base font-extrabold text-teal-700">100%</span> <span className="text-slate-500">이력서 무료</span></div>
-            </div>
-
-            {/* 검색바 */}
-            <form action="/jobs" method="get" className="mx-auto mt-7 flex max-w-2xl items-center gap-1 rounded-full border border-slate-300 bg-white p-1.5 pl-2 shadow-md transition focus-within:border-teal-500 focus-within:shadow-lg">
+          <div className="mx-auto max-w-4xl px-4 pb-12 pt-10 text-center sm:pt-12">
+            {/* 검색창 위에는 텍스트 없음 — 검색 우선 */}
+            <form action="/jobs" method="get" className="mx-auto flex w-full max-w-[840px] items-center gap-1 rounded-[22px] border border-slate-300 bg-white p-1.5 pl-2 shadow-md transition focus-within:border-teal-500 focus-within:shadow-lg">
               <label className="flex min-w-0 flex-1 items-center gap-2 px-2">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-teal-600" aria-hidden><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
                 <input name="q" aria-label="직무, 진료과, 병원 검색" className="w-full bg-transparent py-2.5 text-base outline-none placeholder:text-slate-400" placeholder="진료과·병원명 (예: 중환자실)" />
@@ -42,7 +27,7 @@ export default async function Home() {
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-teal-600" aria-hidden><path d="M12 21s-7-6.3-7-11a7 7 0 1114 0c0 4.7-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
                 <input name="l" aria-label="지역 검색" className="w-full bg-transparent py-2.5 text-base outline-none placeholder:text-slate-400" placeholder="지역" />
               </label>
-              <button type="submit" className="shrink-0 rounded-full bg-teal-600 px-6 py-2.5 text-base font-bold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">검색</button>
+              <button type="submit" className="shrink-0 rounded-[16px] bg-teal-600 px-6 py-2.5 text-base font-bold text-white shadow-sm transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">검색</button>
             </form>
 
             <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
@@ -51,6 +36,13 @@ export default async function Home() {
                   {k}
                 </a>
               ))}
+            </div>
+
+            {/* 신뢰 통계 (검색창 아래) — 79,000은 병원 DB 수(실측), 공고 수 아님 */}
+            <div className="mt-7 flex items-center justify-center divide-x divide-slate-200 text-sm">
+              <div className="px-4 sm:px-5"><span className="text-base font-extrabold text-teal-700">79,000+</span> <span className="text-slate-500">병원</span></div>
+              <div className="px-4 sm:px-5"><span className="text-base font-extrabold text-teal-700">16,000+</span> <span className="text-slate-500">간호사 회원</span></div>
+              <div className="px-4 sm:px-5"><span className="text-base font-extrabold text-teal-700">100%</span> <span className="text-slate-500">이력서 무료</span></div>
             </div>
           </div>
         </section>

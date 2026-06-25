@@ -32,17 +32,9 @@ export const FOOTER_NAV = [
   { label: "회사 소개", href: "/about" },
 ] as const;
 
-// 공개(색인 대상) 경로 — sitemap 용. 로그인/가입/auth 콜백은 제외(noindex).
-export const PUBLIC_ROUTES = [
-  "/",
-  "/jobs",
-  "/salaries",
-  "/reviews",
-  "/hospital",
-  "/about",
-  "/terms",
-  "/privacy",
-] as const;
+// sitemap 용 — 실제 색인(index) 대상만. noindex 페이지(jobs/reviews/salaries/about/terms/privacy 시드·스텁)는
+// sitemap/noindex 충돌 방지를 위해 제외. 콘텐츠/실데이터 오픈 시 noindex 해제와 함께 재등재.
+export const PUBLIC_ROUTES = ["/", "/hospital"] as const;
 
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://nurse-app-nine.vercel.app";

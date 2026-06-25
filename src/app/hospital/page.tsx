@@ -1,9 +1,15 @@
 import SiteHeader from "@/components/SiteHeader";
 import { getMyProfile } from "@/lib/data/user";
 
+const HOSP_TITLE = "병원 서비스 — 간호사 채용 무료 등록 | 널스넷";
+const HOSP_DESC = "병원 채용담당자를 위한 간호사 채용 서비스. 사업자 인증 후 공고를 무료로 등록하고 79,000여 개 병원 데이터 기반으로 간호사를 만나보세요.";
+
 export const metadata = {
-  title: "병원 서비스 — 간호사 채용 무료 등록 | 널스넷",
-  description: "병원 채용담당자를 위한 간호사 채용 서비스. 사업자 인증 후 공고를 무료로 등록하고 79,000여 개 병원 데이터 기반으로 간호사를 만나보세요.",
+  title: HOSP_TITLE,
+  description: HOSP_DESC,
+  alternates: { canonical: "/hospital" },
+  openGraph: { type: "website", locale: "ko_KR", siteName: "널스넷", url: "/hospital", title: HOSP_TITLE, description: HOSP_DESC },
+  twitter: { card: "summary_large_image", title: HOSP_TITLE, description: HOSP_DESC },
 };
 
 const STEPS = [
