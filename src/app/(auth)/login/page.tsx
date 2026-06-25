@@ -1,5 +1,6 @@
 import LoginButtons from "@/components/LoginButtons";
 import Logo from "@/components/Logo";
+import DismissibleError from "@/components/DismissibleError";
 
 export const metadata = {
   title: "로그인 — 널스넷",
@@ -35,11 +36,7 @@ export default async function LoginPage({
           간호사·병원 회원 모두 SNS 계정으로 로그인하세요.
         </p>
 
-        {message && (
-          <div role="alert" className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {message}
-          </div>
-        )}
+        {message && <DismissibleError message={message} />}
 
         <div className="mt-8">
           <LoginButtons />

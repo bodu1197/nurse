@@ -38,7 +38,7 @@ export default function LoginButtons() {
         type="button"
         onClick={kakao}
         disabled={loading !== null}
-        className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#FEE500] font-semibold text-[#191600] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 disabled:opacity-60"
+        className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[#FEE500] font-semibold text-[#191600] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span aria-hidden>💬</span>
         {loading === "kakao" ? "로그인 중…" : "카카오로 시작하기"}

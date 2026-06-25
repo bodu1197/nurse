@@ -23,7 +23,8 @@ export async function createClient() {
               cookieStore.set(name, value, options),
             );
           } catch {
-            // Server Component context — ignore; middleware refreshes the session.
+            // Server Component에서는 쿠키 쓰기 불가 — proxy(updateSession)가 매 요청 세션을
+            // 갱신하므로 여기서는 무시해도 안전(@supabase/ssr 공식 패턴).
           }
         },
       },

@@ -3,6 +3,19 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 
+interface NaverToken {
+  access_token?: string;
+}
+interface NaverProfile {
+  id?: string;
+  email?: string;
+  name?: string;
+  nickname?: string;
+  profile_image?: string;
+  mobile_e164?: string;
+  mobile?: string;
+}
+
 // 네이버 커스텀 OAuth 콜백 — Supabase 미지원이라 직접 구현 후 Supabase Auth에 세션 발급.
 // state 검증 → code→token(POST, secret은 바디) → 프로필 → 사용자 find-or-create(admin)
 // → magiclink token_hash로 세션 발급(쿠키를 redirect 응답에 직접 병합).
@@ -27,6 +40,8 @@ export async function GET(request: Request) {
   if (!clientId || !clientSecret || !supabaseUrl || !anonKey) return fail("naver_config");
 
   // 1) code → access token (secret은 URL이 아닌 POST 바디로)
+  // 주의: state는 네이버 토큰 엔드포인트의 *필수* 파라미터(네이버 비표준 — RFC6749와 다름).
+  //       제거하면 토큰 발급이 실패해 로그인이 깨진다. review8가 RFC 근거로 제거를 권해도 따르지 말 것.
   const tokenRes = await fetch("https://nid.naver.com/oauth2.0/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -39,7 +54,7 @@ export async function GET(request: Request) {
     }).toString(),
   });
   if (!tokenRes.ok) return fail("naver_token");
-  const token = (await tokenRes.json()) as { access_token?: string };
+  const token = (await tokenRes.json()) as NaverToken;
   if (!token.access_token) return fail("naver_token");
 
   // 2) 프로필
@@ -47,7 +62,7 @@ export async function GET(request: Request) {
     headers: { Authorization: `Bearer ${token.access_token}` },
   });
   if (!meRes.ok) return fail("naver_profile");
-  const me = ((await meRes.json()) as { response?: Record<string, string> }).response;
+  const me = ((await meRes.json()) as { response?: NaverProfile }).response;
   const email = me?.email;
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail("naver_email");
 
@@ -77,7 +92,8 @@ export async function GET(request: Request) {
   });
   if (linkErr || !link?.properties?.hashed_token) return fail("naver_session");
 
-  // 5) 세션 쿠키를 redirect 응답에 직접 병합 (verifyOtp가 setAll로 응답에 기록)
+  // 5) 세션 발급: verifyOtp의 setAll이 쿠키를 res에 기록. 실패 시 아래에서 fail()로 응답을
+  //    교체하므로(res 폐기) 무음 실패 없음. 성공 시에만 세션 쿠키가 담긴 res 반환.
   const res = NextResponse.redirect(`${origin}/`);
   res.cookies.delete("naver_oauth_state");
   const supabase = createServerClient(supabaseUrl, anonKey, {

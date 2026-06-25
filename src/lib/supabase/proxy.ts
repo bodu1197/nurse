@@ -24,8 +24,12 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // 세션 갱신 (반드시 호출 — 토큰 리프레시).
-  await supabase.auth.getUser();
+  // 익명 방문자(Supabase 세션 쿠키 없음)는 갱신 불필요 → getUser 스킵(공개 페이지 레이턴시 절감).
+  // 로그인 사용자만 토큰 리프레시.
+  const hasSession = request.cookies.getAll().some((c) => c.name.startsWith("sb-"));
+  if (hasSession) {
+    await supabase.auth.getUser();
+  }
 
   return supabaseResponse;
 }

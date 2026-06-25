@@ -5,6 +5,8 @@ import SiteHeader from "@/components/SiteHeader";
 import Logo from "@/components/Logo";
 import { POPULAR_SEARCHES, FOOTER_NAV } from "@/lib/constants";
 
+export const revalidate = 86400; // 정적 콘텐츠 — 하루 단위 ISR
+
 export default function Home() {
   return (
     <>
@@ -25,6 +27,7 @@ export default function Home() {
               <span className="sr-only">검색어</span>
               <input
                 name="q"
+                aria-label="직무, 키워드 및 병원 검색"
                 className="w-full bg-transparent text-base outline-none placeholder:text-slate-400"
                 placeholder="직무, 키워드 및 병원"
               />
@@ -39,6 +42,7 @@ export default function Home() {
               <span className="sr-only">지역</span>
               <input
                 name="l"
+                aria-label="지역 검색"
                 className="w-full bg-transparent text-base outline-none placeholder:text-slate-400"
                 placeholder='지역 또는 "재택"'
               />
@@ -46,7 +50,7 @@ export default function Home() {
 
             <button
               type="submit"
-              className="rounded-full bg-teal-600 px-7 py-3 text-base font-bold text-white hover:bg-teal-700"
+              className="rounded-full bg-teal-600 px-7 py-3 text-base font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
             >
               검색
             </button>

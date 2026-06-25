@@ -1,5 +1,7 @@
 import ComingSoon from "@/components/ComingSoon";
 
+export const revalidate = 86400;
+
 export const metadata = { title: "급여 정보 — 널스넷", robots: { index: false } };
 
 export default function SalariesPage() {
