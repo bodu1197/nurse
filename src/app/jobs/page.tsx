@@ -1,6 +1,7 @@
 import SiteHeader from "@/components/SiteHeader";
 import { getJobs, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
 import { getCurrentUser } from "@/lib/data/user";
+import { applyToJob } from "./actions";
 
 // 시드 샘플 데이터 단계 — 실제 워크넷/직접등록 데이터 전까지 noindex.
 export const metadata = { title: "채용 검색 — 널스넷", robots: { index: false } };
@@ -136,7 +137,14 @@ export default async function JobsPage({
 
                   <div className="mt-4 flex items-center gap-2">
                     {selected.source === "direct" ? (
-                      <button className="rounded-md bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">간편지원</button>
+                      user ? (
+                        <form action={applyToJob}>
+                          <input type="hidden" name="job_id" value={selected.id} />
+                          <button type="submit" className="rounded-md bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">간편지원</button>
+                        </form>
+                      ) : (
+                        <a href="/login" className="rounded-md bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">간편지원</a>
+                      )
                     ) : (
                       <a href={selected.external_url ?? "#"} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-md bg-teal-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
                         원본 사이트에서 지원

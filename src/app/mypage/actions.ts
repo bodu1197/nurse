@@ -104,3 +104,15 @@ export async function saveResume(formData: FormData) {
   if (error) redirect("/mypage/resume?error=save");
   redirect("/mypage/resume?ok=1");
 }
+
+// 병원 — 지원자 상태 변경(열람/합격/불합격). RLS로 공고 소유 병원만.
+export async function updateApplicationStatus(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const id = String(formData.get("application_id") ?? "");
+  const status = String(formData.get("status") ?? "");
+  if (!id || !["viewed", "accepted", "rejected"].includes(status)) redirect("/mypage/applicants");
+  await supabase.from("applications").update({ status }).eq("id", id);
+  redirect("/mypage/applicants?ok=1");
+}
