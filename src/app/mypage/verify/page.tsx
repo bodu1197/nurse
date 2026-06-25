@@ -18,11 +18,11 @@ const ERR: Record<string, string> = {
 
 export default async function VerifyPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string; from?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "hospital") redirect("/mypage");
-  const { ok, error } = await searchParams;
+  const { ok, error, from } = await searchParams;
   const verified = p.businessVerified || ok === "1";
 
   const inputClass = "h-12 rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
@@ -42,6 +42,7 @@ export default async function VerifyPage({
           </div>
         ) : (
           <>
+            {from === "jobs-new" && <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">공고를 등록하려면 먼저 사업자 인증이 필요합니다.</div>}
             <p className="mt-2 text-sm text-slate-500">
               국세청 사업자등록 진위확인으로 병원을 인증합니다. 인증된 병원만 공고를 등록할 수 있습니다.
             </p>

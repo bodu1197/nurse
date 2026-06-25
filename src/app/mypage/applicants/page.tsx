@@ -27,11 +27,11 @@ function StatusButton({ id, status, label, variant }: { id: string; status: stri
 
 export default async function ApplicantsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ ok?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "hospital") redirect("/mypage");
-  const [{ ok }, apps] = await Promise.all([searchParams, getReceivedApplications()]);
+  const [{ ok, error }, apps] = await Promise.all([searchParams, getReceivedApplications()]);
 
   return (
     <>
@@ -41,6 +41,7 @@ export default async function ApplicantsPage({
         <h1 className="mt-3 text-2xl font-bold text-slate-900">받은 지원자</h1>
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
+        {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
 
         {apps.length === 0 ? (
           <p className="py-20 text-center text-slate-500">아직 지원자가 없습니다.</p>

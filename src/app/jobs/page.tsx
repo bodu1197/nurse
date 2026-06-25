@@ -150,11 +150,12 @@ export default async function JobsPage({
                   <div className="mt-1 text-slate-600">{selected.location}</div>
                   <div className="text-slate-600">{[selected.employment_type, selected.salary_text].filter(Boolean).join(" · ")}</div>
 
-                  <div className="mt-4 flex items-center gap-2">
+                  <div className="mt-4">
                     {selected.source === "direct" ? (
                       user ? (
-                        <form action={applyToJob}>
+                        <form action={applyToJob} className="flex flex-col gap-2 sm:max-w-md">
                           <input type="hidden" name="job_id" value={selected.id} />
+                          <textarea name="message" rows={2} maxLength={500} placeholder="지원 메시지 (선택)" className="w-full resize-none rounded-[12px] border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
                           <Button type="submit" size="md">간편지원</Button>
                         </form>
                       ) : (
@@ -166,7 +167,6 @@ export default async function JobsPage({
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M7 17L17 7M7 7h10v10" /></svg>
                       </Button>
                     )}
-                    <button aria-label="공고 저장" className="rounded-md border border-slate-300 p-2.5 text-slate-500 hover:bg-slate-50"><Bookmark /></button>
                   </div>
 
                   <hr className="my-5 border-slate-100" />

@@ -75,7 +75,7 @@ export default async function Home() {
                         {job.is_featured && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">추천</span>}
                       </div>
                       <p className="mt-1.5 text-sm text-slate-500">
-                        {job.hospital?.name ?? ""}{job.location ? ` · ${job.location}` : ""}
+                        {job.hospital?.name ?? "병원 미상"}{job.location ? ` · ${job.location}` : ""}
                       </p>
                       <div className="mt-3 flex items-end justify-between gap-2 border-t border-slate-100 pt-3">
                         <span className="font-bold text-teal-700">{job.salary_text ?? "급여 협의"}</span>

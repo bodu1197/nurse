@@ -11,11 +11,11 @@ const fmt = (iso: string) => new Date(iso).toISOString().slice(0, 10).replace(/-
 
 export default async function MyJobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ ok?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "hospital") redirect("/mypage");
-  const [{ ok }, jobs] = await Promise.all([searchParams, getMyJobs()]);
+  const [{ ok, error }, jobs] = await Promise.all([searchParams, getMyJobs()]);
 
   return (
     <>
@@ -28,6 +28,7 @@ export default async function MyJobsPage({
         </div>
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
+        {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
 
         {jobs.length === 0 ? (
           <p className="py-20 text-center text-slate-500">등록한 공고가 없습니다. <a href="/mypage/jobs/new" className="font-semibold text-teal-700 hover:underline">첫 공고를 등록</a>해 보세요.</p>

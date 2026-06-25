@@ -14,10 +14,9 @@ export const POPULAR_SEARCHES = [
   "신규간호사",
 ] as const;
 
-// 헤더 햄버거 메뉴
+// 헤더 햄버거 메뉴 — 준비중 스텁(급여/회사소개)은 구현 전까지 제외(새는 링크 방지)
 export const HEADER_MENU = [
   { label: "채용 검색", href: "/jobs" },
-  { label: "급여", href: "/salaries" },
   { label: "병원 리뷰", href: "/reviews" },
   { label: "회원가입", href: "/signup" },
   { label: "병원 공고등록", href: "/hospital" },
@@ -26,10 +25,8 @@ export const HEADER_MENU = [
 // 푸터 네비게이션
 export const FOOTER_NAV = [
   { label: "채용공고 찾아보기", href: "/jobs" },
-  { label: "급여", href: "/salaries" },
   { label: "병원 리뷰", href: "/reviews" },
   { label: "병원 서비스", href: "/hospital" },
-  { label: "회사 소개", href: "/about" },
 ] as const;
 
 // sitemap 용 — 실제 색인(index) 대상만. noindex 페이지(jobs/reviews/salaries/about/terms/privacy 시드·스텁)는

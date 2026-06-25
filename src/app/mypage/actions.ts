@@ -113,7 +113,8 @@ export async function updateApplicationStatus(formData: FormData) {
   const id = String(formData.get("application_id") ?? "");
   const status = String(formData.get("status") ?? "");
   if (!id || !["viewed", "accepted", "rejected"].includes(status)) redirect("/mypage/applicants");
-  await supabase.from("applications").update({ status }).eq("id", id);
+  const { error } = await supabase.from("applications").update({ status }).eq("id", id);
+  if (error) redirect("/mypage/applicants?error=1");
   redirect("/mypage/applicants?ok=1");
 }
 
@@ -125,7 +126,8 @@ export async function setJobStatus(formData: FormData) {
   const id = String(formData.get("job_id") ?? "");
   const status = String(formData.get("status") ?? "");
   if (!id || !["open", "closed"].includes(status)) redirect("/mypage/jobs");
-  await supabase.from("jobs").update({ status }).eq("id", id);
+  const { error } = await supabase.from("jobs").update({ status }).eq("id", id);
+  if (error) redirect("/mypage/jobs?error=1");
   redirect("/mypage/jobs?ok=1");
 }
 
@@ -135,7 +137,10 @@ export async function deleteJob(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const id = String(formData.get("job_id") ?? "");
-  if (id) await supabase.from("jobs").delete().eq("id", id);
+  if (id) {
+    const { error } = await supabase.from("jobs").delete().eq("id", id);
+    if (error) redirect("/mypage/jobs?error=1");
+  }
   redirect("/mypage/jobs?ok=1");
 }
 
@@ -145,7 +150,10 @@ export async function deleteSavedSearch(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const id = String(formData.get("id") ?? "");
-  if (id) await supabase.from("saved_searches").delete().eq("id", id);
+  if (id) {
+    const { error } = await supabase.from("saved_searches").delete().eq("id", id);
+    if (error) redirect("/mypage/alerts?error=1");
+  }
   redirect("/mypage/alerts");
 }
 
@@ -159,8 +167,9 @@ export async function sendMessage(formData: FormData) {
   const body = String(formData.get("body") ?? "").trim();
   if (!recipientId || !body) redirect("/mypage/messages");
   const { data: me } = await supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
-  await supabase.from("messages").insert({
+  const { error } = await supabase.from("messages").insert({
     sender_id: user.id, recipient_id: recipientId, sender_name: me?.display_name ?? null, recipient_name: recipientName, body,
   });
+  if (error) redirect("/mypage/messages?with=" + recipientId + "&error=1");
   redirect("/mypage/messages?with=" + recipientId);
 }

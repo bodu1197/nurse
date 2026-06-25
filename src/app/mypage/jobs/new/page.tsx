@@ -23,7 +23,7 @@ export default async function NewJobPage({
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "hospital") redirect("/mypage");
-  if (!p.businessVerified) redirect("/mypage/verify");
+  if (!p.businessVerified) redirect("/mypage/verify?from=jobs-new");
   const { error } = await searchParams;
 
   return (

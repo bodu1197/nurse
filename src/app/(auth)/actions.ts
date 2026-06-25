@@ -37,13 +37,17 @@ export async function signOut() {
 export async function signUpWithEmail(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
+  // 간호사/병원 선택. 병원도 공고 등록 전 사업자 인증을 거치므로 자기선택 허용 안전.
+  const role = formData.get("role") === "hospital" ? "hospital" : "nurse";
+  const keep = role === "hospital" ? "&role=hospital" : "";
 
-  if (!EMAIL_RE.test(email)) redirect("/signup?error=email_invalid");
-  if (password.length < 8) redirect("/signup?error=weak");
+  if (!EMAIL_RE.test(email)) redirect(`/signup?error=email_invalid${keep}`);
+  if (password.length < 8) redirect(`/signup?error=weak${keep}`);
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({ email, password });
-  if (error) redirect("/signup?error=signup_failed");
+  // 트리거(handle_new_user)가 raw_user_meta_data.role을 읽어 profiles.role 설정
+  const { error } = await supabase.auth.signUp({ email, password, options: { data: { role } } });
+  if (error) redirect(`/signup?error=signup_failed${keep}`);
 
   redirect("/signup?sent=1");
 }

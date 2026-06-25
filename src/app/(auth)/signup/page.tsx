@@ -16,8 +16,9 @@ const inputClass =
 
 export default async function SignupPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ error?: string; sent?: string }> }>) {
-  const { error, sent } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ error?: string; sent?: string; role?: string }> }>) {
+  const { error, sent, role } = await searchParams;
+  const isHospital = role === "hospital";
   const message = error
     ? (AUTH_ERROR_MESSAGES[error] ?? "회원가입에 실패했습니다.")
     : null;
@@ -53,6 +54,19 @@ export default async function SignupPage({
         {message && <DismissibleError message={message} />}
 
         <form action={signUpWithEmail} className="mt-6 flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <span className="text-sm font-medium text-slate-700">회원 유형</span>
+            <div className="grid grid-cols-2 gap-2">
+              <label>
+                <input type="radio" name="role" value="nurse" defaultChecked={!isHospital} className="peer sr-only" />
+                <span className="flex h-12 cursor-pointer items-center justify-center rounded-[12px] border border-slate-300 text-sm font-semibold text-slate-600 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700">간호사·간호조무사</span>
+              </label>
+              <label>
+                <input type="radio" name="role" value="hospital" defaultChecked={isHospital} className="peer sr-only" />
+                <span className="flex h-12 cursor-pointer items-center justify-center rounded-[12px] border border-slate-300 text-sm font-semibold text-slate-600 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700">병원 채용담당자</span>
+              </label>
+            </div>
+          </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="email" className="text-sm font-medium text-slate-700">이메일</label>
             <input id="email" name="email" type="email" autoComplete="email" required className={inputClass} />

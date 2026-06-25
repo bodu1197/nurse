@@ -41,7 +41,7 @@ export default async function ApplicationsPage({
               <li key={a.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
                 <div className="min-w-0">
                   <a href={a.job ? `/jobs?j=${a.job.id}` : "/jobs"} className="font-semibold text-slate-900 hover:text-teal-700">{a.job?.title ?? "공고"}</a>
-                  <div className="text-sm text-slate-500">{a.job?.hospital?.name ?? ""} · {fmt(a.created_at)}</div>
+                  <div className="text-sm text-slate-500">{a.job?.hospital?.name ?? "병원 미상"} · {fmt(a.created_at)}</div>
                 </div>
                 <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${tone[a.status] ?? tone.submitted}`}>{STATUS_LABEL[a.status] ?? a.status}</span>
               </li>

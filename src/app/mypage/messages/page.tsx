@@ -11,10 +11,10 @@ const fmt = (iso: string) => { const d = new Date(iso); return `${d.getMonth() +
 
 export default async function MessagesPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ with?: string; name?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ with?: string; name?: string; error?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
-  const { with: withId, name } = await searchParams;
+  const { with: withId, name, error } = await searchParams;
 
   // 스레드 보기
   if (withId && isUuid(withId)) {
@@ -42,6 +42,7 @@ export default async function MessagesPage({
             )}
           </div>
 
+          {error === "1" && <div role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">메시지 전송에 실패했습니다. 다시 시도해 주세요.</div>}
           <form action={sendMessage} className="mt-4 flex items-end gap-2">
             <input type="hidden" name="recipient_id" value={withId} />
             <input type="hidden" name="recipient_name" value={counterpart} />

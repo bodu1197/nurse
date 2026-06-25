@@ -1,6 +1,6 @@
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
-import { getCurrentUser } from "@/lib/data/user";
+import { getMyProfile } from "@/lib/data/user";
 import { getRecentReviews } from "@/lib/data/reviews";
 
 // 사용자 리뷰(비실명) — 콘텐츠가 충분히 쌓이면 noindex 해제 예정.
@@ -19,18 +19,22 @@ function Stars({ rating }: { rating: number }) {
 export default async function ReviewsPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ ok?: string }> }>) {
-  const [user, reviews] = await Promise.all([getCurrentUser(), getRecentReviews(30)]);
+  const [profile, reviews] = await Promise.all([getMyProfile(), getRecentReviews(30)]);
   const { ok } = await searchParams;
+  // 리뷰는 간호사만 작성 가능 — 비간호사(병원/관리자)에겐 버튼 숨김(무안내 튕김 방지)
+  const canWrite = !profile || profile.role === "nurse";
 
   return (
     <>
-      <SiteHeader user={user} />
+      <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-slate-900">병원 리뷰</h1>
-          <Button href="/reviews/new" size="md">
-            리뷰 작성
-          </Button>
+          {canWrite && (
+            <Button href="/reviews/new" size="md">
+              리뷰 작성
+            </Button>
+          )}
         </div>
         <p className="mt-1 text-sm text-slate-500">간호사들이 직접 남긴 병원 근무 후기입니다. (비실명)</p>
 

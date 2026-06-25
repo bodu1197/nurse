@@ -37,7 +37,7 @@ export default async function HospitalPage() {
           <div className="mt-8">
             {!p ? (
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <Button href="/signup" size="lg">병원 회원가입</Button>
+                <Button href="/signup?role=hospital" size="lg">병원 회원가입</Button>
                 <Button href="/login" variant="outline" size="lg">로그인</Button>
               </div>
             ) : p.role === "hospital" ? (
