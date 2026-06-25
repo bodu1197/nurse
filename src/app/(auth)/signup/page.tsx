@@ -1,12 +1,45 @@
 import LoginButtons from "@/components/LoginButtons";
 import Logo from "@/components/Logo";
+import DismissibleError from "@/components/DismissibleError";
+import SubmitButton from "@/components/SubmitButton";
+import { AUTH_ERROR_MESSAGES } from "@/lib/constants";
+import { signUpWithEmail } from "../actions";
 
 export const metadata = {
   title: "회원가입 — 널스넷",
   robots: { index: false, follow: false },
 };
 
-export default function SignupPage() {
+const inputClass =
+  "h-12 rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
+
+export default async function SignupPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<{ error?: string; sent?: string }> }>) {
+  const { error, sent } = await searchParams;
+  const message = error
+    ? (AUTH_ERROR_MESSAGES[error] ?? "회원가입에 실패했습니다.")
+    : null;
+
+  if (sent) {
+    return (
+      <main className="flex flex-1 items-center justify-center px-4 py-16">
+        <div className="w-full max-w-sm text-center">
+          <a href="/" aria-label="널스넷 홈" className="flex justify-center">
+            <Logo className="text-3xl" />
+          </a>
+          <h1 className="mt-8 text-xl font-bold text-slate-900">확인 이메일을 보냈습니다</h1>
+          <p className="mt-3 text-sm text-slate-500">
+            메일의 링크를 눌러 가입을 완료한 뒤 로그인해 주세요.
+          </p>
+          <a href="/login" className="mt-8 inline-block rounded-full bg-teal-600 px-6 py-3 text-sm font-bold text-white hover:bg-teal-700">
+            로그인으로 →
+          </a>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
@@ -14,16 +47,27 @@ export default function SignupPage() {
           <Logo className="text-3xl" />
         </a>
 
-        <h1 className="mt-8 text-center text-xl font-bold text-slate-900">
-          회원가입
-        </h1>
-        <p className="mt-2 text-center text-sm text-slate-500">
-          카카오 또는 네이버 계정으로 가입하세요.
-        </p>
+        <h1 className="mt-8 text-center text-xl font-bold text-slate-900">회원가입</h1>
 
-        <div className="mt-8">
-          <LoginButtons />
+        {message && <DismissibleError message={message} />}
+
+        <form action={signUpWithEmail} className="mt-6 flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="email" className="text-sm font-medium text-slate-700">이메일</label>
+            <input id="email" name="email" type="email" autoComplete="email" required className={inputClass} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label htmlFor="password" className="text-sm font-medium text-slate-700">비밀번호 (8자 이상)</label>
+            <input id="password" name="password" type="password" autoComplete="new-password" required minLength={8} className={inputClass} />
+          </div>
+          <SubmitButton pendingText="가입 중…">이메일로 가입</SubmitButton>
+        </form>
+
+        <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
+          <span className="h-px flex-1 bg-slate-200" />또는<span className="h-px flex-1 bg-slate-200" />
         </div>
+
+        <LoginButtons />
 
         <p className="mt-6 text-center text-sm text-slate-500">
           이미 계정이 있으신가요?{" "}
