@@ -10,7 +10,7 @@ const ROLE_LABEL: Record<MyProfile["role"], string> = {
   admin: "관리자",
 };
 
-type Item = { title: string; desc: string; href?: string };
+type Item = { title: string; desc: string; href?: string; badge?: { text: string; tone: "teal" | "amber" } };
 
 // 역할별 메뉴 — 병원(공고 등록 측)과 구직자(지원 측)는 기능이 완전히 다름.
 const NURSE_ITEMS: Item[] = [
@@ -36,7 +36,11 @@ function Card({ item }: { item: Item }) {
     <>
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-semibold text-slate-900">{item.title}</h3>
-        {!item.href && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">준비 중</span>}
+        {item.badge ? (
+          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.badge.tone === "teal" ? "bg-teal-100 text-teal-800" : "bg-amber-100 text-amber-800"}`}>{item.badge.text}</span>
+        ) : !item.href ? (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">준비 중</span>
+        ) : null}
       </div>
       <p className="mt-1 text-sm text-slate-500">{item.desc}</p>
     </>
@@ -56,7 +60,16 @@ export default async function MyPage() {
   const profile = await getMyProfile();
   if (!profile) redirect("/login");
 
-  const items = profile.role === "hospital" ? HOSPITAL_ITEMS : profile.role === "admin" ? ADMIN_ITEMS : NURSE_ITEMS;
+  const hospitalItems: Item[] = [
+    {
+      title: "사업자 인증",
+      desc: profile.businessVerified ? "사업자 인증이 완료되었습니다." : "공고 등록을 위해 사업자 인증이 필요합니다.",
+      href: "/mypage/verify",
+      badge: profile.businessVerified ? { text: "인증 완료", tone: "teal" } : { text: "인증 필요", tone: "amber" },
+    },
+    ...HOSPITAL_ITEMS,
+  ];
+  const items = profile.role === "hospital" ? hospitalItems : profile.role === "admin" ? ADMIN_ITEMS : NURSE_ITEMS;
 
   return (
     <>

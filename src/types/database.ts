@@ -142,6 +142,10 @@ export type Database = {
         Row: {
           avatar_url: string | null
           birthday: string | null
+          business_no: string | null
+          business_verified: boolean
+          business_verified_at: string | null
+          claimed_hospital_id: string | null
           created_at: string
           display_name: string | null
           email: string | null
@@ -158,6 +162,10 @@ export type Database = {
         Insert: {
           avatar_url?: string | null
           birthday?: string | null
+          business_no?: string | null
+          business_verified?: boolean
+          business_verified_at?: string | null
+          claimed_hospital_id?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -174,6 +182,10 @@ export type Database = {
         Update: {
           avatar_url?: string | null
           birthday?: string | null
+          business_no?: string | null
+          business_verified?: boolean
+          business_verified_at?: string | null
+          claimed_hospital_id?: string | null
           created_at?: string
           display_name?: string | null
           email?: string | null
@@ -187,7 +199,15 @@ export type Database = {
           updated_at?: string
           username?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_claimed_hospital_id_fkey"
+            columns: ["claimed_hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
