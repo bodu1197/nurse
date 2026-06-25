@@ -10,7 +10,11 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
-  const fail = (r: string) => NextResponse.redirect(`${origin}/login?error=${r}`);
+  const fail = (r: string) => {
+    const res = NextResponse.redirect(`${origin}/login?error=${r}`);
+    res.cookies.delete("naver_oauth_state"); // 실패 시에도 일회용 state 무효화
+    return res;
+  };
 
   const cookieStore = await cookies();
   const savedState = cookieStore.get("naver_oauth_state")?.value;

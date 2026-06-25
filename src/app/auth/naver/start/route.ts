@@ -3,11 +3,13 @@ import { NextResponse } from "next/server";
 // 네이버 커스텀 OAuth 시작 — state 발급 후 네이버 인증 페이지로.
 export async function GET(request: Request) {
   const { origin } = new URL(request.url);
-  const state = crypto.randomUUID();
+  const clientId = process.env.NAVER_CLIENT_ID;
+  if (!clientId) return NextResponse.redirect(`${origin}/login?error=naver_config`);
 
+  const state = crypto.randomUUID();
   const params = new URLSearchParams({
     response_type: "code",
-    client_id: process.env.NAVER_CLIENT_ID!,
+    client_id: clientId,
     redirect_uri: `${origin}/auth/naver/callback`,
     state,
   });
