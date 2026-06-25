@@ -4,13 +4,13 @@
 import SiteHeader from "@/components/SiteHeader";
 import Logo from "@/components/Logo";
 import { POPULAR_SEARCHES, FOOTER_NAV } from "@/lib/constants";
+import { getCurrentUser } from "@/lib/data/user";
 
-export const revalidate = 86400; // 정적 콘텐츠 — 하루 단위 ISR
-
-export default function Home() {
+export default async function Home() {
+  const user = await getCurrentUser();
   return (
     <>
-      <SiteHeader />
+      <SiteHeader user={user} />
 
       <main className="flex-1">
         {/* ── 검색바 ───────────────────────── */}

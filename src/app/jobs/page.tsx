@@ -1,5 +1,6 @@
 import SiteHeader from "@/components/SiteHeader";
 import { getJobs, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
+import { getCurrentUser } from "@/lib/data/user";
 
 // 시드 샘플 데이터 단계 — 실제 워크넷/직접등록 데이터 전까지 noindex.
 export const metadata = { title: "채용 검색 — 널스넷", robots: { index: false } };
@@ -33,7 +34,7 @@ export default async function JobsPage({
   const kw = (q ?? "").trim();
   const loc = (l ?? "").trim();
 
-  const jobs = await getJobs(kw, loc);
+  const [jobs, user] = await Promise.all([getJobs(kw, loc), getCurrentUser()]);
   const selected: JobRow | undefined = jobs.find((x) => x.id === j) ?? jobs[0];
 
   const href = (jobId?: string) => {
@@ -48,7 +49,7 @@ export default async function JobsPage({
 
   return (
     <>
-      <SiteHeader />
+      <SiteHeader user={user} />
 
       <div className="border-b border-slate-200">
         <div className="mx-auto max-w-6xl px-4 py-4">

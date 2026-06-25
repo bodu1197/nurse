@@ -44,10 +44,10 @@ export const SITE_URL =
 
 // 로그인/회원가입 에러 코드 → 사용자 메시지 (login·signup·OAuth 콜백 공용)
 export const AUTH_ERROR_MESSAGES: Record<string, string> = {
-  // 이메일/비밀번호
-  missing: "이메일과 비밀번호를 입력해 주세요.",
+  // 아이디/비밀번호 로그인 + 이메일 회원가입
+  missing: "아이디와 비밀번호를 입력해 주세요.",
   email_invalid: "올바른 이메일 형식이 아닙니다.",
-  invalid_credentials: "이메일 또는 비밀번호가 올바르지 않습니다.",
+  invalid_credentials: "아이디 또는 비밀번호가 올바르지 않습니다.",
   weak: "비밀번호는 8자 이상이어야 합니다.",
   signup_failed: "회원가입에 실패했습니다. 이미 가입된 이메일일 수 있습니다.",
   // SNS
