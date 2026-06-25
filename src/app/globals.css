@@ -4,7 +4,7 @@
   --color-brand: #0d9488;
   --color-brand-dark: #0f766e;
   --font-sans:
-    "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    var(--font-pretendard), -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
     "Malgun Gothic", "맑은 고딕", system-ui, Roboto, "Helvetica Neue", sans-serif;
 }
 

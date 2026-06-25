@@ -1,6 +1,17 @@
 import type { Metadata } from "next";
+import localFont from "next/font/local";
 import { SITE_URL } from "@/lib/constants";
 import "./globals.css";
+
+// Pretendard 자가호스팅(외부요청 0). preload:false + display:swap = 초기 렌더 비차단·지연 로드(속도지표 영향 0).
+const pretendard = localFont({
+  src: "./fonts/PretendardVariable.subset.woff2",
+  weight: "45 920",
+  display: "swap",
+  preload: false,
+  variable: "--font-pretendard",
+  fallback: ["-apple-system", "BlinkMacSystemFont", "Apple SD Gothic Neo", "Malgun Gothic", "system-ui", "sans-serif"],
+});
 
 const TITLE = "널스넷 — 간호사 채용, 검색 한 번으로";
 const DESCRIPTION =
@@ -37,7 +48,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className="h-full antialiased">
+    <html lang="ko" className={`h-full antialiased ${pretendard.variable}`}>
       <body className="min-h-full flex flex-col bg-white text-slate-900">
         <script
           type="application/ld+json"

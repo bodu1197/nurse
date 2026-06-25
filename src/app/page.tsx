@@ -4,27 +4,9 @@ import { getJobs, SOURCE_LABEL } from "@/lib/data/jobs";
 import { POPULAR_SEARCHES, FOOTER_NAV } from "@/lib/constants";
 import { daysAgo } from "@/lib/date";
 
-const NURSE_LINKS = [
-  { label: "내 이력서", href: "/mypage/resume" },
-  { label: "지원 내역", href: "/mypage/applications" },
-  { label: "채용 알림", href: "/mypage/alerts" },
-  { label: "메시지", href: "/mypage/messages" },
-];
-const HOSPITAL_LINKS = [
-  { label: "공고 등록", href: "/mypage/jobs/new" },
-  { label: "받은 지원자", href: "/mypage/applicants" },
-  { label: "공고 관리", href: "/mypage/jobs" },
-  { label: "메시지", href: "/mypage/messages" },
-];
-
 export default async function Home() {
   const [profile, jobs] = await Promise.all([getMyProfile(), getJobs("", "")]);
   const latest = jobs.slice(0, 6);
-  const quickLinks =
-    profile?.role === "hospital" ? HOSPITAL_LINKS
-    : profile?.role === "nurse" ? NURSE_LINKS
-    : profile?.role === "admin" ? [{ label: "관리자 도구", href: "/mypage" }]
-    : null;
 
   return (
     <>
@@ -68,19 +50,8 @@ export default async function Home() {
         </section>
 
         <div className="mx-auto max-w-5xl px-4">
-          {/* ── 로그인: 개인화 / 비로그인: 가치 CTA ── */}
-          {profile && quickLinks ? (
-            <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5">
-              <p className="font-semibold text-slate-900">안녕하세요, {profile.displayName}님 👋</p>
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {quickLinks.map((q) => (
-                  <a key={q.href} href={q.href} className="rounded-xl border border-slate-200 px-4 py-3 text-center text-sm font-medium text-slate-700 hover:border-teal-400 hover:text-teal-700">
-                    {q.label}
-                  </a>
-                ))}
-              </div>
-            </section>
-          ) : !profile ? (
+          {/* 비로그인: 가치 CTA (로그인 사용자는 헤더 메뉴 사용 — 중간 인사박스 제거) */}
+          {!profile && (
             <section className="mt-8 grid gap-3 sm:grid-cols-2">
               <a href="/signup" className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-teal-400 hover:shadow-sm">
                 <p className="font-bold text-slate-900">간호사세요?</p>
@@ -91,10 +62,10 @@ export default async function Home() {
                 <p className="mt-1 text-sm text-slate-500">사업자 인증 후 공고를 무료로 등록하세요. →</p>
               </a>
             </section>
-          ) : null}
+          )}
 
           {/* ── 최신 채용공고 ───────────────── */}
-          <section className="mt-10 pb-16">
+          <section className="mt-8 pb-16">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-900">최신 채용공고</h2>
               <a href="/jobs" className="text-sm font-semibold text-teal-700 hover:underline">전체 보기 →</a>
