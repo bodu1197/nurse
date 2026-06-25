@@ -209,12 +209,66 @@ export type Database = {
           },
         ]
       }
+      reviews: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          hospital_id: string
+          id: string
+          is_hidden: boolean
+          rating: number
+          report_count: number
+          updated_at: string
+          work_period: string | null
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          hospital_id: string
+          id?: string
+          is_hidden?: boolean
+          rating: number
+          report_count?: number
+          updated_at?: string
+          work_period?: string | null
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          hospital_id?: string
+          id?: string
+          is_hidden?: boolean
+          rating?: number
+          report_count?: number
+          updated_at?: string
+          work_period?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      recompute_hospital_rating: { Args: { h: string }; Returns: undefined }
     }
     Enums: {
       user_role: "nurse" | "hospital" | "admin"
