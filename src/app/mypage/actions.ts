@@ -72,21 +72,27 @@ export async function createJob(formData: FormData) {
     await admin.from("profiles").update({ claimed_hospital_id: hospitalId }).eq("id", user.id);
   }
 
-  // 동시 무료 1건: 활성(게시 7일 이내·비광고) 무료 공고가 이미 있으면 추가 무료 불가 → 광고로 전환/대기.
-  const fresh = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const nowIso = new Date().toISOString();
-  const { count: freeActive } = await admin
-    .from("jobs")
-    .select("id", { count: "exact", head: true })
-    .eq("hospital_id", hospitalId)
-    .eq("status", "open")
-    .gte("posted_at", fresh)
-    .or(`featured_until.is.null,featured_until.lt.${nowIso}`);
-  if ((freeActive ?? 0) >= 1) redirect("/mypage/jobs?error=freelimit");
+  // 게시 기간 선택: free=무료 7일(동시 1건), 2/3/4=유료(draft로 생성 후 결제 시 게시 → 동시1건 미적용).
+  const duration = s("duration");
+  const paidWeeks = ["2", "3", "4"].includes(duration) ? Number(duration) : 0;
+
+  if (!paidWeeks) {
+    // 무료 동시 1건: 활성(게시 7일 이내·비광고) 무료 공고가 이미 있으면 추가 무료 불가.
+    const fresh = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const nowIso = new Date().toISOString();
+    const { count: freeActive } = await admin
+      .from("jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("hospital_id", hospitalId)
+      .eq("status", "open")
+      .gte("posted_at", fresh)
+      .or(`featured_until.is.null,featured_until.lt.${nowIso}`);
+    if ((freeActive ?? 0) >= 1) redirect("/mypage/jobs?error=freelimit");
+  }
 
   const num = (k: string) => { const n = parseInt(s(k), 10); return Number.isFinite(n) && n > 0 ? n : null; };
   const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
-  const { error } = await admin.from("jobs").insert({
+  const { data: created, error } = await admin.from("jobs").insert({
     hospital_id: hospitalId,
     title,
     specialty: s("specialty") || null,
@@ -103,10 +109,11 @@ export async function createJob(formData: FormData) {
     apply_email: s("apply_email") || null,
     apply_detail: s("apply_detail") || null,
     source: "direct",
-    status: "open",
-  });
-  if (error) redirect("/mypage/jobs/new?error=save");
-  redirect("/mypage/jobs?ok=1");
+    status: paidWeeks ? "draft" : "open",
+  }).select("id").single();
+  if (error || !created) redirect("/mypage/jobs/new?error=save");
+  // 유료면 결제 페이지로(기간 선택값 전달), 무료면 공고 관리로.
+  redirect(paidWeeks ? `/mypage/jobs/${created.id}/ad?weeks=${paidWeeks}` : "/mypage/jobs?ok=1");
 }
 
 // 소유 공고인지 확인(병원 소유주 == 본인). 아니면 null.

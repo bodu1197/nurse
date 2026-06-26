@@ -5,6 +5,7 @@ import HospitalPicker from "@/components/HospitalPicker";
 import JobFields from "@/components/JobFields";
 import { getMyProfile } from "@/lib/data/user";
 import { getMyJob, getMyHospital } from "@/lib/data/jobs";
+import { AD_PRODUCTS, won } from "@/lib/ads";
 import { createJob } from "../../actions";
 
 export const metadata = { title: "공고 등록 — 널스넷", robots: { index: false } };
@@ -62,6 +63,22 @@ export default async function NewJobPage({
             </div>
           )}
           <JobFields d={src ?? undefined} />
+
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium text-slate-700">게시 기간</legend>
+            <label className="flex items-center gap-3 rounded-xl border border-slate-300 p-3 has-[:checked]:border-teal-500 has-[:checked]:bg-teal-50">
+              <input type="radio" name="duration" value="free" defaultChecked className="accent-teal-600" />
+              <span className="text-sm text-slate-700"><b>무료 7일</b> <span className="text-slate-400">· 병원당 동시 1건</span></span>
+            </label>
+            {AD_PRODUCTS.map((p) => (
+              <label key={p.weeks} className="flex items-center gap-3 rounded-xl border border-slate-300 p-3 has-[:checked]:border-teal-500 has-[:checked]:bg-teal-50">
+                <input type="radio" name="duration" value={p.weeks} className="accent-teal-600" />
+                <span className="text-sm text-slate-700"><b>{p.weeks}주 노출</b> <span className="text-teal-700">· {won(p.amount)}</span> <span className="text-teal-600">(1주 무료 포함)</span></span>
+              </label>
+            ))}
+            <p className="text-xs text-slate-400">유료 선택 시 작성 후 결제하면 그 기간으로 게시됩니다. (결제는 도메인 연결 후 오픈 — 그전까진 &ldquo;결제 대기&rdquo;로 보관)</p>
+          </fieldset>
+
           <SubmitButton pendingText="등록 중…">{dup ? "복제 공고 등록" : "공고 등록"}</SubmitButton>
         </form>
       </main>

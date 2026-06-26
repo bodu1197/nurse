@@ -7,11 +7,13 @@ import { iamportReady } from "@/lib/iamport";
 
 export const metadata = { title: "공고 광고 — 널스넷", robots: { index: false } };
 
-export default async function AdPage({ params }: Readonly<{ params: Promise<{ id: string }> }>) {
+export default async function AdPage({ params, searchParams }: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ weeks?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "hospital") redirect("/mypage");
   const { id } = await params;
+  const { weeks } = await searchParams;
+  const initialWeeks = ["2", "3", "4"].includes(weeks ?? "") ? Number(weeks) : 2;
   const job = await getMyJob(id);
   if (!job) redirect("/mypage/jobs");
   const ready = iamportReady();
@@ -25,10 +27,10 @@ export default async function AdPage({ params }: Readonly<{ params: Promise<{ id
         <p className="mt-1 text-sm text-slate-500">공고: <b className="text-slate-700">{job.title}</b> · 기간을 선택해 결제하면 상단에 노출됩니다.</p>
 
         {ready ? (
-          <AdPurchase jobId={job.id} impCode={process.env.NEXT_PUBLIC_IAMPORT_CODE ?? ""} pg={process.env.NEXT_PUBLIC_IAMPORT_PG ?? "html5_inicis"} />
+          <AdPurchase jobId={job.id} initialWeeks={initialWeeks} impCode={process.env.NEXT_PUBLIC_IAMPORT_CODE ?? ""} pg={process.env.NEXT_PUBLIC_IAMPORT_PG ?? "html5_inicis"} />
         ) : (
           <div className="mt-6 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
-            광고 결제는 준비 중입니다. 곧 오픈됩니다.
+            광고 결제는 준비 중입니다(도메인 연결 후 오픈).{job.status === "draft" ? " 이 공고는 결제 시 게시됩니다 — 그전까지 '결제 대기' 상태로 보관됩니다." : ""}
           </div>
         )}
       </main>

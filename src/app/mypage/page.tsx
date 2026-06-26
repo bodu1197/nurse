@@ -59,6 +59,7 @@ function Card({ item }: { item: Item }) {
 }
 
 function jobBadge(j: MyJob, now: number) {
+  if (j.status === "draft") return { t: "결제 대기", c: "bg-amber-100 text-amber-800" };
   const featured = j.status === "open" && j.featured_until !== null && new Date(j.featured_until).getTime() > now;
   const freeLive = j.status === "open" && new Date(j.posted_at).getTime() >= now - 7 * DAY;
   if (featured) return { t: "광고중", c: "bg-violet-100 text-violet-800" };

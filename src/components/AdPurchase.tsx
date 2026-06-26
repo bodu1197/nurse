@@ -16,9 +16,9 @@ declare global {
   interface Window { IMP?: Imp }
 }
 
-export default function AdPurchase({ jobId, impCode, pg }: Readonly<{ jobId: string; impCode: string; pg: string }>) {
+export default function AdPurchase({ jobId, initialWeeks = 2, impCode, pg }: Readonly<{ jobId: string; initialWeeks?: number; impCode: string; pg: string }>) {
   const router = useRouter();
-  const [weeks, setWeeks] = useState(2);
+  const [weeks, setWeeks] = useState(initialWeeks);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const product = AD_PRODUCTS.find((p) => p.weeks === weeks)!;
