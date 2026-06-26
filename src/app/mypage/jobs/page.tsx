@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
+import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { getMyProfile } from "@/lib/data/user";
 import { getMyJobs, getMyFreeCredits } from "@/lib/data/jobs";
 import { setJobStatus, deleteJob, repostJob } from "../actions";
@@ -84,7 +85,7 @@ export default async function MyJobsPage({
                     )}
                     <form action={deleteJob} className="inline">
                       <input type="hidden" name="job_id" value={j.id} />
-                      <Button type="submit" variant="danger" size="sm">삭제</Button>
+                      <ConfirmSubmit message="이 공고를 삭제할까요? 지원자 정보도 함께 사라지며 되돌릴 수 없습니다.">삭제</ConfirmSubmit>
                     </form>
                   </div>
                 </li>

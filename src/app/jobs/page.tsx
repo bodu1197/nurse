@@ -20,14 +20,6 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-function Bookmark() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-400" aria-hidden>
-      <path d="M6 3h12a1 1 0 011 1v17l-7-4-7 4V4a1 1 0 011-1z" />
-    </svg>
-  );
-}
-
 export default async function JobsPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string; apply?: string }> }>) {
@@ -113,10 +105,7 @@ export default async function JobsPage({
                 return (
                   <li key={job.id}>
                     <a href={href(job.id)} className={`block rounded-lg border bg-white p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${on ? "border-teal-600 ring-1 ring-teal-600" : "border-slate-200 hover:border-slate-300 hover:shadow-sm"}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-semibold leading-snug text-slate-900">{job.title}</h3>
-                        <span className="shrink-0"><Bookmark /></span>
-                      </div>
+                      <h3 className="font-semibold leading-snug text-slate-900">{job.title}</h3>
                       <div className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? "병원 미상"}</div>
                       <div className="text-sm text-slate-500">{job.location}</div>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -176,6 +165,9 @@ export default async function JobsPage({
                           )}
                           {apply === "dup" && (
                             <p className="rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">이미 지원한 공고입니다.</p>
+                          )}
+                          {apply === "error" && (
+                            <p className="rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">지원 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.</p>
                           )}
                           <textarea name="message" rows={2} maxLength={500} placeholder="지원 메시지 (선택)" className="w-full resize-none rounded-[12px] border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
                           <Button type="submit" size="md">간편지원</Button>

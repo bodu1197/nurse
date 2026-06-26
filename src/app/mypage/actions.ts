@@ -44,7 +44,8 @@ export async function verifyHospitalBusiness(formData: FormData) {
     })
     .eq("id", user.id);
 
-  redirect("/mypage/verify?ok=1");
+  // 공고 등록 도중 인증하러 왔으면(from=jobs-new) 바로 공고 등록으로 복귀.
+  redirect(String(formData.get("from") ?? "") === "jobs-new" ? "/mypage/jobs/new" : "/mypage/verify?ok=1");
 }
 
 // 공고 등록 — 인증된 병원만. 미claim 병원이면 claim 후 jobs 저장(서버 검증).
@@ -93,7 +94,7 @@ export async function createJob(formData: FormData) {
 
   // 무료권 1장 차감
   await admin.from("hospitals").update({ free_credits: (hosp.free_credits ?? 1) - 1 }).eq("id", hospitalId);
-  redirect("/jobs");
+  redirect("/mypage/jobs?ok=1");
 }
 
 // 소유 공고인지 확인(병원 소유주 == 본인). 아니면 null.

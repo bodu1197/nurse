@@ -43,7 +43,10 @@ export default async function VerifyPage({
           <div className="mt-6 rounded-2xl border border-teal-200 bg-teal-50 p-6 text-center">
             <p className="text-lg font-bold text-teal-800">✓ 사업자 인증 완료</p>
             <p className="mt-1 text-sm text-teal-700">이제 공고를 등록할 수 있습니다.</p>
-            <Button href="/mypage" size="md" className="mt-4">마이페이지로</Button>
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              <Button href="/mypage/jobs/new" size="md">공고 등록하기</Button>
+              <Button href="/mypage" variant="outline" size="md">마이페이지로</Button>
+            </div>
           </div>
         ) : (
           <>
@@ -57,6 +60,7 @@ export default async function VerifyPage({
               </div>
             )}
             <form action={verifyHospitalBusiness} className="mt-6 flex flex-col gap-4">
+              <input type="hidden" name="from" value={from ?? ""} />
               <div className="flex flex-col gap-1">
                 <span className="text-sm font-medium text-slate-700">병원 선택</span>
                 <HospitalPicker initial={myHosp ? { id: myHosp.id, name: myHosp.name, region: myHosp.region, address: myHosp.address } : null} />
