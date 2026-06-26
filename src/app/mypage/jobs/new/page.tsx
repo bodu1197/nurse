@@ -34,7 +34,7 @@ export default async function NewJobPage({
         title: dup ? template.title : "",
         specialty: template.specialty,
         employment_type: template.employment_type,
-        location: template.location ?? myHosp?.region ?? null,
+        location: template.location ?? myHosp?.address ?? myHosp?.region ?? null,
         salary_text: template.salary_text,
         benefits: template.benefits,
         description: template.description,
@@ -46,7 +46,7 @@ export default async function NewJobPage({
         apply_email: template.apply_email,
         apply_detail: template.apply_detail ?? myHosp?.address ?? null,
       }
-    : { location: myHosp?.region ?? null, apply_detail: myHosp?.address ?? null, apply_methods: ["platform"] };
+    : { location: myHosp?.address ?? myHosp?.region ?? null, apply_detail: myHosp?.address ?? null, apply_methods: ["platform"] };
 
   return (
     <HospitalShell displayName={p.displayName} active="/mypage/jobs/new">

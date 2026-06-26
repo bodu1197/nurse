@@ -64,7 +64,7 @@ export async function createJob(formData: FormData) {
   const title = s("title");
   if (!hospitalId || !title) redirect("/mypage/jobs/new?error=missing");
 
-  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region, free_credits").eq("id", hospitalId).maybeSingle();
+  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region, address, free_credits").eq("id", hospitalId).maybeSingle();
   if (!hosp) redirect("/mypage/jobs/new?error=hospital");
   if (hosp.owner_profile_id && hosp.owner_profile_id !== user.id) redirect("/mypage/jobs/new?error=claimed");
   if (!hosp.owner_profile_id) {
@@ -98,7 +98,7 @@ export async function createJob(formData: FormData) {
     hospital_id: hospitalId,
     title,
     specialty: s("specialty") || null,
-    location: s("location") || hosp.region || null,
+    location: s("location") || hosp.address || hosp.region || null,
     employment_type: s("employment_type") || null,
     salary_text: s("salary_text") || null,
     description: s("description") || null,
