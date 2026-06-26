@@ -34,9 +34,8 @@ export default async function Home() {
 
             {/* 신뢰 통계 (검색창 아래) — 79,000은 병원 DB 수(실측), 공고 수 아님. 모바일은 wrap */}
             <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm text-slate-500 sm:mt-6">
-              <span><b className="font-extrabold text-teal-700">79,000+</b> 병원</span>
+              <span><b className="font-extrabold text-teal-700">79,000+</b> 병원 데이터</span>
               <span><b className="font-extrabold text-teal-700">16,000+</b> 간호사 회원</span>
-              <span><b className="font-extrabold text-teal-700">100%</b> 이력서 무료</span>
             </div>
 
             {/* 비로그인 전용 안내 — 로그인 후 숨김 */}
