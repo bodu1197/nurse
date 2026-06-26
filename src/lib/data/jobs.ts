@@ -42,14 +42,15 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
     .from("jobs")
     .select(SELECT)
     .eq("status", "open")
-    .order("is_featured", { ascending: false })
+    .order("featured_until", { ascending: false, nullsFirst: false })
     .order("posted_at", { ascending: false })
     .limit(50);
 
-  // 7일 무료 만료: 병원 직접(direct) 공고는 게시 7일 후 목록에서 자동 제외(외부 수집 공고는 유지).
-  // 유료 광고는 Phase 2에서 featured/expiry로 연장 예정.
-  const fresh = new Date(Date.now() - 7 * DAY_MS).toISOString();
-  query = query.or(`source.neq.direct,posted_at.gte.${fresh}`);
+  // direct(병원 직접) 공고 노출 조건: (게시 7일 이내 무료) 또는 (유료 광고 featured_until 유효). 외부 수집 공고는 항상.
+  const now = Date.now();
+  const fresh = new Date(now - 7 * DAY_MS).toISOString();
+  const nowIso = new Date(now).toISOString();
+  query = query.or(`source.neq.direct,posted_at.gte.${fresh},featured_until.gte.${nowIso}`);
 
   const kw = clean(keyword);
   if (kw) query = query.or(`title.ilike.%${kw}%,specialty.ilike.%${kw}%`);
@@ -67,7 +68,7 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   return data ?? [];
 }
 
-export type MyJob = { id: string; title: string; status: string; posted_at: string; applicant_count: number };
+export type MyJob = { id: string; title: string; status: string; posted_at: string; featured_until: string | null; applicant_count: number };
 
 // 병원 — 내가 소유한 병원의 공고 목록 + 지원자 수.
 export async function getMyJobs(): Promise<MyJob[]> {
@@ -78,15 +79,15 @@ export async function getMyJobs(): Promise<MyJob[]> {
   const ids = (hosps ?? []).map((h) => h.id);
   if (ids.length === 0) return [];
 
-  type Raw = { id: string; title: string; status: string; posted_at: string; applications: { count: number }[] };
+  type Raw = { id: string; title: string; status: string; posted_at: string; featured_until: string | null; applications: { count: number }[] };
   const { data } = await supabase
     .from("jobs")
-    .select("id,title,status,posted_at,applications(count)")
+    .select("id,title,status,posted_at,featured_until,applications(count)")
     .in("hospital_id", ids)
     .order("posted_at", { ascending: false })
     .returns<Raw[]>();
   return (data ?? []).map((j) => ({
-    id: j.id, title: j.title, status: j.status, posted_at: j.posted_at,
+    id: j.id, title: j.title, status: j.status, posted_at: j.posted_at, featured_until: j.featured_until,
     applicant_count: j.applications?.[0]?.count ?? 0,
   }));
 }

@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyBusiness } from "@/lib/data/nts";
+import { adProduct } from "@/lib/ads";
+import { getPayment, iamportReady } from "@/lib/iamport";
 
 // 병원 사업자 진위확인 → 통과 시에만 business_verified(서버=service_role) 설정.
 export async function verifyHospitalBusiness(formData: FormData) {
@@ -235,4 +237,70 @@ export async function sendMessage(formData: FormData) {
   });
   if (error) redirect("/mypage/messages?with=" + recipientId + "&error=1");
   redirect("/mypage/messages?with=" + recipientId);
+}
+
+// ───────── 광고 결제(포트원) ─────────
+type AdPrepare = { ok: true; merchant_uid: string; amount: number; name: string } | { ok: false; error: string };
+
+// 결제 전 주문 생성(서버가 금액 산정 — 클라 금액 신뢰 안 함). 클라가 받은 merchant_uid/amount로 IMP.request_pay.
+export async function prepareAdOrder(jobId: string, weeks: number): Promise<AdPrepare> {
+  if (!iamportReady()) return { ok: false, error: "unavailable" };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "auth" };
+  const product = adProduct(weeks);
+  if (!product) return { ok: false, error: "product" };
+  const admin = createAdminClient();
+  const hosp = await ownedJobHospital(admin, jobId, user.id);
+  if (!hosp) return { ok: false, error: "not_owner" };
+  const merchant_uid = `ad_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+  const { error } = await admin.from("ad_orders").insert({
+    merchant_uid, job_id: jobId, hospital_id: hosp.id, buyer_id: user.id,
+    tier: "standard", days: product.days, supply_amount: product.supply, vat: product.vat, amount: product.amount, status: "PREPARE",
+  });
+  if (error) return { ok: false, error: "db" };
+  return { ok: true, merchant_uid, amount: product.amount, name: `널스넷 광고 ${weeks}주(${product.days}일)` };
+}
+
+// 결제 활성화(검증 통과/웹훅 공용, 멱등). 광고 노출 기간 연장.
+async function activateAdOrder(admin: ReturnType<typeof createAdminClient>, orderId: string, jobId: string, days: number, tier: string, impUid: string) {
+  const { data: cur } = await admin.from("ad_orders").select("status").eq("id", orderId).maybeSingle();
+  if (cur?.status === "PAID") return;
+  await admin.from("ad_orders").update({ status: "PAID", imp_uid: impUid, paid_at: new Date().toISOString() }).eq("id", orderId);
+  const { data: job } = await admin.from("jobs").select("featured_until").eq("id", jobId).maybeSingle();
+  const now = Date.now();
+  const base = job?.featured_until ? Math.max(now, new Date(job.featured_until).getTime()) : now;
+  const until = new Date(base + days * 86_400_000).toISOString();
+  await admin.from("jobs").update({ featured_until: until, ad_tier: tier, status: "open", posted_at: new Date().toISOString() }).eq("id", jobId);
+}
+
+type AdVerify = { ok: true; orderId: string } | { ok: false; error: string };
+
+// 결제 후 서버 검증(금액 위변조 차단) → 활성화.
+export async function verifyAdPayment(impUid: string, merchantUid: string): Promise<AdVerify> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "auth" };
+  const admin = createAdminClient();
+  const { data: order } = await admin.from("ad_orders").select("id, buyer_id, job_id, days, tier, amount, status").eq("merchant_uid", merchantUid).maybeSingle();
+  if (!order || order.buyer_id !== user.id || !order.job_id) return { ok: false, error: "order" };
+  if (order.status === "PAID") return { ok: true, orderId: order.id };
+  const pay = await getPayment(impUid);
+  if (!pay || pay.merchant_uid !== merchantUid) return { ok: false, error: "verify" };
+  if (pay.status !== "paid") { await admin.from("ad_orders").update({ status: "FAILED" }).eq("id", order.id); return { ok: false, error: "notpaid" }; }
+  if (pay.amount !== order.amount) return { ok: false, error: "amount" };
+  await activateAdOrder(admin, order.id, order.job_id, order.days, order.tier, impUid);
+  return { ok: true, orderId: order.id };
+}
+
+// 포트원 웹훅(서버-투-서버) — 클라 콜백 실패 대비. imp_uid로 재검증 후 활성화.
+export async function iamportWebhook(impUid: string, merchantUid: string): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data: order } = await admin.from("ad_orders").select("id, job_id, days, tier, amount, status").eq("merchant_uid", merchantUid).maybeSingle();
+  if (!order || order.status === "PAID") return order?.status === "PAID";
+  if (!order.job_id) return false;
+  const pay = await getPayment(impUid);
+  if (!pay || pay.merchant_uid !== merchantUid || pay.status !== "paid" || pay.amount !== order.amount) return false;
+  await activateAdOrder(admin, order.id, order.job_id, order.days, order.tier, impUid);
+  return true;
 }

@@ -43,27 +43,33 @@ export default async function MyJobsPage({
           <ul className="mt-6 space-y-3">
             {jobs.map((j) => {
               const posted = new Date(j.posted_at).getTime();
+              const featuredMs = j.featured_until ? new Date(j.featured_until).getTime() : 0;
               const open = j.status === "open";
-              const expired = open && posted < now - FREE_MS;
-              const live = open && !expired;
-              const daysLeft = Math.max(0, Math.ceil((posted + FREE_MS - now) / DAY));
+              const featured = open && featuredMs > now;
+              const freeLive = open && posted >= now - FREE_MS;
+              const live = featured || freeLive;
+              const expired = open && !live;
+              const freeDaysLeft = Math.max(0, Math.ceil((posted + FREE_MS - now) / DAY));
+              const adDaysLeft = Math.max(0, Math.ceil((featuredMs - now) / DAY));
               return (
                 <li key={j.id} className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <a href={`/jobs?j=${j.id}`} className="font-semibold text-slate-900 hover:text-teal-700">{j.title}</a>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${live ? "bg-teal-100 text-teal-800" : expired ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>
-                      {live ? "게시중" : expired ? "만료" : "마감"}
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${featured ? "bg-violet-100 text-violet-800" : freeLive ? "bg-teal-100 text-teal-800" : expired ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>
+                      {featured ? "광고중" : freeLive ? "게시중" : expired ? "만료" : "마감"}
                     </span>
                   </div>
                   <div className="mt-1 text-sm text-slate-500">
                     {fmt(j.posted_at)} 등록 · 지원자{" "}
                     <a href="/mypage/applicants" className="font-semibold text-teal-700 hover:underline">{j.applicant_count}명</a>
-                    {live && <span className="text-slate-400"> · {daysLeft}일 남음(무료)</span>}
-                    {expired && <span className="text-amber-700"> · 노출 종료 — 다시 게시하면 7일 연장</span>}
+                    {featured && <span className="text-violet-700"> · 광고 {adDaysLeft}일 남음</span>}
+                    {!featured && freeLive && <span className="text-slate-400"> · 무료 {freeDaysLeft}일 남음</span>}
+                    {expired && <span className="text-amber-700"> · 노출 종료</span>}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
                     <Button href={`/mypage/jobs/${j.id}/edit`} variant="outline" size="sm">수정</Button>
                     <Button href={`/mypage/jobs/new?from=${j.id}`} variant="outline" size="sm">복제</Button>
+                    <Button href={`/mypage/jobs/${j.id}/ad`} size="sm">{featured ? "광고 연장" : "광고 올리기"}</Button>
                     {live ? (
                       <form action={setJobStatus} className="inline">
                         <input type="hidden" name="job_id" value={j.id} />
