@@ -4,10 +4,10 @@ import { useRef, useState } from "react";
 
 type Hosp = { id: string; name: string; region: string | null; address: string | null };
 
-export default function HospitalPicker() {
-  const [q, setQ] = useState("");
+export default function HospitalPicker({ initial }: { initial?: Hosp | null }) {
+  const [q, setQ] = useState(initial?.name ?? "");
   const [results, setResults] = useState<Hosp[]>([]);
-  const [selected, setSelected] = useState<Hosp | null>(null);
+  const [selected, setSelected] = useState<Hosp | null>(initial ?? null);
   const [loading, setLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 

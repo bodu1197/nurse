@@ -1,0 +1,53 @@
+// 공고 입력 필드 — 등록/수정/복제 폼이 공유(일관성 + 유지보수).
+export type JobDefaults = {
+  title?: string | null;
+  specialty?: string | null;
+  employment_type?: string | null;
+  location?: string | null;
+  salary_text?: string | null;
+  benefits?: string[] | null;
+  description?: string | null;
+};
+
+const field = "h-12 w-full rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
+const label = "text-sm font-medium text-slate-700";
+const TYPES = ["정규직", "계약직", "파트타임", "인턴"];
+
+export default function JobFields({ d = {} }: { d?: JobDefaults }) {
+  return (
+    <>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="title" className={label}>공고 제목 <span className="text-red-500">*</span></label>
+        <input id="title" name="title" required defaultValue={d.title ?? ""} placeholder="예: 중환자실(ICU) 간호사 모집" className={field} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="specialty" className={label}>진료과/부서</label>
+          <input id="specialty" name="specialty" defaultValue={d.specialty ?? ""} placeholder="예: 중환자실" className={field} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="employment_type" className={label}>고용형태</label>
+          <select id="employment_type" name="employment_type" className={field} defaultValue={d.employment_type ?? "정규직"}>
+            {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="location" className={label}>근무지</label>
+          <input id="location" name="location" defaultValue={d.location ?? ""} placeholder="비우면 병원 지역으로 표시" className={field} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="salary_text" className={label}>급여</label>
+          <input id="salary_text" name="salary_text" defaultValue={d.salary_text ?? ""} placeholder="예: 연 4,000~5,000만원 / 협의" className={field} />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="benefits" className={label}>복리후생 <span className="text-slate-400">(쉼표로 구분)</span></label>
+        <input id="benefits" name="benefits" defaultValue={(d.benefits ?? []).join(", ")} placeholder="예: 기숙사, 4대보험, 교육비 지원" className={field} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <label htmlFor="description" className={label}>상세 내용</label>
+        <textarea id="description" name="description" rows={6} defaultValue={d.description ?? ""} placeholder="담당 업무, 자격요건, 근무조건 등을 적어주세요." className="rounded-xl border border-slate-300 p-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
+      </div>
+    </>
+  );
+}

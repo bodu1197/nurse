@@ -73,6 +73,61 @@ export async function createJob(formData: FormData) {
   redirect("/jobs");
 }
 
+// 소유 공고인지 확인(병원 소유주 == 본인). 아니면 null.
+async function ownedJobHospital(admin: ReturnType<typeof createAdminClient>, jobId: string, userId: string) {
+  const { data: job } = await admin.from("jobs").select("hospital_id").eq("id", jobId).maybeSingle();
+  if (!job) return null;
+  const { data: hosp } = await admin.from("hospitals").select("owner_profile_id, region").eq("id", job.hospital_id).maybeSingle();
+  if (!hosp || hosp.owner_profile_id !== userId) return null;
+  return hosp;
+}
+
+// 공고 수정 — 소유 병원 공고만.
+export async function updateJob(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const jobId = String(formData.get("job_id") ?? "");
+  if (!jobId) redirect("/mypage/jobs");
+
+  const admin = createAdminClient();
+  const hosp = await ownedJobHospital(admin, jobId, user.id);
+  if (!hosp) redirect("/mypage/jobs?error=1");
+
+  const s = (k: string) => String(formData.get(k) ?? "").trim();
+  const title = s("title");
+  if (!title) redirect(`/mypage/jobs/${jobId}/edit?error=missing`);
+  const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
+  const { error } = await admin.from("jobs").update({
+    title,
+    specialty: s("specialty") || null,
+    location: s("location") || hosp.region || null,
+    employment_type: s("employment_type") || null,
+    salary_text: s("salary_text") || null,
+    description: s("description") || null,
+    benefits,
+  }).eq("id", jobId);
+  if (error) redirect(`/mypage/jobs/${jobId}/edit?error=save`);
+  redirect("/mypage/jobs?ok=1");
+}
+
+// 다시 게시 — 게시일 갱신(무료 7일 재시작) + 공개.
+export async function repostJob(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const jobId = String(formData.get("job_id") ?? "");
+  if (!jobId) redirect("/mypage/jobs");
+
+  const admin = createAdminClient();
+  const hosp = await ownedJobHospital(admin, jobId, user.id);
+  if (!hosp) redirect("/mypage/jobs?error=1");
+
+  const { error } = await admin.from("jobs").update({ status: "open", posted_at: new Date().toISOString() }).eq("id", jobId);
+  if (error) redirect("/mypage/jobs?error=1");
+  redirect("/mypage/jobs?ok=1");
+}
+
 // 간호사 이력서 저장(upsert) — RLS로 본인만.
 export async function saveResume(formData: FormData) {
   const supabase = await createClient();

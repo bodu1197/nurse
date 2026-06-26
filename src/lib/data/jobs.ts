@@ -46,6 +46,11 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
     .order("posted_at", { ascending: false })
     .limit(50);
 
+  // 7일 무료 만료: 병원 직접(direct) 공고는 게시 7일 후 목록에서 자동 제외(외부 수집 공고는 유지).
+  // 유료 광고는 Phase 2에서 featured/expiry로 연장 예정.
+  const fresh = new Date(Date.now() - 7 * DAY_MS).toISOString();
+  query = query.or(`source.neq.direct,posted_at.gte.${fresh}`);
+
   const kw = clean(keyword);
   if (kw) query = query.or(`title.ilike.%${kw}%,specialty.ilike.%${kw}%`);
   const loc = clean(location);
@@ -84,6 +89,32 @@ export async function getMyJobs(): Promise<MyJob[]> {
     id: j.id, title: j.title, status: j.status, posted_at: j.posted_at,
     applicant_count: j.applications?.[0]?.count ?? 0,
   }));
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export type MyJobDetail = {
+  id: string; title: string; specialty: string | null; location: string | null;
+  employment_type: string | null; salary_text: string | null; benefits: string[];
+  description: string | null; status: string; posted_at: string;
+  hospital: { id: string; name: string } | null;
+};
+
+// 내가 소유한 병원의 공고 1건(수정·복제 prefill용). 소유자 검증 포함.
+export async function getMyJob(id: string): Promise<MyJobDetail | null> {
+  if (!UUID_RE.test(id)) return null;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string; owner_profile_id: string | null } | null };
+  const { data } = await supabase
+    .from("jobs")
+    .select("id,title,specialty,location,employment_type,salary_text,benefits,description,status,posted_at,hospital:hospitals(id,name,owner_profile_id)")
+    .eq("id", id)
+    .maybeSingle()
+    .returns<Raw>();
+  if (!data || data.hospital?.owner_profile_id !== user.id) return null;
+  return { ...data, hospital: data.hospital ? { id: data.hospital.id, name: data.hospital.name } : null };
 }
 
 export type SavedSearch = { id: string; keyword: string | null; location: string | null; created_at: string };
