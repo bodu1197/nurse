@@ -178,6 +178,12 @@ export default async function JobsPage({
                           <Button type="submit" size="md">간편지원</Button>
                         </form>
                       )
+                    ) : !profile ? (
+                      // 외부(원본) 공고도 인디드처럼 로그인 후 연결 — off-site 이동 전 회원 확보
+                      <div className="flex flex-col gap-2 sm:max-w-md">
+                        <p className="text-sm text-slate-500">지원하려면 로그인이 필요합니다.</p>
+                        <Button href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} size="md">로그인하고 지원</Button>
+                      </div>
                     ) : (
                       <Button href={selected.external_url ?? "#"} target="_blank" rel="noopener noreferrer" size="md">
                         원본 사이트에서 지원
