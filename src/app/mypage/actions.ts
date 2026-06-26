@@ -16,7 +16,7 @@ export async function verifyHospitalBusiness(formData: FormData) {
   const admin = createAdminClient();
   const { data: prof } = await admin.from("profiles").select("role, business_verified").eq("id", user.id).maybeSingle();
   if (!prof || prof.role !== "hospital") redirect("/mypage");
-  if (prof.business_verified) redirect("/mypage/verify?ok=1");
+  // 사업자 변경(재인증) 허용 — 이미 인증됐어도 새 사업자번호로 다시 검증/갱신 가능.
 
   const b_no = String(formData.get("b_no") ?? "");
   const start_dt = String(formData.get("start_dt") ?? "");
@@ -92,6 +92,8 @@ export async function createJob(formData: FormData) {
 
   const num = (k: string) => { const n = parseInt(s(k), 10); return Number.isFinite(n) && n > 0 ? n : null; };
   const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
+  const am = formData.getAll("apply_methods").map(String).filter((m) => ["platform", "email", "offline"].includes(m));
+  const methods = am.length ? am : ["platform"];
   const { data: created, error } = await admin.from("jobs").insert({
     hospital_id: hospitalId,
     title,
@@ -105,7 +107,7 @@ export async function createJob(formData: FormData) {
     shift_type: s("shift_type") || null,
     manager_name: s("manager_name") || null,
     manager_phone: s("manager_phone") || null,
-    apply_method: s("apply_method") || "platform",
+    apply_methods: methods,
     apply_email: s("apply_email") || null,
     apply_detail: s("apply_detail") || null,
     source: "direct",
@@ -142,6 +144,8 @@ export async function updateJob(formData: FormData) {
   const title = s("title");
   if (!title) redirect(`/mypage/jobs/${jobId}/edit?error=missing`);
   const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
+  const am = formData.getAll("apply_methods").map(String).filter((m) => ["platform", "email", "offline"].includes(m));
+  const methods = am.length ? am : ["platform"];
   const { error } = await admin.from("jobs").update({
     title,
     specialty: s("specialty") || null,
@@ -154,7 +158,7 @@ export async function updateJob(formData: FormData) {
     shift_type: s("shift_type") || null,
     manager_name: s("manager_name") || null,
     manager_phone: s("manager_phone") || null,
-    apply_method: s("apply_method") || "platform",
+    apply_methods: methods,
     apply_email: s("apply_email") || null,
     apply_detail: s("apply_detail") || null,
   }).eq("id", jobId);

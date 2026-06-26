@@ -192,63 +192,60 @@ export default async function JobsPage({
 
                   <div className="mt-4">
                     {selected.source === "direct" ? (
-                      selected.apply_method === "email" ? (
-                        <div className="flex flex-col gap-2 sm:max-w-md">
-                          <p className="text-sm font-semibold text-slate-700">이메일로 지원</p>
-                          {profile ? (
-                            selected.apply_email
-                              ? <Button href={`mailto:${selected.apply_email}`} size="md">{selected.apply_email}</Button>
-                              : <p className="text-sm text-slate-500">지원 이메일이 등록되지 않았습니다. 채용 문의로 연락하세요.</p>
+                      <div className="space-y-4 sm:max-w-md">
+                        {selected.apply_methods.includes("platform") && (
+                          !profile ? (
+                            <div className="flex flex-col gap-2">
+                              <p className="text-sm text-slate-500">간편지원하려면 로그인이 필요합니다.</p>
+                              <Button href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} size="md">로그인하고 지원</Button>
+                            </div>
+                          ) : profile.role !== "nurse" ? (
+                            <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">간편지원은 간호사 회원만 가능합니다.</p>
+                          ) : applied ? (
+                            <div className="flex flex-col gap-2 rounded-[12px] border border-teal-200 bg-teal-50 px-4 py-3">
+                              <p className="text-sm font-semibold text-teal-800">✓ 지원 완료</p>
+                              <a href="/mypage/applications" className="text-sm font-semibold text-teal-700 hover:underline">지원 내역에서 확인 →</a>
+                            </div>
                           ) : (
-                            <>
-                              <p className="text-sm text-slate-500">이력서를 이메일로 보내 지원합니다. 이메일은 로그인 후 표시됩니다.</p>
-                              <Button href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} size="md">로그인 후 이메일 확인</Button>
-                            </>
-                          )}
-                        </div>
-                      ) : selected.apply_method === "offline" ? (
-                        <div className="flex flex-col gap-2 sm:max-w-md">
-                          <p className="text-sm font-semibold text-slate-700">접수 방법 (우편·방문·전화)</p>
-                          {profile ? (
-                            selected.apply_detail
-                              ? <p className="whitespace-pre-line rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">{selected.apply_detail}</p>
-                              : <p className="text-sm text-slate-500">접수 안내가 등록되지 않았습니다. 채용 문의로 연락하세요.</p>
-                          ) : (
-                            <>
-                              <p className="text-sm text-slate-500">우편·방문·전화로 접수합니다. 상세 안내는 로그인 후 표시됩니다.</p>
-                              <Button href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} size="md">로그인 후 접수 안내 확인</Button>
-                            </>
-                          )}
-                        </div>
-                      ) : !profile ? (
-                        <div className="flex flex-col gap-2 sm:max-w-md">
-                          <p className="text-sm text-slate-500">지원하려면 로그인이 필요합니다.</p>
-                          <Button href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} size="md">로그인하고 지원</Button>
-                        </div>
-                      ) : profile.role !== "nurse" ? (
-                        <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">간호사 회원만 지원할 수 있습니다.</p>
-                      ) : applied ? (
-                        <div className="flex flex-col gap-2 rounded-[12px] border border-teal-200 bg-teal-50 px-4 py-3 sm:max-w-md">
-                          <p className="text-sm font-semibold text-teal-800">✓ 지원 완료</p>
-                          <a href="/mypage/applications" className="text-sm font-semibold text-teal-700 hover:underline">지원 내역에서 확인 →</a>
-                        </div>
-                      ) : (
-                        <form action={applyToJob} className="flex flex-col gap-2 sm:max-w-md">
-                          <input type="hidden" name="job_id" value={selected.id} />
-                          {apply === "need_resume" && (
-                            <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                              지원하려면 이력서를 먼저 등록하세요. <a href="/mypage/resume" className="font-semibold underline">이력서 작성하기</a>
-                            </p>
-                          )}
-                          {apply === "error" && (
-                            <p className="rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">지원 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.</p>
-                          )}
-                          <textarea name="message" rows={2} maxLength={500} placeholder="지원 메시지 (선택)" className="w-full resize-none rounded-[12px] border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
-                          <Button type="submit" size="md">간편지원</Button>
-                        </form>
-                      )
+                            <form action={applyToJob} className="flex flex-col gap-2">
+                              <input type="hidden" name="job_id" value={selected.id} />
+                              {apply === "need_resume" && (
+                                <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">지원하려면 이력서를 먼저 등록하세요. <a href="/mypage/resume" className="font-semibold underline">이력서 작성하기</a></p>
+                              )}
+                              {apply === "error" && (
+                                <p className="rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">지원 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.</p>
+                              )}
+                              <textarea name="message" rows={2} maxLength={500} placeholder="지원 메시지 (선택)" className="w-full resize-none rounded-[12px] border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
+                              <Button type="submit" size="md">간편지원</Button>
+                            </form>
+                          )
+                        )}
+                        {selected.apply_methods.includes("email") && (
+                          <div className="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-sm font-semibold text-slate-700">이메일로 지원</p>
+                            {profile ? (
+                              selected.apply_email
+                                ? <a href={`mailto:${selected.apply_email}`} className="mt-1 inline-block font-semibold text-teal-700 hover:underline">{selected.apply_email}</a>
+                                : <p className="mt-1 text-sm text-slate-500">이메일 미등록 — 채용 문의로 연락하세요.</p>
+                            ) : (
+                              <a href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} className="mt-1 inline-block text-sm font-semibold text-teal-700 hover:underline">로그인 후 이메일 확인</a>
+                            )}
+                          </div>
+                        )}
+                        {selected.apply_methods.includes("offline") && (
+                          <div className="rounded-[12px] border border-slate-200 bg-slate-50 p-3">
+                            <p className="text-sm font-semibold text-slate-700">우편·방문·전화 접수</p>
+                            {profile ? (
+                              selected.apply_detail
+                                ? <p className="mt-1 whitespace-pre-line text-sm text-slate-700">{selected.apply_detail}</p>
+                                : <p className="mt-1 text-sm text-slate-500">접수 안내 미등록 — 채용 문의로 연락하세요.</p>
+                            ) : (
+                              <a href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} className="mt-1 inline-block text-sm font-semibold text-teal-700 hover:underline">로그인 후 접수 안내 확인</a>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     ) : !profile ? (
-                      // 외부(원본) 공고도 인디드처럼 로그인 후 연결 — off-site 이동 전 회원 확보
                       <div className="flex flex-col gap-2 sm:max-w-md">
                         <p className="text-sm text-slate-500">지원하려면 로그인이 필요합니다.</p>
                         <Button href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} size="md">로그인하고 지원</Button>

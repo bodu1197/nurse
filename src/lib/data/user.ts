@@ -22,6 +22,7 @@ export type MyProfile = {
   email: string;
   role: "nurse" | "hospital" | "admin";
   businessVerified: boolean;
+  businessVerifiedAt: string | null;
 };
 
 // 마이페이지용 — 본인 프로필 전체(RLS: 본인 select 허용). 비로그인=null.
@@ -31,7 +32,7 @@ export async function getMyProfile(): Promise<MyProfile | null> {
   if (!user) return null;
   const { data } = await supabase
     .from("profiles")
-    .select("username, display_name, email, role, business_verified")
+    .select("username, display_name, email, role, business_verified, business_verified_at")
     .eq("id", user.id)
     .maybeSingle();
   if (!data) return null;
@@ -41,5 +42,6 @@ export async function getMyProfile(): Promise<MyProfile | null> {
     email: data.email ?? user.email ?? "",
     role: data.role,
     businessVerified: data.business_verified ?? false,
+    businessVerifiedAt: data.business_verified_at ?? null,
   };
 }

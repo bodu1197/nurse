@@ -22,13 +22,14 @@ const ERR: Record<string, string> = {
 
 export default async function VerifyPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string; from?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string; from?: string; reverify?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "hospital") redirect("/mypage");
-  const { ok, error, from } = await searchParams;
+  const { ok, error, from, reverify } = await searchParams;
   const verified = p.businessVerified || ok === "1";
   const myHosp = await getMyHospital();
+  const verifiedAt = p.businessVerifiedAt ? new Date(p.businessVerifiedAt).toISOString().slice(0, 10).replace(/-/g, ".") : null;
 
   const inputClass = "h-12 rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
 
@@ -37,18 +38,20 @@ export default async function VerifyPage({
       <div className="max-w-lg">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">병원 사업자 인증</h1>
 
-        {verified ? (
+        {verified && reverify !== "1" ? (
           <div className="mt-6 rounded-2xl border border-teal-200 bg-teal-50 p-6 text-center">
             <p className="text-lg font-bold text-teal-800">✓ 사업자 인증 완료</p>
-            <p className="mt-1 text-sm text-teal-700">이제 공고를 등록할 수 있습니다.</p>
+            <p className="mt-1 text-sm text-teal-700">이제 공고를 등록할 수 있습니다.{verifiedAt && ` (최종 인증 ${verifiedAt})`}</p>
             <div className="mt-4 flex flex-wrap justify-center gap-2">
               <Button href="/mypage/jobs/new" size="md">공고 등록하기</Button>
               <Button href="/mypage" variant="outline" size="md">마이페이지로</Button>
             </div>
+            <p className="mt-4 text-xs text-slate-500">사업자번호가 바뀌었나요? <a href="/mypage/verify?reverify=1" className="font-semibold text-teal-700 underline">사업자 정보 변경(재인증)</a></p>
           </div>
         ) : (
           <>
             {from === "jobs-new" && <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">공고를 등록하려면 먼저 사업자 인증이 필요합니다.</div>}
+            {reverify === "1" && verified && <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">사업자 변경 재인증 — 새 사업자등록번호·대표자·개업일을 입력하면 갱신됩니다. (성공 시에만 갱신, 실패 시 기존 인증 유지)</div>}
             <p className="mt-2 text-sm text-slate-500">
               국세청 사업자등록 진위확인으로 병원을 인증합니다. 인증된 병원만 공고를 등록할 수 있습니다.
             </p>

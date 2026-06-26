@@ -197,6 +197,7 @@ export type Database = {
           apply_detail: string | null
           apply_email: string | null
           apply_method: string
+          apply_methods: string[]
           benefits: string[]
           created_at: string
           deadline: string | null
@@ -226,6 +227,7 @@ export type Database = {
           apply_detail?: string | null
           apply_email?: string | null
           apply_method?: string
+          apply_methods?: string[]
           benefits?: string[]
           created_at?: string
           deadline?: string | null
@@ -255,6 +257,7 @@ export type Database = {
           apply_detail?: string | null
           apply_email?: string | null
           apply_method?: string
+          apply_methods?: string[]
           benefits?: string[]
           created_at?: string
           deadline?: string | null

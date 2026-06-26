@@ -20,7 +20,7 @@ export type JobRow = {
   shift_type: string | null;
   manager_name: string | null;
   manager_phone: string | null;
-  apply_method: string;
+  apply_methods: string[];
   apply_email: string | null;
   apply_detail: string | null;
   hospital: { name: string; rating_avg: number; rating_count: number } | null;
@@ -35,7 +35,7 @@ export const SOURCE_LABEL: Record<JobSource, string> = {
 };
 
 const SELECT =
-  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,featured_until,recruit_count,shift_type,manager_name,manager_phone,apply_method,apply_email,apply_detail,hospital:hospitals(name,rating_avg,rating_count)";
+  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,featured_until,recruit_count,shift_type,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(name,rating_avg,rating_count)";
 
 export const PER_PAGE = 20;
 
@@ -131,7 +131,7 @@ export type MyJobDetail = {
   description: string | null; status: string; posted_at: string;
   recruit_count: number | null; shift_type: string | null;
   manager_name: string | null; manager_phone: string | null;
-  apply_method: string; apply_email: string | null; apply_detail: string | null;
+  apply_methods: string[]; apply_email: string | null; apply_detail: string | null;
   hospital: { id: string; name: string } | null;
 };
 
@@ -144,12 +144,32 @@ export async function getMyJob(id: string): Promise<MyJobDetail | null> {
   type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string; owner_profile_id: string | null } | null };
   const { data } = await supabase
     .from("jobs")
-    .select("id,title,specialty,location,employment_type,salary_text,benefits,description,status,posted_at,recruit_count,shift_type,manager_name,manager_phone,apply_method,apply_email,apply_detail,hospital:hospitals(id,name,owner_profile_id)")
+    .select("id,title,specialty,location,employment_type,salary_text,benefits,description,status,posted_at,recruit_count,shift_type,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(id,name,owner_profile_id)")
     .eq("id", id)
     .maybeSingle()
     .returns<Raw>();
   if (!data || data.hospital?.owner_profile_id !== user.id) return null;
   return { ...data, hospital: data.hospital ? { id: data.hospital.id, name: data.hospital.name } : null };
+}
+
+// 직전(가장 최근) 공고 — 새 공고 작성 시 템플릿 자동입력용.
+export async function getMyLastJob(): Promise<MyJobDetail | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data: hosps } = await supabase.from("hospitals").select("id").eq("owner_profile_id", user.id);
+  const ids = (hosps ?? []).map((h) => h.id);
+  if (ids.length === 0) return null;
+  type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string } | null };
+  const { data } = await supabase
+    .from("jobs")
+    .select("id,title,specialty,location,employment_type,salary_text,benefits,description,status,posted_at,recruit_count,shift_type,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(id,name)")
+    .in("hospital_id", ids)
+    .order("posted_at", { ascending: false })
+    .limit(1)
+    .maybeSingle()
+    .returns<Raw>();
+  return data ? { ...data, hospital: data.hospital } : null;
 }
 
 export type SavedSearch = { id: string; keyword: string | null; location: string | null; created_at: string };

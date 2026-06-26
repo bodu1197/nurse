@@ -2,9 +2,9 @@ import { redirect } from "next/navigation";
 import HospitalShell from "@/components/HospitalShell";
 import SubmitButton from "@/components/SubmitButton";
 import HospitalPicker from "@/components/HospitalPicker";
-import JobFields from "@/components/JobFields";
+import JobFields, { type JobDefaults } from "@/components/JobFields";
 import { getMyProfile } from "@/lib/data/user";
-import { getMyJob, getMyHospital } from "@/lib/data/jobs";
+import { getMyJob, getMyHospital, getMyLastJob } from "@/lib/data/jobs";
 import { AD_PRODUCTS, won } from "@/lib/ads";
 import { createJob } from "../../actions";
 
@@ -25,9 +25,28 @@ export default async function NewJobPage({
   if (p.role !== "hospital") redirect("/mypage");
   if (!p.businessVerified) redirect("/mypage/verify?from=jobs-new");
   const { error, from } = await searchParams;
-  const src = from ? await getMyJob(from) : null; // 복제 원본
-  const dup = !!src;
+  const dup = !!from;
   const myHosp = await getMyHospital(); // 인증 시 연결된 병원(있으면 자동 사용)
+  // 복제 지정(from)이면 그 공고, 아니면 직전 공고를 템플릿으로 → 전 필드 자동입력. 근무지·접수안내는 없으면 병원 데이터로.
+  const template = from ? await getMyJob(from) : await getMyLastJob();
+  const d: JobDefaults = template
+    ? {
+        title: dup ? template.title : "",
+        specialty: template.specialty,
+        employment_type: template.employment_type,
+        location: template.location ?? myHosp?.region ?? null,
+        salary_text: template.salary_text,
+        benefits: template.benefits,
+        description: template.description,
+        recruit_count: template.recruit_count,
+        shift_type: template.shift_type,
+        manager_name: template.manager_name,
+        manager_phone: template.manager_phone,
+        apply_methods: template.apply_methods ?? ["platform"],
+        apply_email: template.apply_email,
+        apply_detail: template.apply_detail ?? myHosp?.address ?? null,
+      }
+    : { location: myHosp?.region ?? null, apply_detail: myHosp?.address ?? null, apply_methods: ["platform"] };
 
   return (
     <HospitalShell displayName={p.displayName} active="/mypage/jobs/new">
@@ -57,10 +76,10 @@ export default async function NewJobPage({
           ) : (
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium text-slate-700">병원 선택 <span className="text-red-500">*</span></span>
-              <HospitalPicker initial={src?.hospital ? { id: src.hospital.id, name: src.hospital.name, region: null, address: null } : null} />
+              <HospitalPicker initial={template?.hospital ? { id: template.hospital.id, name: template.hospital.name, region: null, address: null } : null} />
             </div>
           )}
-          <JobFields d={src ?? undefined} />
+          <JobFields d={d} />
 
           <fieldset className="flex flex-col gap-2">
             <legend className="text-sm font-medium text-slate-700">게시 기간</legend>

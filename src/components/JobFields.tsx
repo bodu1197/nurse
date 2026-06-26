@@ -1,3 +1,5 @@
+import ApplyMethodFields from "@/components/ApplyMethodFields";
+
 // 공고 입력 필드 — 등록/수정/복제 폼이 공유(일관성 + 유지보수).
 export type JobDefaults = {
   title?: string | null;
@@ -11,7 +13,7 @@ export type JobDefaults = {
   shift_type?: string | null;
   manager_name?: string | null;
   manager_phone?: string | null;
-  apply_method?: string | null;
+  apply_methods?: string[] | null;
   apply_email?: string | null;
   apply_detail?: string | null;
 };
@@ -20,7 +22,6 @@ const field = "h-12 w-full rounded-xl border border-slate-300 px-3 text-base out
 const label = "text-sm font-medium text-slate-700";
 const TYPES = ["정규직", "계약직", "파트타임", "인턴"];
 const SHIFTS = ["협의", "3교대", "2교대", "낮번 전담", "야간 전담", "평일 주간"];
-const APPLY = [["platform", "간편지원 (이 사이트에서 접수)"], ["email", "이메일 지원"], ["offline", "우편·방문·전화 접수"]] as const;
 
 export default function JobFields({ d = {} }: { d?: JobDefaults }) {
   return (
@@ -75,23 +76,7 @@ export default function JobFields({ d = {} }: { d?: JobDefaults }) {
           <input id="manager_phone" name="manager_phone" inputMode="tel" defaultValue={d.manager_phone ?? ""} placeholder="예: 02-1234-5678" className={field} />
         </div>
       </div>
-      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="apply_method" className={label}>지원 방법</label>
-          <select id="apply_method" name="apply_method" className={field} defaultValue={d.apply_method ?? "platform"}>
-            {APPLY.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-          </select>
-        </div>
-        <div className="mt-3 flex flex-col gap-1">
-          <label htmlFor="apply_email" className={label}>지원 이메일 <span className="text-slate-400">(이메일 지원 선택 시)</span></label>
-          <input id="apply_email" name="apply_email" type="email" defaultValue={d.apply_email ?? ""} placeholder="예: hr@hospital.co.kr" className={field} />
-        </div>
-        <div className="mt-3 flex flex-col gap-1">
-          <label htmlFor="apply_detail" className={label}>접수 안내 <span className="text-slate-400">(우편·방문·전화 선택 시)</span></label>
-          <textarea id="apply_detail" name="apply_detail" rows={3} defaultValue={d.apply_detail ?? ""} placeholder="예: 이력서를 본원 간호부로 우편 접수(서울 ...) / 방문 접수 / 전화 문의 후 제출" className="rounded-xl border border-slate-300 p-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
-        </div>
-        <p className="mt-2 text-xs text-slate-400">간편지원 = 간호사가 이 사이트에서 바로 지원(받은 지원자에서 확인). 이메일·우편·전화는 지원자가 직접 보냅니다. 연락처·이메일은 로그인한 지원자에게만 보입니다.</p>
-      </div>
+      <ApplyMethodFields methods={d.apply_methods ?? ["platform"]} email={d.apply_email ?? ""} detail={d.apply_detail ?? ""} />
       <div className="flex flex-col gap-1">
         <label htmlFor="description" className={label}>상세 내용</label>
         <textarea id="description" name="description" rows={6} defaultValue={d.description ?? ""} placeholder="담당 업무, 자격요건, 근무조건 등을 적어주세요." className="rounded-xl border border-slate-300 p-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
