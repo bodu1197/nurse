@@ -68,6 +68,14 @@ function jobBadge(j: MyJob, now: number) {
   return { t: "마감", c: "bg-slate-100 text-slate-500" };
 }
 
+// 노출 종료일(광고=featured_until, 무료=게시+7일). 만료/마감/대기는 null.
+function jobEnd(j: MyJob, now: number): string | null {
+  if (j.status !== "open") return null;
+  const featuredMs = j.featured_until ? new Date(j.featured_until).getTime() : 0;
+  const end = featuredMs > now ? featuredMs : new Date(j.posted_at).getTime() + 7 * DAY;
+  return end > now ? new Date(end).toISOString().slice(0, 10).replace(/-/g, ".") : null;
+}
+
 export default async function MyPage() {
   const profile = await getMyProfile();
   if (!profile) redirect("/login");
@@ -130,10 +138,12 @@ export default async function MyPage() {
                 <ul className="mt-3 space-y-2">
                   {jobs.map((j) => {
                     const b = jobBadge(j, now);
+                    const end = jobEnd(j, now);
                     return (
                       <li key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-slate-200 bg-white p-3">
                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${b.c}`}>{b.t}</span>
                         <a href={`/jobs?j=${j.id}`} className="min-w-0 flex-1 truncate font-medium text-slate-800 hover:text-teal-700">{j.title}</a>
+                        {end && <span className="shrink-0 text-xs text-slate-400">~{end}까지</span>}
                         <a href={`/mypage/applicants?job_id=${j.id}`} className="shrink-0 text-xs text-slate-500 hover:text-teal-700">지원자 <b className="text-slate-700">{j.applicant_count}</b>명</a>
                         <span className="flex shrink-0 items-center gap-3 text-xs">
                           <a href={`/mypage/jobs/${j.id}/edit`} className="text-teal-700 hover:underline">수정</a>

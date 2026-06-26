@@ -63,8 +63,8 @@ export default async function MyJobsPage({
                     {fmt(j.posted_at)} 등록 · 지원자{" "}
                     <a href={`/mypage/applicants?job_id=${j.id}`} className="font-semibold text-teal-700 hover:underline">{j.applicant_count}명</a>
                     {pending && <span className="text-amber-700"> · 결제 후 게시</span>}
-                    {featured && <span className="text-violet-700"> · 광고 {adDaysLeft}일 남음</span>}
-                    {!featured && freeLive && <span className="text-slate-400"> · 무료 {freeDaysLeft}일 남음</span>}
+                    {featured && <span className="text-violet-700"> · 광고 {fmt(new Date(featuredMs).toISOString())}까지 ({adDaysLeft}일 남음)</span>}
+                    {!featured && freeLive && <span className="text-slate-400"> · 무료 {fmt(new Date(posted + FREE_MS).toISOString())}까지 ({freeDaysLeft}일 남음)</span>}
                     {expired && <span className="text-amber-700"> · 노출 종료</span>}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
