@@ -524,6 +524,42 @@ export type Database = {
           },
         ]
       }
+      saved_jobs: {
+        Row: {
+          created_at: string
+          id: string
+          job_id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          job_id: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          job_id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_jobs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_jobs_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_searches: {
         Row: {
           created_at: string

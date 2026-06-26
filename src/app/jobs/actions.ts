@@ -26,6 +26,21 @@ export async function applyToJob(formData: FormData) {
   redirect("/mypage/applications?ok=1");
 }
 
+// 관심 공고 저장/해제(토글) — 로그인 사용자. 184k 공고 중 마음에 든 것만 모아두기.
+export async function toggleSaveJob(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const jobId = String(formData.get("job_id") ?? "");
+  const nextRaw = String(formData.get("next") ?? "/jobs");
+  const next = nextRaw.startsWith("/") && !nextRaw.startsWith("//") ? nextRaw : "/jobs"; // open-redirect 방지
+  if (!jobId) redirect(next);
+  const { data: existing } = await supabase.from("saved_jobs").select("id").eq("profile_id", user.id).eq("job_id", jobId).maybeSingle();
+  if (existing) await supabase.from("saved_jobs").delete().eq("id", existing.id);
+  else await supabase.from("saved_jobs").insert({ profile_id: user.id, job_id: jobId });
+  redirect(next);
+}
+
 // 검색 저장(채용 알림 기반) — 로그인 사용자.
 export async function saveSearch(formData: FormData) {
   const supabase = await createClient();

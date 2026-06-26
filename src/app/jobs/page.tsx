@@ -1,9 +1,9 @@
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
-import { getJobs, PER_PAGE, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
+import { getJobs, getSavedJobIds, PER_PAGE, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
 import { hasApplied } from "@/lib/data/applications";
-import { applyToJob, saveSearch } from "./actions";
+import { applyToJob, saveSearch, toggleSaveJob } from "./actions";
 import FilterBar from "@/components/FilterBar";
 import { daysAgo } from "@/lib/date";
 
@@ -44,6 +44,7 @@ export default async function JobsPage({
   const selected: JobRow | undefined = jobs.find((x) => x.id === j) ?? jobs[0];
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   const applied = selected && profile?.role === "nurse" ? await hasApplied(selected.id) : false;
+  const savedSet = profile?.role === "nurse" ? await getSavedJobIds(jobs.map((x) => x.id)) : new Set<string>();
 
   const href = (jobId?: string, toPage?: number) => {
     const p = new URLSearchParams();
@@ -128,6 +129,7 @@ export default async function JobsPage({
                         {job.shift_type && <span className="text-slate-500">{job.shift_type}</span>}
                         <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
                         {job.source === "direct" && <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job)).slice(5)}</span>}
+                        {savedSet.has(job.id) && <span className="text-rose-500" title="저장한 공고">♥</span>}
                       </div>
                     </a>
                   </li>
@@ -165,6 +167,14 @@ export default async function JobsPage({
                   </div>
                   <div className="mt-1 text-slate-600">{selected.location}</div>
                   <div className="text-slate-600">{[selected.employment_type, selected.salary_text].filter(Boolean).join(" · ")}</div>
+
+                  {profile?.role === "nurse" && (
+                    <form action={toggleSaveJob} className="mt-3">
+                      <input type="hidden" name="job_id" value={selected.id} />
+                      <input type="hidden" name="next" value={href(selected.id)} />
+                      <Button type="submit" variant="outline" size="sm">{savedSet.has(selected.id) ? "♥ 저장됨" : "♡ 저장"}</Button>
+                    </form>
+                  )}
 
                   <div className="mt-4">
                     {selected.source === "direct" ? (

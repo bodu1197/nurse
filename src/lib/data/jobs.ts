@@ -167,6 +167,29 @@ export async function getMySavedSearches(): Promise<SavedSearch[]> {
   return data ?? [];
 }
 
+// 저장한 공고 id 집합(목록/상세 '저장됨' 표시용).
+export async function getSavedJobIds(jobIds: string[]): Promise<Set<string>> {
+  if (jobIds.length === 0) return new Set();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return new Set();
+  const { data } = await supabase.from("saved_jobs").select("job_id").eq("profile_id", user.id).in("job_id", jobIds);
+  return new Set((data ?? []).map((r) => r.job_id));
+}
+
+// 저장한 공고 목록(/mypage/saved) — 저장 순서 유지.
+export async function getSavedJobs(): Promise<JobRow[]> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+  const { data: saved } = await supabase.from("saved_jobs").select("job_id").eq("profile_id", user.id).order("created_at", { ascending: false });
+  const ids = (saved ?? []).map((r) => r.job_id);
+  if (ids.length === 0) return [];
+  const { data } = await supabase.from("jobs").select(SELECT).in("id", ids).returns<JobRow[]>();
+  const byId = new Map((data ?? []).map((j) => [j.id, j]));
+  return ids.map((id) => byId.get(id)).filter((j): j is JobRow => !!j);
+}
+
 export async function getJob(id: string): Promise<JobRow | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
