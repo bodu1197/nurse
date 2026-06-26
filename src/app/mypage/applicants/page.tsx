@@ -69,7 +69,7 @@ export default async function ApplicantsPage({
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-xs text-slate-400">{fmt(a.created_at)} 지원</span>
                   <span className="ml-auto flex items-center gap-2">
-                    <Button href={`/mypage/messages?with=${a.applicant_id}&name=${encodeURIComponent(a.resume?.name ?? "지원자")}`} variant="outline" size="sm">메시지</Button>
+                    {a.resume?.phone && <Button href={`tel:${a.resume.phone}`} variant="outline" size="sm">전화</Button>}
                     <StatusButton id={a.id} status="accepted" label="합격" variant="primary" />
                     <StatusButton id={a.id} status="rejected" label="불합격" variant="outline" />
                   </span>

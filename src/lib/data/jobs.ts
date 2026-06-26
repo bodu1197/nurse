@@ -15,6 +15,8 @@ export type JobRow = {
   external_url: string | null;
   is_featured: boolean;
   posted_at: string;
+  manager_name: string | null;
+  manager_phone: string | null;
   hospital: { name: string; rating_avg: number; rating_count: number } | null;
 };
 
@@ -27,7 +29,7 @@ export const SOURCE_LABEL: Record<JobSource, string> = {
 };
 
 const SELECT =
-  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,hospital:hospitals(name,rating_avg,rating_count)";
+  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,manager_name,manager_phone,hospital:hospitals(name,rating_avg,rating_count)";
 
 // PostgREST or 필터 주입 방지: %,(),쉼표 제거
 const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
@@ -118,6 +120,7 @@ export type MyJobDetail = {
   id: string; title: string; specialty: string | null; location: string | null;
   employment_type: string | null; salary_text: string | null; benefits: string[];
   description: string | null; status: string; posted_at: string;
+  manager_name: string | null; manager_phone: string | null;
   hospital: { id: string; name: string } | null;
 };
 
@@ -130,7 +133,7 @@ export async function getMyJob(id: string): Promise<MyJobDetail | null> {
   type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string; owner_profile_id: string | null } | null };
   const { data } = await supabase
     .from("jobs")
-    .select("id,title,specialty,location,employment_type,salary_text,benefits,description,status,posted_at,hospital:hospitals(id,name,owner_profile_id)")
+    .select("id,title,specialty,location,employment_type,salary_text,benefits,description,status,posted_at,manager_name,manager_phone,hospital:hospitals(id,name,owner_profile_id)")
     .eq("id", id)
     .maybeSingle()
     .returns<Raw>();

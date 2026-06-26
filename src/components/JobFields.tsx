@@ -7,6 +7,8 @@ export type JobDefaults = {
   salary_text?: string | null;
   benefits?: string[] | null;
   description?: string | null;
+  manager_name?: string | null;
+  manager_phone?: string | null;
 };
 
 const field = "h-12 w-full rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
@@ -43,6 +45,16 @@ export default function JobFields({ d = {} }: { d?: JobDefaults }) {
       <div className="flex flex-col gap-1">
         <label htmlFor="benefits" className={label}>복리후생 <span className="text-slate-400">(쉼표로 구분)</span></label>
         <input id="benefits" name="benefits" defaultValue={(d.benefits ?? []).join(", ")} placeholder="예: 기숙사, 4대보험, 교육비 지원" className={field} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="manager_name" className={label}>채용담당자</label>
+          <input id="manager_name" name="manager_name" defaultValue={d.manager_name ?? ""} placeholder="예: 간호부 김OO 팀장" className={field} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="manager_phone" className={label}>담당자 연락처 <span className="text-slate-400">(지원자에게 공개)</span></label>
+          <input id="manager_phone" name="manager_phone" inputMode="tel" defaultValue={d.manager_phone ?? ""} placeholder="예: 02-1234-5678" className={field} />
+        </div>
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="description" className={label}>상세 내용</label>

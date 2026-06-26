@@ -84,6 +84,8 @@ export async function createJob(formData: FormData) {
     salary_text: s("salary_text") || null,
     description: s("description") || null,
     benefits,
+    manager_name: s("manager_name") || null,
+    manager_phone: s("manager_phone") || null,
     source: "direct",
     status: "open",
   });
@@ -127,6 +129,8 @@ export async function updateJob(formData: FormData) {
     salary_text: s("salary_text") || null,
     description: s("description") || null,
     benefits,
+    manager_name: s("manager_name") || null,
+    manager_phone: s("manager_phone") || null,
   }).eq("id", jobId);
   if (error) redirect(`/mypage/jobs/${jobId}/edit?error=save`);
   redirect("/mypage/jobs?ok=1");
@@ -234,23 +238,6 @@ export async function deleteSavedSearch(formData: FormData) {
     if (error) redirect("/mypage/alerts?error=1");
   }
   redirect("/mypage/alerts");
-}
-
-// 1:1 메시지 전송. 상대 표시명 비정규화 저장.
-export async function sendMessage(formData: FormData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-  const recipientId = String(formData.get("recipient_id") ?? "");
-  const recipientName = String(formData.get("recipient_name") ?? "").trim() || null;
-  const body = String(formData.get("body") ?? "").trim();
-  if (!recipientId || !body) redirect("/mypage/messages");
-  const { data: me } = await supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle();
-  const { error } = await supabase.from("messages").insert({
-    sender_id: user.id, recipient_id: recipientId, sender_name: me?.display_name ?? null, recipient_name: recipientName, body,
-  });
-  if (error) redirect("/mypage/messages?with=" + recipientId + "&error=1");
-  redirect("/mypage/messages?with=" + recipientId);
 }
 
 // ───────── 광고 결제(포트원) ─────────

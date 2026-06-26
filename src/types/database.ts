@@ -205,6 +205,8 @@ export type Database = {
           id: string
           is_featured: boolean
           location: string | null
+          manager_name: string | null
+          manager_phone: string | null
           posted_at: string
           salary_text: string | null
           source: string
@@ -226,6 +228,8 @@ export type Database = {
           id?: string
           is_featured?: boolean
           location?: string | null
+          manager_name?: string | null
+          manager_phone?: string | null
           posted_at?: string
           salary_text?: string | null
           source?: string
@@ -247,6 +251,8 @@ export type Database = {
           id?: string
           is_featured?: boolean
           location?: string | null
+          manager_name?: string | null
+          manager_phone?: string | null
           posted_at?: string
           salary_text?: string | null
           source?: string
