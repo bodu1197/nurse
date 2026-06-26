@@ -44,7 +44,7 @@ export default async function JobsPage({
   const selected: JobRow | undefined = jobs.find((x) => x.id === j) ?? jobs[0];
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   const applied = selected && profile?.role === "nurse" ? await hasApplied(selected.id) : false;
-  const savedSet = profile?.role === "nurse" ? await getSavedJobIds(jobs.map((x) => x.id)) : new Set<string>();
+  const savedSet = profile ? await getSavedJobIds(jobs.map((x) => x.id)) : new Set<string>();
 
   const href = (jobId?: string, toPage?: number) => {
     const p = new URLSearchParams();
@@ -118,9 +118,9 @@ export default async function JobsPage({
               {jobs.map((job) => {
                 const on = selected?.id === job.id;
                 return (
-                  <li key={job.id}>
+                  <li key={job.id} className="relative">
                     <a href={href(job.id)} className={`block rounded-lg border bg-white p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${on ? "border-teal-600 ring-1 ring-teal-600" : "border-slate-200 hover:border-slate-300 hover:shadow-sm"}`}>
-                      <h3 className="font-semibold leading-snug text-slate-900">{job.title}</h3>
+                      <h3 className="pr-10 font-semibold leading-snug text-slate-900">{job.title}</h3>
                       <div className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? "병원 미상"}</div>
                       <div className="text-sm text-slate-500">{job.location}</div>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -129,9 +129,15 @@ export default async function JobsPage({
                         {job.shift_type && <span className="text-slate-500">{job.shift_type}</span>}
                         <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
                         {job.source === "direct" && <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job)).slice(5)}</span>}
-                        {savedSet.has(job.id) && <span className="text-rose-500" title="저장한 공고">♥</span>}
                       </div>
                     </a>
+                    <form action={toggleSaveJob} className="absolute right-2 top-2">
+                      <input type="hidden" name="job_id" value={job.id} />
+                      <input type="hidden" name="next" value={href(job.id)} />
+                      <button type="submit" aria-label={savedSet.has(job.id) ? "저장 해제" : "저장"} className={`grid h-9 w-9 place-items-center rounded-full text-xl leading-none hover:bg-slate-100 ${savedSet.has(job.id) ? "text-rose-500" : "text-slate-300"}`}>
+                        {savedSet.has(job.id) ? "♥" : "♡"}
+                      </button>
+                    </form>
                   </li>
                 );
               })}
@@ -146,7 +152,7 @@ export default async function JobsPage({
             </div>
 
             {selected && (
-              <section className={`${j ? "" : "hidden lg:block"} lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-auto`}>
+              <section className={`${j ? "" : "hidden lg:block"} lg:self-start`}>
                 <a href={href()} className="mb-3 inline-block text-sm text-teal-700 hover:underline lg:hidden">← 목록으로</a>
                 <article className="rounded-lg border border-slate-200 bg-white p-6">
                   <h2 className="text-2xl font-bold leading-snug text-slate-900">{selected.title}</h2>
@@ -168,13 +174,11 @@ export default async function JobsPage({
                   <div className="mt-1 text-slate-600">{selected.location}</div>
                   <div className="text-slate-600">{[selected.employment_type, selected.salary_text].filter(Boolean).join(" · ")}</div>
 
-                  {profile?.role === "nurse" && (
-                    <form action={toggleSaveJob} className="mt-3">
-                      <input type="hidden" name="job_id" value={selected.id} />
-                      <input type="hidden" name="next" value={href(selected.id)} />
-                      <Button type="submit" variant="outline" size="sm">{savedSet.has(selected.id) ? "♥ 저장됨" : "♡ 저장"}</Button>
-                    </form>
-                  )}
+                  <form action={toggleSaveJob} className="mt-3">
+                    <input type="hidden" name="job_id" value={selected.id} />
+                    <input type="hidden" name="next" value={href(selected.id)} />
+                    <Button type="submit" variant="outline" size="sm">{savedSet.has(selected.id) ? "♥ 저장됨" : "♡ 저장"}</Button>
+                  </form>
 
                   <div className="mt-4">
                     {selected.source === "direct" ? (
