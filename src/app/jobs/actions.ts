@@ -12,15 +12,16 @@ export async function applyToJob(formData: FormData) {
   const jobId = String(formData.get("job_id") ?? "");
   if (!jobId) redirect("/jobs");
 
+  const j = encodeURIComponent(jobId);
   const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (prof?.role !== "nurse") redirect("/jobs");
+  if (prof?.role !== "nurse") redirect(`/jobs?j=${j}&apply=nurse_only`);
 
   const { data: resume } = await supabase.from("resumes").select("profile_id").eq("profile_id", user.id).maybeSingle();
-  if (!resume) redirect("/mypage/resume?need=1");
+  if (!resume) redirect(`/jobs?j=${j}&apply=need_resume`);
 
   const message = String(formData.get("message") ?? "").trim() || null;
   const { error } = await supabase.from("applications").insert({ job_id: jobId, applicant_id: user.id, message });
-  if (error) redirect(error.code === "23505" ? "/mypage/applications?dup=1" : "/jobs");
+  if (error) redirect(error.code === "23505" ? `/jobs?j=${j}&apply=dup` : `/jobs?j=${j}&apply=error`);
 
   redirect("/mypage/applications?ok=1");
 }

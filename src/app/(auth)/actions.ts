@@ -25,7 +25,9 @@ export async function signInWithId(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) redirect("/login?error=invalid_credentials");
 
-  redirect("/");
+  // 로그인 후 원래 보던 곳으로 복귀(상대경로만 허용 — 오픈 리다이렉트 방지)
+  const next = String(formData.get("next") ?? "");
+  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
 }
 
 export async function signOut() {

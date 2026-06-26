@@ -1,7 +1,7 @@
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getJobs, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
-import { getCurrentUser } from "@/lib/data/user";
+import { getMyProfile } from "@/lib/data/user";
 import { applyToJob, saveSearch } from "./actions";
 import FilterBar from "@/components/FilterBar";
 import { daysAgo } from "@/lib/date";
@@ -30,14 +30,14 @@ function Bookmark() {
 
 export default async function JobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string }> }>) {
-  const { q, l, j, saved, spec, et, days } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string; apply?: string }> }>) {
+  const { q, l, j, saved, spec, et, days, apply } = await searchParams;
   const kw = (q ?? "").trim();
   const loc = (l ?? "").trim();
 
-  const [jobs, user] = await Promise.all([
+  const [jobs, profile] = await Promise.all([
     getJobs(kw, loc, { specialty: spec, employmentType: et, days: days ? Number(days) : undefined }),
-    getCurrentUser(),
+    getMyProfile(),
   ]);
   const selected: JobRow | undefined = jobs.find((x) => x.id === j) ?? jobs[0];
 
@@ -56,7 +56,7 @@ export default async function JobsPage({
 
   return (
     <>
-      <SiteHeader user={user} />
+      <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
 
       <div className="border-b border-slate-200">
         <div className="mx-auto max-w-[1280px] px-4 py-4">
@@ -79,15 +79,15 @@ export default async function JobsPage({
 
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-5">
         <p className="text-sm text-slate-600">
-          <a href={user ? "/mypage/resume" : "/signup"} className="font-semibold text-teal-700 hover:underline">
-            {user ? "내 이력서 관리" : "이력서를 등록하세요"}
+          <a href={profile ? "/mypage/resume" : "/signup"} className="font-semibold text-teal-700 hover:underline">
+            {profile ? "내 이력서 관리" : "이력서를 등록하세요"}
           </a> — 손쉽게 지원하세요
         </p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-slate-500">
             {kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{jobs.length}건</span>{loc ? `, ${loc}` : ""} · 정렬: 연관성
           </p>
-          {user && (kw || loc) && (
+          {profile && (kw || loc) && (
             <form action={saveSearch}>
               <input type="hidden" name="q" value={kw} />
               <input type="hidden" name="l" value={loc} />
@@ -152,14 +152,31 @@ export default async function JobsPage({
 
                   <div className="mt-4">
                     {selected.source === "direct" ? (
-                      user ? (
+                      !profile ? (
+                        // 비로그인: 클릭하면 로그인 안내(무반응 방지)
+                        <div className="flex flex-col gap-2 sm:max-w-md">
+                          <p className="text-sm text-slate-500">지원하려면 로그인이 필요합니다.</p>
+                          <Button href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} size="md">로그인하고 지원</Button>
+                        </div>
+                      ) : profile.role !== "nurse" ? (
+                        // 병원/관리자 등 비간호사: 지원 불가 안내
+                        <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                          간호사 회원만 지원할 수 있습니다.
+                        </p>
+                      ) : (
                         <form action={applyToJob} className="flex flex-col gap-2 sm:max-w-md">
                           <input type="hidden" name="job_id" value={selected.id} />
+                          {apply === "need_resume" && (
+                            <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                              지원하려면 이력서를 먼저 등록하세요. <a href="/mypage/resume" className="font-semibold underline">이력서 작성하기</a>
+                            </p>
+                          )}
+                          {apply === "dup" && (
+                            <p className="rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">이미 지원한 공고입니다.</p>
+                          )}
                           <textarea name="message" rows={2} maxLength={500} placeholder="지원 메시지 (선택)" className="w-full resize-none rounded-[12px] border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
                           <Button type="submit" size="md">간편지원</Button>
                         </form>
-                      ) : (
-                        <Button href="/login" size="md">간편지원</Button>
                       )
                     ) : (
                       <Button href={selected.external_url ?? "#"} target="_blank" rel="noopener noreferrer" size="md">

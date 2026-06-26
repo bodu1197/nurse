@@ -15,11 +15,12 @@ const inputClass =
 
 export default async function LoginPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ error?: string }> }>) {
-  const { error } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ error?: string; notice?: string; next?: string }> }>) {
+  const { error, notice, next } = await searchParams;
   const message = error
     ? (AUTH_ERROR_MESSAGES[error] ?? "로그인에 실패했습니다. 다시 시도해 주세요.")
     : null;
+  const noticeMsg = notice === "apply" ? "지원하려면 먼저 로그인하세요." : null;
 
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
@@ -30,9 +31,11 @@ export default async function LoginPage({
 
         <h1 className="mt-8 text-center text-xl font-bold text-slate-900">로그인</h1>
 
+        {noticeMsg && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">{noticeMsg}</div>}
         {message && <DismissibleError message={message} />}
 
         <form action={signInWithId} className="mt-6 flex flex-col gap-3">
+          {next && <input type="hidden" name="next" value={next} />}
           <div className="flex flex-col gap-1">
             <label htmlFor="loginId" className="text-sm font-medium text-slate-700">아이디</label>
             <input id="loginId" name="loginId" type="text" autoComplete="username" placeholder="아이디 또는 이메일" required className={inputClass} />
