@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import SiteHeader from "@/components/SiteHeader";
+import HospitalShell from "@/components/HospitalShell";
 import Button from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { getMyProfile } from "@/lib/data/user";
@@ -22,11 +22,8 @@ export default async function MyJobsPage({
   const now = Date.now();
 
   return (
-    <>
-      <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <a href="/mypage" className="text-sm text-teal-700 hover:underline">← 마이페이지</a>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+    <HospitalShell displayName={p.displayName} active="/mypage/jobs">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-slate-900">공고 관리</h1>
           <Button href="/mypage/jobs/new" size="md">공고 등록</Button>
         </div>
@@ -99,7 +96,6 @@ export default async function MyJobsPage({
             })}
           </ul>
         )}
-      </main>
-    </>
+    </HospitalShell>
   );
 }

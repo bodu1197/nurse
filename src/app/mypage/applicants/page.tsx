@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import SiteHeader from "@/components/SiteHeader";
+import HospitalShell from "@/components/HospitalShell";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { getMyJobs } from "@/lib/data/jobs";
@@ -36,10 +36,7 @@ export default async function ApplicantsPage({
   const [jobs, apps] = await Promise.all([getMyJobs(), getReceivedApplications(job_id)]);
 
   return (
-    <>
-      <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <a href="/mypage" className="text-sm text-teal-700 hover:underline">← 마이페이지</a>
+    <HospitalShell displayName={p.displayName} active="/mypage/applicants">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">받은 지원자</h1>
 
         {jobs.length > 1 && (
@@ -89,7 +86,6 @@ export default async function ApplicantsPage({
             ))}
           </ul>
         )}
-      </main>
-    </>
+    </HospitalShell>
   );
 }

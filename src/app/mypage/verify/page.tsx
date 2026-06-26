@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import SiteHeader from "@/components/SiteHeader";
+import HospitalShell from "@/components/HospitalShell";
 import SubmitButton from "@/components/SubmitButton";
 import Button from "@/components/Button";
 import HospitalPicker from "@/components/HospitalPicker";
@@ -33,10 +33,8 @@ export default async function VerifyPage({
   const inputClass = "h-12 rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
 
   return (
-    <>
-      <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-lg flex-1 px-4 py-8">
-        <a href="/mypage" className="text-sm text-teal-700 hover:underline">← 마이페이지</a>
+    <HospitalShell displayName={p.displayName} active="/mypage/verify">
+      <div className="max-w-lg">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">병원 사업자 인증</h1>
 
         {verified ? (
@@ -83,7 +81,7 @@ export default async function VerifyPage({
             <p className="mt-4 text-xs text-slate-400">입력 정보는 국세청 진위확인에만 사용되며, 사업자번호 외에는 저장하지 않습니다.</p>
           </>
         )}
-      </main>
-    </>
+      </div>
+    </HospitalShell>
   );
 }

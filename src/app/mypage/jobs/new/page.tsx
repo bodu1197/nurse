@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import SiteHeader from "@/components/SiteHeader";
+import HospitalShell from "@/components/HospitalShell";
 import SubmitButton from "@/components/SubmitButton";
 import HospitalPicker from "@/components/HospitalPicker";
 import JobFields from "@/components/JobFields";
@@ -30,10 +30,8 @@ export default async function NewJobPage({
   const myHosp = await getMyHospital(); // 인증 시 연결된 병원(있으면 자동 사용)
 
   return (
-    <>
-      <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <a href="/mypage/jobs" className="text-sm text-teal-700 hover:underline">← 공고 관리</a>
+    <HospitalShell displayName={p.displayName} active="/mypage/jobs/new">
+      <div className="max-w-2xl">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">{dup ? "공고 복제" : "공고 등록"}</h1>
         <p className="mt-1 text-sm text-slate-500">
           {dup ? "기존 공고를 복사했습니다. 필요한 부분(급여·직종 등)만 고쳐 등록하세요." : "병원을 검색해 선택하면 공고에 자동 연결됩니다."}
@@ -81,7 +79,7 @@ export default async function NewJobPage({
 
           <SubmitButton pendingText="등록 중…">{dup ? "복제 공고 등록" : "공고 등록"}</SubmitButton>
         </form>
-      </main>
-    </>
+      </div>
+    </HospitalShell>
   );
 }

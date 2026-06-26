@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import SiteHeader from "@/components/SiteHeader";
+import HospitalShell from "@/components/HospitalShell";
 import { getMyProfile } from "@/lib/data/user";
 import { createClient } from "@/lib/supabase/server";
 import { won } from "@/lib/ads";
@@ -26,11 +26,9 @@ export default async function ReceiptPage({ params }: Readonly<{ params: Promise
   const paid = o.status === "PAID";
 
   return (
-    <>
-      <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-lg flex-1 px-4 py-8">
-        <a href="/mypage/jobs" className="text-sm text-teal-700 hover:underline">← 공고 관리</a>
-        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
+    <HospitalShell displayName={p.displayName} active="/mypage/jobs">
+      <div className="max-w-lg">
+        <div className="rounded-2xl border border-slate-200 bg-white p-6">
           <div className="text-center">
             <p className={`text-lg font-bold ${paid ? "text-teal-700" : "text-slate-500"}`}>{paid ? "✓ 결제 완료" : "결제 미완료"}</p>
             <p className="mt-1 text-sm text-slate-500">광고 영수증</p>
@@ -47,7 +45,7 @@ export default async function ReceiptPage({ params }: Readonly<{ params: Promise
           </dl>
           <p className="mt-6 text-center text-xs text-slate-400">정식 세금계산서가 필요하시면 운영팀(howtattoo@howtattoo.co.kr)으로 요청해 주세요.</p>
         </div>
-      </main>
-    </>
+      </div>
+    </HospitalShell>
   );
 }

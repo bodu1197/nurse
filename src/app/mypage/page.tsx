@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
+import HospitalShell from "@/components/HospitalShell";
 import { getMyProfile, type MyProfile } from "@/lib/data/user";
 import { getMyJobs, type MyJob } from "@/lib/data/jobs";
 
@@ -13,15 +14,6 @@ const ROLE_LABEL: Record<MyProfile["role"], string> = {
   hospital: "병원 회원",
   admin: "관리자",
 };
-
-// ───────── 병원: LNB + 대시보드 ─────────
-const HOSPITAL_NAV = [
-  { href: "/mypage", label: "대시보드" },
-  { href: "/mypage/jobs/new", label: "공고 등록" },
-  { href: "/mypage/jobs", label: "공고 관리" },
-  { href: "/mypage/applicants", label: "받은 지원자" },
-  { href: "/mypage/verify", label: "사업자 인증" },
-];
 
 // 노출 종료 시각(ms). 광고=featured_until, 무료=게시+7일. 만료/마감/대기는 0.
 function endMs(j: MyJob, now: number): number {
@@ -57,91 +49,60 @@ function HospitalDashboard({ profile, jobs }: { profile: MyProfile; jobs: MyJob[
   const soon = jobs.filter((j) => { const e = endMs(j, now); return e > 0 && e - now <= 3 * DAY; }).length;
 
   return (
-    <>
-      <SiteHeader user={{ displayName: profile.displayName }} />
-      <div className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-5 px-4 py-6 lg:flex-row lg:gap-6">
-        {/* LNB (데스크톱) */}
-        <aside className="hidden lg:block lg:w-56 lg:shrink-0">
-          <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center gap-2.5">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-teal-50 text-base font-bold text-teal-700" aria-hidden>{profile.displayName.slice(0, 1)}</span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-slate-900">{profile.displayName}</p>
-                <span className="text-xs font-semibold text-teal-700">{ROLE_LABEL[profile.role]}</span>
-              </div>
-            </div>
-          </div>
-          <nav className="mt-3 space-y-1 rounded-2xl border border-slate-200 bg-white p-2">
-            {HOSPITAL_NAV.map((n) => (
-              <a key={n.href} href={n.href} className={`block rounded-lg px-3 py-2 text-sm ${n.href === "/mypage" ? "bg-teal-50 font-semibold text-teal-700" : "text-slate-600 hover:bg-slate-50"}`}>{n.label}</a>
-            ))}
-          </nav>
-        </aside>
+    <HospitalShell displayName={profile.displayName} active="/mypage">
+      <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">대시보드</h1>
 
-        {/* 모바일 가로 네비 */}
-        <nav className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
-          {HOSPITAL_NAV.map((n) => (
-            <a key={n.href} href={n.href} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${n.href === "/mypage" ? "border-teal-500 bg-teal-50 font-semibold text-teal-700" : "border-slate-300 text-slate-600"}`}>{n.label}</a>
-          ))}
-        </nav>
+      {!profile.businessVerified && (
+        <a href="/mypage/verify" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+          <span className="text-amber-800">공고를 등록하려면 사업자 인증이 필요합니다.</span>
+          <span className="font-semibold text-amber-900">인증하기 →</span>
+        </a>
+      )}
 
-        {/* 메인 */}
-        <main className="min-w-0 flex-1">
-          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">대시보드</h1>
-
-          {!profile.businessVerified && (
-            <a href="/mypage/verify" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
-              <span className="text-amber-800">공고를 등록하려면 사업자 인증이 필요합니다.</span>
-              <span className="font-semibold text-amber-900">인증하기 →</span>
-            </a>
-          )}
-
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <Widget label="게시중 공고" value={`${liveCount}`} accent="text-teal-700" />
-            <Widget label="받은 지원자" value={`${applicants}`} accent="text-teal-700" />
-            <Widget label="마감 임박(3일)" value={`${soon}`} accent={soon ? "text-rose-600" : "text-slate-900"} />
-            <Widget label="사업자 인증" value={profile.businessVerified ? "완료" : "필요"} accent={profile.businessVerified ? "text-teal-700" : "text-amber-600"} />
-          </div>
-
-          <section className="mt-6">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-bold text-slate-900">내 채용공고 <span className="text-sm font-normal text-slate-400">· 무료 동시 1건</span></h2>
-              <Button href="/mypage/jobs/new" size="sm">+ 공고 등록</Button>
-            </div>
-            {jobs.length === 0 ? (
-              <div className="mt-3 rounded-xl border border-dashed border-slate-300 p-10 text-center">
-                <p className="text-sm text-slate-500">아직 등록한 공고가 없습니다.</p>
-                <a href="/mypage/jobs/new" className="mt-2 inline-block font-semibold text-teal-700 hover:underline">첫 공고 등록하기 →</a>
-              </div>
-            ) : (
-              <ul className="mt-3 space-y-2">
-                {jobs.map((j) => {
-                  const b = jobBadge(j, now);
-                  const e = endMs(j, now);
-                  return (
-                    <li key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white p-4">
-                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${b.c}`}>{b.t}</span>
-                      <a href={`/jobs?j=${j.id}`} className="min-w-0 flex-1 truncate font-medium text-slate-800 hover:text-teal-700">{j.title}</a>
-                      {e > 0 && <span className="shrink-0 text-xs text-slate-400">~{fmtMs(e)}까지</span>}
-                      <a href={`/mypage/applicants?job_id=${j.id}`} className="shrink-0 text-sm text-slate-500 hover:text-teal-700">지원자 <b className="text-slate-700">{j.applicant_count}</b>명</a>
-                      <span className="flex shrink-0 items-center gap-3 text-sm">
-                        <a href={`/mypage/jobs/${j.id}/edit`} className="text-teal-700 hover:underline">수정</a>
-                        <a href={`/mypage/jobs/${j.id}/ad`} className="font-semibold text-violet-700 hover:underline">광고</a>
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        </main>
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Widget label="게시중 공고" value={`${liveCount}`} accent="text-teal-700" />
+        <Widget label="받은 지원자" value={`${applicants}`} accent="text-teal-700" />
+        <Widget label="마감 임박(3일)" value={`${soon}`} accent={soon ? "text-rose-600" : "text-slate-900"} />
+        <Widget label="사업자 인증" value={profile.businessVerified ? "완료" : "필요"} accent={profile.businessVerified ? "text-teal-700" : "text-amber-600"} />
       </div>
-    </>
+
+      <section className="mt-6">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-bold text-slate-900">내 채용공고 <span className="text-sm font-normal text-slate-400">· 무료 동시 1건</span></h2>
+          <Button href="/mypage/jobs/new" size="sm">+ 공고 등록</Button>
+        </div>
+        {jobs.length === 0 ? (
+          <div className="mt-3 rounded-xl border border-dashed border-slate-300 p-10 text-center">
+            <p className="text-sm text-slate-500">아직 등록한 공고가 없습니다.</p>
+            <a href="/mypage/jobs/new" className="mt-2 inline-block font-semibold text-teal-700 hover:underline">첫 공고 등록하기 →</a>
+          </div>
+        ) : (
+          <ul className="mt-3 space-y-2">
+            {jobs.map((j) => {
+              const b = jobBadge(j, now);
+              const e = endMs(j, now);
+              return (
+                <li key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white p-4">
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${b.c}`}>{b.t}</span>
+                  <a href={`/jobs?j=${j.id}`} className="min-w-0 flex-1 truncate font-medium text-slate-800 hover:text-teal-700">{j.title}</a>
+                  {e > 0 && <span className="shrink-0 text-xs text-slate-400">~{fmtMs(e)}까지</span>}
+                  <a href={`/mypage/applicants?job_id=${j.id}`} className="shrink-0 text-sm text-slate-500 hover:text-teal-700">지원자 <b className="text-slate-700">{j.applicant_count}</b>명</a>
+                  <span className="flex shrink-0 items-center gap-3 text-sm">
+                    <a href={`/mypage/jobs/${j.id}/edit`} className="text-teal-700 hover:underline">수정</a>
+                    <a href={`/mypage/jobs/${j.id}/ad`} className="font-semibold text-violet-700 hover:underline">광고</a>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </HospitalShell>
   );
 }
 
 // ───────── 간호사/관리자: 카드형 ─────────
-type Item = { title: string; desc: string; href?: string; badge?: { text: string; tone: "teal" | "amber" } };
+type Item = { title: string; desc: string; href?: string };
 
 const NURSE_ITEMS: Item[] = [
   { title: "내 이력서", desc: "이력서를 작성하고 병원에 지원하세요. (무료)", href: "/mypage/resume" },
@@ -160,11 +121,7 @@ function Card({ item }: { item: Item }) {
     <>
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-semibold text-slate-900">{item.title}</h3>
-        {item.badge ? (
-          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.badge.tone === "teal" ? "bg-teal-100 text-teal-800" : "bg-amber-100 text-amber-800"}`}>{item.badge.text}</span>
-        ) : !item.href ? (
-          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">준비 중</span>
-        ) : null}
+        {!item.href && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">준비 중</span>}
       </div>
       <p className="mt-1 text-sm text-slate-500">{item.desc}</p>
     </>

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import SiteHeader from "@/components/SiteHeader";
+import HospitalShell from "@/components/HospitalShell";
 import AdPurchase from "@/components/AdPurchase";
 import { getMyProfile } from "@/lib/data/user";
 import { getMyJob } from "@/lib/data/jobs";
@@ -19,10 +19,8 @@ export default async function AdPage({ params, searchParams }: Readonly<{ params
   const ready = iamportReady();
 
   return (
-    <>
-      <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-xl flex-1 px-4 py-8">
-        <a href="/mypage/jobs" className="text-sm text-teal-700 hover:underline">← 공고 관리</a>
+    <HospitalShell displayName={p.displayName} active="/mypage/jobs">
+      <div className="max-w-xl">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">공고 광고 올리기</h1>
         <p className="mt-1 text-sm text-slate-500">공고: <b className="text-slate-700">{job.title}</b> · 기간을 선택해 결제하면 상단에 노출됩니다.</p>
 
@@ -33,7 +31,7 @@ export default async function AdPage({ params, searchParams }: Readonly<{ params
             광고 결제는 준비 중입니다(도메인 연결 후 오픈).{job.status === "draft" ? " 이 공고는 결제 시 게시됩니다 — 그전까지 '결제 대기' 상태로 보관됩니다." : ""}
           </div>
         )}
-      </main>
-    </>
+      </div>
+    </HospitalShell>
   );
 }

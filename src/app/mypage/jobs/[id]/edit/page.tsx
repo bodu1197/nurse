@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import SiteHeader from "@/components/SiteHeader";
+import HospitalShell from "@/components/HospitalShell";
 import SubmitButton from "@/components/SubmitButton";
 import JobFields from "@/components/JobFields";
 import { getMyProfile } from "@/lib/data/user";
@@ -26,10 +26,8 @@ export default async function EditJobPage({
   const { error } = await searchParams;
 
   return (
-    <>
-      <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <a href="/mypage/jobs" className="text-sm text-teal-700 hover:underline">← 공고 관리</a>
+    <HospitalShell displayName={p.displayName} active="/mypage/jobs">
+      <div className="max-w-2xl">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">공고 수정</h1>
         <p className="mt-1 text-sm text-slate-500">병원: <b className="text-slate-700">{job.hospital?.name ?? "-"}</b></p>
 
@@ -44,7 +42,7 @@ export default async function EditJobPage({
           <JobFields d={job} />
           <SubmitButton pendingText="저장 중…">수정 저장</SubmitButton>
         </form>
-      </main>
-    </>
+      </div>
+    </HospitalShell>
   );
 }
