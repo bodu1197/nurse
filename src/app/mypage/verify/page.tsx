@@ -2,7 +2,9 @@ import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SubmitButton from "@/components/SubmitButton";
 import Button from "@/components/Button";
+import HospitalPicker from "@/components/HospitalPicker";
 import { getMyProfile } from "@/lib/data/user";
+import { getMyHospital } from "@/lib/data/jobs";
 import { verifyHospitalBusiness } from "../actions";
 
 export const metadata = { title: "병원 사업자 인증 — 널스넷", robots: { index: false } };
@@ -14,6 +16,8 @@ const ERR: Record<string, string> = {
   api: "인증 서버 오류입니다. 잠시 후 다시 시도해 주세요.",
   config: "인증 설정 오류입니다. 관리자에게 문의해 주세요.",
   fail: "인증에 실패했습니다. 다시 시도해 주세요.",
+  hospital: "선택한 병원을 찾을 수 없습니다.",
+  claimed: "이미 다른 계정이 등록·관리 중인 병원입니다.",
 };
 
 export default async function VerifyPage({
@@ -24,6 +28,7 @@ export default async function VerifyPage({
   if (p.role !== "hospital") redirect("/mypage");
   const { ok, error, from } = await searchParams;
   const verified = p.businessVerified || ok === "1";
+  const myHosp = await getMyHospital();
 
   const inputClass = "h-12 rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
 
@@ -52,6 +57,11 @@ export default async function VerifyPage({
               </div>
             )}
             <form action={verifyHospitalBusiness} className="mt-6 flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium text-slate-700">병원 선택</span>
+                <HospitalPicker initial={myHosp ? { id: myHosp.id, name: myHosp.name, region: myHosp.region, address: myHosp.address } : null} />
+                <span className="text-xs text-slate-400">인증과 함께 병원을 연결하면, 공고 등록 시 병원 정보가 자동으로 채워집니다.</span>
+              </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="b_no" className="text-sm font-medium text-slate-700">사업자등록번호</label>
                 <input id="b_no" name="b_no" inputMode="numeric" required placeholder="숫자 10자리 (예: 1234567890)" className={inputClass} />

@@ -25,9 +25,23 @@ export async function verifyHospitalBusiness(formData: FormData) {
   const res = await verifyBusiness(b_no, start_dt, p_nm);
   if (!res.ok) redirect(`/mypage/verify?error=${res.reason ?? "fail"}`);
 
+  // 인증 시 병원을 1회 연결 → 이후 공고에 자동 사용(병원 재선택/재입력 방지).
+  const hospitalId = String(formData.get("hospital_id") ?? "");
+  if (hospitalId) {
+    const { data: hosp } = await admin.from("hospitals").select("owner_profile_id").eq("id", hospitalId).maybeSingle();
+    if (!hosp) redirect("/mypage/verify?error=hospital");
+    if (hosp.owner_profile_id && hosp.owner_profile_id !== user.id) redirect("/mypage/verify?error=claimed");
+    if (!hosp.owner_profile_id) await admin.from("hospitals").update({ owner_profile_id: user.id, is_claimed: true }).eq("id", hospitalId);
+  }
+
   await admin
     .from("profiles")
-    .update({ business_no: b_no.replace(/\D/g, ""), business_verified: true, business_verified_at: new Date().toISOString() })
+    .update({
+      business_no: b_no.replace(/\D/g, ""),
+      business_verified: true,
+      business_verified_at: new Date().toISOString(),
+      ...(hospitalId ? { claimed_hospital_id: hospitalId } : {}),
+    })
     .eq("id", user.id);
 
   redirect("/mypage/verify?ok=1");

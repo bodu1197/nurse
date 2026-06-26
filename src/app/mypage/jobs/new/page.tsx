@@ -4,7 +4,7 @@ import SubmitButton from "@/components/SubmitButton";
 import HospitalPicker from "@/components/HospitalPicker";
 import JobFields from "@/components/JobFields";
 import { getMyProfile } from "@/lib/data/user";
-import { getMyJob } from "@/lib/data/jobs";
+import { getMyJob, getMyHospital } from "@/lib/data/jobs";
 import { createJob } from "../../actions";
 
 export const metadata = { title: "공고 등록 — 널스넷", robots: { index: false } };
@@ -26,6 +26,7 @@ export default async function NewJobPage({
   const { error, from } = await searchParams;
   const src = from ? await getMyJob(from) : null; // 복제 원본
   const dup = !!src;
+  const myHosp = await getMyHospital(); // 인증 시 연결된 병원(있으면 자동 사용)
 
   return (
     <>
@@ -44,10 +45,22 @@ export default async function NewJobPage({
         )}
 
         <form action={createJob} className="mt-6 flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <span className="text-sm font-medium text-slate-700">병원 선택 <span className="text-red-500">*</span></span>
-            <HospitalPicker initial={src?.hospital ? { id: src.hospital.id, name: src.hospital.name, region: null, address: null } : null} />
-          </div>
+          {myHosp ? (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-slate-700">병원</span>
+              <div className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5 text-sm">
+                <span className="font-semibold text-teal-800">{myHosp.name}</span>
+                {myHosp.region && <span className="ml-2 text-xs text-teal-700">{myHosp.region}</span>}
+              </div>
+              <input type="hidden" name="hospital_id" value={myHosp.id} />
+              <span className="text-xs text-slate-400">인증 시 연결된 병원이 자동 사용됩니다.</span>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <span className="text-sm font-medium text-slate-700">병원 선택 <span className="text-red-500">*</span></span>
+              <HospitalPicker initial={src?.hospital ? { id: src.hospital.id, name: src.hospital.name, region: null, address: null } : null} />
+            </div>
+          )}
           <JobFields d={src ?? undefined} />
           <SubmitButton pendingText="등록 중…">{dup ? "복제 공고 등록" : "공고 등록"}</SubmitButton>
         </form>

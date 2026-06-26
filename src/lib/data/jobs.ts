@@ -92,6 +92,17 @@ export async function getMyJobs(): Promise<MyJob[]> {
   }));
 }
 
+export type MyHospital = { id: string; name: string; region: string | null; address: string | null };
+
+// 내 계정에 연결(claim)된 병원. 인증 시 1회 연결 → 이후 공고에 자동 사용(재입력 방지).
+export async function getMyHospital(): Promise<MyHospital | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase.from("hospitals").select("id,name,region,address").eq("owner_profile_id", user.id).limit(1);
+  return data?.[0] ?? null;
+}
+
 // 병원 무료 게시권 잔여(병원당 7일×4). null=병원 없음.
 export async function getMyFreeCredits(): Promise<number | null> {
   const supabase = await createClient();
