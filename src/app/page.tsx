@@ -32,12 +32,6 @@ export default async function Home() {
               <Button type="submit" size="lg" className="w-full sm:w-auto sm:shrink-0">검색</Button>
             </form>
 
-            {/* 신뢰 통계 (검색창 아래) — 79,000은 병원 DB 수(실측), 공고 수 아님. 모바일은 wrap */}
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm text-slate-500 sm:mt-6">
-              <span><b className="font-extrabold text-teal-700">79,000+</b> 병원 데이터</span>
-              <span><b className="font-extrabold text-teal-700">16,000+</b> 간호사 회원</span>
-            </div>
-
             {/* 비로그인 전용 안내 — 로그인 후 숨김 */}
             {!profile && (
               <div className="mt-8">
@@ -52,6 +46,20 @@ export default async function Home() {
                 </Button>
               </div>
             )}
+          </div>
+        </section>
+
+        {/* 신뢰 통계 띠 — 히어로 아래 전용(검색 흐름 방해 안 함) */}
+        <section className="border-b border-slate-200 bg-teal-50/50">
+          <div className="mx-auto flex max-w-[1280px] flex-wrap items-center justify-center gap-x-10 gap-y-2 px-4 py-4 text-sm text-slate-600">
+            <span className="inline-flex items-center gap-2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600" aria-hidden><path d="M3 21h18M6 21V7l6-4 6 4v14M10 9h4M10 13h4M10 17h4" /></svg>
+              <span><b className="font-extrabold text-teal-700">79,000+</b> 병원 데이터</span>
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600" aria-hidden><circle cx="9" cy="7" r="3.5" /><path d="M2.5 20c0-3 3-5 6.5-5s6.5 2 6.5 5" /><path d="M16 4a3.5 3.5 0 010 6.5" /><path d="M21.5 20c0-2.2-1.4-3.9-3.5-4.6" /></svg>
+              <span><b className="font-extrabold text-teal-700">16,000+</b> 간호사 회원</span>
+            </span>
           </div>
         </section>
 
