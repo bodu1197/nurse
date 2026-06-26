@@ -7,6 +7,9 @@ export type JobDefaults = {
   salary_text?: string | null;
   benefits?: string[] | null;
   description?: string | null;
+  deadline?: string | null;
+  recruit_count?: number | null;
+  shift_type?: string | null;
   manager_name?: string | null;
   manager_phone?: string | null;
 };
@@ -14,6 +17,7 @@ export type JobDefaults = {
 const field = "h-12 w-full rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
 const label = "text-sm font-medium text-slate-700";
 const TYPES = ["정규직", "계약직", "파트타임", "인턴"];
+const SHIFTS = ["협의", "3교대", "2교대", "낮번 전담", "야간 전담", "평일 주간"];
 
 export default function JobFields({ d = {} }: { d?: JobDefaults }) {
   return (
@@ -40,6 +44,22 @@ export default function JobFields({ d = {} }: { d?: JobDefaults }) {
         <div className="flex flex-col gap-1">
           <label htmlFor="salary_text" className={label}>급여</label>
           <input id="salary_text" name="salary_text" defaultValue={d.salary_text ?? ""} placeholder="예: 연 4,000~5,000만원 / 협의" className={field} />
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="shift_type" className={label}>교대형태</label>
+          <select id="shift_type" name="shift_type" className={field} defaultValue={d.shift_type ?? "협의"}>
+            {SHIFTS.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="recruit_count" className={label}>모집인원</label>
+          <input id="recruit_count" name="recruit_count" type="number" min="1" defaultValue={d.recruit_count ?? ""} placeholder="명 (비우면 0명)" className={field} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="deadline" className={label}>마감일 <span className="text-slate-400">(비우면 상시)</span></label>
+          <input id="deadline" name="deadline" type="date" defaultValue={d.deadline ?? ""} className={field} />
         </div>
       </div>
       <div className="flex flex-col gap-1">

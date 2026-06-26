@@ -72,9 +72,19 @@ export async function createJob(formData: FormData) {
     await admin.from("profiles").update({ claimed_hospital_id: hospitalId }).eq("id", user.id);
   }
 
-  // 무료권(7일×4) 확인 — 소진 시 유료 광고 필요(Phase 2 결제).
-  if ((hosp.free_credits ?? 0) <= 0) redirect("/mypage/jobs?error=nocredit");
+  // 동시 무료 1건: 활성(게시 7일 이내·비광고) 무료 공고가 이미 있으면 추가 무료 불가 → 광고로 전환/대기.
+  const fresh = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const nowIso = new Date().toISOString();
+  const { count: freeActive } = await admin
+    .from("jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("hospital_id", hospitalId)
+    .eq("status", "open")
+    .gte("posted_at", fresh)
+    .or(`featured_until.is.null,featured_until.lt.${nowIso}`);
+  if ((freeActive ?? 0) >= 1) redirect("/mypage/jobs?error=freelimit");
 
+  const num = (k: string) => { const n = parseInt(s(k), 10); return Number.isFinite(n) && n > 0 ? n : null; };
   const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
   const { error } = await admin.from("jobs").insert({
     hospital_id: hospitalId,
@@ -85,15 +95,15 @@ export async function createJob(formData: FormData) {
     salary_text: s("salary_text") || null,
     description: s("description") || null,
     benefits,
+    deadline: s("deadline") || null,
+    recruit_count: num("recruit_count"),
+    shift_type: s("shift_type") || null,
     manager_name: s("manager_name") || null,
     manager_phone: s("manager_phone") || null,
     source: "direct",
     status: "open",
   });
   if (error) redirect("/mypage/jobs/new?error=save");
-
-  // 무료권 1장 차감
-  await admin.from("hospitals").update({ free_credits: (hosp.free_credits ?? 1) - 1 }).eq("id", hospitalId);
   redirect("/mypage/jobs?ok=1");
 }
 
@@ -119,6 +129,7 @@ export async function updateJob(formData: FormData) {
   if (!hosp) redirect("/mypage/jobs?error=1");
 
   const s = (k: string) => String(formData.get(k) ?? "").trim();
+  const num = (k: string) => { const n = parseInt(s(k), 10); return Number.isFinite(n) && n > 0 ? n : null; };
   const title = s("title");
   if (!title) redirect(`/mypage/jobs/${jobId}/edit?error=missing`);
   const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
@@ -130,6 +141,9 @@ export async function updateJob(formData: FormData) {
     salary_text: s("salary_text") || null,
     description: s("description") || null,
     benefits,
+    deadline: s("deadline") || null,
+    recruit_count: num("recruit_count"),
+    shift_type: s("shift_type") || null,
     manager_name: s("manager_name") || null,
     manager_phone: s("manager_phone") || null,
   }).eq("id", jobId);
@@ -148,12 +162,22 @@ export async function repostJob(formData: FormData) {
   const admin = createAdminClient();
   const hosp = await ownedJobHospital(admin, jobId, user.id);
   if (!hosp) redirect("/mypage/jobs?error=1");
-  // 다시 게시도 새 7일 노출 → 무료권 1장 소비
-  if ((hosp.free_credits ?? 0) <= 0) redirect("/mypage/jobs?error=nocredit");
 
-  const { error } = await admin.from("jobs").update({ status: "open", posted_at: new Date().toISOString() }).eq("id", jobId);
+  // 다시 게시 = 새 7일 무료 노출 → 동시 무료 1건 규칙 적용(다른 활성 무료 공고가 있으면 불가).
+  const fresh = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const nowIso = new Date().toISOString();
+  const { count: freeActive } = await admin
+    .from("jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("hospital_id", hosp.id)
+    .eq("status", "open")
+    .gte("posted_at", fresh)
+    .or(`featured_until.is.null,featured_until.lt.${nowIso}`)
+    .neq("id", jobId);
+  if ((freeActive ?? 0) >= 1) redirect("/mypage/jobs?error=freelimit");
+
+  const { error } = await admin.from("jobs").update({ status: "open", posted_at: nowIso }).eq("id", jobId);
   if (error) redirect("/mypage/jobs?error=1");
-  await admin.from("hospitals").update({ free_credits: (hosp.free_credits ?? 1) - 1 }).eq("id", hosp.id);
   redirect("/mypage/jobs?ok=1");
 }
 

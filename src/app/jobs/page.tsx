@@ -1,6 +1,6 @@
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
-import { getJobs, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
+import { getJobs, PER_PAGE, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
 import { applyToJob, saveSearch } from "./actions";
 import FilterBar from "@/components/FilterBar";
@@ -22,24 +22,27 @@ function Stars({ rating }: { rating: number }) {
 
 export default async function JobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string; apply?: string }> }>) {
-  const { q, l, j, saved, spec, et, days, apply } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string; apply?: string; page?: string }> }>) {
+  const { q, l, j, saved, spec, et, days, apply, page } = await searchParams;
   const kw = (q ?? "").trim();
   const loc = (l ?? "").trim();
+  const pageNum = Math.max(1, Number(page) || 1);
 
-  const [jobs, profile] = await Promise.all([
-    getJobs(kw, loc, { specialty: spec, employmentType: et, days: days ? Number(days) : undefined }),
+  const [{ jobs, total }, profile] = await Promise.all([
+    getJobs(kw, loc, { specialty: spec, employmentType: et, days: days ? Number(days) : undefined }, pageNum),
     getMyProfile(),
   ]);
   const selected: JobRow | undefined = jobs.find((x) => x.id === j) ?? jobs[0];
+  const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
-  const href = (jobId?: string) => {
+  const href = (jobId?: string, toPage?: number) => {
     const p = new URLSearchParams();
     if (kw) p.set("q", kw);
     if (loc) p.set("l", loc);
     if (spec) p.set("spec", spec);
     if (et) p.set("et", et);
     if (days) p.set("days", days);
+    if (toPage && toPage > 1) p.set("page", String(toPage));
     if (jobId) p.set("j", jobId);
     const s = p.toString();
     return "/jobs" + (s ? `?${s}` : "");
@@ -77,7 +80,7 @@ export default async function JobsPage({
         </p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-slate-500">
-            {kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{jobs.length}건</span>{loc ? `, ${loc}` : ""} · 정렬: 연관성
+            {kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{total}건</span>{loc ? `, ${loc}` : ""} · 정렬: 연관성{totalPages > 1 ? ` · ${pageNum}/${totalPages}p` : ""}
           </p>
           {profile && (kw || loc) && (
             <form action={saveSearch}>
@@ -99,7 +102,8 @@ export default async function JobsPage({
           <p className="py-20 text-center text-slate-500">검색 결과가 없습니다. 다른 키워드로 검색해 보세요.</p>
         ) : (
           <div className="mt-4 lg:grid lg:grid-cols-[minmax(0,470px)_1fr] lg:gap-4">
-            <ul className={`space-y-3 ${j ? "hidden lg:block" : ""}`}>
+            <div className={j ? "hidden lg:block" : ""}>
+            <ul className="space-y-3">
               {jobs.map((job) => {
                 const on = selected?.id === job.id;
                 return (
@@ -111,13 +115,23 @@ export default async function JobsPage({
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">{SOURCE_LABEL[job.source]}</span>
                         {job.salary_text && <span className="text-slate-500">{job.salary_text}</span>}
+                        {job.shift_type && <span className="text-slate-500">{job.shift_type}</span>}
                         <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
+                        {job.deadline && <span className="font-medium text-rose-600">~{job.deadline.slice(5).replace("-", ".")}</span>}
                       </div>
                     </a>
                   </li>
                 );
               })}
             </ul>
+            {totalPages > 1 && (
+              <nav className="mt-4 flex items-center justify-center gap-3 text-sm">
+                {pageNum > 1 ? <a href={href(undefined, pageNum - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">← 이전</a> : <span />}
+                <span className="text-slate-500">{pageNum} / {totalPages}</span>
+                {pageNum < totalPages ? <a href={href(undefined, pageNum + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">다음 →</a> : <span />}
+              </nav>
+            )}
+            </div>
 
             {selected && (
               <section className={`${j ? "" : "hidden lg:block"} lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-2rem)] lg:overflow-auto`}>
@@ -190,12 +204,22 @@ export default async function JobsPage({
                   {selected.source === "direct" && (selected.manager_name || selected.manager_phone) && (
                     <div className="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-sm">
                       <p className="font-semibold text-slate-700">채용 문의</p>
-                      {selected.manager_name && <p className="mt-1 text-slate-600">{selected.manager_name}</p>}
-                      {selected.manager_phone && (
-                        <a href={`tel:${selected.manager_phone}`} className="mt-1 inline-flex items-center gap-1.5 font-semibold text-teal-700 hover:underline">
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M22 16.92v3a2 2 0 01-2.18 2 19.8 19.8 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z" /></svg>
-                          {selected.manager_phone}
-                        </a>
+                      {profile ? (
+                        <>
+                          {selected.manager_name && <p className="mt-1 text-slate-600">{selected.manager_name}</p>}
+                          {selected.manager_phone && (
+                            <a href={`tel:${selected.manager_phone}`} className="mt-1 inline-flex items-center gap-1.5 font-semibold text-teal-700 hover:underline">
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M22 16.92v3a2 2 0 01-2.18 2 19.8 19.8 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z" /></svg>
+                              {selected.manager_phone}
+                            </a>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {selected.manager_name && <p className="mt-1 tracking-widest text-slate-400">담당자 ******</p>}
+                          {selected.manager_phone && <p className="mt-1 tracking-widest text-slate-400">전화 ***-****-****</p>}
+                          <a href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} className="mt-1 inline-block font-semibold text-teal-700 hover:underline">로그인 후 연락처 확인</a>
+                        </>
                       )}
                     </div>
                   )}
@@ -207,6 +231,9 @@ export default async function JobsPage({
                     {selected.employment_type && (<div><dt className="text-slate-500">채용공고 유형</dt><dd className="mt-0.5"><span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">{selected.employment_type}</span></dd></div>)}
                     {selected.specialty && (<div><dt className="text-slate-500">진료과</dt><dd className="mt-0.5 text-slate-800">{selected.specialty}</dd></div>)}
                     {selected.salary_text && (<div><dt className="text-slate-500">급여</dt><dd className="mt-0.5 font-medium text-slate-800">{selected.salary_text}</dd></div>)}
+                    {selected.shift_type && (<div><dt className="text-slate-500">근무형태</dt><dd className="mt-0.5 text-slate-800">{selected.shift_type}</dd></div>)}
+                    {selected.recruit_count ? (<div><dt className="text-slate-500">모집인원</dt><dd className="mt-0.5 text-slate-800">{selected.recruit_count}명</dd></div>) : null}
+                    {selected.source === "direct" && (<div><dt className="text-slate-500">마감일</dt><dd className="mt-0.5 font-medium text-slate-800">{selected.deadline ? selected.deadline.replace(/-/g, ".") + " 마감" : "상시채용"}</dd></div>)}
                   </dl>
 
                   {selected.location && (

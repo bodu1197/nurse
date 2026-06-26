@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import { getMyProfile, type MyProfile } from "@/lib/data/user";
-import { getMyJobs, getMyFreeCredits, type MyJob } from "@/lib/data/jobs";
+import { getMyJobs, type MyJob } from "@/lib/data/jobs";
 
 const DAY = 86_400_000;
 
@@ -73,7 +73,6 @@ export default async function MyPage() {
 
   const isHospital = profile.role === "hospital";
   const jobs = isHospital ? await getMyJobs() : [];
-  const credits = isHospital ? await getMyFreeCredits() : null;
   const now = Date.now();
 
   const hospitalItems: Item[] = [
@@ -117,7 +116,7 @@ export default async function MyPage() {
         {isHospital && (
           <section className="mt-8">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-slate-500">내 채용공고{credits !== null && credits > 0 && <span className="ml-2 font-normal text-teal-700">무료 게시권 {credits}장</span>}</h2>
+              <h2 className="text-sm font-semibold text-slate-500">내 채용공고 <span className="font-normal text-slate-400">· 무료 동시 1건</span></h2>
               <a href="/mypage/jobs/new" className="text-sm font-semibold text-teal-700 hover:underline">+ 공고 등록</a>
             </div>
             {jobs.length === 0 ? (
@@ -134,7 +133,7 @@ export default async function MyPage() {
                       <li key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-slate-200 bg-white p-3">
                         <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${b.c}`}>{b.t}</span>
                         <a href={`/jobs?j=${j.id}`} className="min-w-0 flex-1 truncate font-medium text-slate-800 hover:text-teal-700">{j.title}</a>
-                        <a href="/mypage/applicants" className="shrink-0 text-xs text-slate-500 hover:text-teal-700">지원자 <b className="text-slate-700">{j.applicant_count}</b>명</a>
+                        <a href={`/mypage/applicants?job_id=${j.id}`} className="shrink-0 text-xs text-slate-500 hover:text-teal-700">지원자 <b className="text-slate-700">{j.applicant_count}</b>명</a>
                         <span className="flex shrink-0 items-center gap-3 text-xs">
                           <a href={`/mypage/jobs/${j.id}/edit`} className="text-teal-700 hover:underline">수정</a>
                           <a href={`/mypage/jobs/${j.id}/ad`} className="font-semibold text-violet-700 hover:underline">광고</a>

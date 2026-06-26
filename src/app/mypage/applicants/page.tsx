@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
+import { getMyJobs } from "@/lib/data/jobs";
 import { getReceivedApplications, STATUS_LABEL } from "@/lib/data/applications";
 import { updateApplicationStatus } from "../actions";
 
@@ -27,11 +28,12 @@ function StatusButton({ id, status, label, variant }: { id: string; status: stri
 
 export default async function ApplicantsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string; job_id?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "hospital") redirect("/mypage");
-  const [{ ok, error }, apps] = await Promise.all([searchParams, getReceivedApplications()]);
+  const { ok, error, job_id } = await searchParams;
+  const [jobs, apps] = await Promise.all([getMyJobs(), getReceivedApplications(job_id)]);
 
   return (
     <>
@@ -39,6 +41,15 @@ export default async function ApplicantsPage({
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <a href="/mypage" className="text-sm text-teal-700 hover:underline">← 마이페이지</a>
         <h1 className="mt-3 text-2xl font-bold text-slate-900">받은 지원자</h1>
+
+        {jobs.length > 1 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <a href="/mypage/applicants" className={`rounded-full px-3 py-1 text-xs ${!job_id ? "bg-teal-600 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"}`}>전체</a>
+            {jobs.map((jb) => (
+              <a key={jb.id} href={`/mypage/applicants?job_id=${jb.id}`} className={`max-w-[12rem] truncate rounded-full px-3 py-1 text-xs ${job_id === jb.id ? "bg-teal-600 text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-50"}`}>{jb.title}</a>
+            ))}
+          </div>
+        )}
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
         {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}

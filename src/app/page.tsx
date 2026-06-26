@@ -6,7 +6,7 @@ import { FOOTER_NAV } from "@/lib/constants";
 import { daysAgo } from "@/lib/date";
 
 export default async function Home() {
-  const [profile, jobs] = await Promise.all([getMyProfile(), getJobs("", "")]);
+  const [profile, { jobs }] = await Promise.all([getMyProfile(), getJobs("", "")]);
   const latest = jobs.slice(0, 6);
 
   return (

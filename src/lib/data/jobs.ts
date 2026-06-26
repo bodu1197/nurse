@@ -15,6 +15,9 @@ export type JobRow = {
   external_url: string | null;
   is_featured: boolean;
   posted_at: string;
+  deadline: string | null;
+  recruit_count: number | null;
+  shift_type: string | null;
   manager_name: string | null;
   manager_phone: string | null;
   hospital: { name: string; rating_avg: number; rating_count: number } | null;
@@ -29,7 +32,9 @@ export const SOURCE_LABEL: Record<JobSource, string> = {
 };
 
 const SELECT =
-  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,manager_name,manager_phone,hospital:hospitals(name,rating_avg,rating_count)";
+  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,deadline,recruit_count,shift_type,manager_name,manager_phone,hospital:hospitals(name,rating_avg,rating_count)";
+
+export const PER_PAGE = 20;
 
 // PostgREST or 필터 주입 방지: %,(),쉼표 제거
 const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
@@ -38,15 +43,16 @@ export type JobFilters = { specialty?: string; employmentType?: string; days?: n
 
 const DAY_MS = 86_400_000;
 
-export async function getJobs(keyword: string, location: string, filters: JobFilters = {}): Promise<JobRow[]> {
+export async function getJobs(keyword: string, location: string, filters: JobFilters = {}, page = 1): Promise<{ jobs: JobRow[]; total: number }> {
   const supabase = await createClient();
+  const from = (Math.max(1, page) - 1) * PER_PAGE;
   let query = supabase
     .from("jobs")
-    .select(SELECT)
+    .select(SELECT, { count: "exact" })
     .eq("status", "open")
     .order("featured_until", { ascending: false, nullsFirst: false })
     .order("posted_at", { ascending: false })
-    .limit(50);
+    .range(from, from + PER_PAGE - 1);
 
   // direct(병원 직접) 공고 노출 조건: (게시 7일 이내 무료) 또는 (유료 광고 featured_until 유효). 외부 수집 공고는 항상.
   const now = Date.now();
@@ -62,12 +68,12 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
   if (filters.days && filters.days > 0) query = query.gte("posted_at", new Date(Date.now() - filters.days * DAY_MS).toISOString());
 
-  const { data, error } = await query.returns<JobRow[]>();
+  const { data, count, error } = await query.returns<JobRow[]>();
   if (error) {
     console.error("getJobs failed:", error.message);
-    return [];
+    return { jobs: [], total: 0 };
   }
-  return data ?? [];
+  return { jobs: data ?? [], total: count ?? 0 };
 }
 
 export type MyJob = { id: string; title: string; status: string; posted_at: string; featured_until: string | null; applicant_count: number };
@@ -120,6 +126,7 @@ export type MyJobDetail = {
   id: string; title: string; specialty: string | null; location: string | null;
   employment_type: string | null; salary_text: string | null; benefits: string[];
   description: string | null; status: string; posted_at: string;
+  deadline: string | null; recruit_count: number | null; shift_type: string | null;
   manager_name: string | null; manager_phone: string | null;
   hospital: { id: string; name: string } | null;
 };
@@ -133,7 +140,7 @@ export async function getMyJob(id: string): Promise<MyJobDetail | null> {
   type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string; owner_profile_id: string | null } | null };
   const { data } = await supabase
     .from("jobs")
-    .select("id,title,specialty,location,employment_type,salary_text,benefits,description,status,posted_at,manager_name,manager_phone,hospital:hospitals(id,name,owner_profile_id)")
+    .select("id,title,specialty,location,employment_type,salary_text,benefits,description,status,posted_at,deadline,recruit_count,shift_type,manager_name,manager_phone,hospital:hospitals(id,name,owner_profile_id)")
     .eq("id", id)
     .maybeSingle()
     .returns<Raw>();

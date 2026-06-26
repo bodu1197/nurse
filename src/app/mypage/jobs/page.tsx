@@ -3,7 +3,7 @@ import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { getMyProfile } from "@/lib/data/user";
-import { getMyJobs, getMyFreeCredits } from "@/lib/data/jobs";
+import { getMyJobs } from "@/lib/data/jobs";
 import { setJobStatus, deleteJob, repostJob } from "../actions";
 
 export const metadata = { title: "공고 관리 — 널스넷", robots: { index: false } };
@@ -18,7 +18,7 @@ export default async function MyJobsPage({
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "hospital") redirect("/mypage");
-  const [{ ok, error }, jobs, credits] = await Promise.all([searchParams, getMyJobs(), getMyFreeCredits()]);
+  const [{ ok, error }, jobs] = await Promise.all([searchParams, getMyJobs()]);
   const now = Date.now();
 
   return (
@@ -30,13 +30,11 @@ export default async function MyJobsPage({
           <h1 className="text-2xl font-bold text-slate-900">공고 관리</h1>
           <Button href="/mypage/jobs/new" size="md">공고 등록</Button>
         </div>
-        {credits !== null && (
-          <p className="mt-1 text-sm text-slate-500">남은 무료 게시권 <b className="text-teal-700">{credits}장</b> <span className="text-slate-400">(1장 = 7일 노출, 등록·다시게시 시 1장 차감)</span></p>
-        )}
+        <p className="mt-1 text-sm text-slate-500">무료 공고는 <b className="text-teal-700">동시 1건</b> <span className="text-slate-400">(7일 노출). 추가·기간연장·상단 노출은 광고로.</span></p>
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
         {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
-        {error === "nocredit" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">무료 게시권(7일×4)을 모두 사용했습니다. 유료 광고는 곧 제공됩니다.</div>}
+        {error === "freelimit" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">무료 공고는 동시 1건까지입니다. 기존 공고가 만료되거나 광고로 전환하면 새 공고를 올릴 수 있습니다.</div>}
 
         {jobs.length === 0 ? (
           <p className="py-20 text-center text-slate-500">등록한 공고가 없습니다. <a href="/mypage/jobs/new" className="font-semibold text-teal-700 hover:underline">첫 공고를 등록</a>해 보세요.</p>
@@ -62,7 +60,7 @@ export default async function MyJobsPage({
                   </div>
                   <div className="mt-1 text-sm text-slate-500">
                     {fmt(j.posted_at)} 등록 · 지원자{" "}
-                    <a href="/mypage/applicants" className="font-semibold text-teal-700 hover:underline">{j.applicant_count}명</a>
+                    <a href={`/mypage/applicants?job_id=${j.id}`} className="font-semibold text-teal-700 hover:underline">{j.applicant_count}명</a>
                     {featured && <span className="text-violet-700"> · 광고 {adDaysLeft}일 남음</span>}
                     {!featured && freeLive && <span className="text-slate-400"> · 무료 {freeDaysLeft}일 남음</span>}
                     {expired && <span className="text-amber-700"> · 노출 종료</span>}

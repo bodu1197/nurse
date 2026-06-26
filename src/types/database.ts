@@ -196,6 +196,7 @@ export type Database = {
           ad_tier: string | null
           benefits: string[]
           created_at: string
+          deadline: string | null
           description: string | null
           employment_type: string | null
           external_id: string | null
@@ -208,7 +209,9 @@ export type Database = {
           manager_name: string | null
           manager_phone: string | null
           posted_at: string
+          recruit_count: number | null
           salary_text: string | null
+          shift_type: string | null
           source: string
           specialty: string | null
           status: string
@@ -219,6 +222,7 @@ export type Database = {
           ad_tier?: string | null
           benefits?: string[]
           created_at?: string
+          deadline?: string | null
           description?: string | null
           employment_type?: string | null
           external_id?: string | null
@@ -231,7 +235,9 @@ export type Database = {
           manager_name?: string | null
           manager_phone?: string | null
           posted_at?: string
+          recruit_count?: number | null
           salary_text?: string | null
+          shift_type?: string | null
           source?: string
           specialty?: string | null
           status?: string
@@ -242,6 +248,7 @@ export type Database = {
           ad_tier?: string | null
           benefits?: string[]
           created_at?: string
+          deadline?: string | null
           description?: string | null
           employment_type?: string | null
           external_id?: string | null
@@ -254,7 +261,9 @@ export type Database = {
           manager_name?: string | null
           manager_phone?: string | null
           posted_at?: string
+          recruit_count?: number | null
           salary_text?: string | null
+          shift_type?: string | null
           source?: string
           specialty?: string | null
           status?: string
