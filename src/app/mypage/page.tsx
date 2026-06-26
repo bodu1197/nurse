@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
+import Button from "@/components/Button";
 import { getMyProfile, type MyProfile } from "@/lib/data/user";
 import { getMyJobs, type MyJob } from "@/lib/data/jobs";
 
@@ -13,19 +14,140 @@ const ROLE_LABEL: Record<MyProfile["role"], string> = {
   admin: "관리자",
 };
 
+// ───────── 병원: LNB + 대시보드 ─────────
+const HOSPITAL_NAV = [
+  { href: "/mypage", label: "대시보드" },
+  { href: "/mypage/jobs/new", label: "공고 등록" },
+  { href: "/mypage/jobs", label: "공고 관리" },
+  { href: "/mypage/applicants", label: "받은 지원자" },
+  { href: "/mypage/verify", label: "사업자 인증" },
+];
+
+// 노출 종료 시각(ms). 광고=featured_until, 무료=게시+7일. 만료/마감/대기는 0.
+function endMs(j: MyJob, now: number): number {
+  if (j.status !== "open") return 0;
+  const f = j.featured_until ? new Date(j.featured_until).getTime() : 0;
+  const e = f > now ? f : new Date(j.posted_at).getTime() + 7 * DAY;
+  return e > now ? e : 0;
+}
+function jobBadge(j: MyJob, now: number) {
+  if (j.status === "draft") return { t: "결제 대기", c: "bg-amber-100 text-amber-800" };
+  const featured = j.status === "open" && j.featured_until !== null && new Date(j.featured_until).getTime() > now;
+  const freeLive = j.status === "open" && new Date(j.posted_at).getTime() >= now - 7 * DAY;
+  if (featured) return { t: "광고중", c: "bg-violet-100 text-violet-800" };
+  if (freeLive) return { t: "게시중", c: "bg-teal-100 text-teal-800" };
+  if (j.status === "open") return { t: "만료", c: "bg-amber-100 text-amber-800" };
+  return { t: "마감", c: "bg-slate-100 text-slate-500" };
+}
+const fmtMs = (ms: number) => new Date(ms).toISOString().slice(0, 10).replace(/-/g, ".");
+
+function Widget({ label, value, accent }: { label: string; value: string; accent?: string }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`mt-1 text-2xl font-bold ${accent ?? "text-slate-900"}`}>{value}</p>
+    </div>
+  );
+}
+
+function HospitalDashboard({ profile, jobs }: { profile: MyProfile; jobs: MyJob[] }) {
+  const now = Date.now();
+  const liveCount = jobs.filter((j) => endMs(j, now) > 0).length;
+  const applicants = jobs.reduce((s, j) => s + j.applicant_count, 0);
+  const soon = jobs.filter((j) => { const e = endMs(j, now); return e > 0 && e - now <= 3 * DAY; }).length;
+
+  return (
+    <>
+      <SiteHeader user={{ displayName: profile.displayName }} />
+      <div className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-5 px-4 py-6 lg:flex-row lg:gap-6">
+        {/* LNB (데스크톱) */}
+        <aside className="hidden lg:block lg:w-56 lg:shrink-0">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-teal-50 text-base font-bold text-teal-700" aria-hidden>{profile.displayName.slice(0, 1)}</span>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold text-slate-900">{profile.displayName}</p>
+                <span className="text-xs font-semibold text-teal-700">{ROLE_LABEL[profile.role]}</span>
+              </div>
+            </div>
+          </div>
+          <nav className="mt-3 space-y-1 rounded-2xl border border-slate-200 bg-white p-2">
+            {HOSPITAL_NAV.map((n) => (
+              <a key={n.href} href={n.href} className={`block rounded-lg px-3 py-2 text-sm ${n.href === "/mypage" ? "bg-teal-50 font-semibold text-teal-700" : "text-slate-600 hover:bg-slate-50"}`}>{n.label}</a>
+            ))}
+          </nav>
+        </aside>
+
+        {/* 모바일 가로 네비 */}
+        <nav className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
+          {HOSPITAL_NAV.map((n) => (
+            <a key={n.href} href={n.href} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${n.href === "/mypage" ? "border-teal-500 bg-teal-50 font-semibold text-teal-700" : "border-slate-300 text-slate-600"}`}>{n.label}</a>
+          ))}
+        </nav>
+
+        {/* 메인 */}
+        <main className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">대시보드</h1>
+
+          {!profile.businessVerified && (
+            <a href="/mypage/verify" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+              <span className="text-amber-800">공고를 등록하려면 사업자 인증이 필요합니다.</span>
+              <span className="font-semibold text-amber-900">인증하기 →</span>
+            </a>
+          )}
+
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Widget label="게시중 공고" value={`${liveCount}`} accent="text-teal-700" />
+            <Widget label="받은 지원자" value={`${applicants}`} accent="text-teal-700" />
+            <Widget label="마감 임박(3일)" value={`${soon}`} accent={soon ? "text-rose-600" : "text-slate-900"} />
+            <Widget label="사업자 인증" value={profile.businessVerified ? "완료" : "필요"} accent={profile.businessVerified ? "text-teal-700" : "text-amber-600"} />
+          </div>
+
+          <section className="mt-6">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-bold text-slate-900">내 채용공고 <span className="text-sm font-normal text-slate-400">· 무료 동시 1건</span></h2>
+              <Button href="/mypage/jobs/new" size="sm">+ 공고 등록</Button>
+            </div>
+            {jobs.length === 0 ? (
+              <div className="mt-3 rounded-xl border border-dashed border-slate-300 p-10 text-center">
+                <p className="text-sm text-slate-500">아직 등록한 공고가 없습니다.</p>
+                <a href="/mypage/jobs/new" className="mt-2 inline-block font-semibold text-teal-700 hover:underline">첫 공고 등록하기 →</a>
+              </div>
+            ) : (
+              <ul className="mt-3 space-y-2">
+                {jobs.map((j) => {
+                  const b = jobBadge(j, now);
+                  const e = endMs(j, now);
+                  return (
+                    <li key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white p-4">
+                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${b.c}`}>{b.t}</span>
+                      <a href={`/jobs?j=${j.id}`} className="min-w-0 flex-1 truncate font-medium text-slate-800 hover:text-teal-700">{j.title}</a>
+                      {e > 0 && <span className="shrink-0 text-xs text-slate-400">~{fmtMs(e)}까지</span>}
+                      <a href={`/mypage/applicants?job_id=${j.id}`} className="shrink-0 text-sm text-slate-500 hover:text-teal-700">지원자 <b className="text-slate-700">{j.applicant_count}</b>명</a>
+                      <span className="flex shrink-0 items-center gap-3 text-sm">
+                        <a href={`/mypage/jobs/${j.id}/edit`} className="text-teal-700 hover:underline">수정</a>
+                        <a href={`/mypage/jobs/${j.id}/ad`} className="font-semibold text-violet-700 hover:underline">광고</a>
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </section>
+        </main>
+      </div>
+    </>
+  );
+}
+
+// ───────── 간호사/관리자: 카드형 ─────────
 type Item = { title: string; desc: string; href?: string; badge?: { text: string; tone: "teal" | "amber" } };
 
-// 역할별 메뉴 — 병원(공고 등록 측)과 구직자(지원 측)는 기능이 완전히 다름.
 const NURSE_ITEMS: Item[] = [
   { title: "내 이력서", desc: "이력서를 작성하고 병원에 지원하세요. (무료)", href: "/mypage/resume" },
   { title: "저장한 공고", desc: "관심 있는 채용공고를 모아 봅니다.", href: "/mypage/saved" },
   { title: "지원 내역", desc: "지원한 공고의 진행 상황을 확인합니다.", href: "/mypage/applications" },
   { title: "채용 알림", desc: "검색 조건을 저장하고 빠르게 다시 찾습니다.", href: "/mypage/alerts" },
-];
-const HOSPITAL_ITEMS: Item[] = [
-  { title: "공고 등록", desc: "새 채용공고를 등록합니다.", href: "/mypage/jobs/new" },
-  { title: "공고 관리", desc: "등록한 공고를 수정·마감합니다.", href: "/mypage/jobs" },
-  { title: "받은 지원자", desc: "공고에 지원한 간호사를 확인합니다.", href: "/mypage/applicants" },
 ];
 const ADMIN_ITEMS: Item[] = [
   { title: "회원 관리", desc: "간호사·병원 회원을 관리합니다." },
@@ -48,130 +170,43 @@ function Card({ item }: { item: Item }) {
     </>
   );
   return item.href ? (
-    <a href={item.href} className="block rounded-xl border border-slate-200 bg-white p-5 hover:border-teal-400 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
-      {inner}
-    </a>
+    <a href={item.href} className="block rounded-xl border border-slate-200 bg-white p-5 hover:border-teal-400 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">{inner}</a>
   ) : (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5" aria-disabled>
-      {inner}
-    </div>
+    <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-5" aria-disabled>{inner}</div>
   );
-}
-
-function jobBadge(j: MyJob, now: number) {
-  if (j.status === "draft") return { t: "결제 대기", c: "bg-amber-100 text-amber-800" };
-  const featured = j.status === "open" && j.featured_until !== null && new Date(j.featured_until).getTime() > now;
-  const freeLive = j.status === "open" && new Date(j.posted_at).getTime() >= now - 7 * DAY;
-  if (featured) return { t: "광고중", c: "bg-violet-100 text-violet-800" };
-  if (freeLive) return { t: "게시중", c: "bg-teal-100 text-teal-800" };
-  if (j.status === "open") return { t: "만료", c: "bg-amber-100 text-amber-800" };
-  return { t: "마감", c: "bg-slate-100 text-slate-500" };
-}
-
-// 노출 종료일(광고=featured_until, 무료=게시+7일). 만료/마감/대기는 null.
-function jobEnd(j: MyJob, now: number): string | null {
-  if (j.status !== "open") return null;
-  const featuredMs = j.featured_until ? new Date(j.featured_until).getTime() : 0;
-  const end = featuredMs > now ? featuredMs : new Date(j.posted_at).getTime() + 7 * DAY;
-  return end > now ? new Date(end).toISOString().slice(0, 10).replace(/-/g, ".") : null;
 }
 
 export default async function MyPage() {
   const profile = await getMyProfile();
   if (!profile) redirect("/login");
 
-  const isHospital = profile.role === "hospital";
-  const jobs = isHospital ? await getMyJobs() : [];
-  const now = Date.now();
+  if (profile.role === "hospital") {
+    const jobs = await getMyJobs();
+    return <HospitalDashboard profile={profile} jobs={jobs} />;
+  }
 
-  const hospitalItems: Item[] = [
-    {
-      title: "사업자 인증",
-      desc: profile.businessVerified ? "사업자 인증이 완료되었습니다." : "공고 등록을 위해 사업자 인증이 필요합니다.",
-      href: "/mypage/verify",
-      badge: profile.businessVerified ? { text: "인증 완료", tone: "teal" } : { text: "인증 필요", tone: "amber" },
-    },
-    ...HOSPITAL_ITEMS,
-  ];
-  const items = profile.role === "hospital" ? hospitalItems : profile.role === "admin" ? ADMIN_ITEMS : NURSE_ITEMS;
-
+  const items = profile.role === "admin" ? ADMIN_ITEMS : NURSE_ITEMS;
   return (
     <>
       <SiteHeader user={{ displayName: profile.displayName }} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
         <h1 className="text-2xl font-bold text-slate-900">마이페이지</h1>
-
-        {/* 프로필 카드 */}
         <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-teal-50 text-lg font-bold text-teal-700" aria-hidden>
-              {profile.displayName.slice(0, 1)}
-            </span>
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-teal-50 text-lg font-bold text-teal-700" aria-hidden>{profile.displayName.slice(0, 1)}</span>
             <div>
               <p className="text-lg font-bold text-slate-900">
                 {profile.displayName}님{" "}
-                <span className="ml-1 rounded-full bg-teal-100 px-2 py-0.5 align-middle text-xs font-semibold text-teal-800">
-                  {ROLE_LABEL[profile.role]}
-                </span>
+                <span className="ml-1 rounded-full bg-teal-100 px-2 py-0.5 align-middle text-xs font-semibold text-teal-800">{ROLE_LABEL[profile.role]}</span>
               </p>
-              <p className="mt-0.5 text-sm text-slate-500">
-                아이디 {profile.username ?? "-"} · {profile.email}
-              </p>
+              <p className="mt-0.5 text-sm text-slate-500">아이디 {profile.username ?? "-"} · {profile.email}</p>
             </div>
           </div>
         </section>
-
-        {/* 병원: 내 공고 목록 바로 표시 */}
-        {isHospital && (
-          <section className="mt-8">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-slate-500">내 채용공고 <span className="font-normal text-slate-400">· 무료 동시 1건</span></h2>
-              <a href="/mypage/jobs/new" className="text-sm font-semibold text-teal-700 hover:underline">+ 공고 등록</a>
-            </div>
-            {jobs.length === 0 ? (
-              <div className="mt-3 rounded-xl border border-dashed border-slate-300 p-8 text-center">
-                <p className="text-sm text-slate-500">아직 등록한 공고가 없습니다.</p>
-                <a href="/mypage/jobs/new" className="mt-2 inline-block font-semibold text-teal-700 hover:underline">첫 공고 등록하기 →</a>
-              </div>
-            ) : (
-              <>
-                <ul className="mt-3 space-y-2">
-                  {jobs.map((j) => {
-                    const b = jobBadge(j, now);
-                    const end = jobEnd(j, now);
-                    return (
-                      <li key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-slate-200 bg-white p-3">
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${b.c}`}>{b.t}</span>
-                        <a href={`/jobs?j=${j.id}`} className="min-w-0 flex-1 truncate font-medium text-slate-800 hover:text-teal-700">{j.title}</a>
-                        {end && <span className="shrink-0 text-xs text-slate-400">~{end}까지</span>}
-                        <a href={`/mypage/applicants?job_id=${j.id}`} className="shrink-0 text-xs text-slate-500 hover:text-teal-700">지원자 <b className="text-slate-700">{j.applicant_count}</b>명</a>
-                        <span className="flex shrink-0 items-center gap-3 text-xs">
-                          <a href={`/mypage/jobs/${j.id}/edit`} className="text-teal-700 hover:underline">수정</a>
-                          <a href={`/mypage/jobs/${j.id}/ad`} className="font-semibold text-violet-700 hover:underline">광고</a>
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <a href="/mypage/jobs" className="mt-2 inline-block text-sm text-slate-500 hover:underline">전체 공고 관리 →</a>
-              </>
-            )}
-          </section>
-        )}
-
-        {/* 역할별 기능 */}
-        <h2 className="mt-8 text-sm font-semibold text-slate-500">
-          {profile.role === "hospital" ? "채용 관리" : profile.role === "admin" ? "관리자 도구" : "구직 활동"}
-        </h2>
+        <h2 className="mt-8 text-sm font-semibold text-slate-500">{profile.role === "admin" ? "관리자 도구" : "구직 활동"}</h2>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {items.map((it) => (
-            <Card key={it.title} item={it} />
-          ))}
+          {items.map((it) => <Card key={it.title} item={it} />)}
         </div>
-
-        <p className="mt-8 text-xs text-slate-400">
-          기능은 순차적으로 오픈됩니다. {profile.role === "hospital" ? "공고 등록부터 우선 제공 예정입니다." : "이력서 작성부터 우선 제공 예정입니다."}
-        </p>
       </main>
     </>
   );
