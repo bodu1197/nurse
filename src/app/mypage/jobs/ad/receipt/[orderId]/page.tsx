@@ -37,7 +37,7 @@ export default async function ReceiptPage({ params }: Readonly<{ params: Promise
           </div>
           <dl className="mt-6 space-y-2 text-sm">
             <div className="flex justify-between"><dt className="text-slate-500">공고</dt><dd className="font-medium text-slate-800">{o.job?.title ?? "-"}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">광고 기간</dt><dd>{o.days}일</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">광고 기간</dt><dd>{o.days}일 <span className="text-teal-600">(1주 무료 포함)</span></dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">주문번호</dt><dd className="text-slate-600">{o.merchant_uid}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">결제일시</dt><dd>{fmt(o.paid_at)}</dd></div>
             <div className="my-2 border-t border-slate-100" />

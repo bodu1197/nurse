@@ -15,11 +15,14 @@ export type JobRow = {
   external_url: string | null;
   is_featured: boolean;
   posted_at: string;
-  deadline: string | null;
+  featured_until: string | null;
   recruit_count: number | null;
   shift_type: string | null;
   manager_name: string | null;
   manager_phone: string | null;
+  apply_method: string;
+  apply_email: string | null;
+  apply_detail: string | null;
   hospital: { name: string; rating_avg: number; rating_count: number } | null;
 };
 
@@ -32,7 +35,7 @@ export const SOURCE_LABEL: Record<JobSource, string> = {
 };
 
 const SELECT =
-  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,deadline,recruit_count,shift_type,manager_name,manager_phone,hospital:hospitals(name,rating_avg,rating_count)";
+  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,featured_until,recruit_count,shift_type,manager_name,manager_phone,apply_method,apply_email,apply_detail,hospital:hospitals(name,rating_avg,rating_count)";
 
 export const PER_PAGE = 20;
 
@@ -126,8 +129,9 @@ export type MyJobDetail = {
   id: string; title: string; specialty: string | null; location: string | null;
   employment_type: string | null; salary_text: string | null; benefits: string[];
   description: string | null; status: string; posted_at: string;
-  deadline: string | null; recruit_count: number | null; shift_type: string | null;
+  recruit_count: number | null; shift_type: string | null;
   manager_name: string | null; manager_phone: string | null;
+  apply_method: string; apply_email: string | null; apply_detail: string | null;
   hospital: { id: string; name: string } | null;
 };
 
@@ -140,7 +144,7 @@ export async function getMyJob(id: string): Promise<MyJobDetail | null> {
   type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string; owner_profile_id: string | null } | null };
   const { data } = await supabase
     .from("jobs")
-    .select("id,title,specialty,location,employment_type,salary_text,benefits,description,status,posted_at,deadline,recruit_count,shift_type,manager_name,manager_phone,hospital:hospitals(id,name,owner_profile_id)")
+    .select("id,title,specialty,location,employment_type,salary_text,benefits,description,status,posted_at,recruit_count,shift_type,manager_name,manager_phone,apply_method,apply_email,apply_detail,hospital:hospitals(id,name,owner_profile_id)")
     .eq("id", id)
     .maybeSingle()
     .returns<Raw>();

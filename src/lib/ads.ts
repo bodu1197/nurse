@@ -1,26 +1,24 @@
-// 광고 상품 — 단일 등급, 기간만 선택. 1주 77,000원(VAT 포함) 기준 + 누진 할인(0/10/20/30%).
-export const AD_WEEK_PRICE = 77000; // 1주 결제금액(VAT 포함)
+// 광고 = 노출 기간 선택. **1주(7일)는 항상 무료로 얹어줌** → 청구 = (노출−1주). 누진 할인은 청구 주에 적용.
+export const AD_WEEK_PRICE = 77000; // 1주 청구액(VAT 포함)
 
-const RAW = [
-  { weeks: 1, discount: 0.0 },
-  { weeks: 2, discount: 0.1 },
-  { weeks: 3, discount: 0.2 },
-  { weeks: 4, discount: 0.3 },
-];
+// 청구 주 수별 누진 할인.
+const BILLED_DISCOUNT: Record<number, number> = { 1: 0, 2: 0.1, 3: 0.2 };
 
 export type AdProduct = {
-  weeks: number;
-  days: number;
-  discount: number;   // 0~1
-  amount: number;     // 결제금액(VAT 포함)
-  supply: number;     // 공급가액
-  vat: number;        // 부가세(10%)
+  weeks: number;       // 선택한 노출 주(2~4)
+  days: number;        // 노출 일수 = weeks*7
+  billedWeeks: number; // 청구 주 = weeks-1 (1주 무료)
+  amount: number;      // 청구액(VAT 포함)
+  supply: number;      // 공급가액
+  vat: number;         // 부가세(10%)
 };
 
-export const AD_PRODUCTS: AdProduct[] = RAW.map((p) => {
-  const amount = Math.round(AD_WEEK_PRICE * p.weeks * (1 - p.discount));
+// 노출 2/3/4주(1주는 무료 게시로 충분 → 유료는 2주부터, 항상 1주 무료 포함).
+export const AD_PRODUCTS: AdProduct[] = [2, 3, 4].map((weeks) => {
+  const billedWeeks = weeks - 1;
+  const amount = Math.round(AD_WEEK_PRICE * billedWeeks * (1 - (BILLED_DISCOUNT[billedWeeks] ?? 0)));
   const supply = Math.round(amount / 1.1);
-  return { weeks: p.weeks, days: p.weeks * 7, discount: p.discount, amount, supply, vat: amount - supply };
+  return { weeks, days: weeks * 7, billedWeeks, amount, supply, vat: amount - supply };
 });
 
 export function adProduct(weeks: number): AdProduct | null {

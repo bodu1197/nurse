@@ -2,12 +2,21 @@ import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getJobs, PER_PAGE, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
+import { hasApplied } from "@/lib/data/applications";
 import { applyToJob, saveSearch } from "./actions";
 import FilterBar from "@/components/FilterBar";
 import { daysAgo } from "@/lib/date";
 
 // 시드 샘플 데이터 단계 — 실제 워크넷/직접등록 데이터 전까지 noindex.
 export const metadata = { title: "채용 검색 — 널스넷", robots: { index: false } };
+
+// 마감일 = 노출 종료(수동 입력 아님): 광고면 featured_until, 무료면 게시+7일.
+const DAY = 86_400_000;
+const listingEnd = (job: { posted_at: string; featured_until: string | null }) => {
+  const fu = job.featured_until ? new Date(job.featured_until).getTime() : 0;
+  return fu > Date.now() ? fu : new Date(job.posted_at).getTime() + 7 * DAY;
+};
+const fmtDate = (ms: number) => new Date(ms).toISOString().slice(0, 10).replace(/-/g, ".");
 
 function Stars({ rating }: { rating: number }) {
   return (
@@ -34,6 +43,7 @@ export default async function JobsPage({
   ]);
   const selected: JobRow | undefined = jobs.find((x) => x.id === j) ?? jobs[0];
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
+  const applied = selected && profile?.role === "nurse" ? await hasApplied(selected.id) : false;
 
   const href = (jobId?: string, toPage?: number) => {
     const p = new URLSearchParams();
@@ -117,7 +127,7 @@ export default async function JobsPage({
                         {job.salary_text && <span className="text-slate-500">{job.salary_text}</span>}
                         {job.shift_type && <span className="text-slate-500">{job.shift_type}</span>}
                         <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
-                        {job.deadline && <span className="font-medium text-rose-600">~{job.deadline.slice(5).replace("-", ".")}</span>}
+                        {job.source === "direct" && <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job)).slice(5)}</span>}
                       </div>
                     </a>
                   </li>
@@ -158,17 +168,46 @@ export default async function JobsPage({
 
                   <div className="mt-4">
                     {selected.source === "direct" ? (
-                      !profile ? (
-                        // 비로그인: 클릭하면 로그인 안내(무반응 방지)
+                      selected.apply_method === "email" ? (
+                        <div className="flex flex-col gap-2 sm:max-w-md">
+                          <p className="text-sm font-semibold text-slate-700">이메일로 지원</p>
+                          {profile ? (
+                            selected.apply_email
+                              ? <Button href={`mailto:${selected.apply_email}`} size="md">{selected.apply_email}</Button>
+                              : <p className="text-sm text-slate-500">지원 이메일이 등록되지 않았습니다. 채용 문의로 연락하세요.</p>
+                          ) : (
+                            <>
+                              <p className="text-sm text-slate-500">이력서를 이메일로 보내 지원합니다. 이메일은 로그인 후 표시됩니다.</p>
+                              <Button href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} size="md">로그인 후 이메일 확인</Button>
+                            </>
+                          )}
+                        </div>
+                      ) : selected.apply_method === "offline" ? (
+                        <div className="flex flex-col gap-2 sm:max-w-md">
+                          <p className="text-sm font-semibold text-slate-700">접수 방법 (우편·방문·전화)</p>
+                          {profile ? (
+                            selected.apply_detail
+                              ? <p className="whitespace-pre-line rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">{selected.apply_detail}</p>
+                              : <p className="text-sm text-slate-500">접수 안내가 등록되지 않았습니다. 채용 문의로 연락하세요.</p>
+                          ) : (
+                            <>
+                              <p className="text-sm text-slate-500">우편·방문·전화로 접수합니다. 상세 안내는 로그인 후 표시됩니다.</p>
+                              <Button href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} size="md">로그인 후 접수 안내 확인</Button>
+                            </>
+                          )}
+                        </div>
+                      ) : !profile ? (
                         <div className="flex flex-col gap-2 sm:max-w-md">
                           <p className="text-sm text-slate-500">지원하려면 로그인이 필요합니다.</p>
                           <Button href={`/login?notice=apply&next=${encodeURIComponent(href(selected.id))}`} size="md">로그인하고 지원</Button>
                         </div>
                       ) : profile.role !== "nurse" ? (
-                        // 병원/관리자 등 비간호사: 지원 불가 안내
-                        <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                          간호사 회원만 지원할 수 있습니다.
-                        </p>
+                        <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">간호사 회원만 지원할 수 있습니다.</p>
+                      ) : applied ? (
+                        <div className="flex flex-col gap-2 rounded-[12px] border border-teal-200 bg-teal-50 px-4 py-3 sm:max-w-md">
+                          <p className="text-sm font-semibold text-teal-800">✓ 지원 완료</p>
+                          <a href="/mypage/applications" className="text-sm font-semibold text-teal-700 hover:underline">지원 내역에서 확인 →</a>
+                        </div>
                       ) : (
                         <form action={applyToJob} className="flex flex-col gap-2 sm:max-w-md">
                           <input type="hidden" name="job_id" value={selected.id} />
@@ -176,9 +215,6 @@ export default async function JobsPage({
                             <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                               지원하려면 이력서를 먼저 등록하세요. <a href="/mypage/resume" className="font-semibold underline">이력서 작성하기</a>
                             </p>
-                          )}
-                          {apply === "dup" && (
-                            <p className="rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">이미 지원한 공고입니다.</p>
                           )}
                           {apply === "error" && (
                             <p className="rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">지원 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.</p>
@@ -233,7 +269,7 @@ export default async function JobsPage({
                     {selected.salary_text && (<div><dt className="text-slate-500">급여</dt><dd className="mt-0.5 font-medium text-slate-800">{selected.salary_text}</dd></div>)}
                     {selected.shift_type && (<div><dt className="text-slate-500">근무형태</dt><dd className="mt-0.5 text-slate-800">{selected.shift_type}</dd></div>)}
                     {selected.recruit_count ? (<div><dt className="text-slate-500">모집인원</dt><dd className="mt-0.5 text-slate-800">{selected.recruit_count}명</dd></div>) : null}
-                    {selected.source === "direct" && (<div><dt className="text-slate-500">마감일</dt><dd className="mt-0.5 font-medium text-slate-800">{selected.deadline ? selected.deadline.replace(/-/g, ".") + " 마감" : "상시채용"}</dd></div>)}
+                    {selected.source === "direct" && (<div><dt className="text-slate-500">마감일</dt><dd className="mt-0.5 font-medium text-slate-800">{fmtDate(listingEnd(selected))} 마감</dd></div>)}
                   </dl>
 
                   {selected.location && (

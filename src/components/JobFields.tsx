@@ -7,17 +7,20 @@ export type JobDefaults = {
   salary_text?: string | null;
   benefits?: string[] | null;
   description?: string | null;
-  deadline?: string | null;
   recruit_count?: number | null;
   shift_type?: string | null;
   manager_name?: string | null;
   manager_phone?: string | null;
+  apply_method?: string | null;
+  apply_email?: string | null;
+  apply_detail?: string | null;
 };
 
 const field = "h-12 w-full rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
 const label = "text-sm font-medium text-slate-700";
 const TYPES = ["정규직", "계약직", "파트타임", "인턴"];
 const SHIFTS = ["협의", "3교대", "2교대", "낮번 전담", "야간 전담", "평일 주간"];
+const APPLY = [["platform", "간편지원 (이 사이트에서 접수)"], ["email", "이메일 지원"], ["offline", "우편·방문·전화 접수"]] as const;
 
 export default function JobFields({ d = {} }: { d?: JobDefaults }) {
   return (
@@ -46,7 +49,7 @@ export default function JobFields({ d = {} }: { d?: JobDefaults }) {
           <input id="salary_text" name="salary_text" defaultValue={d.salary_text ?? ""} placeholder="예: 연 4,000~5,000만원 / 협의" className={field} />
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <label htmlFor="shift_type" className={label}>교대형태</label>
           <select id="shift_type" name="shift_type" className={field} defaultValue={d.shift_type ?? "협의"}>
@@ -56,10 +59,6 @@ export default function JobFields({ d = {} }: { d?: JobDefaults }) {
         <div className="flex flex-col gap-1">
           <label htmlFor="recruit_count" className={label}>모집인원</label>
           <input id="recruit_count" name="recruit_count" type="number" min="1" defaultValue={d.recruit_count ?? ""} placeholder="명 (비우면 0명)" className={field} />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="deadline" className={label}>마감일 <span className="text-slate-400">(비우면 상시)</span></label>
-          <input id="deadline" name="deadline" type="date" defaultValue={d.deadline ?? ""} className={field} />
         </div>
       </div>
       <div className="flex flex-col gap-1">
@@ -75,6 +74,23 @@ export default function JobFields({ d = {} }: { d?: JobDefaults }) {
           <label htmlFor="manager_phone" className={label}>담당자 연락처 <span className="text-slate-400">(지원자에게 공개)</span></label>
           <input id="manager_phone" name="manager_phone" inputMode="tel" defaultValue={d.manager_phone ?? ""} placeholder="예: 02-1234-5678" className={field} />
         </div>
+      </div>
+      <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="apply_method" className={label}>지원 방법</label>
+          <select id="apply_method" name="apply_method" className={field} defaultValue={d.apply_method ?? "platform"}>
+            {APPLY.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
+          </select>
+        </div>
+        <div className="mt-3 flex flex-col gap-1">
+          <label htmlFor="apply_email" className={label}>지원 이메일 <span className="text-slate-400">(이메일 지원 선택 시)</span></label>
+          <input id="apply_email" name="apply_email" type="email" defaultValue={d.apply_email ?? ""} placeholder="예: hr@hospital.co.kr" className={field} />
+        </div>
+        <div className="mt-3 flex flex-col gap-1">
+          <label htmlFor="apply_detail" className={label}>접수 안내 <span className="text-slate-400">(우편·방문·전화 선택 시)</span></label>
+          <textarea id="apply_detail" name="apply_detail" rows={3} defaultValue={d.apply_detail ?? ""} placeholder="예: 이력서를 본원 간호부로 우편 접수(서울 ...) / 방문 접수 / 전화 문의 후 제출" className="rounded-xl border border-slate-300 p-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
+        </div>
+        <p className="mt-2 text-xs text-slate-400">간편지원 = 간호사가 이 사이트에서 바로 지원(받은 지원자에서 확인). 이메일·우편·전화는 지원자가 직접 보냅니다. 연락처·이메일은 로그인한 지원자에게만 보입니다.</p>
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="description" className={label}>상세 내용</label>

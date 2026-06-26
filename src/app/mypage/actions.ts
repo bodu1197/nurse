@@ -95,11 +95,13 @@ export async function createJob(formData: FormData) {
     salary_text: s("salary_text") || null,
     description: s("description") || null,
     benefits,
-    deadline: s("deadline") || null,
     recruit_count: num("recruit_count"),
     shift_type: s("shift_type") || null,
     manager_name: s("manager_name") || null,
     manager_phone: s("manager_phone") || null,
+    apply_method: s("apply_method") || "platform",
+    apply_email: s("apply_email") || null,
+    apply_detail: s("apply_detail") || null,
     source: "direct",
     status: "open",
   });
@@ -141,11 +143,13 @@ export async function updateJob(formData: FormData) {
     salary_text: s("salary_text") || null,
     description: s("description") || null,
     benefits,
-    deadline: s("deadline") || null,
     recruit_count: num("recruit_count"),
     shift_type: s("shift_type") || null,
     manager_name: s("manager_name") || null,
     manager_phone: s("manager_phone") || null,
+    apply_method: s("apply_method") || "platform",
+    apply_email: s("apply_email") || null,
+    apply_detail: s("apply_detail") || null,
   }).eq("id", jobId);
   if (error) redirect(`/mypage/jobs/${jobId}/edit?error=save`);
   redirect("/mypage/jobs?ok=1");

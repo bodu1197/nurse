@@ -29,6 +29,15 @@ export async function getMyApplications(): Promise<MyApplication[]> {
   return data ?? [];
 }
 
+// 간호사가 특정 공고에 이미 지원했는지(공고 상세에서 '지원완료' 표시용).
+export async function hasApplied(jobId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return false;
+  const { data } = await supabase.from("applications").select("id").eq("job_id", jobId).eq("applicant_id", user.id).maybeSingle();
+  return !!data;
+}
+
 export type ReceivedApplication = {
   id: string;
   status: string;
