@@ -18,6 +18,15 @@ const listingEnd = (job: { posted_at: string; featured_until: string | null }) =
 };
 const fmtDate = (ms: number) => new Date(ms).toISOString().slice(0, 10).replace(/-/g, ".");
 
+// 저장(북마크) 아이콘 — 저장 시 채움.
+function SaveIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M6 3h12a1 1 0 011 1v17l-7-4-7 4V4a1 1 0 011-1z" />
+    </svg>
+  );
+}
+
 function Stars({ rating }: { rating: number }) {
   return (
     <span className="inline-flex items-center gap-1 text-amber-500" aria-label={`평점 ${rating}`}>
@@ -120,10 +129,10 @@ export default async function JobsPage({
                 return (
                   <li key={job.id} className="relative">
                     <a href={href(job.id)} className={`block rounded-lg border bg-white p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${on ? "border-teal-600 ring-1 ring-teal-600" : "border-slate-200 hover:border-slate-300 hover:shadow-sm"}`}>
-                      <h3 className="pr-10 font-semibold leading-snug text-slate-900">{job.title}</h3>
+                      <h3 className="font-semibold leading-snug text-slate-900">{job.title}</h3>
                       <div className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? "병원 미상"}</div>
                       <div className="text-sm text-slate-500">{job.location}</div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                      <div className="mt-2 flex flex-wrap items-center gap-2 pr-10 text-xs">
                         <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">{SOURCE_LABEL[job.source]}</span>
                         {job.salary_text && <span className="text-slate-500">{job.salary_text}</span>}
                         {job.shift_type && <span className="text-slate-500">{job.shift_type}</span>}
@@ -131,11 +140,11 @@ export default async function JobsPage({
                         {job.source === "direct" && <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job)).slice(5)}</span>}
                       </div>
                     </a>
-                    <form action={toggleSaveJob} className="absolute right-2 top-2">
+                    <form action={toggleSaveJob} className="absolute bottom-2 right-2">
                       <input type="hidden" name="job_id" value={job.id} />
                       <input type="hidden" name="next" value={href(job.id)} />
-                      <button type="submit" aria-label={savedSet.has(job.id) ? "저장 해제" : "저장"} className={`grid h-9 w-9 place-items-center rounded-full text-xl leading-none hover:bg-slate-100 ${savedSet.has(job.id) ? "text-rose-500" : "text-slate-300"}`}>
-                        {savedSet.has(job.id) ? "♥" : "♡"}
+                      <button type="submit" aria-label={savedSet.has(job.id) ? "저장 해제" : "저장"} className={`grid h-9 w-9 place-items-center rounded-full hover:bg-slate-100 ${savedSet.has(job.id) ? "text-teal-600" : "text-slate-400"}`}>
+                        <SaveIcon filled={savedSet.has(job.id)} />
                       </button>
                     </form>
                   </li>
@@ -154,8 +163,15 @@ export default async function JobsPage({
             {selected && (
               <section className={`${j ? "" : "hidden lg:block"} lg:self-start`}>
                 <a href={href()} className="mb-3 inline-block text-sm text-teal-700 hover:underline lg:hidden">← 목록으로</a>
-                <article className="rounded-lg border border-slate-200 bg-white p-6">
-                  <h2 className="text-2xl font-bold leading-snug text-slate-900">{selected.title}</h2>
+                <article className="relative rounded-lg border border-slate-200 bg-white p-6">
+                  <form action={toggleSaveJob} className="absolute right-4 top-4">
+                    <input type="hidden" name="job_id" value={selected.id} />
+                    <input type="hidden" name="next" value={href(selected.id)} />
+                    <button type="submit" aria-label={savedSet.has(selected.id) ? "저장 해제" : "저장"} className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold ${savedSet.has(selected.id) ? "border-teal-200 bg-teal-50 text-teal-700" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+                      <SaveIcon filled={savedSet.has(selected.id)} /> {savedSet.has(selected.id) ? "저장됨" : "저장"}
+                    </button>
+                  </form>
+                  <h2 className="pr-24 text-2xl font-bold leading-snug text-slate-900">{selected.title}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
                     <a href="/reviews" className="inline-flex items-center gap-1 font-medium text-teal-700 hover:underline">
                       {selected.hospital?.name ?? "병원 미상"}
@@ -173,12 +189,6 @@ export default async function JobsPage({
                   </div>
                   <div className="mt-1 text-slate-600">{selected.location}</div>
                   <div className="text-slate-600">{[selected.employment_type, selected.salary_text].filter(Boolean).join(" · ")}</div>
-
-                  <form action={toggleSaveJob} className="mt-3">
-                    <input type="hidden" name="job_id" value={selected.id} />
-                    <input type="hidden" name="next" value={href(selected.id)} />
-                    <Button type="submit" variant="outline" size="sm">{savedSet.has(selected.id) ? "♥ 저장됨" : "♡ 저장"}</Button>
-                  </form>
 
                   <div className="mt-4">
                     {selected.source === "direct" ? (
