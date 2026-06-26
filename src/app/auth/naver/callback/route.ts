@@ -52,16 +52,18 @@ export async function GET(request: Request) {
       code,
       state,
     }).toString(),
-  });
-  if (!tokenRes.ok) return fail("naver_token");
+    signal: AbortSignal.timeout(10000),
+  }).catch(() => null);
+  if (!tokenRes || !tokenRes.ok) return fail("naver_token");
   const token = (await tokenRes.json()) as NaverToken;
   if (!token.access_token) return fail("naver_token");
 
   // 2) 프로필
   const meRes = await fetch("https://openapi.naver.com/v1/nid/me", {
     headers: { Authorization: `Bearer ${token.access_token}` },
-  });
-  if (!meRes.ok) return fail("naver_profile");
+    signal: AbortSignal.timeout(10000),
+  }).catch(() => null);
+  if (!meRes || !meRes.ok) return fail("naver_profile");
   const me = ((await meRes.json()) as { response?: NaverProfile }).response;
   const email = me?.email;
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail("naver_email");

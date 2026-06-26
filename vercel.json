@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/cron/sync-hospitals", "schedule": "0 18 * * 0" }
+  ]
+}
