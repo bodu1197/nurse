@@ -47,13 +47,16 @@ export async function createJob(formData: FormData) {
   const title = s("title");
   if (!hospitalId || !title) redirect("/mypage/jobs/new?error=missing");
 
-  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region").eq("id", hospitalId).maybeSingle();
+  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region, free_credits").eq("id", hospitalId).maybeSingle();
   if (!hosp) redirect("/mypage/jobs/new?error=hospital");
   if (hosp.owner_profile_id && hosp.owner_profile_id !== user.id) redirect("/mypage/jobs/new?error=claimed");
   if (!hosp.owner_profile_id) {
     await admin.from("hospitals").update({ owner_profile_id: user.id, is_claimed: true }).eq("id", hospitalId);
     await admin.from("profiles").update({ claimed_hospital_id: hospitalId }).eq("id", user.id);
   }
+
+  // 무료권(7일×4) 확인 — 소진 시 유료 광고 필요(Phase 2 결제).
+  if ((hosp.free_credits ?? 0) <= 0) redirect("/mypage/jobs?error=nocredit");
 
   const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
   const { error } = await admin.from("jobs").insert({
@@ -70,6 +73,8 @@ export async function createJob(formData: FormData) {
   });
   if (error) redirect("/mypage/jobs/new?error=save");
 
+  // 무료권 1장 차감
+  await admin.from("hospitals").update({ free_credits: (hosp.free_credits ?? 1) - 1 }).eq("id", hospitalId);
   redirect("/jobs");
 }
 
@@ -77,7 +82,7 @@ export async function createJob(formData: FormData) {
 async function ownedJobHospital(admin: ReturnType<typeof createAdminClient>, jobId: string, userId: string) {
   const { data: job } = await admin.from("jobs").select("hospital_id").eq("id", jobId).maybeSingle();
   if (!job) return null;
-  const { data: hosp } = await admin.from("hospitals").select("owner_profile_id, region").eq("id", job.hospital_id).maybeSingle();
+  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region, free_credits").eq("id", job.hospital_id).maybeSingle();
   if (!hosp || hosp.owner_profile_id !== userId) return null;
   return hosp;
 }
@@ -122,9 +127,12 @@ export async function repostJob(formData: FormData) {
   const admin = createAdminClient();
   const hosp = await ownedJobHospital(admin, jobId, user.id);
   if (!hosp) redirect("/mypage/jobs?error=1");
+  // 다시 게시도 새 7일 노출 → 무료권 1장 소비
+  if ((hosp.free_credits ?? 0) <= 0) redirect("/mypage/jobs?error=nocredit");
 
   const { error } = await admin.from("jobs").update({ status: "open", posted_at: new Date().toISOString() }).eq("id", jobId);
   if (error) redirect("/mypage/jobs?error=1");
+  await admin.from("hospitals").update({ free_credits: (hosp.free_credits ?? 1) - 1 }).eq("id", hosp.id);
   redirect("/mypage/jobs?ok=1");
 }
 

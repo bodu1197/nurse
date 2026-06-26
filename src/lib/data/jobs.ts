@@ -91,6 +91,15 @@ export async function getMyJobs(): Promise<MyJob[]> {
   }));
 }
 
+// 병원 무료 게시권 잔여(병원당 7일×4). null=병원 없음.
+export async function getMyFreeCredits(): Promise<number | null> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase.from("hospitals").select("free_credits").eq("owner_profile_id", user.id).limit(1);
+  return data?.[0]?.free_credits ?? null;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type MyJobDetail = {

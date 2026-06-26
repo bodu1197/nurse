@@ -14,6 +14,79 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_orders: {
+        Row: {
+          amount: number
+          buyer_id: string
+          created_at: string
+          days: number
+          hospital_id: string
+          id: string
+          imp_uid: string | null
+          job_id: string | null
+          merchant_uid: string
+          paid_at: string | null
+          status: string
+          supply_amount: number
+          tier: string
+          vat: number
+        }
+        Insert: {
+          amount: number
+          buyer_id: string
+          created_at?: string
+          days: number
+          hospital_id: string
+          id?: string
+          imp_uid?: string | null
+          job_id?: string | null
+          merchant_uid: string
+          paid_at?: string | null
+          status?: string
+          supply_amount: number
+          tier: string
+          vat: number
+        }
+        Update: {
+          amount?: number
+          buyer_id?: string
+          created_at?: string
+          days?: number
+          hospital_id?: string
+          id?: string
+          imp_uid?: string | null
+          job_id?: string | null
+          merchant_uid?: string
+          paid_at?: string | null
+          status?: string
+          supply_amount?: number
+          tier?: string
+          vat?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ad_orders_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_orders_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ad_orders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       applications: {
         Row: {
           applicant_id: string
@@ -63,6 +136,7 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string
+          free_credits: number
           id: string
           is_claimed: boolean
           legacy_member_srl: number | null
@@ -78,6 +152,7 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string
+          free_credits?: number
           id?: string
           is_claimed?: boolean
           legacy_member_srl?: number | null
@@ -93,6 +168,7 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string
+          free_credits?: number
           id?: string
           is_claimed?: boolean
           legacy_member_srl?: number | null
@@ -117,12 +193,14 @@ export type Database = {
       }
       jobs: {
         Row: {
+          ad_tier: string | null
           benefits: string[]
           created_at: string
           description: string | null
           employment_type: string | null
           external_id: string | null
           external_url: string | null
+          featured_until: string | null
           hospital_id: string
           id: string
           is_featured: boolean
@@ -136,12 +214,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ad_tier?: string | null
           benefits?: string[]
           created_at?: string
           description?: string | null
           employment_type?: string | null
           external_id?: string | null
           external_url?: string | null
+          featured_until?: string | null
           hospital_id: string
           id?: string
           is_featured?: boolean
@@ -155,12 +235,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ad_tier?: string | null
           benefits?: string[]
           created_at?: string
           description?: string | null
           employment_type?: string | null
           external_id?: string | null
           external_url?: string | null
+          featured_until?: string | null
           hospital_id?: string
           id?: string
           is_featured?: boolean
@@ -590,4 +672,3 @@ export const Constants = {
     },
   },
 } as const
-
