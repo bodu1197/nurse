@@ -1,7 +1,5 @@
 // 사이트 전역 상수 — 하드코딩 분산 방지(추후 DB 마스터로 이관 가능).
 
-export const DAY_SECONDS = 86400; // 하루(초) — ISR/fetch revalidate 공용
-
 // /jobs 필터 옵션
 export const JOB_SPECIALTIES = ["중환자실", "응급실", "수술실", "병동", "외래", "요양병원", "정신과", "마취과", "투석실"] as const;
 export const EMPLOYMENT_TYPES = ["정규직", "계약직", "파트타임", "인턴"] as const;
@@ -19,7 +17,6 @@ export const POPULAR_SEARCHES = [
 // 헤더 햄버거 메뉴 — 준비중 스텁(급여/회사소개)은 구현 전까지 제외(새는 링크 방지)
 export const HEADER_MENU = [
   { label: "채용 검색", href: "/jobs" },
-  { label: "급여 정보", href: "/salaries" },
   { label: "병원 리뷰", href: "/reviews" },
   { label: "회원가입", href: "/signup" },
   { label: "병원 공고등록", href: "/hospital" },
@@ -28,13 +25,12 @@ export const HEADER_MENU = [
 // 푸터 네비게이션
 export const FOOTER_NAV = [
   { label: "채용공고 찾아보기", href: "/jobs" },
-  { label: "간호사 급여 정보", href: "/salaries" },
   { label: "병원 리뷰", href: "/reviews" },
   { label: "병원 서비스", href: "/hospital" },
 ] as const;
 
-// sitemap 용 — 항상 색인하는 정적 라우트. /salaries 는 데이터 있을 때만 sitemap.ts 에서 동적 등재.
-// noindex 페이지(jobs/reviews/about/terms/privacy 시드·스텁)는 충돌 방지를 위해 제외.
+// sitemap 용 — 실제 색인(index) 대상만. noindex 페이지(jobs/reviews/salaries/about/terms/privacy 시드·스텁)는
+// sitemap/noindex 충돌 방지를 위해 제외. 콘텐츠/실데이터 오픈 시 noindex 해제와 함께 재등재.
 export const PUBLIC_ROUTES = ["/", "/hospital"] as const;
 
 export const SITE_URL =

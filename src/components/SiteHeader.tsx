@@ -40,7 +40,6 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
         <nav className="ml-7 hidden items-center gap-5 text-sm font-medium text-slate-600 sm:flex">
           <a href="/" className="hover:text-teal-700">홈</a>
           <a href="/jobs" className="hover:text-teal-700">채용공고</a>
-          <a href="/salaries" className="hover:text-teal-700">급여 정보</a>
           <a href="/reviews" className="hover:text-teal-700">병원 리뷰</a>
         </nav>
 
