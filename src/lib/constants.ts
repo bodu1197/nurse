@@ -29,7 +29,7 @@ export const FOOTER_NAV = [
   { label: "병원 서비스", href: "/hospital" },
 ] as const;
 
-// sitemap 용 — 실제 색인(index) 대상만. noindex 페이지(jobs/reviews/salaries/about/terms/privacy 시드·스텁)는
+// sitemap 용 — 실제 색인(index) 대상만. noindex 페이지(jobs/reviews/about/terms/privacy 시드·스텁)는
 // sitemap/noindex 충돌 방지를 위해 제외. 콘텐츠/실데이터 오픈 시 noindex 해제와 함께 재등재.
 export const PUBLIC_ROUTES = ["/", "/hospital"] as const;
 

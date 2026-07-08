@@ -62,6 +62,9 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   const fresh = new Date(now - 7 * DAY_MS).toISOString();
   const nowIso = new Date(now).toISOString();
   query = query.or(`source.neq.direct,posted_at.gte.${fresh},featured_until.gte.${nowIso}`);
+  // 마감일 도래 공고 비노출: 상시(null) 또는 마감일(당일 포함)이 아직 안 지난 것만. deadline은 date라 KST 오늘로 비교.
+  const todayKst = new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  query = query.or(`deadline.is.null,deadline.gte.${todayKst}`);
 
   const kw = clean(keyword);
   if (kw) query = query.or(`title.ilike.%${kw}%,specialty.ilike.%${kw}%`);
