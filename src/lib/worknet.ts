@@ -69,7 +69,7 @@ const decode = (s: string) =>
 // "26-07-08" 또는 "채용시까지  26-09-07" → "YYYY-MM-DD"(date). 날짜 없으면(상시채용) null.
 export function parseDeadline(s: string): string | null {
   const m = [...s.matchAll(/(\d{2})-(\d{2})-(\d{2})/g)].pop();
-  if (!m) return null;
+  if (!m || m[1] >= "90") return null; // 20YY>=2090은 상시채용 센티넬 → 마감일 없음(null)
   const iso = `20${m[1]}-${m[2]}-${m[3]}`;
   return Number.isNaN(new Date(iso).getTime()) ? null : iso;
 }
@@ -143,26 +143,64 @@ export async function fetchNurseJobs(keywords: readonly string[] = NURSE_KEYWORD
   return all.filter((j) => j.authNo && !seen.has(j.authNo) && seen.add(j.authNo));
 }
 
-// 리스트 title은 고정폭 잘림 시 앞을 자르고 "..."를 붙임("...서 일할 간호사"). 상세 API(210D01)의 <wantedTitle>이 전체 제목.
-// 앞잘림(선두 "...")만 보강 대상 — 끝의 "...."는 게시자가 실제로 쓴 텍스트라 상세로도 안 바뀜(헛 재시도 방지).
-export const isTruncatedTitle = (t: string) => t.trimStart().startsWith("...");
+// 상세 API(210D01) — 리스트에 없는 풍부한 필드. 전체제목·직무내용·연락처·모집인원·근무시간·복지·전형·정확한 마감일.
+export type WorknetDetail = {
+  title: string | null;        // wantedTitle (앞잘림 없는 전체 제목)
+  description: string | null;  // jobCont (실제 직무 상세)
+  recruitCount: number | null; // collectPsncnt (모집인원)
+  managerPhone: string | null; // contactTelno (담당 연락처)
+  managerName: string | null;  // empChargerDpt (담당 부서/고용센터)
+  deadline: string | null;     // receiptCloseDt "YYYY-MM-DD" (리스트보다 정확)
+  shiftType: string | null;    // workdayWorkhrCont (근무시간)
+  benefits: string[];          // fourIns + retirepay + etcWelfare
+  applyDetail: string | null;  // 전형방법·제출서류·접수방법·자격·우대
+};
 
-async function fetchWantedTitle(authNo: string, infoSvc: string): Promise<string | null> {
+// XML 엔티티(&#xd; 등)·과다 공백 정리.
+const clean1 = (s: string) => decode(s.replace(/&#x?\d+;/gi, " ")).replace(/\s+/g, " ").trim();
+
+function parseDetail(xml: string): WorknetDetail | null {
+  if (!xml.includes("<wantedDtl>")) return null; // 인증오류·빈 응답 방어
+  const rm = pick(xml, "receiptCloseDt").match(/(\d{4})(\d{2})(\d{2})/);
+  const tel = pick(xml, "contactTelno");
+  const recruit = Number(pick(xml, "collectPsncnt"));
+  const benefits = [...pick(xml, "fourIns").split(/\s+/), pick(xml, "retirepay"), pick(xml, "etcWelfare")]
+    .map((s) => s.trim()).filter(Boolean);
+  const applyDetail = [
+    pick(xml, "selMthd") && `전형: ${clean1(pick(xml, "selMthd"))}`,
+    pick(xml, "submitDoc") && `제출서류: ${clean1(pick(xml, "submitDoc"))}`,
+    pick(xml, "rcptMthd") && `접수방법: ${clean1(pick(xml, "rcptMthd"))}`,
+    pick(xml, "certificate") && `자격/면허: ${clean1(pick(xml, "certificate"))}`,
+    pick(xml, "pfCond") && `우대: ${clean1(pick(xml, "pfCond"))}`,
+  ].filter(Boolean).join("\n");
+  return {
+    title: decode(pick(xml, "wantedTitle")) || null,
+    description: clean1(pick(xml, "jobCont")) || null,
+    recruitCount: Number.isFinite(recruit) && recruit > 0 ? recruit : null,
+    managerPhone: /\d{2,}/.test(tel) ? tel.trim() : null, // "--" 등 빈값 제외
+    managerName: pick(xml, "empChargerDpt") || null,
+    deadline: rm && rm[1] < "2090" ? `${rm[1]}-${rm[2]}-${rm[3]}` : null, // 2090+ 상시 센티넬 제외
+    shiftType: clean1(pick(xml, "workdayWorkhrCont")) || null,
+    benefits,
+    applyDetail: applyDetail || null,
+  };
+}
+
+async function fetchDetail(authNo: string, infoSvc: string): Promise<WorknetDetail | null> {
   const qs = new URLSearchParams({ authKey: authKey(), callTp: "D", returnType: "XML", wantedAuthNo: authNo, infoSvc: infoSvc || "VALIDATION" });
   try {
     const res = await fetch(`${DETAIL}?${qs}`, { cache: "no-store", signal: AbortSignal.timeout(15000) });
     if (!res.ok) return null;
-    const t = decode(pick(await res.text(), "wantedTitle"));
-    return t || null;
+    return parseDetail(await res.text());
   } catch {
     return null;
   }
 }
 
-// 잘린 공고의 전체 제목 배치 조회. 실패분은 맵에서 누락(호출부에서 기존 제목 유지).
-export async function fetchWantedTitles(items: ReadonlyArray<{ authNo: string; infoSvc: string }>): Promise<Map<string, string>> {
-  const pairs = await inBatches([...items], CONCURRENCY * 2, async (it) => [it.authNo, await fetchWantedTitle(it.authNo, it.infoSvc)] as const);
-  const map = new Map<string, string>();
-  for (const [id, t] of pairs) if (t) map.set(id, t);
+// 공고 상세 배치 조회. 실패분은 맵에서 누락(호출부에서 기존 저장값 유지).
+export async function fetchDetails(items: ReadonlyArray<{ authNo: string; infoSvc: string }>): Promise<Map<string, WorknetDetail>> {
+  const pairs = await inBatches([...items], CONCURRENCY * 2, async (it) => [it.authNo, await fetchDetail(it.authNo, it.infoSvc)] as const);
+  const map = new Map<string, WorknetDetail>();
+  for (const [id, d] of pairs) if (d) map.set(id, d);
   return map;
 }

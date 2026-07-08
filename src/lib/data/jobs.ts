@@ -15,6 +15,7 @@ export type JobRow = {
   external_url: string | null;
   is_featured: boolean;
   posted_at: string;
+  deadline: string | null;
   featured_until: string | null;
   recruit_count: number | null;
   shift_type: string | null;
@@ -35,7 +36,7 @@ export const SOURCE_LABEL: Record<JobSource, string> = {
 };
 
 const SELECT =
-  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,featured_until,recruit_count,shift_type,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(name,rating_avg,rating_count)";
+  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,deadline,featured_until,recruit_count,shift_type,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(name,rating_avg,rating_count)";
 
 export const PER_PAGE = 20;
 

@@ -137,7 +137,9 @@ export default async function JobsPage({
                         {job.salary_text && <span className="text-slate-500">{job.salary_text}</span>}
                         {job.shift_type && <span className="text-slate-500">{job.shift_type}</span>}
                         <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
-                        {job.source === "direct" && <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job)).slice(5)}</span>}
+                        {job.source === "direct"
+                          ? <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job)).slice(5)} 마감</span>
+                          : job.deadline && <span className="font-medium text-rose-600">~{job.deadline.slice(5).replace("-", ".")} 마감</span>}
                       </div>
                     </a>
                     <form action={toggleSaveJob} className="absolute bottom-2 right-2">
@@ -258,14 +260,14 @@ export default async function JobsPage({
                     )}
                   </div>
 
-                  {selected.source === "direct" && (selected.manager_name || selected.manager_phone) && (
+                  {(selected.manager_name || selected.manager_phone) && (
                     <div className="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-sm">
                       <p className="font-semibold text-slate-700">채용 문의</p>
-                      {profile ? (
+                      {selected.source !== "direct" || profile ? (
                         <>
                           {selected.manager_name && <p className="mt-1 text-slate-600">{selected.manager_name}</p>}
                           {selected.manager_phone && (
-                            <a href={`tel:${selected.manager_phone}`} className="mt-1 inline-flex items-center gap-1.5 font-semibold text-teal-700 hover:underline">
+                            <a href={`tel:${selected.manager_phone}`} className="mt-1 inline-flex min-h-11 items-center gap-1.5 font-semibold text-teal-700 hover:underline">
                               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M22 16.92v3a2 2 0 01-2.18 2 19.8 19.8 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z" /></svg>
                               {selected.manager_phone}
                             </a>
@@ -290,7 +292,9 @@ export default async function JobsPage({
                     {selected.salary_text && (<div><dt className="text-slate-500">급여</dt><dd className="mt-0.5 font-medium text-slate-800">{selected.salary_text}</dd></div>)}
                     {selected.shift_type && (<div><dt className="text-slate-500">근무형태</dt><dd className="mt-0.5 text-slate-800">{selected.shift_type}</dd></div>)}
                     {selected.recruit_count ? (<div><dt className="text-slate-500">모집인원</dt><dd className="mt-0.5 text-slate-800">{selected.recruit_count}명</dd></div>) : null}
-                    {selected.source === "direct" && (<div><dt className="text-slate-500">마감일</dt><dd className="mt-0.5 font-medium text-slate-800">{fmtDate(listingEnd(selected))} 마감</dd></div>)}
+                    {selected.source === "direct"
+                      ? (<div><dt className="text-slate-500">마감일</dt><dd className="mt-0.5 font-medium text-slate-800">{fmtDate(listingEnd(selected))} 마감</dd></div>)
+                      : selected.deadline ? (<div><dt className="text-slate-500">마감일</dt><dd className="mt-0.5 font-medium text-slate-800">{selected.deadline.replace(/-/g, ".")} 마감</dd></div>) : null}
                   </dl>
 
                   {selected.location && (
@@ -316,6 +320,13 @@ export default async function JobsPage({
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {selected.benefits.map((b) => (<span key={b} className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{b}</span>))}
                       </div>
+                    </>
+                  )}
+
+                  {selected.source !== "direct" && selected.apply_detail && (
+                    <>
+                      <h3 className="mt-5 font-bold text-slate-900">전형·접수</h3>
+                      <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{selected.apply_detail}</p>
                     </>
                   )}
                 </article>

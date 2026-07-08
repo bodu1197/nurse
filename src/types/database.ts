@@ -201,6 +201,7 @@ export type Database = {
           benefits: string[]
           created_at: string
           deadline: string | null
+          detail_fetched_at: string | null
           description: string | null
           employment_type: string | null
           external_id: string | null
@@ -231,6 +232,7 @@ export type Database = {
           benefits?: string[]
           created_at?: string
           deadline?: string | null
+          detail_fetched_at?: string | null
           description?: string | null
           employment_type?: string | null
           external_id?: string | null
@@ -261,6 +263,7 @@ export type Database = {
           benefits?: string[]
           created_at?: string
           deadline?: string | null
+          detail_fetched_at?: string | null
           description?: string | null
           employment_type?: string | null
           external_id?: string | null
