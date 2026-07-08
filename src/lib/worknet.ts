@@ -156,8 +156,17 @@ export type WorknetDetail = {
   applyDetail: string | null;  // 전형방법·제출서류·접수방법·자격·우대
 };
 
-// XML 엔티티(&#xd; 등)·과다 공백 정리.
-const clean1 = (s: string) => decode(s.replace(/&#x?\d+;/gi, " ")).replace(/\s+/g, " ").trim();
+// 짧은 필드: 모든 공백을 한 칸으로. 숫자·hex(&#xd; 등) 문자참조 모두 공백 처리(기존 \d+는 hex 문자 d/a를 놓쳐 리터럴 잔존).
+const clean1 = (s: string) => decode(s.replace(/&#x?[0-9a-f]+;/gi, " ")).replace(/\s+/g, " ").trim();
+
+// 본문(직무내용): 줄바꿈 보존 — 워크넷은 &#xd;/&#xa;와 실제 개행으로 행 구조를 표현. 수평 공백만 정리.
+const cleanBody = (s: string) =>
+  decode(s.replace(/&#x?0*(?:d|a);/gi, "\n").replace(/&#0*1[03];/g, "\n").replace(/&#x?[0-9a-f]+;/gi, " "))
+    .replace(/\r\n?/g, "\n")
+    .replace(/[^\S\n]+/g, " ") // 개행 외 공백만 축약
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 
 function parseDetail(xml: string): WorknetDetail | null {
   if (!xml.includes("<wantedDtl>")) return null; // 인증오류·빈 응답 방어
@@ -175,7 +184,7 @@ function parseDetail(xml: string): WorknetDetail | null {
   ].filter(Boolean).join("\n");
   return {
     title: decode(pick(xml, "wantedTitle")) || null,
-    description: clean1(pick(xml, "jobCont")) || null,
+    description: cleanBody(pick(xml, "jobCont")) || null,
     recruitCount: Number.isFinite(recruit) && recruit > 0 ? recruit : null,
     managerPhone: /\d{2,}/.test(tel) ? tel.trim() : null, // "--" 등 빈값 제외
     managerName: pick(xml, "empChargerDpt") || null,

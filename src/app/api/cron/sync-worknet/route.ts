@@ -29,6 +29,12 @@ export async function GET(request: Request) {
 
     const admin = createAdminClient();
 
+    // ?reset=1: 상세 파싱 로직 변경 후 기존 보강분을 재처리하려 마커 초기화(앱 경유 1회성 운영용).
+    if (new URL(request.url).searchParams.get("reset") === "1") {
+      const { error } = await admin.from("jobs").update({ detail_fetched_at: null }).eq("source", "worknet").not("detail_fetched_at", "is", null);
+      if (error) return NextResponse.json({ error: `reset: ${error.message}` }, { status: 500 });
+    }
+
     // 1) 회사명 → 병원 id 맵. 기존 워크넷 병원 조회 후, 없는 회사만 신규 insert(재실행 시 중복 방지).
     const names = [...new Set(jobs.map((j) => j.company).filter(Boolean))];
     const nameToId = new Map<string, string>();

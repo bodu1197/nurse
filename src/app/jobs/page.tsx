@@ -1,6 +1,6 @@
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
-import { getJobs, getSavedJobIds, PER_PAGE, SOURCE_LABEL, type JobRow } from "@/lib/data/jobs";
+import { getJobs, getSavedJobIds, PER_PAGE, type JobRow } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
 import { hasApplied } from "@/lib/data/applications";
 import { applyToJob, saveSearch, toggleSaveJob } from "./actions";
@@ -133,9 +133,8 @@ export default async function JobsPage({
                       <div className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? "병원 미상"}</div>
                       <div className="text-sm text-slate-500">{job.location}</div>
                       <div className="mt-2 flex flex-wrap items-center gap-2 pr-10 text-xs">
-                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-slate-600">{SOURCE_LABEL[job.source]}</span>
                         {job.salary_text && <span className="text-slate-500">{job.salary_text}</span>}
-                        {job.shift_type && <span className="text-slate-500">{job.shift_type}</span>}
+                        {job.source === "direct" && job.shift_type && <span className="text-slate-500">{job.shift_type}</span>}
                         <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
                         {job.source === "direct"
                           ? <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job)).slice(5)} 마감</span>
