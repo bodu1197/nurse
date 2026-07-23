@@ -185,6 +185,22 @@ export async function getMyLastJob(): Promise<MyJobDetail | null> {
 
 export type SavedSearch = { id: string; keyword: string | null; location: string | null; created_at: string };
 
+// 마이페이지 카드 배지용 — 개수만.
+export async function countSaved(): Promise<number> {
+  const user = await getSessionUser();
+  if (!user) return 0;
+  const supabase = await createClient();
+  const { count } = await supabase.from("saved_jobs").select("id", { count: "exact", head: true }).eq("profile_id", user.id);
+  return count ?? 0;
+}
+export async function countSavedSearches(): Promise<number> {
+  const user = await getSessionUser();
+  if (!user) return 0;
+  const supabase = await createClient();
+  const { count } = await supabase.from("saved_searches").select("id", { count: "exact", head: true }).eq("profile_id", user.id);
+  return count ?? 0;
+}
+
 export async function getMySavedSearches(): Promise<SavedSearch[]> {
   const user = await getSessionUser();
   if (!user) return [];

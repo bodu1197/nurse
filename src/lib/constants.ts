@@ -99,12 +99,16 @@ export const AUTH_ERROR_MESSAGES = {
 /** 실제로 존재하는 에러 코드만. 오타를 컴파일에서 잡으려고 쓴다. */
 export type AuthErrorCode = keyof typeof AUTH_ERROR_MESSAGES;
 
-/** `?error=` 로 받은 문자열 → 사용자 문구. 모르는 코드·프로토타입 키(toString 등)는 null. */
-export function authErrorMessage(code: string | undefined): string | null {
-  if (!code || !Object.hasOwn(AUTH_ERROR_MESSAGES, code)) return null;
-  const table: Record<string, string> = AUTH_ERROR_MESSAGES;
-  return table[code];
+/**
+ * URL의 `?error=`·`?ok=` 문자열 → 표에 정의된 문구. 모르는 코드·프로토타입 키(toString·constructor 등)는 null.
+ * 이 가드가 없으면 상속된 함수가 반환돼 JSX 자식으로 렌더되며 "Functions are not valid as a React child"로 터진다.
+ */
+export function messageFor(table: Record<string, string>, code: string | undefined): string | null {
+  return code && Object.hasOwn(table, code) ? table[code] : null;
 }
+
+/** 인증 화면 전용 단축 — messageFor(AUTH_ERROR_MESSAGES, code) */
+export const authErrorMessage = (code: string | undefined) => messageFor(AUTH_ERROR_MESSAGES, code);
 
 /** 에러를 달고 돌아갈 주소. 코드가 타입으로 묶여 있어 오타가 나면 빌드가 깨진다. */
 export const authErrorPath = (path: string, code: AuthErrorCode) => `${path}?error=${code}`;

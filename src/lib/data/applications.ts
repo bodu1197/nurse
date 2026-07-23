@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/data/user";
-import { SHEET_COLS, type ResumeSheetFields } from "@/lib/data/resume";
+import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
 
 /**
  * 지원 상태 — DB의 check 제약(20260723140000)과 같은 집합.
@@ -78,6 +78,15 @@ export async function getMyApplications(): Promise<MyApplication[]> {
   return rows;
 }
 
+// 마이페이지 카드 배지용 — 목록 전체를 끌어오지 않고 개수만 센다(body 0바이트, 인덱스만 탄다).
+export async function countMyApplications(): Promise<number> {
+  const user = await getSessionUser();
+  if (!user) return 0;
+  const supabase = await createClient();
+  const { count } = await supabase.from("applications").select("id", { count: "exact", head: true }).eq("applicant_id", user.id);
+  return count ?? 0;
+}
+
 // 간호사가 특정 공고에 이미 지원했는지(공고 상세에서 '지원완료' 표시용).
 // 취소한 지원은 제외 — 다시 지원할 수 있어야 한다.
 export async function hasApplied(jobId: string): Promise<boolean> {
@@ -99,8 +108,10 @@ export type ApplicantResume = ResumeSheetFields & { profile_id: string };
  * 목록 카드에 실제로 그리는 항목만. 학력·희망급여·희망고용형태는 전문 보기에서만 필요하다.
  * 타입과 select 문자열을 이 배열 하나에서 뽑는다(둘이 어긋나면 화면이 런타임에 깨진다).
  */
+// 병원이 지원자를 걸러낼 때 실제로 보는 것 — 근무형태가 안 맞으면 나머지는 보지도 않는다.
 const CARD_FIELDS = [
-  "profile_id", "name", "phone", "license_type", "experience_years", "specialties", "desired_location", "intro",
+  "profile_id", "name", "phone", "license_type", "career_level", "experience_years",
+  "certifications", "shift_types", "night_available", "specialties", "desired_location", "intro",
 ] as const satisfies readonly (keyof ApplicantResume)[];
 
 export type ApplicantCardResume = Pick<ApplicantResume, (typeof CARD_FIELDS)[number]>;
@@ -114,8 +125,8 @@ type ReceivedBase = {
   job: { id: string; title: string } | null;
 };
 
-/** 지원자 1건(이력서 전문) — 인쇄·상세용 */
-export type ReceivedApplication = ReceivedBase & { resume: ApplicantResume | null };
+/** 지원자 1건(이력서 전문 + 경력) — 인쇄·상세용 */
+export type ReceivedApplication = ReceivedBase & { resume: ApplicantResume | null; work: WorkExperience[] };
 /** 지원자 목록의 한 줄 — 카드에 필요한 만큼만 */
 export type ApplicantListItem = ReceivedBase & { resume: ApplicantCardResume | null };
 
@@ -159,8 +170,11 @@ export async function getReceivedApplication(id: string): Promise<ReceivedApplic
     .eq("id", id)
     .maybeSingle<ReceivedBase>();
   if (!app) return null;
-  const { data: resume } = await supabase
-    .from("resumes").select(RESUME_COLS).eq("profile_id", app.applicant_id)
-    .maybeSingle<ApplicantResume>();
-  return { ...app, resume: resume ?? null };
+  // 경력 상세가 없으면 "경력 5년"이 전부라 채용 판단이 안 된다 → 전문 조회에는 반드시 함께 싣는다.
+  const [{ data: resume }, { data: work }] = await Promise.all([
+    supabase.from("resumes").select(RESUME_COLS).eq("profile_id", app.applicant_id).maybeSingle<ApplicantResume>(),
+    supabase.from("work_experiences").select(WORK_COLS).eq("resume_id", app.applicant_id)
+      .order("sort_order").returns<WorkExperience[]>(),
+  ]);
+  return { ...app, resume: resume ?? null, work: work ?? [] };
 }

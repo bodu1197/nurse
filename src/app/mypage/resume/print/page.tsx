@@ -16,7 +16,7 @@ export default async function ResumePrintPage() {
 
   return (
     <PrintSheet backHref="/mypage/resume" backLabel="내 이력서">
-      <ResumeSheet resume={resume} />
+      <ResumeSheet resume={resume} work={resume.work} />
     </PrintSheet>
   );
 }

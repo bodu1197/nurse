@@ -4,7 +4,10 @@ import Button from "@/components/Button";
 import HospitalShell from "@/components/HospitalShell";
 import NurseShell from "@/components/NurseShell";
 import { getMyProfile, type MyProfile } from "@/lib/data/user";
-import { getMyResume, type Resume } from "@/lib/data/resume";
+import { getMyResume, completeness, type ResumeWithWork } from "@/lib/data/resume";
+import { countMyApplications } from "@/lib/data/applications";
+import { countSaved, countSavedSearches } from "@/lib/data/jobs";
+import { careerSummary } from "@/lib/resumeOptions";
 import { ROLE_LABEL, type Role } from "@/lib/data/role";
 import { getMyJobs, type MyJob } from "@/lib/data/jobs";
 import JobStatusBadge from "@/components/JobStatusBadge";
@@ -111,14 +114,14 @@ function HospitalDashboard({ profile, jobs }: Readonly<{ profile: MyProfile; job
 }
 
 // ───────── 간호사/관리자: 카드형 ─────────
-type Item = { title: string; desc: string; href?: string };
+type Item = { title: string; desc: string; href?: string; badge?: string; muted?: boolean };
 
 const NURSE_ITEMS: Item[] = [
   { title: "내 이력서", desc: "이력서를 작성하고 병원에 지원하세요. (무료)", href: "/mypage/resume" },
-  // desc는 저장 여부에 따라 아래 nurseItems()에서 교체된다.
   { title: "저장한 공고", desc: "관심 있는 채용공고를 모아 봅니다.", href: "/mypage/saved" },
   { title: "지원 내역", desc: "지원한 공고의 진행 상황을 확인합니다.", href: "/mypage/applications" },
   { title: "채용 알림", desc: "검색 조건을 저장하고 빠르게 다시 찾습니다.", href: "/mypage/alerts" },
+  { title: "내 정보 · 계정", desc: "표시 이름 · 비밀번호 변경 · 회원 탈퇴", href: "/mypage/account" },
 ];
 const ADMIN_ITEMS: Item[] = [
   { title: "회원 관리", desc: "간호사·병원 회원을 관리합니다." },
@@ -126,17 +129,24 @@ const ADMIN_ITEMS: Item[] = [
   { title: "데이터 수집", desc: "워크넷·공공데이터 연동 상태를 봅니다." },
 ];
 
-// 이력서를 저장해도 마이페이지가 그대로면 저장이 됐는지 알 수 없다 → 카드에 현재 상태를 표시.
-function nurseItems(resume: Resume | null): Item[] {
-  if (!resume) return NURSE_ITEMS;
-  const parts = [
-    resume.experience_years != null ? `경력 ${resume.experience_years}년` : null,
-    resume.specialties.length > 0 ? resume.specialties.join(", ") : null,
-    resume.is_public ? "공개 중" : "비공개",
-  ].filter(Boolean);
-  return NURSE_ITEMS.map((it) =>
-    it.title === "내 이력서" ? { ...it, desc: `작성 완료 — ${parts.join(" · ")}. 눌러서 확인·수정` } : it,
-  );
+// 카드에 실제 숫자를 넣는다 — "지원 내역"이라고만 쓰여 있으면 눌러봐야 비어 있는지 알 수 있다.
+function nurseItems(resume: ResumeWithWork | null, counts: { applied: number; saved: number; searches: number }): Item[] {
+  return NURSE_ITEMS.map((it) => {
+    if (it.title === "내 이력서") {
+      if (!resume) return { ...it, badge: "미작성" };
+      const pct = completeness(resume, resume.work.length);
+      const parts = [
+        careerSummary(resume.career_level, resume.experience_years),
+        resume.shift_types.length > 0 ? resume.shift_types.join(", ") : null,
+        resume.is_public ? "공개 중" : "비공개",
+      ].filter(Boolean);
+      return { ...it, desc: `${parts.join(" · ")} — 눌러서 확인·수정`, badge: `완성도 ${pct}%` };
+    }
+    if (it.title === "지원 내역") return { ...it, badge: `${counts.applied}건`, muted: counts.applied === 0 };
+    if (it.title === "저장한 공고") return { ...it, badge: `${counts.saved}건`, muted: counts.saved === 0 };
+    if (it.title === "채용 알림") return { ...it, badge: `${counts.searches}건`, muted: counts.searches === 0 };
+    return it;
+  });
 }
 
 // 관리자 화면은 네비 없이 헤더만 — 도구 목록이라 오갈 곳이 없다.
@@ -154,7 +164,8 @@ function Card({ item }: Readonly<{ item: Item }>) {
     <>
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-semibold text-slate-900">{item.title}</h3>
-        {!item.href && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">준비 중</span>}
+        {item.badge && <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.muted ? "bg-slate-100 text-slate-600" : "bg-teal-50 text-teal-700"}`}>{item.badge}</span>}
+        {!item.href && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">준비 중</span>}
       </div>
       <p className="mt-1 text-sm text-slate-500">{item.desc}</p>
     </>
@@ -175,7 +186,13 @@ export default async function MyPage() {
     return <HospitalDashboard profile={profile} jobs={jobs} />;
   }
 
-  const items = profile.role === "admin" ? ADMIN_ITEMS : nurseItems(await getMyResume());
+  let items = ADMIN_ITEMS;
+  if (profile.role !== "admin") {
+    const [resume, applied, saved, searches] = await Promise.all([
+      getMyResume(), countMyApplications(), countSaved(), countSavedSearches(),
+    ]);
+    items = nurseItems(resume, { applied, saved, searches });
+  }
   // 관리자는 도구 목록만 보므로 간호사 네비를 씌우지 않는다.
   const Shell = profile.role === "admin" ? AdminShell : NurseShell;
   return (

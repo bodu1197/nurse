@@ -25,6 +25,7 @@ export default async function ApplicantPrintPage({
     <PrintSheet backHref={back} backLabel="받은 지원자">
       <ResumeSheet
         resume={app.resume}
+        work={app.work}
         applied={{ jobTitle: app.job?.title ?? "공고", at: app.created_at, message: app.message }}
       />
     </PrintSheet>

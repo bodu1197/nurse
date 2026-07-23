@@ -17,7 +17,7 @@ export type Database = {
       ad_orders: {
         Row: {
           amount: number
-          buyer_id: string
+          buyer_id: string | null
           created_at: string
           days: number
           hospital_id: string
@@ -33,7 +33,7 @@ export type Database = {
         }
         Insert: {
           amount: number
-          buyer_id: string
+          buyer_id?: string | null
           created_at?: string
           days: number
           hospital_id: string
@@ -49,7 +49,7 @@ export type Database = {
         }
         Update: {
           amount?: number
-          buyer_id?: string
+          buyer_id?: string | null
           created_at?: string
           days?: number
           hospital_id?: string
@@ -204,8 +204,8 @@ export type Database = {
           benefits: string[]
           created_at: string
           deadline: string | null
-          detail_fetched_at: string | null
           description: string | null
+          detail_fetched_at: string | null
           employment_type: string | null
           external_id: string | null
           external_url: string | null
@@ -235,8 +235,8 @@ export type Database = {
           benefits?: string[]
           created_at?: string
           deadline?: string | null
-          detail_fetched_at?: string | null
           description?: string | null
+          detail_fetched_at?: string | null
           employment_type?: string | null
           external_id?: string | null
           external_url?: string | null
@@ -266,8 +266,8 @@ export type Database = {
           benefits?: string[]
           created_at?: string
           deadline?: string | null
-          detail_fetched_at?: string | null
           description?: string | null
+          detail_fetched_at?: string | null
           employment_type?: string | null
           external_id?: string | null
           external_url?: string | null
@@ -419,50 +419,101 @@ export type Database = {
       }
       resumes: {
         Row: {
+          apn_field: string | null
+          available_from: string | null
+          can_charge: boolean | null
+          career_level: string | null
+          certifications: string[]
           created_at: string
           desired_employment_type: string | null
+          desired_hospital_types: string[]
           desired_location: string | null
           desired_salary: string | null
           education: string | null
+          education_level: string | null
+          email: string | null
           experience_years: number | null
+          graduation_status: string | null
+          has_integrated_care: boolean | null
           intro: string | null
           is_public: boolean
+          license_reported: boolean | null
           license_type: string | null
+          license_year: number | null
           name: string | null
+          needs_dormitory: boolean | null
+          night_available: boolean | null
           phone: string | null
           profile_id: string
+          residence_region: string | null
+          resume_title: string | null
+          shift_types: string[]
           specialties: string[]
           updated_at: string
         }
         Insert: {
+          apn_field?: string | null
+          available_from?: string | null
+          can_charge?: boolean | null
+          career_level?: string | null
+          certifications?: string[]
           created_at?: string
           desired_employment_type?: string | null
+          desired_hospital_types?: string[]
           desired_location?: string | null
           desired_salary?: string | null
           education?: string | null
+          education_level?: string | null
+          email?: string | null
           experience_years?: number | null
+          graduation_status?: string | null
+          has_integrated_care?: boolean | null
           intro?: string | null
           is_public?: boolean
+          license_reported?: boolean | null
           license_type?: string | null
+          license_year?: number | null
           name?: string | null
+          needs_dormitory?: boolean | null
+          night_available?: boolean | null
           phone?: string | null
           profile_id: string
+          residence_region?: string | null
+          resume_title?: string | null
+          shift_types?: string[]
           specialties?: string[]
           updated_at?: string
         }
         Update: {
+          apn_field?: string | null
+          available_from?: string | null
+          can_charge?: boolean | null
+          career_level?: string | null
+          certifications?: string[]
           created_at?: string
           desired_employment_type?: string | null
+          desired_hospital_types?: string[]
           desired_location?: string | null
           desired_salary?: string | null
           education?: string | null
+          education_level?: string | null
+          email?: string | null
           experience_years?: number | null
+          graduation_status?: string | null
+          has_integrated_care?: boolean | null
           intro?: string | null
           is_public?: boolean
+          license_reported?: boolean | null
           license_type?: string | null
+          license_year?: number | null
           name?: string | null
+          needs_dormitory?: boolean | null
+          night_available?: boolean | null
           phone?: string | null
           profile_id?: string
+          residence_region?: string | null
+          resume_title?: string | null
+          shift_types?: string[]
           specialties?: string[]
           updated_at?: string
         }
@@ -595,6 +646,65 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      work_experiences: {
+        Row: {
+          bed_range: string | null
+          created_at: string
+          department: string | null
+          duties: string | null
+          end_ym: string | null
+          hospital_name: string
+          hospital_type: string | null
+          id: string
+          is_current: boolean
+          position: string | null
+          resume_id: string
+          shift_type: string | null
+          sort_order: number
+          start_ym: string
+        }
+        Insert: {
+          bed_range?: string | null
+          created_at?: string
+          department?: string | null
+          duties?: string | null
+          end_ym?: string | null
+          hospital_name: string
+          hospital_type?: string | null
+          id?: string
+          is_current?: boolean
+          position?: string | null
+          resume_id: string
+          shift_type?: string | null
+          sort_order?: number
+          start_ym: string
+        }
+        Update: {
+          bed_range?: string | null
+          created_at?: string
+          department?: string | null
+          duties?: string | null
+          end_ym?: string | null
+          hospital_name?: string
+          hospital_type?: string | null
+          id?: string
+          is_current?: boolean
+          position?: string | null
+          resume_id?: string
+          shift_type?: string | null
+          sort_order?: number
+          start_ym?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "work_experiences_resume_id_fkey"
+            columns: ["resume_id"]
+            isOneToOne: false
+            referencedRelation: "resumes"
+            referencedColumns: ["profile_id"]
           },
         ]
       }

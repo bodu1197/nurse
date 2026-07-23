@@ -11,7 +11,10 @@ import { viewAsRole } from "@/lib/data/user";
 import { safeNext } from "@/lib/url";
 import { CANCELABLE, isHospitalStatus } from "@/lib/data/applications";
 import { DAY_MS, FREE_LISTING_MS } from "@/lib/date";
+import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
+import { totalYears } from "@/lib/data/resume";
+import { CAREER_EXPERIENCED } from "@/lib/resumeOptions";
 
 // 관리자 보기 전환(병원/간호사로 테스트). admin 계정만 유효 — 그 외에는 쿠키를 넣어도 무시된다.
 export async function setViewAs(formData: FormData) {
@@ -248,29 +251,200 @@ export async function saveResume(formData: FormData) {
   const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (!prof || (await viewAsRole(prof.role)) !== "nurse") redirect("/mypage");
 
-  const s = (k: string) => { const v = String(formData.get(k) ?? "").trim(); return v || null; };
-  const eyRaw = String(formData.get("experience_years") ?? "").trim();
-  const ey = eyRaw === "" ? null : Number(eyRaw);
-  // 체크박스 다중 선택(JOB_SPECIALTIES) — 자유 입력이면 "중환자"/"중환자실"처럼 표기가 갈려 검색이 안 잡힌다.
-  const specialties = formData.getAll("specialties").map((x) => String(x).trim()).filter(Boolean);
+  // 길이 상한 — 조작된 POST로 무제한 길이를 밀어 넣지 못하게.
+  const s = (k: string, max = 300) => { const v = String(formData.get(k) ?? "").trim().slice(0, max); return v || null; };
+  const num = (k: string) => { const v = Number(String(formData.get(k) ?? "").trim()); return Number.isFinite(v) && v > 0 ? v : null; };
+  // 예/아니오/해당없음 3지선다(라디오). 체크박스 하나로 받으면 "아니오"와 "아직 답 안 함"이 같아져,
+  // 안 물어본 항목까지 인쇄 서식에 '아니오'로 단정 출력된다.
+  const bool = (k: string) => { const v = formData.get(k); return v === "yes" ? true : v === "no" ? false : null; };
+  // 체크박스 다중 선택 — 자유 입력이면 "중환자"/"중환자실"처럼 표기가 갈려 검색이 안 잡힌다.
+  const many = (k: string) => formData.getAll(k).map((x) => String(x).trim()).filter(Boolean);
+
+  // 경력 상세 — 화면에서 줄 단위로 보내온다. 20줄이면 어떤 이력서든 충분하다.
+  const work = formData.getAll("w_hospital_name").slice(0, 20).map((v, i) => ({
+    hospital_name: String(v).trim().slice(0, 100),
+    hospital_type: s(`w_hospital_type_${i}`, 40),
+    bed_range: s(`w_bed_range_${i}`, 40),
+    department: s(`w_department_${i}`, 80),
+    start_ym: s(`w_start_ym_${i}`, 7),
+    end_ym: s(`w_end_ym_${i}`, 7),
+    is_current: formData.get(`w_is_current_${i}`) === "on",
+    shift_type: s(`w_shift_type_${i}`, 40),
+    position: s(`w_position_${i}`, 40),
+    duties: s(`w_duties_${i}`, 1000),
+    sort_order: i,
+  })).filter((w) => w.hospital_name || w.start_ym);
+
+  // 필수 검증 — 화면에 별표(*)를 붙여놓고 서버가 안 막으면 빈 채로 저장되고 "저장했습니다"가 뜬다.
+  const shiftTypes = many("shift_types");
+  const regions = many("desired_location");
+  const careerLevel = s("career_level");
+  if (shiftTypes.length === 0) redirect("/mypage/resume?error=shift");
+  if (regions.length === 0) redirect("/mypage/resume?error=region");
+  // 병원명만 적고 입사연월을 비우면 그 줄이 조용히 버려져 경력이 사라진다 → 되돌려 알린다.
+  if (work.some((w) => !w.hospital_name || !w.start_ym)) redirect("/mypage/resume?error=work");
+  if (careerLevel === CAREER_EXPERIENCED && work.length === 0) redirect("/mypage/resume?error=work_required");
 
   const { error } = await supabase.from("resumes").upsert({
     profile_id: user.id,
+    resume_title: s("resume_title"),
     name: s("name"),
     phone: s("phone"),
+    email: s("email"),
+    residence_region: s("residence_region"),
     license_type: s("license_type"),
-    experience_years: ey !== null && Number.isFinite(ey) ? ey : null,
+    license_year: num("license_year"),
+    license_reported: bool("license_reported"),
+    certifications: many("certifications"),
+    apn_field: s("apn_field"),
+    education_level: s("education_level"),
     education: s("education"),
-    specialties,
-    desired_location: s("desired_location"),
+    graduation_status: s("graduation_status"),
+    career_level: careerLevel,
+    // 총 경력은 경력 상세에서 계산한다 — 두 곳에 적게 하면 반드시 어긋난다.
+    // 경력 줄이 없으면 null로 둔다(0년으로 덮으면 병원 카드에 "경력 0년"이 뜬다).
+    experience_years: work.length > 0
+      ? totalYears(work.map((w) => ({ start_ym: w.start_ym ?? "", end_ym: w.end_ym, is_current: w.is_current })), new Date())
+      : null,
+    has_integrated_care: bool("has_integrated_care"),
+    can_charge: bool("can_charge"),
+    shift_types: shiftTypes,
+    night_available: bool("night_available"),
+    desired_location: regions.join(", ") || null,
+    specialties: many("specialties"),
+    desired_hospital_types: many("desired_hospital_types"),
     desired_employment_type: s("desired_employment_type"),
     desired_salary: s("desired_salary"),
+    available_from: s("available_from"),
+    needs_dormitory: bool("needs_dormitory"),
     intro: s("intro"),
     is_public: formData.get("is_public") === "on",
   });
-  if (error) redirect("/mypage/resume?error=save");
+  if (error) {
+    console.error("saveResume failed:", error.message);
+    redirect("/mypage/resume?error=save");
+  }
+
+  // 경력은 통째로 바꿔 쓴다(줄 삭제·순서 변경을 따로 추적하지 않기 위해).
+  // 삭제가 실패했는데 그냥 넣으면 같은 경력이 두 벌로 쌓인다 → 반드시 결과를 본다.
+  const { error: del } = await supabase.from("work_experiences").delete().eq("resume_id", user.id);
+  if (del) {
+    console.error("saveResume(work delete) failed:", del.message);
+    redirect("/mypage/resume?error=save");
+  }
+  if (work.length > 0) {
+    const { error: we } = await supabase.from("work_experiences").insert(
+      work.map((w) => ({ ...w, start_ym: w.start_ym ?? "", resume_id: user.id })),
+    );
+    if (we) {
+      // ponytail: 트랜잭션이 아니라 이 지점에서 실패하면 경력만 비어 있다.
+      // 한 트랜잭션으로 묶으려면 RPC가 필요한데, 지금은 사용자가 다시 저장하면 복구되므로 안내로 갈음한다.
+      console.error("saveResume(work) failed:", we.message);
+      redirect("/mypage/resume?error=work_lost");
+    }
+  }
+
   // 공고에서 "이력서를 먼저 채우세요"로 넘어온 경우 그 공고로 돌려보낸다(안 그러면 공고를 다시 찾아야 한다).
   redirect(safeNext(String(formData.get("next") ?? ""), "/mypage/resume?ok=1"));
+}
+
+// 표시이름 변경 — 화면과 헤더에 보이는 이름. 이력서의 실명과는 별개다.
+export async function updateDisplayName(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const displayName = String(formData.get("display_name") ?? "").trim();
+  if (!displayName) redirect("/mypage/account?error=name");
+  const { error } = await supabase.from("profiles").update({ display_name: displayName }).eq("id", user.id);
+  if (error) {
+    console.error("updateDisplayName failed:", error.message);
+    redirect("/mypage/account?error=save");
+  }
+  redirect("/mypage/account?ok=name");
+}
+
+// 로그인한 상태에서 비밀번호 바꾸기. 재설정 메일과 달리 여기서는 현재 비밀번호를 확인한다 —
+// 남의 브라우저가 열려 있을 때 기존 비번을 모르고도 바꿔 계정을 빼앗는 것을 막는다.
+export async function changePassword(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) redirect("/login");
+
+  const current = String(formData.get("current_password") ?? "");
+  const next = String(formData.get("new_password") ?? "");
+  const confirm = String(formData.get("new_password_confirm") ?? "");
+  if (next.length < MIN_PASSWORD) redirect("/mypage/account?error=weak");
+  if (next !== confirm) redirect("/mypage/account?error=mismatch");
+
+  const { error: wrong } = await supabase.auth.signInWithPassword({ email: user.email, password: current });
+  if (wrong) redirect("/mypage/account?error=wrong_password");
+
+  const { error } = await supabase.auth.updateUser({ password: next });
+  if (error) {
+    console.error("changePassword failed:", error.message);
+    redirect("/mypage/account?error=save");
+  }
+  // 다른 기기·탈취된 세션을 끊는다 — 비번을 바꿔도 기존 세션이 살아 있으면 바꾼 의미가 없다.
+  await supabase.auth.signOut({ scope: "others" });
+  redirect("/mypage/account?ok=password");
+}
+
+// 회원 탈퇴 — 개인정보처리방침이 "탈퇴 시 지체 없이 파기"라고 고지하는데 기능이 없었다.
+// 확인 문구를 직접 입력받는다: 유예 없이 즉시 삭제라 실수로 누르면 되돌릴 수 없다.
+export async function deleteAccount(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) redirect("/login");
+  if (String(formData.get("confirm") ?? "").trim() !== "탈퇴") redirect("/mypage/account?error=confirm");
+  // 열린 브라우저 앞에서 문구만 입력해 계정을 파괴하는 것을 막는다 — 현재 비밀번호를 함께 확인한다.
+  // (소셜 로그인 계정은 비밀번호가 없으므로 이 확인을 건너뛴다.)
+  const password = String(formData.get("password") ?? "");
+  if (password) {
+    const { error: wrong } = await supabase.auth.signInWithPassword({ email: user.email, password });
+    if (wrong) redirect("/mypage/account?error=wrong_password");
+  }
+
+  const admin = createAdminClient();
+  // 병원 회원이면 소유 공고를 먼저 마감한다 — 계정만 지우면 연락 안 되는 공고가 목록에 남는다.
+  // owner_profile_id 가 set null 이라 나중엔 아무도 못 닫으므로, 조회 실패면 삭제를 멈춘다.
+  const { data: hospitals, error: hErr } = await admin.from("hospitals").select("id").eq("owner_profile_id", user.id);
+  if (hErr) {
+    console.error("deleteAccount(hospitals) failed:", hErr.message);
+    redirect("/mypage/account?error=save");
+  }
+  const hospitalIds = (hospitals ?? []).map((h) => h.id);
+  if (hospitalIds.length > 0) {
+    // 공고 마감이 실패했는데 계정을 지우면 owner가 null이 되어 아무도 못 닫는 공고가 남는다 → 실패면 멈춘다.
+    const { error: jErr } = await admin.from("jobs").update({ status: "closed" }).in("hospital_id", hospitalIds);
+    if (jErr) {
+      console.error("deleteAccount(close jobs) failed:", jErr.message);
+      redirect("/mypage/account?error=save");
+    }
+  }
+
+  // profiles·resumes·applications 는 auth 사용자에 cascade 로 묶여 함께 지워진다.
+  // ad_orders.buyer_id 는 set null 이라 결제 기록은 남는다(전자상거래법 5년 보존).
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+  if (error) {
+    console.error("deleteAccount failed:", error.message);
+    redirect("/mypage/account?error=save");
+  }
+  await supabase.auth.signOut();
+  redirect("/?left=1");
+}
+
+// 간호사 이력서 삭제 — 개인정보처리방침이 "삭제 요청 가능"이라 고지하는데 방법이 없었다.
+export async function deleteResume() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  // 경력은 on delete cascade 로 함께 지워진다.
+  const { error } = await supabase.from("resumes").delete().eq("profile_id", user.id);
+  if (error) {
+    console.error("deleteResume failed:", error.message);
+    redirect("/mypage/resume?error=delete");
+  }
+  redirect("/mypage/resume?ok=deleted");
 }
 
 // 지원자 화면으로 돌아가는 주소 — 보고 있던 공고 탭을 유지한다.

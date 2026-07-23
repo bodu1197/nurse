@@ -6,6 +6,7 @@ import { getMyProfile } from "@/lib/data/user";
 import { getMyJobs } from "@/lib/data/jobs";
 import { getReceivedApplications, STATUS_LABEL, STATUS_TONE, CANCELABLE, LIST_LIMIT, type AppStatus, type ApplicantListItem } from "@/lib/data/applications";
 import { fmtDay } from "@/lib/date";
+import { careerSummary } from "@/lib/resumeOptions";
 import { updateApplicationStatus, openApplicantResume } from "../actions";
 
 export const metadata = { title: "받은 지원자 — 널스넷", robots: { index: false } };
@@ -62,15 +63,18 @@ function Applicant({ a, jobId }: Readonly<{ a: ApplicantListItem; jobId?: string
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="text-base font-bold text-slate-900">{r.name ?? "이름 미입력"}</span>
               {r.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{r.license_type}</span>}
-              {r.experience_years != null && <span className="text-slate-600">경력 {r.experience_years}년</span>}
+              <span className="text-slate-600">{careerSummary(r.career_level, r.experience_years)}</span>
+              {r.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트 전담 가능</span>}
               {r.phone ? (
                 <span className="font-semibold text-slate-800">{r.phone}</span>
               ) : (
                 <span className="text-xs text-red-600">연락처 미입력</span>
               )}
             </div>
-            {/* 카드는 요약만. 전문은 '이력서 전문 보기'에서 — 그 행위를 열람 신호로 쓴다. */}
+            {/* 카드는 걸러내는 데 필요한 것까지만. 경력 상세·학력은 '이력서 전문 보기'에서 — 그 행위를 열람 신호로 쓴다. */}
             <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+              <Field k="근무형태" v={r.shift_types.length > 0 ? r.shift_types.join(", ") : null} />
+              <Field k="자격증" v={r.certifications.length > 0 ? r.certifications.join(", ") : null} />
               <Field k="희망 진료과" v={r.specialties.length > 0 ? r.specialties.join(", ") : null} />
               <Field k="희망 근무지" v={r.desired_location} />
             </dl>

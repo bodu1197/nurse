@@ -9,6 +9,7 @@ const NAV = [
   { href: "/mypage/applicants", label: "받은 지원자" },
   { href: "/mypage/talent", label: "인재 검색" },
   { href: "/mypage/verify", label: "사업자 인증" },
+  { href: "/mypage/account", label: "내 정보 · 계정" },
 ];
 
 export default function HospitalShell({ displayName, active, children }: Readonly<{ displayName: string; active: string; children: ReactNode }>) {
