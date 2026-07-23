@@ -6,10 +6,10 @@ import { getMyProfile, type MyProfile } from "@/lib/data/user";
 import { getMyResume, type Resume } from "@/lib/data/resume";
 import { ROLE_LABEL, type Role } from "@/lib/data/role";
 import { getMyJobs, type MyJob } from "@/lib/data/jobs";
-import { nowMs } from "@/lib/date";
+import JobStatusBadge from "@/components/JobStatusBadge";
+import { jobState, isLive } from "@/lib/jobState";
+import { nowMs, fmtDate, listingEnd, DAY_MS } from "@/lib/date";
 import { setViewAs } from "./actions";
-
-const DAY = 86_400_000;
 
 export const metadata = { title: "마이페이지 — 널스넷", robots: { index: false } };
 
@@ -34,23 +34,9 @@ function ViewAsSwitch({ current }: Readonly<{ current: MyProfile["role"] }>) {
   );
 }
 
-// 노출 종료 시각(ms). 광고=featured_until, 무료=게시+7일. 만료/마감/대기는 0.
-function endMs(j: MyJob, now: number): number {
-  if (j.status !== "open") return 0;
-  const f = j.featured_until ? new Date(j.featured_until).getTime() : 0;
-  const e = f > now ? f : new Date(j.posted_at).getTime() + 7 * DAY;
-  return e > now ? e : 0;
-}
-function jobBadge(j: MyJob, now: number) {
-  if (j.status === "draft") return { t: "결제 대기", c: "bg-amber-100 text-amber-800" };
-  const featured = j.status === "open" && j.featured_until !== null && new Date(j.featured_until).getTime() > now;
-  const freeLive = j.status === "open" && new Date(j.posted_at).getTime() >= now - 7 * DAY;
-  if (featured) return { t: "광고중", c: "bg-violet-100 text-violet-800" };
-  if (freeLive) return { t: "게시중", c: "bg-teal-100 text-teal-800" };
-  if (j.status === "open") return { t: "만료", c: "bg-amber-100 text-amber-800" };
-  return { t: "마감", c: "bg-slate-100 text-slate-500" };
-}
-const fmtMs = (ms: number) => new Date(ms).toISOString().slice(0, 10).replace(/-/g, ".");
+// 노출 종료 시각(ms). 노출 중이 아니면 0.
+// 판정은 공고 관리 화면·배지와 **같은 함수**로 — 여기서 따로 계산하면 두 화면이 다른 말을 한다.
+const endMs = (j: MyJob, now: number) => (isLive(jobState(j, now)) ? listingEnd(j, now) : 0);
 
 function Widget({ label, value, accent }: Readonly<{ label: string; value: string; accent?: string }>) {
   return (
@@ -65,7 +51,7 @@ function HospitalDashboard({ profile, jobs }: Readonly<{ profile: MyProfile; job
   const now = nowMs();
   const liveCount = jobs.filter((j) => endMs(j, now) > 0).length;
   const applicants = jobs.reduce((s, j) => s + j.applicant_count, 0);
-  const soon = jobs.filter((j) => { const e = endMs(j, now); return e > 0 && e - now <= 3 * DAY; }).length;
+  const soon = jobs.filter((j) => { const e = endMs(j, now); return e > 0 && e - now <= 3 * DAY_MS; }).length;
 
   return (
     <HospitalShell displayName={profile.displayName} active="/mypage">
@@ -88,7 +74,7 @@ function HospitalDashboard({ profile, jobs }: Readonly<{ profile: MyProfile; job
 
       <section className="mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-bold text-slate-900">내 채용공고 <span className="text-sm font-normal text-slate-400">· 무료 동시 1건</span></h2>
+          <h2 className="font-bold text-slate-900">내 채용공고 <span className="text-sm font-normal text-slate-500">· 무료 동시 1건</span></h2>
           <Button href="/mypage/jobs/new" size="sm">+ 공고 등록</Button>
         </div>
         {jobs.length === 0 ? (
@@ -99,13 +85,15 @@ function HospitalDashboard({ profile, jobs }: Readonly<{ profile: MyProfile; job
         ) : (
           <ul className="mt-3 space-y-2">
             {jobs.map((j) => {
-              const b = jobBadge(j, now);
               const e = endMs(j, now);
               return (
                 <li key={j.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white p-4">
-                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${b.c}`}>{b.t}</span>
-                  <a href={`/jobs?j=${j.id}`} className="min-w-0 flex-1 truncate font-medium text-slate-800 hover:text-teal-700">{j.title}</a>
-                  {e > 0 && <span className="shrink-0 text-xs text-slate-400">~{fmtMs(e)}까지</span>}
+                  <JobStatusBadge state={jobState(j, now)} />
+                  {/* 노출 중인 공고만 공개 상세로 링크 — 결제 대기·만료·마감은 404가 된다 */}
+                  {e > 0
+                    ? <a href={`/jobs/${j.id}`} className="min-w-0 flex-1 truncate font-medium text-slate-800 hover:text-teal-700">{j.title}</a>
+                    : <span className="min-w-0 flex-1 truncate font-medium text-slate-600">{j.title}</span>}
+                  {e > 0 && <span className="shrink-0 text-xs text-slate-500">~{fmtDate(e)}까지</span>}
                   <a href={`/mypage/applicants?job_id=${j.id}`} className="shrink-0 text-sm text-slate-500 hover:text-teal-700">지원자 <b className="text-slate-700">{j.applicant_count}</b>명</a>
                   <span className="flex shrink-0 items-center gap-3 text-sm">
                     <a href={`/mypage/jobs/${j.id}/edit`} className="text-teal-700 hover:underline">수정</a>

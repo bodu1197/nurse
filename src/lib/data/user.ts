@@ -13,12 +13,20 @@ export async function viewAsRole(dbRole: Role): Promise<Role> {
   return pickRole(dbRole, (await cookies()).get("view_as")?.value);
 }
 
+// 세션 검증된 사용자. getUser()는 매번 Supabase 인증 서버로 나가는 네트워크 호출이라,
+// 한 화면이 프로필·지원여부·저장목록을 함께 읽으면 같은 확인을 3~4번 반복하게 된다.
+// cache()로 요청당 1회로 묶는다(조회 함수 전용 — 서버 액션은 각자 직접 확인한다).
+export const getSessionUser = cache(async () => {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+});
+
 export type CurrentUser = { displayName: string };
 
 // 서버에서 세션 검증(getUser) 후 헤더 표시용 최소 정보 반환. 비로그인=null.
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
   const m = user.user_metadata ?? {};
   const displayName =
@@ -42,9 +50,9 @@ export type MyProfile = {
 // 마이페이지용 — 본인 프로필 전체(RLS: 본인 select 허용). 비로그인=null.
 // cache(): 같은 요청에서 layout+page가 함께 불러도 쿼리는 1회.
 export const getMyProfile = cache(async (): Promise<MyProfile | null> => {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
+  const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
     .select("username, display_name, email, role, business_verified, business_verified_at")

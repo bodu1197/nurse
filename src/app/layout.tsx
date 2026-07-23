@@ -21,7 +21,8 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: "/" },
+  // canonical은 여기(루트)에 두지 않는다 — 하위 페이지가 alternates를 선언하지 않으면 그대로 상속돼
+  // noindex 페이지들이 전부 "홈이 정본"이라고 말하게 된다. 각 공개 페이지가 자기 canonical을 선언한다.
   openGraph: {
     type: "website",
     locale: "ko_KR",

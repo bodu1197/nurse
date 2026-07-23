@@ -1,9 +1,13 @@
+import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { getJobs, SOURCE_LABEL } from "@/lib/data/jobs";
 import { FOOTER_NAV } from "@/lib/constants";
 import { daysAgo } from "@/lib/date";
+
+// 홈만 자기 자신을 정본으로 선언한다(루트 레이아웃에서 canonical을 걷어냈다).
+export const metadata = { alternates: { canonical: "/" } };
 
 export default async function Home() {
   const [profile, { jobs }] = await Promise.all([getMyProfile(), getJobs("", "")]);
@@ -68,7 +72,7 @@ export default async function Home() {
           <section className="mt-12 pb-16">
             <div className="flex items-end justify-between">
               <h2 className="text-xl font-bold text-slate-900">최신 채용공고</h2>
-              <a href="/jobs" className="text-sm font-semibold text-teal-700 hover:underline">전체 보기 →</a>
+              <Link href="/jobs" className="text-sm font-semibold text-teal-700 hover:underline">전체 보기 →</Link>
             </div>
             {latest.length === 0 ? (
               <p className="mt-6 rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-400">등록된 공고가 곧 올라옵니다.</p>
@@ -76,7 +80,9 @@ export default async function Home() {
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                 {latest.map((job) => (
                   <li key={job.id}>
-                    <a href={`/jobs?j=${job.id}`} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md">
+                    {/* 홈은 6건이지만 /jobs 세그먼트에 layout·loading이 생겨 미리 받아오는 비용이 공짜가 아니게 됐다
+                        (로그인 상태면 카드마다 세션·프로필 조회) → 누른 뒤에 받는다 */}
+                    <Link href={`/jobs/${job.id}`} prefetch={false} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="font-bold leading-snug text-slate-900">{job.title}</h3>
                         {job.is_featured && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">추천</span>}
@@ -88,7 +94,7 @@ export default async function Home() {
                         <span className="font-bold text-teal-700">{job.salary_text ?? "급여 협의"}</span>
                         <span className="shrink-0 text-xs text-slate-400">{SOURCE_LABEL[job.source]} · {daysAgo(job.posted_at)}일 전</span>
                       </div>
-                    </a>
+                    </Link>
                   </li>
                 ))}
               </ul>

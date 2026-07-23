@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
@@ -12,6 +13,8 @@ export default async function AlertsPage({
 }: Readonly<{ searchParams: Promise<{ error?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
+  // 다른 마이페이지 화면과 같은 역할 검사 — 여기만 빠져 있어 병원 계정도 열 수 있었다.
+  if (p.role !== "nurse") redirect("/mypage");
   const [{ error }, searches] = await Promise.all([searchParams, getMySavedSearches()]);
 
   const toHref = (kw: string | null, loc: string | null) => {
@@ -33,7 +36,7 @@ export default async function AlertsPage({
 
         {searches.length === 0 ? (
           <p className="py-20 text-center text-slate-500">
-            저장한 검색이 없습니다. <a href="/jobs" className="font-semibold text-teal-700 hover:underline">채용 검색</a>에서 “검색 저장”을 눌러보세요.
+            저장한 검색이 없습니다. <Link href="/jobs" className="font-semibold text-teal-700 hover:underline">채용 검색</Link>에서 “검색 저장”을 눌러보세요.
           </p>
         ) : (
           <ul className="mt-6 space-y-3">

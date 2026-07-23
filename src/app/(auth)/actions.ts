@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeNext } from "@/lib/url";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -26,9 +27,8 @@ export async function signInWithId(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) redirect("/login?error=invalid_credentials");
 
-  // 로그인 후 원래 보던 곳으로 복귀(상대경로만 허용 — 오픈 리다이렉트 방지)
-  const next = String(formData.get("next") ?? "");
-  redirect(next.startsWith("/") && !next.startsWith("//") ? next : "/");
+  // 로그인 후 원래 보던 곳으로 복귀(내부 경로만 허용 — 오픈 리다이렉트 방지)
+  redirect(safeNext(String(formData.get("next") ?? "")));
 }
 
 export async function signOut() {

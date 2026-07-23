@@ -1,4 +1,8 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/data/user";
+import { FREE_LISTING_MS, DAY_MS, todayKst } from "@/lib/date";
+import type { JobStatus } from "@/lib/jobState";
 
 export type JobSource = "direct" | "worknet" | "public_data" | "partner" | "crawl";
 
@@ -45,8 +49,6 @@ const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
 
 export type JobFilters = { specialty?: string; employmentType?: string; days?: number };
 
-const DAY_MS = 86_400_000;
-
 // 관리자 테스트 공고(hospitals.is_test)를 여기서 걸러내지 않는 것은 의도된 결정이다.
 // 숨기면 등록→광고→지원까지 실제 화면에서 확인할 방법이 없어 테스트 기능이 무용지물이 된다.
 // 병원명이 "[테스트] …"로 시작해 목록·상세에서 사용자도 테스트임을 알아볼 수 있고,
@@ -63,13 +65,13 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
     .range(from, from + PER_PAGE - 1);
 
   // direct(병원 직접) 공고 노출 조건: (게시 7일 이내 무료) 또는 (유료 광고 featured_until 유효). 외부 수집 공고는 항상.
+  // 무료 기간은 lib/date의 상수를 그대로 쓴다 — 화면(listingEnd)과 어긋나면 "보이는데 지원은 안 되는" 공고가 생긴다.
   const now = Date.now();
-  const fresh = new Date(now - 7 * DAY_MS).toISOString();
+  const fresh = new Date(now - FREE_LISTING_MS).toISOString();
   const nowIso = new Date(now).toISOString();
   query = query.or(`source.neq.direct,posted_at.gte.${fresh},featured_until.gte.${nowIso}`);
   // 마감일 도래 공고 비노출: 상시(null) 또는 마감일(당일 포함)이 아직 안 지난 것만. deadline은 date라 KST 오늘로 비교.
-  const todayKst = new Date(now + 9 * 3600 * 1000).toISOString().slice(0, 10);
-  query = query.or(`deadline.is.null,deadline.gte.${todayKst}`);
+  query = query.or(`deadline.is.null,deadline.gte.${todayKst(now)}`);
 
   const kw = clean(keyword);
   if (kw) query = query.or(`title.ilike.%${kw}%,specialty.ilike.%${kw}%`);
@@ -87,18 +89,18 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   return { jobs: data ?? [], total: count ?? 0 };
 }
 
-export type MyJob = { id: string; title: string; status: string; posted_at: string; featured_until: string | null; applicant_count: number };
+export type MyJob = { id: string; title: string; status: JobStatus; posted_at: string; featured_until: string | null; applicant_count: number };
 
 // 병원 — 내가 소유한 병원의 공고 목록 + 지원자 수.
 export async function getMyJobs(): Promise<MyJob[]> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return [];
+  const supabase = await createClient();
   const { data: hosps } = await supabase.from("hospitals").select("id").eq("owner_profile_id", user.id);
   const ids = (hosps ?? []).map((h) => h.id);
   if (ids.length === 0) return [];
 
-  type Raw = { id: string; title: string; status: string; posted_at: string; featured_until: string | null; applications: { count: number }[] };
+  type Raw = { id: string; title: string; status: JobStatus; posted_at: string; featured_until: string | null; applications: { count: number }[] };
   const { data } = await supabase
     .from("jobs")
     .select("id,title,status,posted_at,featured_until,applications(count)")
@@ -115,18 +117,18 @@ export type MyHospital = { id: string; name: string; region: string | null; addr
 
 // 내 계정에 연결(claim)된 병원. 인증 시 1회 연결 → 이후 공고에 자동 사용(재입력 방지).
 export async function getMyHospital(): Promise<MyHospital | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
+  const supabase = await createClient();
   const { data } = await supabase.from("hospitals").select("id,name,region,address").eq("owner_profile_id", user.id).limit(1);
   return data?.[0] ?? null;
 }
 
 // 병원 무료 게시권 잔여(병원당 7일×4). null=병원 없음.
 export async function getMyFreeCredits(): Promise<number | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
+  const supabase = await createClient();
   const { data } = await supabase.from("hospitals").select("free_credits").eq("owner_profile_id", user.id).limit(1);
   return data?.[0]?.free_credits ?? null;
 }
@@ -136,7 +138,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export type MyJobDetail = {
   id: string; title: string; specialty: string | null; location: string | null;
   employment_type: string | null; salary_text: string | null; benefits: string[];
-  description: string | null; status: string; posted_at: string;
+  description: string | null; status: JobStatus; posted_at: string;
   recruit_count: number | null; shift_type: string | null;
   manager_name: string | null; manager_phone: string | null;
   apply_methods: string[]; apply_email: string | null; apply_detail: string | null;
@@ -146,9 +148,9 @@ export type MyJobDetail = {
 // 내가 소유한 병원의 공고 1건(수정·복제 prefill용). 소유자 검증 포함.
 export async function getMyJob(id: string): Promise<MyJobDetail | null> {
   if (!UUID_RE.test(id)) return null;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
+  const supabase = await createClient();
   type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string; owner_profile_id: string | null } | null };
   const { data } = await supabase
     .from("jobs")
@@ -162,9 +164,9 @@ export async function getMyJob(id: string): Promise<MyJobDetail | null> {
 
 // 직전(가장 최근) 공고 — 새 공고 작성 시 템플릿 자동입력용.
 export async function getMyLastJob(): Promise<MyJobDetail | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return null;
+  const supabase = await createClient();
   const { data: hosps } = await supabase.from("hospitals").select("id").eq("owner_profile_id", user.id);
   const ids = (hosps ?? []).map((h) => h.id);
   if (ids.length === 0) return null;
@@ -183,9 +185,9 @@ export async function getMyLastJob(): Promise<MyJobDetail | null> {
 export type SavedSearch = { id: string; keyword: string | null; location: string | null; created_at: string };
 
 export async function getMySavedSearches(): Promise<SavedSearch[]> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return [];
+  const supabase = await createClient();
   const { data } = await supabase
     .from("saved_searches")
     .select("id,keyword,location,created_at")
@@ -198,18 +200,33 @@ export async function getMySavedSearches(): Promise<SavedSearch[]> {
 // 저장한 공고 id 집합(목록/상세 '저장됨' 표시용).
 export async function getSavedJobIds(jobIds: string[]): Promise<Set<string>> {
   if (jobIds.length === 0) return new Set();
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return new Set();
+  const supabase = await createClient();
   const { data } = await supabase.from("saved_jobs").select("job_id").eq("profile_id", user.id).in("job_id", jobIds);
   return new Set((data ?? []).map((r) => r.job_id));
 }
 
+// 공고 단건(공개 상세 /jobs/[id]). RLS가 status='open'만 열어주므로 마감·삭제 공고는 null이다.
+// 목록에 없는 공고(저장·지원 내역에서 들어온 링크)도 여기서는 정확히 그 공고를 연다.
+// cache(): generateMetadata와 페이지 본문이 같은 공고를 부르므로 요청당 쿼리는 1회.
+export const getPublicJob = cache(async (id: string): Promise<JobRow | null> => {
+  // uuid가 아니면 Postgres가 22P02로 거절한다 — 잘못된 링크마다 에러 로그가 쌓이므로 먼저 막는다.
+  if (!UUID_RE.test(id)) return null;
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("jobs").select(SELECT).eq("id", id).eq("status", "open").limit(1).returns<JobRow[]>();
+  if (error) {
+    console.error("getPublicJob failed:", error.message);
+    return null;
+  }
+  return data?.[0] ?? null;
+});
+
 // 저장한 공고 목록(/mypage/saved) — 저장 순서 유지.
 export async function getSavedJobs(): Promise<JobRow[]> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return [];
+  const supabase = await createClient();
   const { data: saved } = await supabase.from("saved_jobs").select("job_id").eq("profile_id", user.id).order("created_at", { ascending: false });
   const ids = (saved ?? []).map((r) => r.job_id);
   if (ids.length === 0) return [];

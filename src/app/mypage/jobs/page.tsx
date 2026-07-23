@@ -4,14 +4,12 @@ import Button from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { getMyProfile } from "@/lib/data/user";
 import { getMyJobs } from "@/lib/data/jobs";
-import { nowMs } from "@/lib/date";
+import JobStatusBadge from "@/components/JobStatusBadge";
+import { jobState, isLive } from "@/lib/jobState";
+import { nowMs, fmtDate, fmtDay, listingEnd, DAY_MS } from "@/lib/date";
 import { setJobStatus, deleteJob, repostJob } from "../actions";
 
 export const metadata = { title: "공고 관리 — 널스넷", robots: { index: false } };
-
-const fmt = (iso: string) => new Date(iso).toISOString().slice(0, 10).replace(/-/g, ".");
-const DAY = 86_400_000;
-const FREE_MS = 7 * DAY; // 무료 게시 7일
 
 export default async function MyJobsPage({
   searchParams,
@@ -28,7 +26,7 @@ export default async function MyJobsPage({
           <h1 className="text-2xl font-bold text-slate-900">공고 관리</h1>
           <Button href="/mypage/jobs/new" size="md">공고 등록</Button>
         </div>
-        <p className="mt-1 text-sm text-slate-500">무료 공고는 <b className="text-teal-700">동시 1건</b> <span className="text-slate-400">(7일 노출). 추가·기간연장·상단 노출은 광고로.</span></p>
+        <p className="mt-1 text-sm text-slate-500">무료 공고는 <b className="text-teal-700">동시 1건</b> <span className="text-slate-500">(7일 노출). 추가·기간연장·상단 노출은 광고로.</span></p>
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
         {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
@@ -39,30 +37,30 @@ export default async function MyJobsPage({
         ) : (
           <ul className="mt-6 space-y-3">
             {jobs.map((j) => {
-              const posted = new Date(j.posted_at).getTime();
-              const featuredMs = j.featured_until ? new Date(j.featured_until).getTime() : 0;
-              const open = j.status === "open";
-              const pending = j.status === "draft";
-              const featured = open && featuredMs > now;
-              const freeLive = open && posted >= now - FREE_MS;
-              const live = featured || freeLive;
-              const expired = open && !live;
-              const freeDaysLeft = Math.max(0, Math.ceil((posted + FREE_MS - now) / DAY));
-              const adDaysLeft = Math.max(0, Math.ceil((featuredMs - now) / DAY));
+              // 상태 판정도 종료 시각도 공용 규칙 하나로 — 배지와 안내 문구가 서로 다른 말을 하지 않게.
+              const state = jobState(j, now);
+              const pending = state === "pending";
+              const featured = state === "featured";
+              const freeLive = state === "free";
+              const live = isLive(state);
+              const expired = state === "expired";
+              const end = listingEnd(j, now);
+              const daysLeft = Math.max(0, Math.ceil((end - now) / DAY_MS));
               return (
                 <li key={j.id} className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
-                    <a href={`/jobs?j=${j.id}`} className="font-semibold text-slate-900 hover:text-teal-700">{j.title}</a>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${pending ? "bg-amber-100 text-amber-800" : featured ? "bg-violet-100 text-violet-800" : freeLive ? "bg-teal-100 text-teal-800" : expired ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-500"}`}>
-                      {pending ? "결제 대기" : featured ? "광고중" : freeLive ? "게시중" : expired ? "만료" : "마감"}
-                    </span>
+                    {/* 공개 상세는 노출 중인 공고만 연다 — 결제 대기·만료·마감을 링크로 두면 눌러서 404를 본다 */}
+                    {live
+                      ? <a href={`/jobs/${j.id}`} className="font-semibold text-slate-900 hover:text-teal-700">{j.title}</a>
+                      : <span className="font-semibold text-slate-700">{j.title}</span>}
+                    <JobStatusBadge state={state} />
                   </div>
                   <div className="mt-1 text-sm text-slate-500">
-                    {fmt(j.posted_at)} 등록 · 지원자{" "}
+                    {fmtDay(j.posted_at)} 등록 · 지원자{" "}
                     <a href={`/mypage/applicants?job_id=${j.id}`} className="font-semibold text-teal-700 hover:underline">{j.applicant_count}명</a>
                     {pending && <span className="text-amber-700"> · 결제 후 게시</span>}
-                    {featured && <span className="text-violet-700"> · 광고 {fmt(new Date(featuredMs).toISOString())}까지 ({adDaysLeft}일 남음)</span>}
-                    {!featured && freeLive && <span className="text-slate-400"> · 무료 {fmt(new Date(posted + FREE_MS).toISOString())}까지 ({freeDaysLeft}일 남음)</span>}
+                    {featured && <span className="text-violet-700"> · 광고 {fmtDate(end)}까지 ({daysLeft}일 남음)</span>}
+                    {freeLive && <span className="text-slate-500"> · 무료 {fmtDate(end)}까지 ({daysLeft}일 남음)</span>}
                     {expired && <span className="text-amber-700"> · 노출 종료</span>}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">

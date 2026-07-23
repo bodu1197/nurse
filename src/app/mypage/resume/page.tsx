@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SubmitButton from "@/components/SubmitButton";
+import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { getMyResume, type Resume } from "@/lib/data/resume";
 import { JOB_SPECIALTIES } from "@/lib/constants";
+import { safeNext } from "@/lib/url";
 import { saveResume } from "../actions";
 
 export const metadata = { title: "내 이력서 — 널스넷", robots: { index: false } };
@@ -15,7 +17,7 @@ function Row({ k, v }: Readonly<{ k: string; v: string | null }>) {
   return (
     <div className="flex gap-2">
       <dt className="w-24 shrink-0 text-slate-500">{k}</dt>
-      <dd className="min-w-0 flex-1 text-slate-800">{v || <span className="text-slate-400">미입력</span>}</dd>
+      <dd className="min-w-0 flex-1 text-slate-800">{v || <span className="text-slate-500">미입력</span>}</dd>
     </div>
   );
 }
@@ -42,18 +44,23 @@ function ResumeView({ r }: Readonly<{ r: Resume }>) {
         <Row k="학력" v={r.education} />
       </dl>
       {r.intro && <p className="mt-4 whitespace-pre-line border-t border-slate-100 pt-4 text-sm text-slate-700">{r.intro}</p>}
-      <p className="mt-4 text-xs text-slate-400">아래에서 고친 뒤 저장하면 이 내용이 바뀝니다.</p>
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <Button href="/mypage/resume/print" variant="outline" size="sm">이력서 인쇄 · PDF 저장</Button>
+        <span className="text-xs text-slate-500">아래에서 고친 뒤 저장하면 이 내용이 바뀝니다.</span>
+      </div>
     </section>
   );
 }
 
 export default async function ResumePage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string; next?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "nurse") redirect("/mypage");
-  const [{ ok, error }, r] = await Promise.all([searchParams, getMyResume()]);
+  const [{ ok, error, next }, r] = await Promise.all([searchParams, getMyResume()]);
+  // 공고에서 "이력서를 먼저 채우세요"로 넘어온 경우 저장 후 그 공고로 돌아간다.
+  const backTo = safeNext(next, "");
   const all: readonly string[] = JOB_SPECIALTIES;
 
   return (
@@ -62,7 +69,7 @@ export default async function ResumePage({
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <a href="/mypage" className="text-sm text-teal-700 hover:underline">← 마이페이지</a>
         <h1 className="mt-3 text-2xl font-bold text-slate-900">내 이력서</h1>
-        <p className="mt-1 text-sm text-slate-500">이력서는 무료입니다. 공개로 설정하면 광고 중인 병원이 이름·연락처를 포함해 열람할 수 있고, 언제든 비공개로 되돌릴 수 있습니다.</p>
+        <p className="mt-1 text-sm text-slate-500">이력서는 무료입니다. <b className="text-slate-700">지원하려면 이름·연락처가 반드시 필요합니다.</b> 공개로 설정하면 광고 중인 병원이 이름·연락처를 포함해 열람할 수 있고, 언제든 비공개로 되돌릴 수 있습니다.</p>
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서가 저장되었습니다.</div>}
         {error && <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">저장에 실패했습니다. 다시 시도해 주세요.</div>}
@@ -70,15 +77,23 @@ export default async function ResumePage({
         {r && <ResumeView r={r} />}
 
         <h2 className="mt-8 text-sm font-semibold text-slate-500">{r ? "이력서 수정" : "이력서 작성"}</h2>
+        {backTo && (
+          <p className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+            이름과 휴대폰 번호를 채우고 저장하면 보던 공고로 돌아가 바로 지원할 수 있습니다.
+          </p>
+        )}
+
         <form action={saveResume} className="mt-3 flex flex-col gap-4">
+          <input type="hidden" name="next" value={backTo} />
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-1">
-              <label htmlFor="name" className={label}>이름</label>
-              <input id="name" name="name" defaultValue={r?.name ?? p.displayName} className={field} />
+              {/* 이름·연락처가 없으면 병원이 연락할 방법이 없어 지원 자체가 막힌다 → 필수 */}
+              <label htmlFor="name" className={label}>이름 <span className="text-red-500" aria-hidden>*</span><span className="sr-only">(필수)</span></label>
+              <input id="name" name="name" required defaultValue={r?.name ?? p.displayName} className={field} />
             </div>
             <div className="flex flex-col gap-1">
-              <label htmlFor="phone" className={label}>연락처</label>
-              <input id="phone" name="phone" defaultValue={r?.phone ?? ""} placeholder="010-0000-0000" className={field} />
+              <label htmlFor="phone" className={label}>연락처 <span className="text-red-500" aria-hidden>*</span><span className="sr-only">(필수)</span></label>
+              <input id="phone" name="phone" required inputMode="tel" defaultValue={r?.phone ?? ""} placeholder="010-0000-0000" className={field} />
             </div>
             <div className="flex flex-col gap-1">
               <label htmlFor="license_type" className={label}>면허 구분</label>
@@ -107,7 +122,7 @@ export default async function ResumePage({
             </div>
           </div>
           <fieldset className="flex flex-col gap-2">
-            <legend className={label}>희망 진료과/부서 <span className="text-slate-400">(복수 선택 가능 · 검색에 사용)</span></legend>
+            <legend className={label}>희망 진료과/부서 <span className="text-slate-500">(복수 선택 가능 · 검색에 사용)</span></legend>
             <div className="flex flex-wrap gap-x-4 gap-y-2">
               {/* 예전에 자유 입력으로 저장된 값(예: "중환자")도 체크된 채로 남긴다 — 저장 시 조용히 지워지지 않게 */}
               {[...(r?.specialties ?? []).filter((s) => !all.includes(s)), ...JOB_SPECIALTIES].map((s) => (
@@ -120,11 +135,11 @@ export default async function ResumePage({
             </div>
           </fieldset>
           <div className="flex flex-col gap-1">
-            <label htmlFor="desired_salary" className={label}>희망 급여 <span className="text-slate-400">(선택)</span></label>
+            <label htmlFor="desired_salary" className={label}>희망 급여 <span className="text-slate-500">(선택)</span></label>
             <input id="desired_salary" name="desired_salary" defaultValue={r?.desired_salary ?? ""} placeholder="예: 연 4,000만원 / 협의" className={field} />
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor="education" className={label}>학력 <span className="text-slate-400">(선택)</span></label>
+            <label htmlFor="education" className={label}>학력 <span className="text-slate-500">(선택)</span></label>
             <input id="education" name="education" defaultValue={r?.education ?? ""} placeholder="예: ○○대학교 간호학과 졸업" className={field} />
           </div>
           <div className="flex flex-col gap-1">

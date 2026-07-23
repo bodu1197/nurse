@@ -8,6 +8,10 @@ import { verifyBusiness } from "@/lib/data/nts";
 import { adProduct } from "@/lib/ads";
 import { getPayment, iamportReady } from "@/lib/iamport";
 import { viewAsRole } from "@/lib/data/user";
+import { safeNext } from "@/lib/url";
+import { CANCELABLE, isHospitalStatus } from "@/lib/data/applications";
+import { DAY_MS, FREE_LISTING_MS } from "@/lib/date";
+import { isSettableJobStatus } from "@/lib/jobState";
 
 // 관리자 보기 전환(병원/간호사로 테스트). admin 계정만 유효 — 그 외에는 쿠키를 넣어도 무시된다.
 export async function setViewAs(formData: FormData) {
@@ -118,7 +122,7 @@ export async function createJob(formData: FormData) {
 
   if (!paidWeeks) {
     // 무료 동시 1건: 활성(게시 7일 이내·비광고) 무료 공고가 이미 있으면 추가 무료 불가.
-    const fresh = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const fresh = new Date(Date.now() - FREE_LISTING_MS).toISOString();
     const nowIso = new Date().toISOString();
     const { count: freeActive } = await admin
       .from("jobs")
@@ -219,7 +223,7 @@ export async function repostJob(formData: FormData) {
   if (!hosp) redirect("/mypage/jobs?error=1");
 
   // 다시 게시 = 새 7일 무료 노출 → 동시 무료 1건 규칙 적용(다른 활성 무료 공고가 있으면 불가).
-  const fresh = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const fresh = new Date(Date.now() - FREE_LISTING_MS).toISOString();
   const nowIso = new Date().toISOString();
   const { count: freeActive } = await admin
     .from("jobs")
@@ -265,7 +269,18 @@ export async function saveResume(formData: FormData) {
     is_public: formData.get("is_public") === "on",
   });
   if (error) redirect("/mypage/resume?error=save");
-  redirect("/mypage/resume?ok=1");
+  // 공고에서 "이력서를 먼저 채우세요"로 넘어온 경우 그 공고로 돌려보낸다(안 그러면 공고를 다시 찾아야 한다).
+  redirect(safeNext(String(formData.get("next") ?? ""), "/mypage/resume?ok=1"));
+}
+
+// 지원자 화면으로 돌아가는 주소 — 보고 있던 공고 탭을 유지한다.
+// 이게 없으면 한 건 처리할 때마다 '전체'로 튕겨 그 공고를 다시 찾아 들어가야 한다.
+function applicantsHref(formData: FormData, extra?: Record<string, string>): string {
+  const p = new URLSearchParams(extra);
+  const jobId = String(formData.get("job_id") ?? "");
+  if (jobId) p.set("job_id", jobId);
+  const s = p.toString();
+  return "/mypage/applicants" + (s ? `?${s}` : "");
 }
 
 // 병원 — 지원자 상태 변경(열람/합격/불합격). RLS로 공고 소유 병원만.
@@ -275,10 +290,57 @@ export async function updateApplicationStatus(formData: FormData) {
   if (!user) redirect("/login");
   const id = String(formData.get("application_id") ?? "");
   const status = String(formData.get("status") ?? "");
-  if (!id || !["viewed", "accepted", "rejected"].includes(status)) redirect("/mypage/applicants");
-  const { error } = await supabase.from("applications").update({ status }).eq("id", id);
-  if (error) redirect("/mypage/applicants?error=1");
-  redirect("/mypage/applicants?ok=1");
+  // isHospitalStatus로 좁혀야 오타·위조된 상태가 그대로 update로 들어가지 않는다.
+  if (!id || !isHospitalStatus(status)) redirect(applicantsHref(formData));
+  // 반환 행으로 실제 반영을 확인한다 — RLS에 막혀 0행이어도 error는 null이라 "처리되었습니다"가 뜬다.
+  // 취소된 지원은 병원이 되살릴 수 없다(간호사가 거둬간 지원서다).
+  const { data, error } = await supabase.from("applications").update({ status }).eq("id", id).neq("status", "withdrawn").select("id");
+  redirect(applicantsHref(formData, error || !data?.length ? { error: "1" } : { ok: "1" }));
+}
+
+// 병원 — 지원자 이력서 전문 열기. 여는 행위 자체를 '열람' 신호로 쓴다.
+// 목록을 여는 것만으로 처리하면 보지도 않은 지원자가 열람으로 찍히고,
+// 버튼만 따로 두면 아무도 누르지 않아 간호사 화면이 영원히 '지원완료'에 멈춘다.
+export async function openApplicantResume(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const id = String(formData.get("application_id") ?? "");
+  if (!id) redirect(applicantsHref(formData));
+
+  // 소유 공고가 아니면 RLS가 막아 0행이 된다 → 존재하지 않는 것과 같게 처리한다.
+  // (update의 반환 행만 보면 '이미 열람한 지원자'도 0행이라 구분이 안 된다.)
+  const { data: app } = await supabase.from("applications").select("id, applicant_id").eq("id", id).maybeSingle();
+  if (!app) redirect(applicantsHref(formData, { error: "1" }));
+
+  // 볼 이력서가 있을 때만 '열람'으로 기록한다 — 먼저 찍고 나면 이력서가 없어 되돌아온 경우에도
+  // 지원자 화면에는 '열람됨'이 남아 병원이 봤다고 잘못 알리게 된다.
+  const { data: resume } = await supabase.from("resumes").select("profile_id").eq("profile_id", app.applicant_id).maybeSingle();
+  if (!resume) redirect(applicantsHref(formData, { error: "noresume" }));
+
+  // 0행은 정상이다(이미 열람한 지원자). 확인할 것은 '기록 자체가 실패했는가'뿐 —
+  // 여기서 실패를 삼키면 병원은 계속 열어보는데 지원자 화면은 영원히 '지원완료'에 멈춘다.
+  const { error } = await supabase.from("applications").update({ status: "viewed" }).eq("id", id).eq("status", "submitted");
+  if (error) redirect(applicantsHref(formData, { error: "1" }));
+  const jobId = String(formData.get("job_id") ?? "");
+  redirect(`/mypage/applicants/${encodeURIComponent(id)}/print${jobId ? `?job_id=${encodeURIComponent(jobId)}` : ""}`);
+}
+
+// 간호사 — 지원 취소(변심). 정책상 본인 지원을 'withdrawn'으로만 바꿀 수 있다.
+// 행을 지우지 않는 이유: 병원 화면에서 지원자가 흔적 없이 사라지면 면접까지 본 기록이 없어진다.
+export async function withdrawApplication(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const id = String(formData.get("application_id") ?? "");
+  if (!id) redirect("/mypage/applications");
+  // 진행 중인 지원만 취소 가능 — 화면의 버튼 조건(CANCELABLE)과 **같은 상수**를 서버에도 건다.
+  // 이게 없으면 hidden input의 id만 바꿔 병원이 내린 합격·불합격을 지우고 다시 지원할 수 있다.
+  const { data, error } = await supabase
+    .from("applications").update({ status: "withdrawn" })
+    .eq("id", id).eq("applicant_id", user.id).in("status", [...CANCELABLE]).select("id");
+  if (error || !data?.length) redirect("/mypage/applications?error=1");
+  redirect("/mypage/applications?ok=cancel");
 }
 
 // 병원 — 공고 마감/재개 (RLS로 소유 공고만).
@@ -288,7 +350,8 @@ export async function setJobStatus(formData: FormData) {
   if (!user) redirect("/login");
   const id = String(formData.get("job_id") ?? "");
   const status = String(formData.get("status") ?? "");
-  if (!id || !["open", "closed"].includes(status)) redirect("/mypage/jobs");
+  // 화면에서 바꿀 수 있는 것은 게시/마감 둘뿐 — 타입가드로 좁혀서 임의 문자열이 DB로 넘어가지 않게 한다.
+  if (!id || !isSettableJobStatus(status)) redirect("/mypage/jobs");
   const { error } = await supabase.from("jobs").update({ status }).eq("id", id);
   if (error) redirect("/mypage/jobs?error=1");
   redirect("/mypage/jobs?ok=1");
@@ -361,7 +424,7 @@ async function activateAdOrder(admin: ReturnType<typeof createAdminClient>, orde
   const { data: job } = await admin.from("jobs").select("featured_until").eq("id", jobId).maybeSingle();
   const now = Date.now();
   const base = job?.featured_until ? Math.max(now, new Date(job.featured_until).getTime()) : now;
-  const until = new Date(base + days * 86_400_000).toISOString();
+  const until = new Date(base + days * DAY_MS).toISOString();
   const { data: updated, error: jobErr } = await admin
     .from("jobs")
     .update({ featured_until: until, ad_tier: tier, status: "open", posted_at: new Date().toISOString() })
