@@ -247,7 +247,8 @@ export async function saveResume(formData: FormData) {
   const s = (k: string) => { const v = String(formData.get(k) ?? "").trim(); return v || null; };
   const eyRaw = String(formData.get("experience_years") ?? "").trim();
   const ey = eyRaw === "" ? null : Number(eyRaw);
-  const specialties = String(formData.get("specialties") ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+  // 체크박스 다중 선택(JOB_SPECIALTIES) — 자유 입력이면 "중환자"/"중환자실"처럼 표기가 갈려 검색이 안 잡힌다.
+  const specialties = formData.getAll("specialties").map((x) => String(x).trim()).filter(Boolean);
 
   const { error } = await supabase.from("resumes").upsert({
     profile_id: user.id,
