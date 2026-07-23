@@ -2,7 +2,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
-import { getJobs, SOURCE_LABEL } from "@/lib/data/jobs";
+import { getJobs } from "@/lib/data/jobs";
 import { FOOTER_NAV } from "@/lib/constants";
 import { daysAgo } from "@/lib/date";
 
@@ -92,7 +92,7 @@ export default async function Home() {
                       </p>
                       <div className="mt-3 flex items-end justify-between gap-2 border-t border-slate-100 pt-3">
                         <span className="font-bold text-teal-700">{job.salary_text ?? "급여 협의"}</span>
-                        <span className="shrink-0 text-xs text-slate-400">{SOURCE_LABEL[job.source]} · {daysAgo(job.posted_at)}일 전</span>
+                        <span className="shrink-0 text-xs text-slate-400">{daysAgo(job.posted_at)}일 전</span>
                       </div>
                     </Link>
                   </li>
