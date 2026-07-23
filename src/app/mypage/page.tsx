@@ -3,17 +3,35 @@ import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import HospitalShell from "@/components/HospitalShell";
 import { getMyProfile, type MyProfile } from "@/lib/data/user";
+import { ROLE_LABEL, type Role } from "@/lib/data/role";
 import { getMyJobs, type MyJob } from "@/lib/data/jobs";
+import { nowMs } from "@/lib/date";
+import { setViewAs } from "./actions";
 
 const DAY = 86_400_000;
 
 export const metadata = { title: "마이페이지 — 널스넷", robots: { index: false } };
 
-const ROLE_LABEL: Record<MyProfile["role"], string> = {
-  nurse: "간호사 회원",
-  hospital: "병원 회원",
-  admin: "관리자",
-};
+// 관리자 전용 — 병원/간호사 화면을 실제로 써보기 위한 보기 전환.
+// 표시 순서라 ROLE_LABEL에서 파생하지 않는다. satisfies는 오타(존재하지 않는 역할)만 잡아준다.
+const VIEW_OPTS = ["admin", "hospital", "nurse"] as const satisfies readonly Role[];
+
+// 색은 slate(중립) — violet은 이미 '광고중' 상태색이라 섞으면 의미가 충돌한다.
+function ViewAsSwitch({ current }: Readonly<{ current: MyProfile["role"] }>) {
+  return (
+    <form action={setViewAs} role="group" aria-labelledby="viewas-title" className="mb-5 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3">
+      <span id="viewas-title" className="mr-1 text-sm font-semibold text-slate-800">관리자 테스트 — 보기 전환</span>
+      {VIEW_OPTS.map((v) => (
+        // disabled 대신 aria-current만 — 비활성화하면 탭 순서에서 빠져 현재 상태를 알 수 없다(재제출은 무해).
+        <Button key={v} type="submit" name="role" value={v} size="md" className="focus-visible:ring-offset-slate-100"
+          variant={current === v ? "primary" : "outline"} aria-current={current === v ? "true" : undefined}>
+          {ROLE_LABEL[v]}{current === v && <span aria-hidden> ✓</span>}
+        </Button>
+      ))}
+      <span className="w-full text-xs text-slate-600">전환해도 보이는 데이터는 이 계정 것뿐입니다. 전환 중에는 화면 맨 위에 안내 띠가 표시됩니다.</span>
+    </form>
+  );
+}
 
 // 노출 종료 시각(ms). 광고=featured_until, 무료=게시+7일. 만료/마감/대기는 0.
 function endMs(j: MyJob, now: number): number {
@@ -33,7 +51,7 @@ function jobBadge(j: MyJob, now: number) {
 }
 const fmtMs = (ms: number) => new Date(ms).toISOString().slice(0, 10).replace(/-/g, ".");
 
-function Widget({ label, value, accent }: { label: string; value: string; accent?: string }) {
+function Widget({ label, value, accent }: Readonly<{ label: string; value: string; accent?: string }>) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
       <p className="text-xs text-slate-500">{label}</p>
@@ -42,14 +60,15 @@ function Widget({ label, value, accent }: { label: string; value: string; accent
   );
 }
 
-function HospitalDashboard({ profile, jobs }: { profile: MyProfile; jobs: MyJob[] }) {
-  const now = Date.now();
+function HospitalDashboard({ profile, jobs }: Readonly<{ profile: MyProfile; jobs: MyJob[] }>) {
+  const now = nowMs();
   const liveCount = jobs.filter((j) => endMs(j, now) > 0).length;
   const applicants = jobs.reduce((s, j) => s + j.applicant_count, 0);
   const soon = jobs.filter((j) => { const e = endMs(j, now); return e > 0 && e - now <= 3 * DAY; }).length;
 
   return (
     <HospitalShell displayName={profile.displayName} active="/mypage">
+      {profile.isAdmin && <ViewAsSwitch current="hospital" />}
       <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">대시보드</h1>
 
       {!profile.businessVerified && (
@@ -116,7 +135,7 @@ const ADMIN_ITEMS: Item[] = [
   { title: "데이터 수집", desc: "워크넷·공공데이터 연동 상태를 봅니다." },
 ];
 
-function Card({ item }: { item: Item }) {
+function Card({ item }: Readonly<{ item: Item }>) {
   const inner = (
     <>
       <div className="flex items-center justify-between gap-2">
@@ -147,6 +166,7 @@ export default async function MyPage() {
     <>
       <SiteHeader user={{ displayName: profile.displayName }} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
+        {profile.isAdmin && <ViewAsSwitch current={profile.role} />}
         <h1 className="text-2xl font-bold text-slate-900">마이페이지</h1>
         <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
           <div className="flex flex-wrap items-center gap-3">

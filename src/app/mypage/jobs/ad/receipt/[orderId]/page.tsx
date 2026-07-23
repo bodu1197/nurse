@@ -14,10 +14,10 @@ export default async function ReceiptPage({ params }: Readonly<{ params: Promise
   const { orderId } = await params;
   const supabase = await createClient();
   // RLS: 본인 주문만 조회 가능(buyer_id = auth.uid())
-  type Row = { merchant_uid: string; imp_uid: string | null; days: number; supply_amount: number; vat: number; amount: number; status: string; created_at: string; paid_at: string | null; job: { title: string } | null };
+  type Row = { merchant_uid: string; imp_uid: string | null; tier: string; days: number; supply_amount: number; vat: number; amount: number; status: string; created_at: string; paid_at: string | null; job: { title: string } | null };
   const { data: o } = await supabase
     .from("ad_orders")
-    .select("merchant_uid, imp_uid, days, supply_amount, vat, amount, status, created_at, paid_at, job:jobs(title)")
+    .select("merchant_uid, imp_uid, tier, days, supply_amount, vat, amount, status, created_at, paid_at, job:jobs(title)")
     .eq("id", orderId)
     .maybeSingle()
     .returns<Row>();
@@ -32,6 +32,10 @@ export default async function ReceiptPage({ params }: Readonly<{ params: Promise
           <div className="text-center">
             <p className={`text-lg font-bold ${paid ? "text-teal-700" : "text-slate-500"}`}>{paid ? "✓ 결제 완료" : "결제 미완료"}</p>
             <p className="mt-1 text-sm text-slate-500">광고 영수증</p>
+            {/* 0원·결제완료로만 보이면 실결제와 구분이 안 된다 */}
+            {o.tier === "admin_test" && (
+              <p className="mt-2 inline-block rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-white">관리자 테스트 — 실제 결제 아님</p>
+            )}
           </div>
           <dl className="mt-6 space-y-2 text-sm">
             <div className="flex justify-between"><dt className="text-slate-500">공고</dt><dd className="font-medium text-slate-800">{o.job?.title ?? "-"}</dd></div>

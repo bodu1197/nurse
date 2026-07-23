@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import Logo from "@/components/Logo";
 import { HEADER_MENU } from "@/lib/constants";
 import { signOut } from "@/app/(auth)/actions";
@@ -29,25 +30,25 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
       <div className="mx-auto flex h-16 max-w-[1280px] items-center px-4">
-        <a
+        <Link
           href="/"
           aria-label="널스넷 홈"
           className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
           <Logo />
-        </a>
+        </Link>
 
         <nav className="ml-7 hidden items-center gap-5 text-sm font-medium text-slate-600 sm:flex">
-          <a href="/" className="hover:text-teal-700">홈</a>
-          <a href="/jobs" className="hover:text-teal-700">채용공고</a>
-          <a href="/reviews" className="hover:text-teal-700">병원 리뷰</a>
+          <Link href="/" className="hover:text-teal-700">홈</Link>
+          <Link href="/jobs" className="hover:text-teal-700">채용공고</Link>
+          <Link href="/reviews" className="hover:text-teal-700">병원 리뷰</Link>
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <a href="/hospital" className="hidden items-center px-3 text-sm font-medium text-slate-600 hover:text-teal-700 sm:inline-flex">병원 회원·공고등록</a>
+          <Link href="/hospital" className="hidden items-center px-3 text-sm font-medium text-slate-600 hover:text-teal-700 sm:inline-flex">병원 회원·공고등록</Link>
           {user ? (
             <>
-              <a href="/mypage" className="hidden rounded px-2 text-sm font-medium text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:inline">{user.displayName}님</a>
+              <Link href="/mypage" className="hidden rounded px-2 text-sm font-medium text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:inline">{user.displayName}님</Link>
               <form action={signOut}>
                 <button type="submit" className="inline-flex min-h-11 items-center gap-1.5 rounded px-2 text-sm font-medium text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -58,7 +59,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
               </form>
             </>
           ) : (
-            <a
+            <Link
               href="/login"
               className="inline-flex min-h-11 items-center gap-1.5 rounded px-2 text-sm font-medium text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
             >
@@ -66,7 +67,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
                 <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
               </svg>
               로그인
-            </a>
+            </Link>
           )}
           <button
             ref={buttonRef}
@@ -92,7 +93,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
             className="absolute right-2 top-[60px] z-30 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
           >
             {(user ? [{ label: "마이페이지", href: "/mypage" }, ...HEADER_MENU.filter((m) => m.href !== "/signup")] : HEADER_MENU).map((m, i) => (
-              <a
+              <Link
                 key={m.href}
                 href={m.href}
                 onClick={() => setOpen(false)}
@@ -100,7 +101,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
                 className="block px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 hover:text-teal-700 focus-visible:bg-slate-50 focus-visible:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600"
               >
                 {m.label}
-              </a>
+              </Link>
             ))}
           </nav>
         </>

@@ -4,6 +4,7 @@ import Button from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { getMyProfile } from "@/lib/data/user";
 import { getMyJobs } from "@/lib/data/jobs";
+import { nowMs } from "@/lib/date";
 import { setJobStatus, deleteJob, repostJob } from "../actions";
 
 export const metadata = { title: "공고 관리 — 널스넷", robots: { index: false } };
@@ -19,7 +20,7 @@ export default async function MyJobsPage({
   if (!p) redirect("/login");
   if (p.role !== "hospital") redirect("/mypage");
   const [{ ok, error }, jobs] = await Promise.all([searchParams, getMyJobs()]);
-  const now = Date.now();
+  const now = nowMs();
 
   return (
     <HospitalShell displayName={p.displayName} active="/mypage/jobs">

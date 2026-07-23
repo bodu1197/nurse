@@ -1,3 +1,4 @@
+import Link from "next/link";
 import LoginButtons from "@/components/LoginButtons";
 import Logo from "@/components/Logo";
 import DismissibleError from "@/components/DismissibleError";
@@ -25,9 +26,9 @@ export default async function LoginPage({
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
-        <a href="/" aria-label="널스넷 홈" className="flex justify-center">
+        <Link href="/" aria-label="널스넷 홈" className="flex justify-center">
           <Logo className="text-3xl" />
-        </a>
+        </Link>
 
         <h1 className="mt-8 text-center text-xl font-bold text-slate-900">로그인</h1>
 

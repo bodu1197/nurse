@@ -139,6 +139,7 @@ export type Database = {
           free_credits: number
           id: string
           is_claimed: boolean
+          is_test: boolean
           legacy_member_srl: number | null
           name: string
           owner_profile_id: string | null
@@ -155,6 +156,7 @@ export type Database = {
           free_credits?: number
           id?: string
           is_claimed?: boolean
+          is_test?: boolean
           legacy_member_srl?: number | null
           name: string
           owner_profile_id?: string | null
@@ -171,6 +173,7 @@ export type Database = {
           free_credits?: number
           id?: string
           is_claimed?: boolean
+          is_test?: boolean
           legacy_member_srl?: number | null
           name?: string
           owner_profile_id?: string | null

@@ -11,6 +11,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
     .from("hospitals")
     .select("id, name, region, address")
+    .eq("is_test", false) // 관리자 테스트 병원 제외
     .ilike("name", `%${q}%`)
     .order("name", { ascending: true })
     .limit(10);

@@ -24,7 +24,9 @@ async function getToken(): Promise<string | null> {
 export type IamportPayment = { imp_uid: string; merchant_uid: string; amount: number; status: string };
 
 // imp_uid로 결제 단건 조회(서버-투-서버) — 금액/상태 위변조 검증용.
-export async function getPayment(impUid: string): Promise<IamportPayment | null> {
+// 반환값 3종: 결제정보 | "notfound"(그런 거래 없음=다시 물어봐도 같음) | null(토큰·네트워크 등 일시 실패).
+// 웹훅이 이 둘을 구분해야 위조 웹훅에 5xx로 응답해 재시도를 자초하지 않는다.
+export async function getPayment(impUid: string): Promise<IamportPayment | "notfound" | null> {
   const token = await getToken();
   if (!token) return null;
   const res = await fetch(`${BASE}/payments/${encodeURIComponent(impUid)}`, {
@@ -32,8 +34,9 @@ export async function getPayment(impUid: string): Promise<IamportPayment | null>
     cache: "no-store",
     signal: AbortSignal.timeout(10000),
   }).catch(() => null);
-  if (!res || !res.ok) return null;
+  if (!res) return null;                                                    // 네트워크/타임아웃
+  if (!res.ok) return res.status >= 500 || res.status === 429 ? null : "notfound"; // 4xx = 없는 거래
   const r = (await res.json().catch(() => null))?.response;
-  if (!r) return null;
+  if (!r) return "notfound";
   return { imp_uid: r.imp_uid, merchant_uid: r.merchant_uid, amount: r.amount, status: r.status };
 }

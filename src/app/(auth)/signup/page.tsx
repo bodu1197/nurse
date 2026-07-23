@@ -1,3 +1,4 @@
+import Link from "next/link";
 import LoginButtons from "@/components/LoginButtons";
 import Logo from "@/components/Logo";
 import DismissibleError from "@/components/DismissibleError";
@@ -27,9 +28,9 @@ export default async function SignupPage({
     return (
       <main className="flex flex-1 items-center justify-center px-4 py-16">
         <div className="w-full max-w-sm text-center">
-          <a href="/" aria-label="널스넷 홈" className="flex justify-center">
+          <Link href="/" aria-label="널스넷 홈" className="flex justify-center">
             <Logo className="text-3xl" />
-          </a>
+          </Link>
           <h1 className="mt-8 text-xl font-bold text-slate-900">확인 이메일을 보냈습니다</h1>
           <p className="mt-3 text-sm text-slate-500">
             메일의 링크를 눌러 가입을 완료한 뒤 로그인해 주세요.
@@ -45,9 +46,9 @@ export default async function SignupPage({
   return (
     <main className="flex flex-1 items-center justify-center px-4 py-16">
       <div className="w-full max-w-sm">
-        <a href="/" aria-label="널스넷 홈" className="flex justify-center">
+        <Link href="/" aria-label="널스넷 홈" className="flex justify-center">
           <Logo className="text-3xl" />
-        </a>
+        </Link>
 
         <h1 className="mt-8 text-center text-xl font-bold text-slate-900">회원가입</h1>
 

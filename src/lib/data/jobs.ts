@@ -37,6 +37,8 @@ export const SOURCE_LABEL: Record<JobSource, string> = {
 
 const SELECT =
   "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,deadline,featured_until,recruit_count,shift_type,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(name,rating_avg,rating_count)";
+// 공개 목록용 — !inner로 병원을 조인해 is_test 필터를 걸 수 있게 한다(hospital_id는 NOT NULL이라 건수 변화 없음).
+const SELECT_PUBLIC = SELECT.replace("hospital:hospitals(", "hospital:hospitals!inner(");
 
 export const PER_PAGE = 20;
 
@@ -52,8 +54,9 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   const from = (Math.max(1, page) - 1) * PER_PAGE;
   let query = supabase
     .from("jobs")
-    .select(SELECT, { count: "exact" })
+    .select(SELECT_PUBLIC, { count: "exact" })
     .eq("status", "open")
+    .eq("hospitals.is_test", false) // 관리자 테스트 공고는 공개 목록에서 제외
     .order("featured_until", { ascending: false, nullsFirst: false })
     .order("posted_at", { ascending: false })
     .range(from, from + PER_PAGE - 1);
@@ -209,23 +212,8 @@ export async function getSavedJobs(): Promise<JobRow[]> {
   const { data: saved } = await supabase.from("saved_jobs").select("job_id").eq("profile_id", user.id).order("created_at", { ascending: false });
   const ids = (saved ?? []).map((r) => r.job_id);
   if (ids.length === 0) return [];
-  const { data } = await supabase.from("jobs").select(SELECT).in("id", ids).returns<JobRow[]>();
+  // 목록과 같은 공개 조건 — 저장 시점 이후 테스트 병원으로 바뀐 공고가 남아 보이지 않게.
+  const { data } = await supabase.from("jobs").select(SELECT_PUBLIC).eq("hospitals.is_test", false).in("id", ids).returns<JobRow[]>();
   const byId = new Map((data ?? []).map((j) => [j.id, j]));
   return ids.map((id) => byId.get(id)).filter((j): j is JobRow => !!j);
-}
-
-export async function getJob(id: string): Promise<JobRow | null> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("jobs")
-    .select(SELECT)
-    .eq("id", id)
-    .eq("status", "open")
-    .limit(1)
-    .returns<JobRow[]>();
-  if (error) {
-    console.error("getJob failed:", error.message);
-    return null;
-  }
-  return data?.[0] ?? null;
 }

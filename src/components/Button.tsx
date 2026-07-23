@@ -2,8 +2,8 @@ import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "reac
 
 // 공용 버튼 — 모서리·높이·색을 한 곳에서 관리(인라인 클래스 흩어짐 방지).
 // 높이 티어: lg=h-12/text-base, md=h-11/text-sm, sm=h-9/text-xs. 같은 size = 같은 높이.
-type Variant = "primary" | "outline" | "ghost" | "danger";
-type Size = "lg" | "md" | "sm";
+export type Variant = "primary" | "outline" | "ghost" | "danger";
+export type Size = "lg" | "md" | "sm";
 
 const BASE =
   "inline-flex items-center justify-center gap-1.5 rounded-[12px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60";
@@ -34,9 +34,9 @@ export default function Button(props: AsButton | AsLink) {
   const { variant, size, className, children, ...rest } = props;
   const cls = buttonClass(variant, size, className);
   if (typeof props.href === "string") {
-    const { href: _h, ...anchorRest } = rest as AnchorHTMLAttributes<HTMLAnchorElement>;
+    // 스프레드를 먼저 두고 href/className을 뒤에서 확정 — rest의 href를 버리는 미사용 변수가 필요 없다.
     return (
-      <a href={props.href} className={cls} {...anchorRest}>
+      <a {...(rest as AnchorHTMLAttributes<HTMLAnchorElement>)} href={props.href} className={cls}>
         {children}
       </a>
     );

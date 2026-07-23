@@ -213,6 +213,9 @@ export default async function JobsPage({
                               {apply === "need_resume" && (
                                 <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">지원하려면 이력서를 먼저 등록하세요. <a href="/mypage/resume" className="font-semibold underline">이력서 작성하기</a></p>
                               )}
+                              {apply === "admin_test" && (
+                                <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">관리자 계정은 테스트 병원 공고에만 지원할 수 있습니다(실제 병원에 가짜 지원 방지).</p>
+                              )}
                               {apply === "error" && (
                                 <p className="rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">지원 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.</p>
                               )}

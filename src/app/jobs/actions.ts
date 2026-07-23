@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { viewAsRole } from "@/lib/data/user";
 
 // 간편지원 — 간호사 + 이력서 보유 시 지원 생성.
 export async function applyToJob(formData: FormData) {
@@ -14,7 +15,15 @@ export async function applyToJob(formData: FormData) {
 
   const j = encodeURIComponent(jobId);
   const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (prof?.role !== "nurse") redirect(`/jobs?j=${j}&apply=nurse_only`);
+  if (!prof || (await viewAsRole(prof.role)) !== "nurse") redirect(`/jobs?j=${j}&apply=nurse_only`);
+
+  // 관리자가 간호사 보기로 지원하면 실제 병원에 가짜 지원자가 남는다 → 테스트 병원 공고에만 허용.
+  if (prof.role === "admin") {
+    const { data: testJob } = await supabase
+      .from("jobs").select("id, hospital:hospitals!inner(is_test)")
+      .eq("id", jobId).eq("hospitals.is_test", true).maybeSingle();
+    if (!testJob) redirect(`/jobs?j=${j}&apply=admin_test`);
+  }
 
   const { data: resume } = await supabase.from("resumes").select("profile_id").eq("profile_id", user.id).maybeSingle();
   if (!resume) redirect(`/jobs?j=${j}&apply=need_resume`);

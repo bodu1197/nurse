@@ -1,11 +1,31 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyBusiness } from "@/lib/data/nts";
 import { adProduct } from "@/lib/ads";
 import { getPayment, iamportReady } from "@/lib/iamport";
+import { viewAsRole } from "@/lib/data/user";
+
+// 관리자 보기 전환(병원/간호사로 테스트). admin 계정만 유효 — 그 외에는 쿠키를 넣어도 무시된다.
+export async function setViewAs(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const admin = createAdminClient();
+  const { data: prof } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (prof?.role !== "admin") redirect("/mypage");
+
+  const role = String(formData.get("role") ?? "");
+  const jar = await cookies();
+  if (role === "hospital" || role === "nurse") {
+    // secure는 배포에서만 — 로컬 http에서는 secure 쿠키가 조용히 버려져 전환이 안 된다.
+    jar.set("view_as", role, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", maxAge: 43_200, path: "/" }); // 12시간 후 자동 해제
+  } else jar.delete("view_as");
+  redirect("/mypage");
+}
 
 // 병원 사업자 진위확인 → 통과 시에만 business_verified(서버=service_role) 설정.
 export async function verifyHospitalBusiness(formData: FormData) {
@@ -15,7 +35,7 @@ export async function verifyHospitalBusiness(formData: FormData) {
 
   const admin = createAdminClient();
   const { data: prof } = await admin.from("profiles").select("role, business_verified").eq("id", user.id).maybeSingle();
-  if (!prof || prof.role !== "hospital") redirect("/mypage");
+  if (!prof || (await viewAsRole(prof.role)) !== "hospital") redirect("/mypage");
   // 사업자 변경(재인증) 허용 — 이미 인증됐어도 새 사업자번호로 다시 검증/갱신 가능.
 
   const b_no = String(formData.get("b_no") ?? "");
@@ -48,6 +68,22 @@ export async function verifyHospitalBusiness(formData: FormData) {
   redirect(String(formData.get("from") ?? "") === "jobs-new" ? "/mypage/jobs/new" : "/mypage/verify?ok=1");
 }
 
+const ADMIN_TEST_HOSPITAL = "[테스트] 관리자 전용 병원";
+
+// 관리자 전용 테스트 병원 id(없으면 생성). 실제 병원을 claim해 실회원이 못 가져가는 사태 방지.
+// maybeSingle 대신 limit(1): 동시 요청으로 행이 2개 생겨도 에러 없이 항상 같은 1건을 재사용한다
+// (maybeSingle이면 다중행 에러 → null → 호출마다 새로 생성되며 무한 증식).
+async function adminTestHospitalId(admin: ReturnType<typeof createAdminClient>, userId: string): Promise<string | null> {
+  const { data: found } = await admin.from("hospitals").select("id")
+    .eq("owner_profile_id", userId).eq("name", ADMIN_TEST_HOSPITAL)
+    .order("created_at", { ascending: true }).limit(1);
+  if (found?.length) return found[0].id;
+  const { data: made } = await admin.from("hospitals")
+    .insert({ name: ADMIN_TEST_HOSPITAL, region: "서울", address: "테스트 주소(실제 병원 아님)", source: "direct", is_claimed: true, is_test: true, owner_profile_id: userId })
+    .select("id").single();
+  return made?.id ?? null;
+}
+
 // 공고 등록 — 인증된 병원만. 미claim 병원이면 claim 후 jobs 저장(서버 검증).
 export async function createJob(formData: FormData) {
   const supabase = await createClient();
@@ -56,13 +92,17 @@ export async function createJob(formData: FormData) {
 
   const admin = createAdminClient();
   const { data: prof } = await admin.from("profiles").select("role, business_verified").eq("id", user.id).maybeSingle();
-  if (!prof || prof.role !== "hospital") redirect("/mypage");
-  if (!prof.business_verified) redirect("/mypage/verify");
+  if (!prof || (await viewAsRole(prof.role)) !== "hospital") redirect("/mypage");
+  // 관리자 테스트 계정은 사업자 인증 없이 등록 가능(실제 병원 회원은 인증 필수).
+  if (!prof.business_verified && prof.role !== "admin") redirect("/mypage/verify");
 
   const s = (k: string) => String(formData.get(k) ?? "").trim();
-  const hospitalId = s("hospital_id");
   const title = s("title");
-  if (!hospitalId || !title) redirect("/mypage/jobs/new?error=missing");
+  const isAdminTest = prof.role === "admin";
+  if (!title) redirect("/mypage/jobs/new?error=missing");
+  // 관리자 테스트는 실제 병원(공공데이터 18만건)을 점유하면 안 되므로 전용 테스트 병원만 사용.
+  const hospitalId = isAdminTest ? await adminTestHospitalId(admin, user.id) : s("hospital_id");
+  if (!hospitalId) redirect(`/mypage/jobs/new?error=${isAdminTest ? "hospital" : "missing"}`);
 
   const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region, address, free_credits").eq("id", hospitalId).maybeSingle();
   if (!hosp) redirect("/mypage/jobs/new?error=hospital");
@@ -202,7 +242,7 @@ export async function saveResume(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (prof?.role !== "nurse") redirect("/mypage");
+  if (!prof || (await viewAsRole(prof.role)) !== "nurse") redirect("/mypage");
 
   const s = (k: string) => { const v = String(formData.get(k) ?? "").trim(); return v || null; };
   const eyRaw = String(formData.get("experience_years") ?? "").trim();
@@ -304,15 +344,35 @@ export async function prepareAdOrder(jobId: string, weeks: number): Promise<AdPr
 }
 
 // 결제 활성화(검증 통과/웹훅 공용, 멱등). 광고 노출 기간 연장.
-async function activateAdOrder(admin: ReturnType<typeof createAdminClient>, orderId: string, jobId: string, days: number, tier: string, impUid: string) {
-  const { data: cur } = await admin.from("ad_orders").select("status").eq("id", orderId).maybeSingle();
-  if (cur?.status === "PAID") return;
-  await admin.from("ad_orders").update({ status: "PAID", imp_uid: impUid, paid_at: new Date().toISOString() }).eq("id", orderId);
+// impUid=null은 실결제가 아닌 경우(관리자 테스트) — 포트원 거래번호 컬럼을 가짜 값으로 오염시키지 않는다.
+// 성공 여부를 반환 — 호출부가 실패를 사용자/포트원에 알려 재시도되게 한다.
+async function activateAdOrder(admin: ReturnType<typeof createAdminClient>, orderId: string, jobId: string, days: number, tier: string, impUid: string | null): Promise<boolean> {
+  // 선점(CAS): PREPARE→PAID 전환에 성공한 요청만 기간을 연장한다. 조건부 update는 Postgres에서 원자적이라
+  // 클라 콜백과 웹훅이 동시에 들어와도 연장은 정확히 1회. (먼저 연장하고 나중에 PAID로 올리면 재시도 때 2배 연장됨)
+  const { data: claimed, error: claimErr } = await admin
+    .from("ad_orders")
+    .update({ status: "PAID", imp_uid: impUid, paid_at: new Date().toISOString() })
+    .eq("id", orderId)
+    .neq("status", "PAID")
+    .select("id");
+  if (claimErr) return false;        // DB 오류 — 0행과 구분해야 한다(성공으로 착각하면 재시도가 끊긴다)
+  if (!claimed?.length) return true; // 이미 다른 경로가 활성화 완료
+
   const { data: job } = await admin.from("jobs").select("featured_until").eq("id", jobId).maybeSingle();
   const now = Date.now();
   const base = job?.featured_until ? Math.max(now, new Date(job.featured_until).getTime()) : now;
   const until = new Date(base + days * 86_400_000).toISOString();
-  await admin.from("jobs").update({ featured_until: until, ad_tier: tier, status: "open", posted_at: new Date().toISOString() }).eq("id", jobId);
+  const { data: updated, error: jobErr } = await admin
+    .from("jobs")
+    .update({ featured_until: until, ad_tier: tier, status: "open", posted_at: new Date().toISOString() })
+    .eq("id", jobId)
+    .select("id"); // 0행이면 error가 null이므로 반환행으로 실제 반영을 확인
+  if (jobErr || !updated?.length) {
+    // 되돌려 재시도 가능하게. imp_uid도 같이 비운다 — 안 그러면 "PREPARE인데 거래번호가 있는" 상태가 남는다.
+    await admin.from("ad_orders").update({ status: "PREPARE", paid_at: null, imp_uid: null }).eq("id", orderId);
+    return false;
+  }
+  return true;
 }
 
 type AdVerify = { ok: true; orderId: string } | { ok: false; error: string };
@@ -327,21 +387,52 @@ export async function verifyAdPayment(impUid: string, merchantUid: string): Prom
   if (!order || order.buyer_id !== user.id || !order.job_id) return { ok: false, error: "order" };
   if (order.status === "PAID") return { ok: true, orderId: order.id };
   const pay = await getPayment(impUid);
-  if (!pay || pay.merchant_uid !== merchantUid) return { ok: false, error: "verify" };
+  if (!pay || pay === "notfound" || pay.merchant_uid !== merchantUid) return { ok: false, error: "verify" };
   if (pay.status !== "paid") { await admin.from("ad_orders").update({ status: "FAILED" }).eq("id", order.id); return { ok: false, error: "notpaid" }; }
   if (pay.amount !== order.amount) return { ok: false, error: "amount" };
-  await activateAdOrder(admin, order.id, order.job_id, order.days, order.tier, impUid);
+  // 활성화 실패 시 주문은 PREPARE로 남는다 → 웹훅이 재시도해 복구.
+  if (!(await activateAdOrder(admin, order.id, order.job_id, order.days, order.tier, impUid))) return { ok: false, error: "activate" };
   return { ok: true, orderId: order.id };
 }
 
+// 관리자 테스트 전용 — 결제 없이 광고 활성. 주문을 PAID로 남겨 영수증까지 실제 흐름 그대로 확인.
+// 금액은 0원으로 기록한다 — 실금액으로 남기면 나중에 매출 집계에 가짜 매출이 섞인다.
+export async function activateAdFree(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const admin = createAdminClient();
+  const { data: prof } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (prof?.role !== "admin") redirect("/mypage"); // 전환 여부와 무관하게 실제 admin만
+
+  const jobId = String(formData.get("job_id") ?? "");
+  const product = adProduct(Number(formData.get("weeks")));
+  if (!jobId || !product) redirect("/mypage/jobs");
+  const hosp = await ownedJobHospital(admin, jobId, user.id);
+  if (!hosp) redirect("/mypage/jobs?error=1");
+
+  const merchant_uid = `admintest_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+  const { data: order } = await admin.from("ad_orders").insert({
+    merchant_uid, job_id: jobId, hospital_id: hosp.id, buyer_id: user.id,
+    tier: "admin_test", days: product.days, supply_amount: 0, vat: 0, amount: 0, status: "PREPARE",
+  }).select("id").single();
+  // 실패는 공고 관리 화면으로 — 광고 페이지에는 에러 배너가 없어 실패가 조용히 묻힌다.
+  if (!order) redirect("/mypage/jobs?error=1");
+  if (!(await activateAdOrder(admin, order.id, jobId, product.days, "admin_test", null))) redirect("/mypage/jobs?error=1");
+  redirect(`/mypage/jobs/ad/receipt/${order.id}`);
+}
+
 // 포트원 웹훅(서버-투-서버) — 클라 콜백 실패 대비. imp_uid로 재검증 후 활성화.
-export async function iamportWebhook(impUid: string, merchantUid: string): Promise<boolean> {
+// 반환값이 재시도 여부를 가른다: "retry"만 5xx로 응답해 포트원이 다시 보내게 하고,
+// 다시 보내도 결과가 같은 경우("ok"/"ignored")는 200으로 끊는다 — 안 그러면 영원히 재시도한다.
+export async function iamportWebhook(impUid: string, merchantUid: string): Promise<"ok" | "ignored" | "retry"> {
   const admin = createAdminClient();
   const { data: order } = await admin.from("ad_orders").select("id, job_id, days, tier, amount, status").eq("merchant_uid", merchantUid).maybeSingle();
-  if (!order || order.status === "PAID") return order?.status === "PAID";
-  if (!order.job_id) return false;
+  if (!order || !order.job_id) return "ignored"; // 우리 주문이 아님 / 공고 없음
+  if (order.status === "PAID") return "ok";
   const pay = await getPayment(impUid);
-  if (!pay || pay.merchant_uid !== merchantUid || pay.status !== "paid" || pay.amount !== order.amount) return false;
-  await activateAdOrder(admin, order.id, order.job_id, order.days, order.tier, impUid);
-  return true;
+  if (!pay) return "retry"; // 포트원 조회 자체가 실패 — 일시 장애일 수 있으니 재시도
+  // 없는 거래(위조 웹훅 포함)·미결제·금액 불일치는 재시도해도 그대로다
+  if (pay === "notfound" || pay.merchant_uid !== merchantUid || pay.status !== "paid" || pay.amount !== order.amount) return "ignored";
+  return (await activateAdOrder(admin, order.id, order.job_id, order.days, order.tier, impUid)) ? "ok" : "retry";
 }
