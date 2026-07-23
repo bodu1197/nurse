@@ -85,7 +85,22 @@ function Applicant({ a, jobId }: Readonly<{ a: ApplicantListItem; jobId?: string
 
       {a.message && <p className="mt-2 text-sm text-slate-600">지원 메시지: {a.message}</p>}
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      {/* 병원이 지원자를 볼 때 가장 먼저 하는 행동 = 이력서 전문 열기.
+          전화·문자·합격/불합격은 이력서를 읽은 다음이므로, 이 버튼을 크게 따로 빼서 섞이지 않게 한다.
+          (이력서가 없으면 열어도 되돌아오기만 하므로 버튼을 내린다.) */}
+      {r && (
+        <form action={openApplicantResume} className="mt-3">
+          <input type="hidden" name="application_id" value={a.id} />
+          {jobId && <input type="hidden" name="job_id" value={jobId} />}
+          <button type="submit" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[12px] bg-teal-600 px-4 text-sm font-bold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></svg>
+            이력서 전문 보기 · 인쇄
+          </button>
+          <p className="mt-1 text-center text-xs text-slate-500">경력 상세 · 학력 · 자격증 · 희망조건 전체와 인쇄용 서식이 여기 있습니다</p>
+        </form>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3">
         <span className="text-xs text-slate-500">{fmtDay(a.created_at)} 지원</span>
         <span className="ml-auto flex flex-wrap items-center gap-2">
           {r?.phone && (
@@ -93,14 +108,6 @@ function Applicant({ a, jobId }: Readonly<{ a: ApplicantListItem; jobId?: string
               <Button href={`tel:${r.phone}`} variant="outline" size="sm" className={TAP}>전화</Button>
               <Button href={`sms:${r.phone}`} variant="outline" size="sm" className={TAP}>문자</Button>
             </>
-          )}
-          {/* 이력서가 없으면 열어도 되돌아오기만 한다 → 버튼 자체를 내린다 */}
-          {r && (
-            <form action={openApplicantResume} className="inline">
-              <input type="hidden" name="application_id" value={a.id} />
-              {jobId && <input type="hidden" name="job_id" value={jobId} />}
-              <Button type="submit" variant="outline" size="sm" className={TAP}>이력서 전문 보기 · 인쇄</Button>
-            </form>
           )}
           {open && (
             <>
