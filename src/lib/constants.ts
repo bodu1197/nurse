@@ -36,14 +36,55 @@ export const PUBLIC_ROUTES = ["/", "/hospital"] as const;
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://nurse-app-nine.vercel.app";
 
-// 로그인/회원가입 에러 코드 → 사용자 메시지 (login·signup·OAuth 콜백 공용)
-export const AUTH_ERROR_MESSAGES: Record<string, string> = {
+/** 비밀번호 최소 길이 — 검증(서버)과 안내 문구·input minLength가 같은 값을 쓴다. */
+export const MIN_PASSWORD = 8;
+
+// 재설정 메일 링크로 들어왔다는 표시. 이게 있어야만 비밀번호를 바꿀 수 있다.
+// 값에는 **그 링크의 회원 id**를 담는다 — 존재 여부만 보면 공용 PC에서 남이 심어둔 표시로
+// 다음 사람이 자기 계정 비밀번호를 기존 비번 없이 바꿀 수 있게 된다.
+// __Host- 접두사는 https(secure)에서만 쓸 수 있어 개발에서는 뗀다(서브도메인 주입 방지용).
+export const RECOVERY_COOKIE = process.env.NODE_ENV === "production" ? "__Host-pw_recovery" : "pw_recovery";
+// 표시는 이 값 하나에서 나온다. 실제 링크 만료는 Supabase 쪽 otp_expiry(supabase/config.toml)가 정하므로
+// 그 값을 바꾸면 여기도 같이 바꿔야 한다 — 두 숫자가 어긋나면 안내가 거짓말이 된다.
+export const RECOVERY_HOURS = 1;
+export const RECOVERY_COOKIE_MAX_AGE = RECOVERY_HOURS * 60 * 60;
+
+// 심을 때와 지울 때 **같은 속성**을 써야 한다. __Host- 접두사 쿠키는 Secure 가 빠진 Set-Cookie 를
+// 브라우저가 통째로 무시하므로, 속성을 생략하면 배포에서 "삭제"가 아무 일도 안 한다.
+export const RECOVERY_COOKIE_OPTIONS = {
+  httpOnly: true,
+  sameSite: "lax",
+  secure: process.env.NODE_ENV === "production",
+  path: "/",
+} as const;
+
+/** 입력칸 공용 스타일 */
+export const INPUT_CLASS =
+  "h-12 rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
+
+// 본문 안 링크 공용 스타일(hover 와 focus 를 같이 준다).
+// -my-2 py-2: 글자 크기는 그대로 두고 누를 수 있는 영역만 손가락 크기로 넓힌다.
+const LINK_BASE =
+  "-my-2 rounded py-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2";
+export const LINK_CLASS = `${LINK_BASE} font-semibold text-teal-700`;
+/** 약관·처리방침처럼 덜 강조하는 링크 */
+export const SUBTLE_LINK_CLASS = `${LINK_BASE} underline hover:text-slate-600`;
+
+// 로그인/회원가입/비밀번호 재설정 에러 코드 → 사용자 메시지.
+// satisfies 로 두면 키가 그대로 남아 AuthErrorCode 가 실제 코드 목록이 된다
+// (`: Record<string,string>` 로 적으면 키가 string 으로 뭉개져 오타를 못 잡는다).
+export const AUTH_ERROR_MESSAGES = {
   // 아이디/비밀번호 로그인 + 이메일 회원가입
   missing: "아이디와 비밀번호를 입력해 주세요.",
   email_invalid: "올바른 이메일 형식이 아닙니다.",
   invalid_credentials: "아이디 또는 비밀번호가 올바르지 않습니다.",
-  weak: "비밀번호는 8자 이상이어야 합니다.",
+  weak: `비밀번호는 ${MIN_PASSWORD}자 이상이어야 합니다.`,
   signup_failed: "회원가입에 실패했습니다. 이미 가입된 이메일일 수 있습니다.",
+  // 비밀번호 재설정
+  id_required: "아이디 또는 이메일을 입력해 주세요.",
+  mismatch: "새 비밀번호와 확인이 서로 다릅니다.",
+  link_expired: "재설정 링크가 만료되었거나 이미 사용되었습니다. 다시 받아 주세요.",
+  save: "비밀번호 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
   // SNS
   oauth: "카카오 로그인에 실패했습니다. 다시 시도해 주세요.",
   naver_state: "보안 검증에 실패했습니다. 다시 시도해 주세요.",
@@ -53,4 +94,17 @@ export const AUTH_ERROR_MESSAGES: Record<string, string> = {
   naver_email: "네이버 계정의 이메일 제공에 동의해 주세요.",
   naver_session: "세션 생성에 실패했습니다. 다시 시도해 주세요.",
   naver_verify: "로그인 처리에 실패했습니다. 다시 시도해 주세요.",
-};
+} satisfies Record<string, string>;
+
+/** 실제로 존재하는 에러 코드만. 오타를 컴파일에서 잡으려고 쓴다. */
+export type AuthErrorCode = keyof typeof AUTH_ERROR_MESSAGES;
+
+/** `?error=` 로 받은 문자열 → 사용자 문구. 모르는 코드·프로토타입 키(toString 등)는 null. */
+export function authErrorMessage(code: string | undefined): string | null {
+  if (!code || !Object.hasOwn(AUTH_ERROR_MESSAGES, code)) return null;
+  const table: Record<string, string> = AUTH_ERROR_MESSAGES;
+  return table[code];
+}
+
+/** 에러를 달고 돌아갈 주소. 코드가 타입으로 묶여 있어 오타가 나면 빌드가 깨진다. */
+export const authErrorPath = (path: string, code: AuthErrorCode) => `${path}?error=${code}`;

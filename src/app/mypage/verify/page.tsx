@@ -5,6 +5,7 @@ import Button from "@/components/Button";
 import HospitalPicker from "@/components/HospitalPicker";
 import { getMyProfile } from "@/lib/data/user";
 import { getMyHospital } from "@/lib/data/jobs";
+import { INPUT_CLASS } from "@/lib/constants";
 import { verifyHospitalBusiness } from "../actions";
 
 export const metadata = { title: "병원 사업자 인증 — 널스넷", robots: { index: false } };
@@ -30,8 +31,6 @@ export default async function VerifyPage({
   const verified = p.businessVerified || ok === "1";
   const myHosp = await getMyHospital();
   const verifiedAt = p.businessVerifiedAt ? new Date(p.businessVerifiedAt).toISOString().slice(0, 10).replace(/-/g, ".") : null;
-
-  const inputClass = "h-12 rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
 
   return (
     <HospitalShell displayName={p.displayName} active="/mypage/verify">
@@ -69,15 +68,15 @@ export default async function VerifyPage({
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="b_no" className="text-sm font-medium text-slate-700">사업자등록번호</label>
-                <input id="b_no" name="b_no" inputMode="numeric" required placeholder="숫자 10자리 (예: 1234567890)" className={inputClass} />
+                <input id="b_no" name="b_no" inputMode="numeric" required placeholder="숫자 10자리 (예: 1234567890)" className={INPUT_CLASS} />
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="p_nm" className="text-sm font-medium text-slate-700">대표자명</label>
-                <input id="p_nm" name="p_nm" required placeholder="사업자등록증상 대표자명" className={inputClass} />
+                <input id="p_nm" name="p_nm" required placeholder="사업자등록증상 대표자명" className={INPUT_CLASS} />
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="start_dt" className="text-sm font-medium text-slate-700">개업일자</label>
-                <input id="start_dt" name="start_dt" type="date" required className={inputClass} />
+                <input id="start_dt" name="start_dt" type="date" required className={INPUT_CLASS} />
               </div>
               <SubmitButton pendingText="인증 확인 중…">사업자 인증</SubmitButton>
             </form>

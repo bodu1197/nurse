@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { authErrorPath, type AuthErrorCode } from "@/lib/constants";
 
 interface NaverToken {
   access_token?: string;
@@ -23,8 +24,9 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
-  const fail = (r: string) => {
-    const res = NextResponse.redirect(`${origin}/login?error=${r}`);
+  // 코드를 타입으로 묶는다 — 오타가 나면 화면에 안내 없이 빈 에러만 뜨는데 그걸 컴파일에서 잡는다.
+  const fail = (r: AuthErrorCode) => {
+    const res = NextResponse.redirect(`${origin}${authErrorPath("/login", r)}`);
     res.cookies.delete("naver_oauth_state"); // 실패 시에도 일회용 state 무효화
     return res;
   };
