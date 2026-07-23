@@ -15,7 +15,7 @@ export default async function LoginPage({
 }: Readonly<{ searchParams: Promise<{ error?: string; notice?: string; next?: string }> }>) {
   const { error, notice, next } = await searchParams;
   const message = error ? (authErrorMessage(error) ?? "로그인에 실패했습니다. 다시 시도해 주세요.") : null;
-  const noticeMsg = notice === "apply" ? "지원하려면 먼저 로그인하세요." : null;
+  const noticeMsg = notice === "apply" ? "지원하려면 먼저 로그인하세요." : notice === "board" ? "게시판을 이용하려면 먼저 로그인하세요." : null;
 
   return (
     <>

@@ -39,9 +39,9 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
         </Link>
 
         <nav className="ml-7 hidden items-center gap-5 text-sm font-medium text-slate-600 sm:flex">
-          <Link href="/" className="hover:text-teal-700">홈</Link>
-          <Link href="/jobs" className="hover:text-teal-700">채용공고</Link>
-          <Link href="/reviews" className="hover:text-teal-700">병원 리뷰</Link>
+          {[["/jobs", "채용공고"], ["/talent", "인재정보"], ["/reviews", "리뷰"], ["/board", "게시판"]].map(([href, label]) => (
+            <Link key={href} href={href} className="rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">{label}</Link>
+          ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">

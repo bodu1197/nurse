@@ -16,8 +16,10 @@ export const POPULAR_SEARCHES = [
 
 // 헤더 햄버거 메뉴 — 준비중 스텁(급여/회사소개)은 구현 전까지 제외(새는 링크 방지)
 export const HEADER_MENU = [
-  { label: "채용 검색", href: "/jobs" },
-  { label: "병원 리뷰", href: "/reviews" },
+  { label: "채용공고", href: "/jobs" },
+  { label: "인재정보", href: "/talent" },
+  { label: "리뷰", href: "/reviews" },
+  { label: "게시판", href: "/board" },
   { label: "회원가입", href: "/signup" },
   { label: "병원 공고등록", href: "/hospital" },
 ] as const;
@@ -25,13 +27,15 @@ export const HEADER_MENU = [
 // 푸터 네비게이션
 export const FOOTER_NAV = [
   { label: "채용공고 찾아보기", href: "/jobs" },
+  { label: "인재정보", href: "/talent" },
+  { label: "간호사 게시판", href: "/board" },
   { label: "병원 리뷰", href: "/reviews" },
   { label: "병원 서비스", href: "/hospital" },
 ] as const;
 
 // sitemap 용 — 실제 색인(index) 대상만. noindex 페이지(jobs/reviews/about/terms/privacy 시드·스텁)는
 // sitemap/noindex 충돌 방지를 위해 제외. 콘텐츠/실데이터 오픈 시 noindex 해제와 함께 재등재.
-export const PUBLIC_ROUTES = ["/", "/hospital"] as const;
+export const PUBLIC_ROUTES = ["/", "/hospital", "/talent", "/board"] as const;
 
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://nurse-app-nine.vercel.app";
