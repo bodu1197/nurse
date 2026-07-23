@@ -22,7 +22,7 @@ export async function createPost(formData: FormData) {
     console.error("createPost failed:", error?.message);
     redirect("/board/new?error=save");
   }
-  redirect(`/board/${data.id}`);
+  redirect(`/board?p=${data.id}`);
 }
 
 export async function deletePost(formData: FormData) {
@@ -33,7 +33,7 @@ export async function deletePost(formData: FormData) {
   if (!id) redirect("/board");
   // RLS(board_posts_delete)가 본인 글만 지운다. 반환 행으로 실제 삭제를 확인한다.
   const { data } = await supabase.from("board_posts").delete().eq("id", id).select("id");
-  if (!data?.length) redirect(`/board/${id}?error=delete`);
+  if (!data?.length) redirect(`/board?p=${id}&error=delete`);
   redirect("/board?ok=deleted");
 }
 
@@ -41,16 +41,16 @@ export async function createComment(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   const postId = String(formData.get("post_id") ?? "");
-  if (!user) redirect(`/login?notice=board&next=/board/${postId}`);
+  if (!user) redirect(`/login?notice=board&next=${encodeURIComponent(`/board?p=${postId}`)}`);
   const body = String(formData.get("body") ?? "").trim().slice(0, COMMENT_MAX);
-  if (!postId || !body) redirect(`/board/${postId}?error=empty`);
+  if (!postId || !body) redirect(`/board?p=${postId}&error=empty`);
 
   const { error } = await supabase.from("board_comments").insert({ post_id: postId, author_id: user.id, body });
   if (error) {
     console.error("createComment failed:", error.message);
-    redirect(`/board/${postId}?error=save`);
+    redirect(`/board?p=${postId}&error=save`);
   }
-  redirect(`/board/${postId}#comments`);
+  redirect(`/board?p=${postId}#comments`);
 }
 
 export async function deleteComment(formData: FormData) {
@@ -61,5 +61,5 @@ export async function deleteComment(formData: FormData) {
   const postId = String(formData.get("post_id") ?? "");
   // RLS(board_comments_delete)가 본인 댓글만 지운다. 남의 댓글이면 0행이라 조용히 넘어간다.
   if (id) await supabase.from("board_comments").delete().eq("id", id).eq("author_id", user.id);
-  redirect(`/board/${postId}#comments`);
+  redirect(`/board?p=${postId}#comments`);
 }

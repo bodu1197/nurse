@@ -20,7 +20,7 @@ type ResumeRow = Database["public"]["Tables"]["resumes"]["Row"];
  * 연락처는 광고 병원에게만 별도로 붙인다(revealContacts).
  */
 const PUBLIC_FIELDS = [
-  "profile_id", "resume_title", "residence_region", "license_type", "license_year",
+  "profile_id", "resume_title", "residence_region", "license_type", "license_year", "license_reported",
   "certifications", "apn_field", "education_level", "education", "graduation_status",
   "career_level", "experience_years", "has_integrated_care", "can_charge",
   "shift_types", "night_available", "desired_location", "specialties", "desired_hospital_types",
@@ -29,6 +29,32 @@ const PUBLIC_FIELDS = [
 
 export type PublicTalent = Pick<ResumeRow, (typeof PUBLIC_FIELDS)[number]>;
 const PUBLIC_COLS = PUBLIC_FIELDS.join(",");
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type WorkRow = Database["public"]["Tables"]["work_experiences"]["Row"];
+const WORK_PUBLIC_FIELDS = [
+  "id", "hospital_name", "hospital_type", "bed_range", "department",
+  "start_ym", "end_ym", "is_current", "shift_type", "position", "duties", "sort_order",
+] as const satisfies readonly (keyof WorkRow)[];
+export type PublicWork = Pick<WorkRow, (typeof WORK_PUBLIC_FIELDS)[number]>;
+
+export type PublicTalentDetail = PublicTalent & { work: PublicWork[] };
+
+// 인재 상세(우측 패널) — 안전 컬럼만. 이름·전화는 여기서도 빼고, 광고 병원엔 revealContacts로 따로 붙인다.
+// work_experiences는 RLS가 광고 병원만 열어주므로 admin으로 조회하되(직무 이력=공개 이력서 내용) 이름·전화는 없다.
+export async function getPublicTalent(profileId: string): Promise<PublicTalentDetail | null> {
+  if (!UUID_RE.test(profileId)) return null;
+  const admin = createAdminClient();
+  const { data: resume } = await admin
+    .from("resumes").select(PUBLIC_COLS).eq("profile_id", profileId).eq("is_public", true)
+    .not("name", "is", null).maybeSingle<PublicTalent>();
+  if (!resume) return null;
+  const { data: work } = await admin
+    .from("work_experiences").select(WORK_PUBLIC_FIELDS.join(",")).eq("resume_id", profileId)
+    .order("sort_order").returns<PublicWork[]>();
+  return { ...resume, work: work ?? [] };
+}
 
 // 광고 노출 중인 공고가 하나라도 있으면 열람 가능.
 export async function isAdvertiser(): Promise<boolean> {
