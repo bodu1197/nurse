@@ -116,7 +116,7 @@ export default async function JobsPage({
                   <li key={job.id} className="relative">
                     <a href={href(job.id)} className={`block rounded-lg border bg-white p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${on ? "border-teal-600 ring-1 ring-teal-600" : "border-slate-200 hover:border-slate-300 hover:shadow-sm"}`}>
                       <h3 className="font-semibold leading-snug text-slate-900">{job.title}</h3>
-                      <div className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? "병원 미상"}</div>
+                      <div className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? job.company_name ?? "병원 미상"}</div>
                       <div className="text-sm text-slate-500">{job.location}</div>
                       <div className="mt-2 flex flex-wrap items-center gap-2 pr-10 text-xs">
                         {job.salary_text && <span className="text-slate-500">{job.salary_text}</span>}

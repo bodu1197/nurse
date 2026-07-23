@@ -20,6 +20,8 @@ const JOB_FIELDS = [
   "id", "title", "status", "specialty", "location", "employment_type", "salary_text", "benefits",
   "description", "source", "external_url", "is_featured", "posted_at", "deadline", "featured_until",
   "recruit_count", "shift_type", "manager_name", "manager_phone", "apply_methods", "apply_email", "apply_detail",
+  // 워크넷 등 명부에 없는 광고의 회사명(구인 광고 자체가 갖는 텍스트). 명부 연결(hospital) 없을 때 표시명으로 쓴다.
+  "company_name",
 ] as const satisfies readonly (keyof JobsRow)[];
 
 // source·status 는 생성 타입이 string 이라 실제 허용값(유니온)으로 좁혀 쓴다.

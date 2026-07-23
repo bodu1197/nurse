@@ -98,10 +98,15 @@ export default function JobDetail({ job, profile, applied, saved, selfHref, back
         </form>
         <Title className="pr-24 text-2xl font-bold leading-snug text-slate-900">{job.title}</Title>
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <a href="/reviews" className="inline-flex items-center gap-1 font-medium text-teal-700 hover:underline">
-            {job.hospital?.name ?? "병원 미상"}
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M7 17L17 7M7 7h10v10" /></svg>
-          </a>
+          {job.hospital ? (
+            <a href="/reviews" className="inline-flex items-center gap-1 font-medium text-teal-700 hover:underline">
+              {job.hospital.name}
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M7 17L17 7M7 7h10v10" /></svg>
+            </a>
+          ) : (
+            // 워크넷 등 명부에 없는 광고 — 회사명만 표시(리뷰 대상 아님).
+            <span className="font-medium text-slate-700">{job.company_name ?? "병원 미상"}</span>
+          )}
           {Number(job.hospital?.rating_avg) > 0 && (
             <>
               <Stars rating={Number(job.hospital?.rating_avg)} />

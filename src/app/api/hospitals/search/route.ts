@@ -12,6 +12,8 @@ export async function GET(request: Request) {
     .from("hospitals")
     .select("id, name, region, address")
     .eq("is_test", false) // 관리자 테스트 병원 제외
+    // 명부는 심사평가원(public_data)+직접등록(direct)만. 워크넷은 "구인 광고"라 병원 명부가 아니다.
+    .in("source", ["public_data", "direct"])
     .ilike("name", `%${q}%`)
     .order("name", { ascending: true })
     .limit(10);

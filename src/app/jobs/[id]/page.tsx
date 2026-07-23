@@ -23,7 +23,7 @@ async function getLiveJob(id: string, now: number): Promise<JobRow | null> {
 
 // 공고 한 줄 요약 — meta description과 구조화 데이터가 같은 문장을 쓴다.
 const jobSummary = (job: JobRow) =>
-  [job.hospital?.name, job.location, job.employment_type, job.salary_text].filter(Boolean).join(" · ");
+  [job.hospital?.name ?? job.company_name, job.location, job.employment_type, job.salary_text].filter(Boolean).join(" · ");
 
 // 검색엔진이 아는 고용형태 값. 화면 라벨(정규직 등)을 그대로 내면 인식하지 못한다.
 const EMPLOYMENT_TYPE: Record<string, string> = {
@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
   if (!job) return { title: "공고를 찾을 수 없습니다 — 널스넷", robots: NOINDEX };
   const description = jobSummary(job).slice(0, 150);
   return {
-    title: `${job.title} — ${job.hospital?.name ?? "병원"} | 널스넷`,
+    title: `${job.title} — ${job.hospital?.name ?? job.company_name ?? "병원"} | 널스넷`,
     description,
     alternates: { canonical: `/jobs/${job.id}` },
     // 자식이 openGraph를 선언하면 루트 값이 통째로 대체된다 → siteName·locale을 여기서 다시 준다.
@@ -78,7 +78,7 @@ export default async function JobPage({
     datePosted: job.posted_at,
     validThrough: job.source === "direct" ? new Date(listingEnd(job, now)).toISOString() : job.deadline ?? undefined,
     employmentType: job.employment_type ? EMPLOYMENT_TYPE[job.employment_type] : undefined,
-    hiringOrganization: { "@type": "Organization", name: job.hospital?.name ?? "병원" },
+    hiringOrganization: { "@type": "Organization", name: job.hospital?.name ?? job.company_name ?? "병원" },
     jobLocation: {
       "@type": "Place",
       address: {

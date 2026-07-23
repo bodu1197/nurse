@@ -276,6 +276,7 @@ export type Database = {
           apply_method: string
           apply_methods: string[]
           benefits: string[]
+          company_name: string | null
           created_at: string
           deadline: string | null
           description: string | null
@@ -284,7 +285,7 @@ export type Database = {
           external_id: string | null
           external_url: string | null
           featured_until: string | null
-          hospital_id: string
+          hospital_id: string | null
           id: string
           is_featured: boolean
           location: string | null
@@ -307,6 +308,7 @@ export type Database = {
           apply_method?: string
           apply_methods?: string[]
           benefits?: string[]
+          company_name?: string | null
           created_at?: string
           deadline?: string | null
           description?: string | null
@@ -315,7 +317,7 @@ export type Database = {
           external_id?: string | null
           external_url?: string | null
           featured_until?: string | null
-          hospital_id: string
+          hospital_id?: string | null
           id?: string
           is_featured?: boolean
           location?: string | null
@@ -338,6 +340,7 @@ export type Database = {
           apply_method?: string
           apply_methods?: string[]
           benefits?: string[]
+          company_name?: string | null
           created_at?: string
           deadline?: string | null
           description?: string | null
@@ -346,7 +349,7 @@ export type Database = {
           external_id?: string | null
           external_url?: string | null
           featured_until?: string | null
-          hospital_id?: string
+          hospital_id?: string | null
           id?: string
           is_featured?: boolean
           location?: string | null

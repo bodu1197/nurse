@@ -168,7 +168,7 @@ export async function createJob(formData: FormData) {
 // 소유 공고인지 확인(병원 소유주 == 본인). 아니면 null.
 async function ownedJobHospital(admin: ReturnType<typeof createAdminClient>, jobId: string, userId: string) {
   const { data: job } = await admin.from("jobs").select("hospital_id").eq("id", jobId).maybeSingle();
-  if (!job) return null;
+  if (!job?.hospital_id) return null; // 워크넷 광고 등 명부 미연결 공고는 소유 대상이 아니다.
   const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region, free_credits").eq("id", job.hospital_id).maybeSingle();
   if (!hosp || hosp.owner_profile_id !== userId) return null;
   return hosp;

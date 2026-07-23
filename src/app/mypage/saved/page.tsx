@@ -41,7 +41,7 @@ export default async function SavedPage() {
                       <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">마감</span>
                     </span>
                   )}
-                  <div className="text-sm text-slate-500">{j.hospital?.name ?? "병원 미상"} · {j.location ?? "-"}{j.salary_text ? " · " + j.salary_text : ""}</div>
+                  <div className="text-sm text-slate-500">{j.hospital?.name ?? j.company_name ?? "병원 미상"} · {j.location ?? "-"}{j.salary_text ? " · " + j.salary_text : ""}</div>
                   {/* 마감 공고는 지우는 것 말고 할 게 없다 → 같은 조건으로 다시 찾을 길을 준다 */}
                   {!open && (
                     <Link href={`/jobs?${new URLSearchParams({ ...(j.specialty ? { q: j.specialty } : {}), ...(j.location ? { l: j.location } : {}) })}`}
