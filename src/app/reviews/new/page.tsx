@@ -4,6 +4,7 @@ import SubmitButton from "@/components/SubmitButton";
 import HospitalPicker from "@/components/HospitalPicker";
 import StarRating from "@/components/StarRating";
 import { getMyProfile } from "@/lib/data/user";
+import { getHospital } from "@/lib/data/reviews";
 import { createReview } from "../actions";
 
 export const metadata = { title: "병원 리뷰 작성 — 널스넷", robots: { index: false } };
@@ -20,10 +21,12 @@ const label = "text-sm font-medium text-slate-700";
 
 export default async function NewReviewPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ error?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ error?: string; hospital?: string }> }>) {
   const p = await getMyProfile();
   if (!p) redirect("/login");
-  const { error } = await searchParams;
+  const { error, hospital } = await searchParams;
+  // 리뷰 목록에서 "이 병원 리뷰 작성"으로 넘어오면 병원이 미리 선택돼 있다.
+  const initialHospital = hospital ? await getHospital(hospital) : null;
 
   return (
     <>
@@ -42,7 +45,7 @@ export default async function NewReviewPage({
         <form action={createReview} className="mt-6 flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <span className={label}>병원 선택 <span className="text-red-500">*</span></span>
-            <HospitalPicker />
+            <HospitalPicker initial={initialHospital} />
           </div>
           <div className="flex flex-col gap-1">
             <span className={label}>별점 <span className="text-red-500">*</span></span>
