@@ -5,15 +5,18 @@ import SubmitButton from "@/components/SubmitButton";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import MasterDetail, { ListCard, Pager } from "@/components/MasterDetail";
 import { getCurrentUser } from "@/lib/data/user";
+import { getCommunityAccess } from "@/lib/data/community";
+import CommunityGate from "@/components/CommunityGate";
 import { getBoardPosts, getBoardPost, currentUserId, BOARD_PER_PAGE } from "@/lib/data/board";
 import { fmtDay } from "@/lib/date";
 import { messageFor } from "@/lib/constants";
 import { createComment, deleteComment, deletePost } from "./actions";
 
+// 이력서를 등록한 간호사 회원 전용(로그인 없이는 게이트만 보임) → 색인 제외.
 export const metadata = {
   title: "간호사 게시판 — 널스넷",
   description: "간호사끼리 정보와 고민을 나누는 커뮤니티 게시판.",
-  alternates: { canonical: "/board" },
+  robots: { index: false },
 };
 
 const ERRORS: Record<string, string> = {
@@ -89,6 +92,10 @@ async function PostPanel({ id, uid, loggedIn, error }: Readonly<{ id: string; ui
 export default async function BoardPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ page?: string; ok?: string; p?: string; error?: string }> }>) {
+  // 게시판은 이력서를 등록한 간호사 회원만 볼 수 있다(보기·읽기·작성 전부).
+  const access = await getCommunityAccess();
+  if (!access.ok) return <CommunityGate reason={access.reason} next="/board" />;
+
   const [{ page, ok, p: selectedId, error }, user, uid] = await Promise.all([searchParams, getCurrentUser(), currentUserId()]);
   const pageNum = Math.max(1, Number(page) || 1);
   const { posts, total } = await getBoardPosts(pageNum);

@@ -4,6 +4,8 @@ import Button from "@/components/Button";
 import MasterDetail, { ListCard, Pager } from "@/components/MasterDetail";
 import HospitalSearchBox from "@/components/HospitalSearchBox";
 import { getMyProfile } from "@/lib/data/user";
+import { getCommunityAccess } from "@/lib/data/community";
+import CommunityGate from "@/components/CommunityGate";
 import {
   getReviews, getReview, getHospital, getHospitalReviews, REVIEWS_PER_PAGE, type ReviewRow,
 } from "@/lib/data/reviews";
@@ -38,6 +40,10 @@ function ReviewDetail({ r }: Readonly<{ r: ReviewRow }>) {
 export default async function ReviewsPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ ok?: string; page?: string; r?: string; hospital?: string }> }>) {
+  // 리뷰는 이력서를 등록한 간호사 회원만 볼 수 있다(보기·읽기·작성 전부).
+  const access = await getCommunityAccess();
+  if (!access.ok) return <CommunityGate reason={access.reason} next="/reviews" />;
+
   const [{ ok, page, r: selectedId, hospital: hospitalId }, profile] = await Promise.all([searchParams, getMyProfile()]);
   const canWrite = !!profile;
 

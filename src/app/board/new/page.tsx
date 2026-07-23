@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SubmitButton from "@/components/SubmitButton";
 import { getMyProfile } from "@/lib/data/user";
+import { getCommunityAccess } from "@/lib/data/community";
+import CommunityGate from "@/components/CommunityGate";
 import { INPUT_CLASS, LINK_CLASS, messageFor } from "@/lib/constants";
 import { createPost } from "../actions";
 
@@ -16,8 +17,11 @@ const ERRORS: Record<string, string> = {
 export default async function NewPostPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ error?: string }> }>) {
+  // 글쓰기는 이력서를 등록한 간호사 회원만.
+  const access = await getCommunityAccess();
+  if (!access.ok) return <CommunityGate reason={access.reason} next="/board/new" />;
   const p = await getMyProfile();
-  if (!p) redirect("/login?notice=board&next=/board/new");
+  if (!p) return <CommunityGate reason="guest" next="/board/new" />;
   const { error } = await searchParams;
 
   return (

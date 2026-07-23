@@ -1,9 +1,10 @@
-import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SubmitButton from "@/components/SubmitButton";
 import HospitalPicker from "@/components/HospitalPicker";
 import StarRating from "@/components/StarRating";
 import { getMyProfile } from "@/lib/data/user";
+import { getCommunityAccess } from "@/lib/data/community";
+import CommunityGate from "@/components/CommunityGate";
 import { getHospital } from "@/lib/data/reviews";
 import { createReview } from "../actions";
 
@@ -12,6 +13,7 @@ export const metadata = { title: "병원 리뷰 작성 — 널스넷", robots: {
 const ERR: Record<string, string> = {
   invalid: "병원·별점·내용(10자 이상)을 확인해 주세요.",
   nurse_only: "간호사 회원만 리뷰를 작성할 수 있습니다.",
+  no_resume: "이력서를 등록한 간호사 회원만 리뷰를 작성할 수 있습니다.",
   dup: "이미 이 병원에 리뷰를 작성하셨습니다.",
   save: "저장에 실패했습니다. 다시 시도해 주세요.",
 };
@@ -22,8 +24,11 @@ const label = "text-sm font-medium text-slate-700";
 export default async function NewReviewPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ error?: string; hospital?: string }> }>) {
+  // 리뷰 작성은 이력서를 등록한 간호사 회원만.
+  const access = await getCommunityAccess();
+  if (!access.ok) return <CommunityGate reason={access.reason} next="/reviews/new" />;
   const p = await getMyProfile();
-  if (!p) redirect("/login");
+  if (!p) return <CommunityGate reason="guest" next="/reviews/new" />;
   const { error, hospital } = await searchParams;
   // 리뷰 목록에서 "이 병원 리뷰 작성"으로 넘어오면 병원이 미리 선택돼 있다.
   const initialHospital = hospital ? await getHospital(hospital) : null;

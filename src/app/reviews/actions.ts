@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { hasResume } from "@/lib/data/community";
 
 // 병원 리뷰 작성 (간호사만). RLS로 author_id=본인 강제. 병원당 1리뷰(unique).
 export async function createReview(formData: FormData) {
@@ -13,8 +14,11 @@ export async function createReview(formData: FormData) {
   // DB(reviews_insert_own 정책)에서도 간호사만 허용 — anon key가 공개라 앱 게이트만으론 우회된다.
   // 여기만 보기 전환(viewAsRole)을 쓰지 않는다 — 관리자의 테스트 리뷰가 실제 병원 평점에 집계되면 안 되므로
   // DB상 실제 간호사만 통과시킨다.
+  // getCommunityAccess(보기전환 role)를 쓰지 않는다 — 관리자의 view_as 리뷰가 실제 평점에 집계되면 안 되므로
+  // 여기선 DB상 실제 역할만 본다(평점 오염 방지). 이력서 요건만 공용 hasResume로 재사용.
   const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
   if (prof?.role !== "nurse") redirect("/reviews/new?error=nurse_only");
+  if (!(await hasResume(user.id))) redirect("/reviews/new?error=no_resume");
 
   const hospitalId = String(formData.get("hospital_id") ?? "");
   const rating = Number(formData.get("rating") ?? 0);
