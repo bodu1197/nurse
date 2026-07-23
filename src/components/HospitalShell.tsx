@@ -7,6 +7,7 @@ const NAV = [
   { href: "/mypage/jobs/new", label: "공고 등록" },
   { href: "/mypage/jobs", label: "공고 관리" },
   { href: "/mypage/applicants", label: "받은 지원자" },
+  { href: "/mypage/talent", label: "인재 검색" },
   { href: "/mypage/verify", label: "사업자 인증" },
 ];
 

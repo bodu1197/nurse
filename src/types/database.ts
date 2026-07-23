@@ -427,7 +427,6 @@ export type Database = {
           experience_years: number | null
           intro: string | null
           is_public: boolean
-          license_no: string | null
           license_type: string | null
           name: string | null
           phone: string | null
@@ -444,7 +443,6 @@ export type Database = {
           experience_years?: number | null
           intro?: string | null
           is_public?: boolean
-          license_no?: string | null
           license_type?: string | null
           name?: string | null
           phone?: string | null
@@ -461,7 +459,6 @@ export type Database = {
           experience_years?: number | null
           intro?: string | null
           is_public?: boolean
-          license_no?: string | null
           license_type?: string | null
           name?: string | null
           phone?: string | null

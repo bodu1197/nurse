@@ -255,7 +255,6 @@ export async function saveResume(formData: FormData) {
     name: s("name"),
     phone: s("phone"),
     license_type: s("license_type"),
-    license_no: s("license_no"),
     experience_years: ey !== null && Number.isFinite(ey) ? ey : null,
     education: s("education"),
     specialties,

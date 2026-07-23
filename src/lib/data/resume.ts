@@ -4,7 +4,6 @@ export type Resume = {
   name: string | null;
   phone: string | null;
   license_type: string | null;
-  license_no: string | null;
   experience_years: number | null;
   education: string | null;
   specialties: string[];
@@ -16,7 +15,7 @@ export type Resume = {
 };
 
 const COLS =
-  "name,phone,license_type,license_no,experience_years,education,specialties,desired_location,desired_employment_type,desired_salary,intro,is_public";
+  "name,phone,license_type,experience_years,education,specialties,desired_location,desired_employment_type,desired_salary,intro,is_public";
 
 export async function getMyResume(): Promise<Resume | null> {
   const supabase = await createClient();

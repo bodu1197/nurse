@@ -25,7 +25,7 @@ function ResumeView({ r }: Readonly<{ r: Resume }>) {
   return (
     <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="font-bold text-slate-900">저장된 이력서 <span className="text-sm font-normal text-slate-500">(병원에 보이는 내용)</span></h2>
+        <h2 className="font-bold text-slate-900">저장된 이력서 <span className="text-sm font-normal text-slate-500">({r.is_public ? "병원에 보이는 내용" : "나만 보는 중"})</span></h2>
         <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${r.is_public ? "bg-teal-100 text-teal-800" : "bg-slate-100 text-slate-500"}`}>
           {r.is_public ? "공개 중" : "비공개"}
         </span>
@@ -62,7 +62,7 @@ export default async function ResumePage({
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <a href="/mypage" className="text-sm text-teal-700 hover:underline">← 마이페이지</a>
         <h1 className="mt-3 text-2xl font-bold text-slate-900">내 이력서</h1>
-        <p className="mt-1 text-sm text-slate-500">이력서는 무료이며, 공개로 설정하면 병원이 열람하고 채용 제안을 보낼 수 있습니다.</p>
+        <p className="mt-1 text-sm text-slate-500">이력서는 무료입니다. 공개로 설정하면 광고 중인 병원이 이름·연락처를 포함해 열람할 수 있고, 언제든 비공개로 되돌릴 수 있습니다.</p>
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서가 저장되었습니다.</div>}
         {error && <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">저장에 실패했습니다. 다시 시도해 주세요.</div>}
@@ -131,9 +131,15 @@ export default async function ResumePage({
             <label htmlFor="intro" className={label}>자기소개</label>
             <textarea id="intro" name="intro" rows={6} defaultValue={r?.intro ?? ""} placeholder="경력, 강점, 희망 근무조건 등을 자유롭게 작성하세요." className="rounded-xl border border-slate-300 p-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" name="is_public" defaultChecked={r?.is_public ?? true} className="h-4 w-4 rounded border-slate-300 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600" />
-            이력서 공개 (병원이 열람·제안 가능)
+          {/* 공개 = 이름·연락처가 병원에 그대로 보인다. 기본값을 켜두지 않고, 무엇이 공개되는지 명시한다. */}
+          <label className="flex items-start gap-2 text-sm text-slate-700">
+            <input type="checkbox" name="is_public" defaultChecked={r?.is_public ?? false} className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600" />
+            <span>
+              이력서 공개
+              <span className="mt-0.5 block text-xs text-slate-500">
+                광고 중인 병원이 <b className="font-semibold text-slate-700">이름·연락처를 포함한</b> 이력서를 열람하고 채용 제안을 보낼 수 있습니다. 체크를 해제하면 즉시 비공개로 바뀝니다.
+              </span>
+            </span>
           </label>
           <SubmitButton pendingText="저장 중…">{r ? "이력서 수정" : "이력서 저장"}</SubmitButton>
         </form>
