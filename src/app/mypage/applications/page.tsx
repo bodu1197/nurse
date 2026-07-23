@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import SiteHeader from "@/components/SiteHeader";
+import NurseShell from "@/components/NurseShell";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
@@ -19,10 +19,7 @@ export default async function ApplicationsPage({
   const [{ ok, error }, apps] = await Promise.all([searchParams, getMyApplications()]);
 
   return (
-    <>
-      <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <a href="/mypage" className="text-sm text-teal-700 hover:underline">← 마이페이지</a>
+    <NurseShell displayName={p.displayName} active="/mypage/applications">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">지원 내역</h1>
         <p className="mt-1 text-sm text-slate-500">병원이 이력서를 열람하거나 결과를 남기면 여기 상태가 바뀝니다.</p>
 
@@ -74,7 +71,6 @@ export default async function ApplicationsPage({
             최근 {LIST_LIMIT}건만 표시했습니다.
           </p>
         )}
-      </main>
-    </>
+    </NurseShell>
   );
 }

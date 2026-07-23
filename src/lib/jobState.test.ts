@@ -32,13 +32,16 @@ test("노출 중 판정", () => {
 
 // 목록에서 걸러진 공고가 상세 링크로는 열리면 "지원했는데 마감이었다" 사고가 난다.
 test("구직자에게 보일 공고 — 목록 필터와 같은 규칙", () => {
-  const direct = { source: "direct", featured_until: null, deadline: null };
+  const direct = { status: "open", source: "direct", featured_until: null, deadline: null } as const;
   assert.equal(isOpenToSeekers({ ...direct, posted_at: ago(1) }, NOW), true);
   assert.equal(isOpenToSeekers({ ...direct, posted_at: ago(8) }, NOW), false);
   // 무료 기간이 끝나도 광고 중이면 계속 보인다
   assert.equal(isOpenToSeekers({ ...direct, posted_at: ago(30), featured_until: later(3) }, NOW), true);
+  // 병원이 마감한 공고는 저장 목록에 남아 있어도 열리면 안 된다
+  assert.equal(isOpenToSeekers({ ...direct, status: "closed", posted_at: ago(1) }, NOW), false);
+  assert.equal(isOpenToSeekers({ ...direct, status: "hidden", posted_at: ago(1) }, NOW), false);
 
-  const worknet = { source: "worknet", posted_at: ago(100), featured_until: null };
+  const worknet = { status: "open", source: "worknet", posted_at: ago(100), featured_until: null } as const;
   // 외부 수집 공고는 게시 후 7일 규칙을 받지 않는다(마감일만 본다)
   assert.equal(isOpenToSeekers({ ...worknet, deadline: null }, NOW), true);
   assert.equal(isOpenToSeekers({ ...worknet, deadline: "2026-07-23" }, NOW), true); // 마감 당일은 아직 유효

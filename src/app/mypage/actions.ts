@@ -352,7 +352,9 @@ export async function setJobStatus(formData: FormData) {
   const status = String(formData.get("status") ?? "");
   // 화면에서 바꿀 수 있는 것은 게시/마감 둘뿐 — 타입가드로 좁혀서 임의 문자열이 DB로 넘어가지 않게 한다.
   if (!id || !isSettableJobStatus(status)) redirect("/mypage/jobs");
-  const { error } = await supabase.from("jobs").update({ status }).eq("id", id);
+  // 결제 전(draft) 공고는 이 버튼의 대상이 아니다. 막아두지 않으면 draft → closed 로 넘어가,
+  // "closed = 한 번은 공개됐던 공고"라는 전제(저장 목록의 마감 공고 복원)가 깨진다.
+  const { error } = await supabase.from("jobs").update({ status }).eq("id", id).in("status", ["open", "closed"]);
   if (error) redirect("/mypage/jobs?error=1");
   redirect("/mypage/jobs?ok=1");
 }

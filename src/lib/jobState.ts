@@ -35,13 +35,14 @@ export const isSettableJobStatus = (s: string): s is (typeof JOB_SETTABLE)[numbe
 
 /**
  * 구직자에게 지금 보여줄 공고인가 — 목록(getJobs)의 SQL 필터와 **같은 규칙**을 코드로 옮긴 것.
- * 목록·상세·저장한 공고가 어긋나면 "목록엔 없는데 링크로는 열리는" 공고가 생긴다.
- * (status 는 RLS가 이미 open 만 내려주므로 여기서는 보지 않는다.)
+ * 목록·상세·저장한 공고·지원 서버검증이 어긋나면 "목록엔 없는데 링크로는 열리는" 공고가 생긴다.
+ * status 도 본다 — 저장 목록은 마감된 공고를 서버 권한으로 되살려 보여주므로 RLS만 믿을 수 없다.
  */
 export function isOpenToSeekers(
-  job: Readonly<{ source: string; posted_at: string; featured_until: string | null; deadline: string | null }>,
+  job: Readonly<{ status: JobStatus; source: string; posted_at: string; featured_until: string | null; deadline: string | null }>,
   now: number,
 ): boolean {
+  if (job.status !== "open") return false;
   if (job.source === "direct" && listingEnd(job, now) <= now) return false;
   return !(job.deadline && job.deadline < todayKst(now));
 }

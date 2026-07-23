@@ -1,33 +1,31 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/data/user";
+import { LIST_LIMIT } from "@/lib/data/applications";
 import { FREE_LISTING_MS, DAY_MS, todayKst } from "@/lib/date";
 import type { JobStatus } from "@/lib/jobState";
+import type { Database } from "@/types/database";
 
 export type JobSource = "direct" | "worknet" | "public_data" | "partner" | "crawl";
 
-export type JobRow = {
-  id: string;
-  title: string;
-  specialty: string | null;
-  location: string | null;
-  employment_type: string | null;
-  salary_text: string | null;
-  benefits: string[];
-  description: string | null;
+type JobsRow = Database["public"]["Tables"]["jobs"]["Row"];
+
+/**
+ * 공고 화면이 쓰는 컬럼 — 타입과 select 문자열을 **이 배열 하나에서** 뽑는다.
+ * 둘이 따로 있으면 여기서 컬럼을 빼도 컴파일은 통과하고 값만 undefined 가 된다.
+ * 특히 status 는 노출 판정(isOpenToSeekers)이 쓰므로, 빠지면 전 공고가 조용히 '마감'이 된다.
+ */
+const JOB_FIELDS = [
+  "id", "title", "status", "specialty", "location", "employment_type", "salary_text", "benefits",
+  "description", "source", "external_url", "is_featured", "posted_at", "deadline", "featured_until",
+  "recruit_count", "shift_type", "manager_name", "manager_phone", "apply_methods", "apply_email", "apply_detail",
+] as const satisfies readonly (keyof JobsRow)[];
+
+// source·status 는 생성 타입이 string 이라 실제 허용값(유니온)으로 좁혀 쓴다.
+export type JobRow = Omit<Pick<JobsRow, (typeof JOB_FIELDS)[number]>, "source" | "status"> & {
   source: JobSource;
-  external_url: string | null;
-  is_featured: boolean;
-  posted_at: string;
-  deadline: string | null;
-  featured_until: string | null;
-  recruit_count: number | null;
-  shift_type: string | null;
-  manager_name: string | null;
-  manager_phone: string | null;
-  apply_methods: string[];
-  apply_email: string | null;
-  apply_detail: string | null;
+  status: JobStatus;
   hospital: { name: string; rating_avg: number; rating_count: number } | null;
 };
 
@@ -39,10 +37,13 @@ export const SOURCE_LABEL: Record<JobSource, string> = {
   crawl: "수집",
 };
 
-const SELECT =
-  "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,deadline,featured_until,recruit_count,shift_type,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(name,rating_avg,rating_count)";
+const SELECT = `${JOB_FIELDS.join(",")},hospital:hospitals(name,rating_avg,rating_count)`;
 
 export const PER_PAGE = 20;
+
+// 저장 목록에서 서버 권한으로 되살려도 되는 상태 — 한 번은 공개됐던 공고들.
+// draft·hidden 은 한 번도 공개된 적이 없어 제목조차 보여주면 안 된다.
+const REVIVABLE = ["closed", "expired"] as const satisfies readonly JobStatus[];
 
 // PostgREST or 필터 주입 방지: %,(),쉼표 제거
 const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
@@ -223,14 +224,32 @@ export const getPublicJob = cache(async (id: string): Promise<JobRow | null> => 
 });
 
 // 저장한 공고 목록(/mypage/saved) — 저장 순서 유지.
+// 병원이 공고를 마감하면 RLS(status='open')에 막혀 저장 목록에서 **통째로 사라진다**.
+// 내가 저장해 둔 것이 소리 없이 없어지면 "내가 지운 건가?" 하게 되므로,
+// 안 보이는 것만 서버 권한으로 한 번 더 찾아 '마감' 표시와 함께 남긴다.
+// 지원 내역(getMyApplications)과 같은 방식이고, 범위도 **내가 저장한 id**로만 한정한다.
 export async function getSavedJobs(): Promise<JobRow[]> {
   const user = await getSessionUser();
   if (!user) return [];
   const supabase = await createClient();
-  const { data: saved } = await supabase.from("saved_jobs").select("job_id").eq("profile_id", user.id).order("created_at", { ascending: false });
+  // 상한이 없으면 저장이 쌓였을 때 아래 .in("id", ids) 의 URL 이 너무 길어져 요청 자체가 거절되고,
+  // 화면에는 "저장한 공고가 없습니다"가 뜬다(지금 고치려는 것과 똑같은 실패다).
+  const { data: saved } = await supabase
+    .from("saved_jobs").select("job_id").eq("profile_id", user.id)
+    .order("created_at", { ascending: false }).limit(LIST_LIMIT);
   const ids = (saved ?? []).map((r) => r.job_id);
   if (ids.length === 0) return [];
   const { data } = await supabase.from("jobs").select(SELECT).in("id", ids).returns<JobRow[]>();
   const byId = new Map((data ?? []).map((j) => [j.id, j]));
+
+  const missing = ids.filter((id) => !byId.has(id));
+  if (missing.length > 0) {
+    // closed·expired 만 되살린다 — draft·hidden 은 한 번도 공개된 적이 없어
+    // (저장 자체가 불가능해야 하지만) 여기서 제목이 새어 나가면 안 된다.
+    const { data: gone } = await createAdminClient()
+      .from("jobs").select(SELECT).in("id", missing).in("status", REVIVABLE)
+      .returns<JobRow[]>();
+    (gone ?? []).forEach((j) => byId.set(j.id, j));
+  }
   return ids.map((id) => byId.get(id)).filter((j): j is JobRow => !!j);
 }

@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import SiteHeader from "@/components/SiteHeader";
+import NurseShell from "@/components/NurseShell";
 import SubmitButton from "@/components/SubmitButton";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
@@ -64,10 +64,7 @@ export default async function ResumePage({
   const all: readonly string[] = JOB_SPECIALTIES;
 
   return (
-    <>
-      <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <a href="/mypage" className="text-sm text-teal-700 hover:underline">← 마이페이지</a>
+    <NurseShell displayName={p.displayName} active="/mypage/resume">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">내 이력서</h1>
         <p className="mt-1 text-sm text-slate-500">이력서는 무료입니다. <b className="text-slate-700">지원하려면 이름·연락처가 반드시 필요합니다.</b> 공개로 설정하면 광고 중인 병원이 이름·연락처를 포함해 열람할 수 있고, 언제든 비공개로 되돌릴 수 있습니다.</p>
 
@@ -158,7 +155,6 @@ export default async function ResumePage({
           </label>
           <SubmitButton pendingText="저장 중…">{r ? "이력서 수정" : "이력서 저장"}</SubmitButton>
         </form>
-      </main>
-    </>
+    </NurseShell>
   );
 }

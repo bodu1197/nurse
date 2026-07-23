@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import SiteHeader from "@/components/SiteHeader";
+import NurseShell from "@/components/NurseShell";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { getSavedJobs } from "@/lib/data/jobs";
@@ -18,10 +18,7 @@ export default async function SavedPage() {
   const now = nowMs();
 
   return (
-    <>
-      <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
-        <a href="/mypage" className="text-sm text-teal-700 hover:underline">← 마이페이지</a>
+    <NurseShell displayName={p.displayName} active="/mypage/saved">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">저장한 공고</h1>
         {jobs.length === 0 ? (
           <p className="py-20 text-center text-slate-500">
@@ -45,6 +42,13 @@ export default async function SavedPage() {
                     </span>
                   )}
                   <div className="text-sm text-slate-500">{j.hospital?.name ?? "병원 미상"} · {j.location ?? "-"}{j.salary_text ? " · " + j.salary_text : ""}</div>
+                  {/* 마감 공고는 지우는 것 말고 할 게 없다 → 같은 조건으로 다시 찾을 길을 준다 */}
+                  {!open && (
+                    <Link href={`/jobs?${new URLSearchParams({ ...(j.specialty ? { q: j.specialty } : {}), ...(j.location ? { l: j.location } : {}) })}`}
+                      prefetch={false} className="mt-1 inline-block text-sm font-semibold text-teal-700 hover:underline">
+                      비슷한 공고 찾기 →
+                    </Link>
+                  )}
                 </div>
                 <form action={toggleSaveJob} className="shrink-0">
                   <input type="hidden" name="job_id" value={j.id} />
@@ -56,7 +60,6 @@ export default async function SavedPage() {
             })}
           </ul>
         )}
-      </main>
-    </>
+    </NurseShell>
   );
 }

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import HospitalShell from "@/components/HospitalShell";
+import NurseShell from "@/components/NurseShell";
 import { getMyProfile, type MyProfile } from "@/lib/data/user";
 import { getMyResume, type Resume } from "@/lib/data/resume";
 import { ROLE_LABEL, type Role } from "@/lib/data/role";
@@ -138,6 +139,16 @@ function nurseItems(resume: Resume | null): Item[] {
   );
 }
 
+// 관리자 화면은 네비 없이 헤더만 — 도구 목록이라 오갈 곳이 없다.
+function AdminShell({ displayName, children }: Readonly<{ displayName: string; active: string; children: React.ReactNode }>) {
+  return (
+    <>
+      <SiteHeader user={{ displayName }} />
+      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{children}</main>
+    </>
+  );
+}
+
 function Card({ item }: Readonly<{ item: Item }>) {
   const inner = (
     <>
@@ -165,10 +176,11 @@ export default async function MyPage() {
   }
 
   const items = profile.role === "admin" ? ADMIN_ITEMS : nurseItems(await getMyResume());
+  // 관리자는 도구 목록만 보므로 간호사 네비를 씌우지 않는다.
+  const Shell = profile.role === "admin" ? AdminShell : NurseShell;
   return (
-    <>
-      <SiteHeader user={{ displayName: profile.displayName }} />
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">
+    <Shell displayName={profile.displayName} active="/mypage">
+      <>
         {profile.isAdmin && <ViewAsSwitch current={profile.role} />}
         <h1 className="text-2xl font-bold text-slate-900">마이페이지</h1>
         <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
@@ -187,7 +199,7 @@ export default async function MyPage() {
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {items.map((it) => <Card key={it.title} item={it} />)}
         </div>
-      </main>
-    </>
+      </>
+    </Shell>
   );
 }

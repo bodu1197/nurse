@@ -26,19 +26,24 @@ export async function applyToJob(formData: FormData) {
   // 판정 순서는 그대로 유지한다 — 역할 → 공고 → 이력서.
   const [{ data: prof }, { data: job }, { data: resume }] = await Promise.all([
     supabase.from("profiles").select("role").eq("id", user.id).maybeSingle(),
-    supabase.from("jobs").select("id, source, apply_methods, posted_at, featured_until, deadline")
-      .eq("id", jobId).eq("status", "open").maybeSingle(),
+    supabase.from("jobs").select("id, status, source, apply_methods, posted_at, featured_until, deadline")
+      .eq("id", jobId).maybeSingle(),
     supabase.from("resumes").select("name, phone").eq("profile_id", user.id).maybeSingle(),
   ]);
 
   if (!prof || (await viewAsRole(prof.role)) !== "nurse") return fail("nurse_only");
 
   // 공고 검증 — 열려 있고, 직접등록이고, 간편지원을 받는 공고인가.
-  if (!job || job.source !== "direct" || !job.apply_methods.includes("platform")) return fail("closed");
+  // status 는 조회 결과에서 직접 확인한다. 쿼리 필터에만 기대면 나중에 그 필터가 옮겨졌을 때
+  // 아래 노출 판정이 조용히 무력화된다(생성된 DB 타입이 string 이라 값을 좁혀서 넘긴다).
+  if (!job) return fail("closed");
+  const { status } = job;
+  if (status !== "open") return fail("closed");
+  if (job.source !== "direct" || !job.apply_methods.includes("platform")) return fail("closed");
 
   // 노출이 끝난 공고(광고·무료 기간 만료 또는 마감일 경과)는 목록에 없지만 링크로는 들어올 수 있다.
   // 목록·상세와 **같은 함수**를 써야 "안 보이는데 지원은 되는" 구멍이 안 생긴다.
-  if (!isOpenToSeekers(job, nowMs())) return fail("closed");
+  if (!isOpenToSeekers({ ...job, status }, nowMs())) return fail("closed");
 
   // 관리자가 간호사 보기로 지원하면 실제 병원에 가짜 지원자가 남는다 → 테스트 병원 공고에만 허용.
   if (prof.role === "admin") {
@@ -82,8 +87,15 @@ export async function toggleSaveJob(formData: FormData) {
   const next = safeNext(String(formData.get("next") ?? ""), "/jobs");
   if (!jobId) redirect(next);
   const { data: existing } = await supabase.from("saved_jobs").select("id").eq("profile_id", user.id).eq("job_id", jobId).maybeSingle();
-  if (existing) await supabase.from("saved_jobs").delete().eq("id", existing.id);
-  else await supabase.from("saved_jobs").insert({ profile_id: user.id, job_id: jobId });
+  if (existing) {
+    await supabase.from("saved_jobs").delete().eq("id", existing.id); // 해제는 언제나 가능해야 한다
+    redirect(next);
+  }
+  // 공개된 공고만 저장할 수 있다. 검사가 없으면 아무 uuid나 저장해 둔 뒤,
+  // 마감 공고를 되살려 보여주는 저장 목록(getSavedJobs)을 통해 비공개 공고의 제목을 엿볼 수 있다.
+  const { data: job } = await supabase.from("jobs").select("id").eq("id", jobId).eq("status", "open").maybeSingle();
+  if (!job) redirect(`/jobs/${encodeURIComponent(jobId)}`); // 방금 마감된 공고 — 그 화면이 이유를 설명한다
+  await supabase.from("saved_jobs").insert({ profile_id: user.id, job_id: jobId });
   redirect(next);
 }
 
