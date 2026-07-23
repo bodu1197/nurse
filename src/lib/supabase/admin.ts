@@ -10,6 +10,9 @@ import type { Database } from "@/types/database";
 //     마감돼 안 보이는 지원 공고(getMyApplications)·저장 공고(getSavedJobs)의 제목을 되살릴 때.
 //     이 경우 조회 대상은 반드시 `내 행에서 뽑은 id` + `한 번은 공개됐던 상태`로 두 겹 제한한다.
 //     (jobs에 RLS SELECT 정책을 더하는 대안은 applications 정책과 서로 참조해 무한재귀로 죽는다.)
+//  3) **컬럼 마스킹**: 공개(is_public) 이력서를 목록에 보이되 이름·전화만 가릴 때(searchPublicTalent).
+//     RLS는 행 단위라 컬럼을 못 가리므로, select에서 이름·전화를 아예 빼서 공개 payload에 PII가 안 실리게 한다.
+//     연락처는 자격 확인(isAdvertiser) 후 profile_id 목록으로만 별도 조회한다(revealContacts).
 //
 // 사용자가 넘긴 id를 그대로 조회하는 데 쓰면 안 된다 — 그 순간 비공개 데이터가 새는 통로가 된다.
 export function createAdminClient() {
