@@ -1,4 +1,5 @@
 import ApplyMethodFields from "@/components/ApplyMethodFields";
+import { JOB_SPECIALTIES } from "@/lib/constants";
 
 // 공고 입력 필드 — 등록/수정/복제 폼이 공유(일관성 + 유지보수).
 export type JobDefaults = {
@@ -24,6 +25,11 @@ const TYPES = ["정규직", "계약직", "파트타임", "인턴"];
 const SHIFTS = ["협의", "3교대", "2교대", "낮번 전담", "야간 전담", "평일 주간"];
 
 export default function JobFields({ d = {} }: { d?: JobDefaults }) {
+  // 진료과는 자유 입력이면 표기가 제각각이라 검색 필터(JOB_SPECIALTIES)에서 통째로 빠진다 → 목록에서 선택.
+  // 다만 기존 공고에 목록 밖 값이 있으면 그 값도 옵션으로 남긴다(수정할 때 조용히 지워지지 않게).
+  const all: readonly string[] = JOB_SPECIALTIES;
+  const specialties = d.specialty && !all.includes(d.specialty) ? [d.specialty, ...all] : all;
+
   return (
     <>
       <div className="flex flex-col gap-1">
@@ -32,8 +38,11 @@ export default function JobFields({ d = {} }: { d?: JobDefaults }) {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
-          <label htmlFor="specialty" className={label}>진료과/부서</label>
-          <input id="specialty" name="specialty" defaultValue={d.specialty ?? ""} placeholder="예: 중환자실" className={field} />
+          <label htmlFor="specialty" className={label}>진료과/부서 <span className="text-slate-400">(검색 필터에 사용)</span></label>
+          <select id="specialty" name="specialty" defaultValue={d.specialty ?? ""} className={field}>
+            <option value="">선택 안 함</option>
+            {specialties.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="employment_type" className={label}>고용형태</label>

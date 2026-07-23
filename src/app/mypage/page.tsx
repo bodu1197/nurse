@@ -3,6 +3,7 @@ import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import HospitalShell from "@/components/HospitalShell";
 import { getMyProfile, type MyProfile } from "@/lib/data/user";
+import { getMyResume, type Resume } from "@/lib/data/resume";
 import { ROLE_LABEL, type Role } from "@/lib/data/role";
 import { getMyJobs, type MyJob } from "@/lib/data/jobs";
 import { nowMs } from "@/lib/date";
@@ -125,6 +126,7 @@ type Item = { title: string; desc: string; href?: string };
 
 const NURSE_ITEMS: Item[] = [
   { title: "내 이력서", desc: "이력서를 작성하고 병원에 지원하세요. (무료)", href: "/mypage/resume" },
+  // desc는 저장 여부에 따라 아래 nurseItems()에서 교체된다.
   { title: "저장한 공고", desc: "관심 있는 채용공고를 모아 봅니다.", href: "/mypage/saved" },
   { title: "지원 내역", desc: "지원한 공고의 진행 상황을 확인합니다.", href: "/mypage/applications" },
   { title: "채용 알림", desc: "검색 조건을 저장하고 빠르게 다시 찾습니다.", href: "/mypage/alerts" },
@@ -134,6 +136,19 @@ const ADMIN_ITEMS: Item[] = [
   { title: "공고 관리", desc: "전체 채용공고를 관리합니다." },
   { title: "데이터 수집", desc: "워크넷·공공데이터 연동 상태를 봅니다." },
 ];
+
+// 이력서를 저장해도 마이페이지가 그대로면 저장이 됐는지 알 수 없다 → 카드에 현재 상태를 표시.
+function nurseItems(resume: Resume | null): Item[] {
+  if (!resume) return NURSE_ITEMS;
+  const parts = [
+    resume.experience_years != null ? `경력 ${resume.experience_years}년` : null,
+    resume.specialties.length > 0 ? resume.specialties.join(", ") : null,
+    resume.is_public ? "공개 중" : "비공개",
+  ].filter(Boolean);
+  return NURSE_ITEMS.map((it) =>
+    it.title === "내 이력서" ? { ...it, desc: `작성 완료 — ${parts.join(" · ")}. 눌러서 확인·수정` } : it,
+  );
+}
 
 function Card({ item }: Readonly<{ item: Item }>) {
   const inner = (
@@ -161,7 +176,7 @@ export default async function MyPage() {
     return <HospitalDashboard profile={profile} jobs={jobs} />;
   }
 
-  const items = profile.role === "admin" ? ADMIN_ITEMS : NURSE_ITEMS;
+  const items = profile.role === "admin" ? ADMIN_ITEMS : nurseItems(await getMyResume());
   return (
     <>
       <SiteHeader user={{ displayName: profile.displayName }} />

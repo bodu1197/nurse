@@ -37,8 +37,6 @@ export const SOURCE_LABEL: Record<JobSource, string> = {
 
 const SELECT =
   "id,title,specialty,location,employment_type,salary_text,benefits,description,source,external_url,is_featured,posted_at,deadline,featured_until,recruit_count,shift_type,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(name,rating_avg,rating_count)";
-// 공개 목록용 — !inner로 병원을 조인해 is_test 필터를 걸 수 있게 한다(hospital_id는 NOT NULL이라 건수 변화 없음).
-const SELECT_PUBLIC = SELECT.replace("hospital:hospitals(", "hospital:hospitals!inner(");
 
 export const PER_PAGE = 20;
 
@@ -49,14 +47,17 @@ export type JobFilters = { specialty?: string; employmentType?: string; days?: n
 
 const DAY_MS = 86_400_000;
 
+// 관리자 테스트 공고(hospitals.is_test)를 여기서 걸러내지 않는 것은 의도된 결정이다.
+// 숨기면 등록→광고→지원까지 실제 화면에서 확인할 방법이 없어 테스트 기능이 무용지물이 된다.
+// 병원명이 "[테스트] …"로 시작해 목록·상세에서 사용자도 테스트임을 알아볼 수 있고,
+// 테스트가 끝나면 해당 공고를 삭제하면 된다. (공고 등록 시 병원 검색에서는 계속 제외 — /api/hospitals/search)
 export async function getJobs(keyword: string, location: string, filters: JobFilters = {}, page = 1): Promise<{ jobs: JobRow[]; total: number }> {
   const supabase = await createClient();
   const from = (Math.max(1, page) - 1) * PER_PAGE;
   let query = supabase
     .from("jobs")
-    .select(SELECT_PUBLIC, { count: "exact" })
+    .select(SELECT, { count: "exact" })
     .eq("status", "open")
-    .eq("hospitals.is_test", false) // 관리자 테스트 공고는 공개 목록에서 제외
     .order("featured_until", { ascending: false, nullsFirst: false })
     .order("posted_at", { ascending: false })
     .range(from, from + PER_PAGE - 1);
@@ -212,8 +213,7 @@ export async function getSavedJobs(): Promise<JobRow[]> {
   const { data: saved } = await supabase.from("saved_jobs").select("job_id").eq("profile_id", user.id).order("created_at", { ascending: false });
   const ids = (saved ?? []).map((r) => r.job_id);
   if (ids.length === 0) return [];
-  // 목록과 같은 공개 조건 — 저장 시점 이후 테스트 병원으로 바뀐 공고가 남아 보이지 않게.
-  const { data } = await supabase.from("jobs").select(SELECT_PUBLIC).eq("hospitals.is_test", false).in("id", ids).returns<JobRow[]>();
+  const { data } = await supabase.from("jobs").select(SELECT).in("id", ids).returns<JobRow[]>();
   const byId = new Map((data ?? []).map((j) => [j.id, j]));
   return ids.map((id) => byId.get(id)).filter((j): j is JobRow => !!j);
 }

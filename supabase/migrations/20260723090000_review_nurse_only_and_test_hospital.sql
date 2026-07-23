@@ -16,11 +16,12 @@ create policy reviews_update_own on public.reviews for update
     and exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'nurse')
   );
 
--- 2) 테스트용 병원 표시 — 관리자 테스트 공고가 실제 채용공고판/병원검색에 섞이지 않게 한다.
---    (관리자가 병원 마이페이지를 실제로 테스트하려면 공고를 실제로 등록해야 하는데,
---     그 공고가 공개되면 진짜 간호사가 가짜 공고에 지원하게 된다.)
+-- 2) 테스트용 병원 표시 — 관리자 테스트 병원을 실제 병원 데이터와 구분한다.
+--    공고 등록 시 병원 검색(/api/hospitals/search)에서 제외해 실제 병원 회원이 이 병원을 고르지 못하게 한다.
+--    채용공고 목록에서는 제외하지 않는다(의도) — 숨기면 관리자가 등록·광고·지원 흐름을 화면에서 확인할 수 없다.
+--    병원명이 "[테스트] …"로 시작해 사용자도 구분 가능하고, 테스트가 끝나면 공고를 삭제하면 된다.
 alter table public.hospitals add column if not exists is_test boolean not null default false;
--- 인덱스는 두지 않는다: 조회 조건이 전부 is_test = false(=전체 행의 사실상 100%)라 플래너가 어차피 안 쓴다.
+-- 인덱스는 두지 않는다: 유일한 조회 조건(병원 검색의 is_test = false)이 전체 행의 사실상 100%라 플래너가 안 쓴다.
 
 -- 3) hospitals 직접 쓰기 권한 회수 — 앱의 hospitals 쓰기는 전부 service_role(createAdminClient) 경유다.
 --    RLS 정책(hospitals_write_owner)만 믿으면 로그인 계정이 공개 anon key로 PostgREST를 직접 호출해
