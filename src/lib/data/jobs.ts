@@ -98,11 +98,18 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
 export function regionOf(location: string | null): string {
   return (location ?? "").trim().split(/\s+/).slice(0, 2).join(" ");
 }
-export async function getNearbyJobs(location: string | null, excludeId: string, limit = 8): Promise<JobRow[]> {
+// 같은 지역 공고를 우선 보여주되, 없으면(외진 지역·그 지역 단일 공고) 최근 공고로 채워 왼쪽이 절대 비지 않게 한다.
+// sameRegion=false면 제목에 지역명을 쓰지 않는다.
+export async function getNearbyJobs(location: string | null, excludeId: string, limit = 8): Promise<{ jobs: JobRow[]; sameRegion: boolean }> {
   const region = regionOf(location);
-  if (!region) return [];
-  const { jobs } = await getJobs("", region, {}, 1, false); // 총개수 불필요 → COUNT 생략
-  return jobs.filter((j) => j.id !== excludeId).slice(0, limit);
+  if (region) {
+    const { jobs } = await getJobs("", region, {}, 1, false); // 총개수 불필요 → COUNT 생략
+    const same = jobs.filter((j) => j.id !== excludeId);
+    if (same.length > 0) return { jobs: same.slice(0, limit), sameRegion: true };
+  }
+  // 지역 매칭이 없으면 최근 공고로 폴백.
+  const { jobs } = await getJobs("", "", {}, 1, false);
+  return { jobs: jobs.filter((j) => j.id !== excludeId).slice(0, limit), sameRegion: false };
 }
 
 export type MyJob = { id: string; title: string; status: JobStatus; posted_at: string; featured_until: string | null; applicant_count: number };

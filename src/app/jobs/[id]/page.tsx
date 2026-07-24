@@ -61,13 +61,15 @@ export default async function JobPage({
   if (!job) notFound();
 
   // 서로 의존하지 않는 조회는 함께 보낸다(직렬로 두면 상세 화면이 왕복 한 번만큼 늦어진다).
-  const [applied, savedIds, nearby] = await Promise.all([
+  const [applied, savedIds, near] = await Promise.all([
     profile?.role === "nurse" ? hasApplied(job.id) : Promise.resolve(false),
     profile ? getSavedJobIds([job.id]) : Promise.resolve(new Set<string>()),
-    getNearbyJobs(job.location, job.id), // 같은 지역 다른 공고(좌측 사이드바)
+    getNearbyJobs(job.location, job.id), // 좌측 사이드바(같은 지역 우선, 없으면 최근)
   ]);
-  // 사이드바 제목용 지역명(시/군). "경기 성남시" → "성남시".
+  const nearby = near.jobs;
+  // 사이드바 제목: 같은 지역이면 시/군명("성남시 채용공고"), 폴백이면 "최근 채용공고".
   const regionLabel = regionOf(job.location).split(" ")[1] ?? regionOf(job.location);
+  const sidebarTitle = near.sameRegion && regionLabel ? `${regionLabel} 채용공고` : "최근 채용공고";
 
   // 검색엔진용 채용공고 구조화 데이터 — 목록 옆 패널이 아니라 이 단독 라우트에서만 낸다
   // (한 페이지에 JobPosting이 둘이면 어느 공고의 페이지인지 알 수 없다).
@@ -121,9 +123,9 @@ export default async function JobPage({
 
         {/* 같은 지역 공고 — 모바일에선 상세 아래, 데스크톱에선 왼쪽 사이드바 */}
         {nearby.length > 0 && (
-          <aside aria-label={`${regionLabel} 채용공고`} className="mt-10 lg:col-start-1 lg:row-start-1 lg:mt-0">
+          <aside aria-label={sidebarTitle} className="mt-10 lg:col-start-1 lg:row-start-1 lg:mt-0">
             <h2 className="mb-3 text-sm font-bold text-slate-900">
-              {regionLabel ? `${regionLabel} 채용공고` : "같은 지역 채용공고"} <span className="font-normal text-slate-400">({nearby.length})</span>
+              {sidebarTitle} <span className="font-normal text-slate-400">({nearby.length})</span>
             </h2>
             <ul className="space-y-2">
               {nearby.map((n) => (

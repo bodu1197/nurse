@@ -1,12 +1,13 @@
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { Pager } from "@/components/MasterDetail";
+import TalentCard from "@/components/TalentCard";
 import { redirect } from "next/navigation";
 import { getMyProfile } from "@/lib/data/user";
 import {
-  searchPublicTalent, revealContacts, canRevealContacts, TALENT_PER_PAGE, type PublicTalent,
+  searchPublicTalent, revealContacts, canRevealContacts, TALENT_PER_PAGE,
 } from "@/lib/data/talent";
-import { careerSummary, REGIONS } from "@/lib/resumeOptions";
+import { REGIONS } from "@/lib/resumeOptions";
 import { JOB_SPECIALTIES } from "@/lib/constants";
 
 export const metadata = {
@@ -17,25 +18,6 @@ export const metadata = {
 
 const field = "h-11 rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
 const YEARS = [1, 3, 5, 10];
-
-function Card({ t, contactName }: Readonly<{ t: PublicTalent; contactName?: string | null }>) {
-  return (
-    <>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <h3 className="font-bold text-slate-900">{contactName ?? "간호사 회원"}</h3>
-        {t.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{t.license_type}</span>}
-        <span className="text-sm text-slate-600">{careerSummary(t.career_level, t.experience_years)}</span>
-        {t.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트</span>}
-      </div>
-      {t.resume_title && <p className="mt-1 truncate text-sm text-slate-700">{t.resume_title}</p>}
-      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
-        {t.shift_types.slice(0, 2).map((s) => <span key={s} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{s}</span>)}
-        {t.specialties.slice(0, 2).map((s) => <span key={s} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">{s}</span>)}
-        {t.desired_location && <span className="text-slate-500">· {t.desired_location.split(",")[0]}</span>}
-      </div>
-    </>
-  );
-}
 
 export default async function TalentPage({
   searchParams,
@@ -121,7 +103,7 @@ export default async function TalentPage({
               {rows.map((t) => (
                 <li key={t.profile_id}>
                   <a href={`/talent/${t.profile_id}`} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
-                    <Card t={t} contactName={contacts.get(t.profile_id)?.name} />
+                    <TalentCard t={t} contactName={contacts.get(t.profile_id)?.name} />
                   </a>
                 </li>
               ))}

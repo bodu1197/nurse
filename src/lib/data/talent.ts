@@ -89,12 +89,12 @@ const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
 // 공개 인재 목록 — 이름·전화 없이 누구나 본다.
 // admin 클라이언트로 조회하되 select에서 이름·전화를 아예 빼서, 공개 화면 payload에 PII가 실리지 않는다.
 // (resumes_select_advertiser RLS는 행 전체를 광고 병원에게만 여는데, 그러면 목록이 비어 마켓이 죽는다.)
-export async function searchPublicTalent(f: TalentFilters, page = 1): Promise<{ rows: PublicTalent[]; total: number }> {
+export async function searchPublicTalent(f: TalentFilters, page = 1, withCount = true): Promise<{ rows: PublicTalent[]; total: number }> {
   const admin = createAdminClient();
   const from = (Math.max(1, page) - 1) * TALENT_PER_PAGE;
   let query = admin
     .from("resumes")
-    .select(PUBLIC_COLS, { count: "exact" })
+    .select(PUBLIC_COLS, withCount ? { count: "exact" } : undefined)
     .eq("is_public", true)
     // 이름이 없는 이력서는 카드에 보여줄 게 부실하고 연락도 안 되므로 목록에서 제외한다.
     .not("name", "is", null)
@@ -111,7 +111,20 @@ export async function searchPublicTalent(f: TalentFilters, page = 1): Promise<{ 
     console.error("searchPublicTalent failed:", error.message);
     return { rows: [], total: 0 };
   }
-  return { rows: data ?? [], total: count ?? 0 };
+  return { rows: data ?? [], total: withCount ? (count ?? 0) : (data?.length ?? 0) };
+}
+
+// 인재 상세 좌측 사이드바 — 관련 인재(같은 희망 근무지 우선, 없으면 최근)로 왼쪽이 절대 비지 않게 한다.
+// sameRegion=false면 제목에 지역명을 쓰지 않는다. searchPublicTalent 재사용(COUNT 생략).
+export async function getRelatedTalent(profileId: string, desiredLocation: string | null, limit = 8): Promise<{ rows: PublicTalent[]; sameRegion: boolean }> {
+  const region = (desiredLocation ?? "").split(",")[0].trim().split(/\s+/)[0] ?? "";
+  if (region) {
+    const { rows } = await searchPublicTalent({ location: region }, 1, false);
+    const same = rows.filter((r) => r.profile_id !== profileId);
+    if (same.length > 0) return { rows: same.slice(0, limit), sameRegion: true };
+  }
+  const { rows } = await searchPublicTalent({}, 1, false);
+  return { rows: rows.filter((r) => r.profile_id !== profileId).slice(0, limit), sameRegion: false };
 }
 
 /**
