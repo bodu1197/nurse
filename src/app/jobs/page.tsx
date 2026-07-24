@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Button from "@/components/Button";
 import { SaveIcon } from "@/components/JobDetail";
-import { getJobs, getSavedJobIds, PER_PAGE } from "@/lib/data/jobs";
+import { getJobs, getSavedJobIds, jobFilterQs, PER_PAGE } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
 import { saveSearch, toggleSaveJob } from "./actions";
 import FilterBar from "@/components/FilterBar";
@@ -29,18 +29,10 @@ export default async function JobsPage({
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   const savedSet = profile ? await getSavedJobIds(jobs.map((x) => x.id)) : new Set<string>();
 
-  // 검색 조건을 유지한 목록 URL(페이지 이동·저장 후 복귀용).
-  const href = (toPage?: number) => {
-    const p = new URLSearchParams();
-    if (kw) p.set("q", kw);
-    if (loc) p.set("l", loc);
-    if (spec) p.set("spec", spec);
-    if (et) p.set("et", et);
-    if (days) p.set("days", days);
-    if (toPage && toPage > 1) p.set("page", String(toPage));
-    const s = p.toString();
-    return "/jobs" + (s ? `?${s}` : "");
-  };
+  // 검색 조건을 유지한 URL — 목록 이동용(href)과, 상세에서 사이드바·닫기(X)가 이 검색결과를
+  // 그대로 따라가도록 필터를 실어 보내는 카드 링크(detailHref). 직렬화 규칙은 jobFilterQs 한 곳.
+  const href = (toPage?: number) => { const s = jobFilterQs({ q: kw, l: loc, spec, et, days }, toPage); return "/jobs" + (s ? `?${s}` : ""); };
+  const detailHref = (jobId: string) => { const s = jobFilterQs({ q: kw, l: loc, spec, et, days }, pageNum); return `/jobs/${jobId}` + (s ? `?${s}` : ""); };
   const inputClass = "h-full w-full bg-transparent text-base outline-none placeholder:text-slate-400";
 
   return (
@@ -101,7 +93,7 @@ export default async function JobsPage({
             <ul className="mt-4 grid gap-3 sm:grid-cols-2">
               {jobs.map((job) => (
                 <li key={job.id} className="relative">
-                  <a href={`/jobs/${job.id}`} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                  <a href={detailHref(job.id)} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-bold leading-snug text-slate-900">{job.title}</h3>
                       {job.is_featured && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">추천</span>}

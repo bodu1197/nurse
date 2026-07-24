@@ -43,6 +43,19 @@ const SELECT = `${JOB_FIELDS.join(",")},hospital:hospitals(name,rating_avg,ratin
 
 export const PER_PAGE = 20;
 
+// 검색 필터를 URL 쿼리스트링으로 — 목록(/jobs)과 상세(/jobs/[id])가 같은 규칙으로 직렬화해야
+// 카드→상세→사이드바로 넘어가도 필터가 안 끊긴다. 필터 키가 늘면 여기 한 곳만 고치면 된다.
+export function jobFilterQs(f: { q?: string; l?: string; spec?: string; et?: string; days?: string }, page?: number): string {
+  const p = new URLSearchParams();
+  if (f.q) p.set("q", f.q);
+  if (f.l) p.set("l", f.l);
+  if (f.spec) p.set("spec", f.spec);
+  if (f.et) p.set("et", f.et);
+  if (f.days) p.set("days", f.days);
+  if (page && page > 1) p.set("page", String(page));
+  return p.toString();
+}
+
 // 저장 목록에서 서버 권한으로 되살려도 되는 상태 — 한 번은 공개됐던 공고들.
 // draft·hidden 은 한 번도 공개된 적이 없어 제목조차 보여주면 안 된다.
 const REVIVABLE = ["closed", "expired"] as const satisfies readonly JobStatus[];
