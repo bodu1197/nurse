@@ -1,10 +1,10 @@
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
-import MasterDetail, { ListCard, Pager } from "@/components/MasterDetail";
-import TalentDetail from "@/components/TalentDetail";
+import { Pager } from "@/components/MasterDetail";
+import { redirect } from "next/navigation";
 import { getMyProfile } from "@/lib/data/user";
 import {
-  searchPublicTalent, getPublicTalent, revealContacts, isAdvertiser, TALENT_PER_PAGE, type PublicTalent,
+  searchPublicTalent, revealContacts, canRevealContacts, TALENT_PER_PAGE, type PublicTalent,
 } from "@/lib/data/talent";
 import { careerSummary, REGIONS } from "@/lib/resumeOptions";
 import { JOB_SPECIALTIES } from "@/lib/constants";
@@ -41,6 +41,8 @@ export default async function TalentPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ spec?: string; loc?: string; years?: string; page?: string; t?: string }> }>) {
   const [{ spec, loc, years, page, t: selectedId }, p] = await Promise.all([searchParams, getMyProfile()]);
+  // 예전 마스터-디테일의 ?t= 링크(공유 주소)는 단독 상세로 넘긴다(/jobs의 ?j= 처리와 동일).
+  if (selectedId) redirect(`/talent/${encodeURIComponent(selectedId)}`);
   const pageNum = Math.max(1, Number(page) || 1);
   const minYears = Number(years) || 0;
   const specialty = JOB_SPECIALTIES.includes(spec as (typeof JOB_SPECIALTIES)[number]) ? spec : undefined;
@@ -49,18 +51,14 @@ export default async function TalentPage({
   const totalPages = Math.max(1, Math.ceil(total / TALENT_PER_PAGE));
 
   // 광고 중인 병원(또는 관리자)만 이름·전화를 붙인다.
-  const canSeeContacts = !!p && (p.role === "admin" || (p.role === "hospital" && (await isAdvertiser())));
+  const canSeeContacts = await canRevealContacts(p);
   // 광고를 낼 수 있는(=아직 못 보는) 병원·비로그인에게만 광고 안내를 띄운다.
   const showAdCta = !canSeeContacts;
 
-  const ids = rows.map((r) => r.profile_id);
-  // 선택 인재가 이번 페이지에 없어도(공유 링크) 그 인재를 연다.
-  const selected = selectedId || rows[0]?.profile_id;
-  const detail = selected ? await getPublicTalent(selected) : null;
-
-  // 연락처는 목록(이름 미리보기) + 상세에 필요하므로, 상세가 목록 밖이면 그 id도 함께 조회한다.
-  const contactIds = detail && !ids.includes(detail.profile_id) ? [...ids, detail.profile_id] : ids;
-  const contacts = canSeeContacts ? await revealContacts(contactIds) : new Map<string, { name: string | null; phone: string | null }>();
+  // 카드의 이름 미리보기 — 광고 병원만. 목록 rows에 한해 조회.
+  const contacts = canSeeContacts
+    ? await revealContacts(rows.map((r) => r.profile_id))
+    : new Map<string, { name: string | null; phone: string | null }>();
 
   const href = (params: Record<string, string | number | undefined>) => {
     const q = new URLSearchParams();
@@ -117,24 +115,19 @@ export default async function TalentPage({
         {rows.length === 0 ? (
           <p className="py-20 text-center text-slate-500">조건에 맞는 인재가 없습니다. 필터를 넓혀보세요.</p>
         ) : (
-          <MasterDetail
-            selecting={!!selectedId}
-            list={
-              <>
-                <ul className="space-y-3">
-                  {rows.map((t) => (
-                    <li key={t.profile_id}>
-                      <ListCard href={href({ t: t.profile_id, page: pageNum > 1 ? pageNum : undefined })} on={ids.includes(selected ?? "") && selected === t.profile_id}>
-                        <Card t={t} contactName={contacts.get(t.profile_id)?.name} />
-                      </ListCard>
-                    </li>
-                  ))}
-                </ul>
-                <Pager page={pageNum} totalPages={totalPages} href={(n) => href({ page: n })} />
-              </>
-            }
-            detail={detail && <TalentDetail t={detail} contact={canSeeContacts ? contacts.get(detail.profile_id) : undefined} contactGated={showAdCta} />}
-          />
+          <>
+            {/* 메인·채용공고처럼 카드만 2열로 나열 — 누르면 인재 상세(/talent/[id])로 이동한다. */}
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+              {rows.map((t) => (
+                <li key={t.profile_id}>
+                  <a href={`/talent/${t.profile_id}`} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    <Card t={t} contactName={contacts.get(t.profile_id)?.name} />
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <Pager page={pageNum} totalPages={totalPages} href={(n) => href({ page: n })} />
+          </>
         )}
       </main>
     </>

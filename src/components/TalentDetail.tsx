@@ -23,11 +23,14 @@ export default function TalentDetail({
   t,
   contact,
   contactGated,
-}: Readonly<{ t: PublicTalentDetail; contact: Contact; contactGated: boolean }>) {
+  asH1,
+}: Readonly<{ t: PublicTalentDetail; contact: Contact; contactGated: boolean; asH1?: boolean }>) {
+  // 단독 상세(/talent/[id])에선 h1, 목록 안에선 h2 (문서 헤딩 계층 유지) — JobDetail과 동일 패턴.
+  const Heading = asH1 ? "h1" : "h2";
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h2 className="text-2xl font-bold text-slate-900">{contact?.name ?? "간호사 회원"}</h2>
+        <Heading className="text-2xl font-bold text-slate-900">{contact?.name ?? "간호사 회원"}</Heading>
         {t.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{t.license_type}</span>}
         <span className="text-slate-600">{careerSummary(t.career_level, t.experience_years)}</span>
         {t.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트 전담 가능</span>}

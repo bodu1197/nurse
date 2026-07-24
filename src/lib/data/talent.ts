@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSessionUser } from "@/lib/data/user";
+import { getSessionUser, type Role } from "@/lib/data/user";
 import { SHEET_COLS, type ResumeSheetFields } from "@/lib/data/resume";
 import type { Database } from "@/types/database";
 
@@ -71,6 +71,14 @@ export async function isAdvertiser(): Promise<boolean> {
   // 다만 광고 병원이 영문 모른 채 잠긴 화면을 볼 수 있으므로 원인은 반드시 남긴다.
   if (error) console.error("isAdvertiser failed:", error.message);
   return (data?.length ?? 0) > 0;
+}
+
+// 인재 이름·전화 열람 자격 — 광고 중인 병원 또는 관리자. 목록·상세가 같은 판정을 쓰게 한 곳에 둔다
+// (양쪽에 복붙하면 한쪽만 바뀔 때 PII가 샌다).
+export async function canRevealContacts(p: { role: Role } | null): Promise<boolean> {
+  if (!p) return false;
+  if (p.role === "admin") return true;
+  return p.role === "hospital" && (await isAdvertiser());
 }
 
 export type TalentFilters = { specialty?: string; location?: string; minYears?: number };
