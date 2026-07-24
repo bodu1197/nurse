@@ -1,7 +1,11 @@
 import "server-only";
 
-// 워크넷(고용24) 채용정보 오픈API(210L01) — 간호·요양보호 키워드 구인공고 수집.
+// 워크넷(고용24) 채용정보 오픈API(210L01) — **직종코드(occupation)** 로 간호 직군 구인공고 수집.
 // 응답은 고정 스키마 XML(<wanted> 반복)이라 파서 의존성 대신 정규식 추출(기존 worknet 직업정보 코드와 동일 방식).
+//
+// 🔴 키워드("간호"·"요양보호") 검색 폐기 이유(소유자 확정 2026-07-25): 부분일치라 부정확했다 —
+//    "간호" 검색 결과의 76%가 요양보호사(직종코드 550xxx)로 오염됐다(실측). 워크넷은 공고마다
+//    <jobsCd>(직종코드)를 주므로, 그걸로 정확히 간호사·간호조무사만 뽑는다(요양보호사=550xxx 원천 배제).
 const LIST = "https://www.work24.go.kr/cm/openApi/call/wk/callOpenApiSvcInfo210L01.do";
 const DETAIL = "https://www.work24.go.kr/cm/openApi/call/wk/callOpenApiSvcInfo210D01.do";
 // 인증키는 env 필수(하드코딩 금지). sync-hospitals의 DATA_GO_KR_API_KEY와 동일하게 미설정 시 fail-fast.
@@ -11,11 +15,14 @@ const authKey = (): string => {
   return k;
 };
 const PAGE = 100; // 페이지당 최대
-const MAX_PAGES = 150; // 키워드당 안전 상한(요양보호 ~12000건 → 120페이지)
+const MAX_PAGES = 30; // 직종코드당 안전 상한(최대 직종 941건 → 10페이지, 여유 포함)
 const CONCURRENCY = 8; // work24 동시 요청 제한(과도한 병렬은 차단/타임아웃 유발)
 
-// 간호사·간호조무사(="간호" 부분일치) + 요양보호사. authNo로 합집합 중복 제거.
-export const NURSE_KEYWORDS = ["간호", "요양보호"] as const;
+// 🗂 간호 직군 직종코드(work24 jobsCd). occupation 파라미터는 콤마·prefix 불가라 코드별로 각각 호출한다.
+//    실측(2026-07-25)으로 각 코드의 대표 제목을 확인해 간호사·간호조무사만 담았다(요양보호사 550xxx·치과 306400·연구직 307900 제외).
+//   304000 간호사 / 304001 간호관리자 / 304002 수간호사 / 304003 기타 간호사(보건·어린이집 등)
+//   307500·307501·307502 간호조무사
+export const NURSE_JOB_CODES = ["304000", "304001", "304002", "304003", "307500", "307501", "307502"] as const;
 
 export type WorknetJob = {
   authNo: string; // 채용공고번호(고유) → jobs.external_id
@@ -102,14 +109,14 @@ function parsePage(xml: string): { jobs: WorknetJob[]; total: number } {
   return { jobs, total };
 }
 
-async function fetchPage(keyword: string, startPage: number): Promise<{ jobs: WorknetJob[]; total: number }> {
+async function fetchPage(occupation: string, startPage: number): Promise<{ jobs: WorknetJob[]; total: number }> {
   const qs = new URLSearchParams({
     authKey: authKey(),
     callTp: "L",
     returnType: "XML",
     startPage: String(startPage),
     display: String(PAGE),
-    keyword,
+    occupation, // 직종코드 필터(work24 jobsCd). 키워드 검색 대신 정확 매칭.
   });
   const res = await fetch(`${LIST}?${qs}`, { cache: "no-store", signal: AbortSignal.timeout(20000) });
   if (!res.ok) throw new Error(`워크넷 API ${res.status}`);
@@ -125,20 +132,20 @@ async function inBatches<T, R>(items: T[], size: number, fn: (t: T) => Promise<R
   return out;
 }
 
-async function fetchKeyword(keyword: string): Promise<WorknetJob[]> {
-  const first = await fetchPage(keyword, 1);
+async function fetchOccupation(occupation: string): Promise<WorknetJob[]> {
+  const first = await fetchPage(occupation, 1);
   if (first.jobs.length === 0) return [];
   const pages = Math.min(Math.ceil(first.total / first.jobs.length) || 1, MAX_PAGES);
   const rest = pages > 1
-    ? await inBatches(Array.from({ length: pages - 1 }, (_, i) => i + 2), CONCURRENCY, (p) => fetchPage(keyword, p))
+    ? await inBatches(Array.from({ length: pages - 1 }, (_, i) => i + 2), CONCURRENCY, (p) => fetchPage(occupation, p))
     : [];
   return [first, ...rest].flatMap((p) => p.jobs);
 }
 
-// 키워드 합집합 수집 → authNo 중복 제거.
-export async function fetchNurseJobs(keywords: readonly string[] = NURSE_KEYWORDS): Promise<WorknetJob[]> {
+// 직종코드별 합집합 수집 → authNo 중복 제거(한 공고가 여러 코드에 안 걸리지만 방어적으로 dedup).
+export async function fetchNurseJobs(codes: readonly string[] = NURSE_JOB_CODES): Promise<WorknetJob[]> {
   const all: WorknetJob[] = [];
-  for (const kw of keywords) all.push(...await fetchKeyword(kw));
+  for (const code of codes) all.push(...await fetchOccupation(code));
   const seen = new Set<string>();
   return all.filter((j) => j.authNo && !seen.has(j.authNo) && seen.add(j.authNo));
 }
