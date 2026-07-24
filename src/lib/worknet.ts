@@ -1,4 +1,5 @@
 import "server-only";
+import { decodeEntities } from "@/lib/html";
 
 // 워크넷(고용24) 채용정보 오픈API(210L01) — **직종코드(occupation)** 로 간호 직군 구인공고 수집.
 // 응답은 고정 스키마 XML(<wanted> 반복)이라 파서 의존성 대신 정규식 추출(기존 worknet 직업정보 코드와 동일 방식).
@@ -70,8 +71,7 @@ function deriveEmploymentType(empTpCd: string, salTpNm: string): string | null {
 const pick = (xml: string, tag: string) =>
   xml.match(new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`))?.[1].trim() ?? "";
 
-const decode = (s: string) =>
-  s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"');
+const decode = decodeEntities; // 이중 인코딩(&amp;amp;)까지 푸는 반복 디코더(lib/html)
 
 // "26-07-08" 또는 "채용시까지  26-09-07" → "YYYY-MM-DD"(date). 날짜 없으면(상시채용) null.
 export function parseDeadline(s: string): string | null {
@@ -89,7 +89,7 @@ function parsePage(xml: string): { jobs: WorknetJob[]; total: number } {
     const salTpNm = pick(b, "salTpNm");
     return {
       authNo: pick(b, "wantedAuthNo"),
-      company: pick(b, "company"),
+      company: decode(pick(b, "company")), // 회사명도 &amp; 등 엔티티 디코드(카드 표시명)
       title,
       salTpNm,
       sal: pick(b, "sal"),
