@@ -6,6 +6,8 @@ import { regionOfLocation } from "@/lib/jobRegion";
 // 워크넷(고용24) 채용정보 "간호" 키워드 수집 → jobs upsert.
 // 워크넷 공고는 "구인 광고"다 — 병원 명부(hospitals, 심사평가원)와 다른 것이라 명부에 레코드를 만들지 않는다.
 // 회사명은 광고 자체(jobs.company_name)에 텍스트로만 담는다(hospital_id는 null).
+// ⏰ 크론(vercel.json): 하루 4회 KST 00:30/06:30/12:30/18:30 = UTC "30 3,9,15,21 * * *"(6시간 간격).
+//    모든 워크넷 공고는 마감일이 있어 KST 자정에 그날 마감분이 빠진다 → 00:30 실행이 그 저점을 즉시 메운다.
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
