@@ -19,6 +19,8 @@ export async function hasResume(userId: string): Promise<boolean> {
 export const getCommunityAccess = cache(async (): Promise<CommunityAccess> => {
   const [user, profile] = await Promise.all([getSessionUser(), getMyProfile()]);
   if (!user || !profile) return { ok: false, reason: "guest" };
+  // 최고 관리자는 관리·모더레이션을 위해 항상 입장(DB-real admin 기준, 보기전환과 무관).
+  if (profile.isAdmin) return { ok: true, userId: user.id };
   if (profile.role !== "nurse") return { ok: false, reason: "not_nurse" };
   return (await hasResume(user.id)) ? { ok: true, userId: user.id } : { ok: false, reason: "no_resume" };
 });

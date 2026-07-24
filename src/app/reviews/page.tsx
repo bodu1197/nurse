@@ -45,7 +45,8 @@ export default async function ReviewsPage({
   if (!access.ok) return <CommunityGate reason={access.reason} next="/reviews" />;
 
   const [{ ok, page, r: selectedId, hospital: hospitalId }, profile] = await Promise.all([searchParams, getMyProfile()]);
-  const canWrite = !!profile;
+  // 관리자는 리뷰를 열람·모더레이션만 — 작성은 막히므로(평점 오염 방지) 작성 버튼을 숨긴다.
+  const canWrite = !!profile && !profile.isAdmin;
 
   const renderHeader = (initialName = "") => (
     <>
