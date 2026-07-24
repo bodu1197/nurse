@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/data/user";
 import { LIST_LIMIT } from "@/lib/data/applications";
-import { FREE_LISTING_MS, DAY_MS, todayKst } from "@/lib/date";
+import { FREE_LISTING_MS, todayKst } from "@/lib/date";
 import type { JobStatus } from "@/lib/jobState";
 import type { Database } from "@/types/database";
 
@@ -45,7 +45,7 @@ export const PER_PAGE = 20;
 
 // 검색 필터를 URL 쿼리스트링으로 — 목록(/jobs)과 상세(/jobs/[id])가 같은 규칙으로 직렬화해야
 // 카드→상세→사이드바로 넘어가도 필터가 안 끊긴다. 필터 키가 늘면 여기 한 곳만 고치면 된다.
-export function jobFilterQs(f: { q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; et?: string; days?: string }, page?: number): string {
+export function jobFilterQs(f: { q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; et?: string }, page?: number): string {
   const p = new URLSearchParams();
   if (f.q) p.set("q", f.q);
   if (f.l) p.set("l", f.l);
@@ -53,7 +53,6 @@ export function jobFilterQs(f: { q?: string; l?: string; sido?: string; sigungu?
   if (f.sigungu) p.set("sigungu", f.sigungu);
   if (f.spec) p.set("spec", f.spec);
   if (f.et) p.set("et", f.et);
-  if (f.days) p.set("days", f.days);
   if (page && page > 1) p.set("page", String(page));
   return p.toString();
 }
@@ -65,7 +64,7 @@ const REVIVABLE = ["closed", "expired"] as const satisfies readonly JobStatus[];
 // PostgREST or 필터 주입 방지: %,(),쉼표 제거
 const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
 
-export type JobFilters = { sido?: string; sigungu?: string; specialty?: string; employmentType?: string; days?: number };
+export type JobFilters = { sido?: string; sigungu?: string; specialty?: string; employmentType?: string };
 
 // 🗂 지역 계단 노드(도/시군구 + 건수) — nurse_job_sido_list / nurse_job_sigungu_list RPC 반환형.
 export type JobRegionNode = { name: string; cnt: number };
@@ -122,7 +121,6 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   if (filters.sido && filters.sigungu) query = query.eq("sigungu", filters.sigungu);
   if (filters.specialty) query = query.eq("specialty", filters.specialty);
   if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
-  if (filters.days && filters.days > 0) query = query.gte("posted_at", new Date(Date.now() - filters.days * DAY_MS).toISOString());
 
   const { data, count, error } = await query.returns<JobRow[]>();
   if (error) {

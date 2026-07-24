@@ -53,8 +53,8 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
 export default async function JobPage({
   params,
   searchParams,
-}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ apply?: string; q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; et?: string; days?: string; page?: string }> }>) {
-  const [{ id }, { apply, q, l, sido, sigungu, spec, et, days, page }] = await Promise.all([params, searchParams]);
+}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ apply?: string; q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; et?: string; page?: string }> }>) {
+  const [{ id }, { apply, q, l, sido, sigungu, spec, et, page }] = await Promise.all([params, searchParams]);
   // 시군구는 시도에 종속 — 시도 없으면 무시(목록과 같은 계약).
   const sg = sido ? sigungu : undefined;
   const now = nowMs();
@@ -63,11 +63,11 @@ export default async function JobPage({
   if (!job) notFound();
 
   // 목록에서 필터를 걸고 들어왔으면(spec·et 등) 그 검색결과를 사이드바·닫기 링크로 그대로 이어간다.
-  const fromSearch = !!(q || l || sido || spec || et || days);
+  const fromSearch = !!(q || l || sido || spec || et);
   const pageNum = Math.max(1, Number(page) || 1);
   // 검색 컨텍스트 쿼리스트링(페이지 지정 가능) — 사이드바 카드·페이지네이션·닫기 공용.
   // 직렬화 규칙은 목록과 같은 jobFilterQs 한 곳을 쓴다(필터 추가 시 한쪽만 고쳐 끊기는 것 방지).
-  const qsFor = (toPage: number) => jobFilterQs({ q, l, sido, sigungu: sg, spec, et, days }, toPage);
+  const qsFor = (toPage: number) => jobFilterQs({ q, l, sido, sigungu: sg, spec, et }, toPage);
   const searchQs = qsFor(pageNum);
   // 닫기(X)·목록 링크가 돌아갈 곳: 필터가 있으면 그 검색결과, 없으면 목록 첫 화면.
   const backHref = "/jobs" + (searchQs ? `?${searchQs}` : "");
@@ -82,7 +82,7 @@ export default async function JobPage({
     profile ? getSavedJobIds([job.id]) : Promise.resolve(new Set<string>()),
     // 필터로 들어왔으면 같은 검색결과(전체 개수 포함)를, 아니면 같은 지역(없으면 최근) 공고를 좌측 사이드바로.
     fromSearch
-      ? getJobs(q ?? "", l ?? "", { sido, sigungu: sg, specialty: spec, employmentType: et, days: days ? Number(days) : undefined }, pageNum, true)
+      ? getJobs(q ?? "", l ?? "", { sido, sigungu: sg, specialty: spec, employmentType: et }, pageNum, true)
           .then((r) => ({ jobs: r.jobs.filter((x) => x.id !== id), sameRegion: false, total: r.total }))
       : getNearbyJobs(job.location, job.id).then((r) => ({ ...r, total: 0 })),
   ]);

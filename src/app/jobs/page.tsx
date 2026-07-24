@@ -3,28 +3,20 @@ import { SaveIcon } from "@/components/JobDetail";
 import Button from "@/components/Button";
 import JobNearMeButton from "@/components/JobNearMeButton";
 import JobSearchBar from "@/components/JobSearchBar";
-import FilterBar from "@/components/FilterBar";
 import { getJobs, getSavedJobIds, getJobSidoList, getJobSigunguList, jobFilterQs, PER_PAGE } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
-import { JOB_SPECIALTIES } from "@/lib/constants";
+import { JOB_SPECIALTIES, EMPLOYMENT_TYPES } from "@/lib/constants";
+import { chipClass as chip } from "@/lib/chip";
 import { saveSearch, toggleSaveJob } from "./actions";
 import { daysAgo, nowMs, listingEnd, fmtDate } from "@/lib/date";
 
 // 시드 샘플 데이터 단계 — 실제 워크넷/직접등록 데이터 전까지 noindex.
 export const metadata = { title: "채용 검색 — 널스넷", robots: { index: false } };
 
-// 진료과 칩 — 클릭 시 지역(sido/sigungu)+키워드는 유지, 고용형태·게시일·페이지는 리셋(dolpagu 게시판 칩과 동일).
-const chip = (active: boolean) =>
-  `inline-flex min-h-11 items-center whitespace-nowrap rounded-full border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${
-    active
-      ? "border-teal-600 bg-teal-600 text-white shadow-sm"
-      : "border-slate-200 bg-white text-slate-700 hover:border-teal-400 hover:text-teal-700"
-  }`;
-
 export default async function JobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; sido?: string; sigungu?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string; page?: string }> }>) {
-  const { q, l, sido, sigungu, j, saved, spec, et, days, page } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; sido?: string; sigungu?: string; j?: string; saved?: string; spec?: string; et?: string; page?: string }> }>) {
+  const { q, l, sido, sigungu, j, saved, spec, et, page } = await searchParams;
   // 예전 마스터-디테일의 ?j= 링크(저장·지원 내역 등)는 단독 상세로 넘긴다.
   if (j) redirect(`/jobs/${encodeURIComponent(j)}`);
 
@@ -36,7 +28,7 @@ export default async function JobsPage({
   const pageNum = Math.max(1, Number(page) || 1);
 
   const [{ jobs, total }, sidos, sigungus, profile] = await Promise.all([
-    getJobs(kw, loc, { sido: sd, sigungu: sg, specialty: spec, employmentType: et, days: days ? Number(days) : undefined }, pageNum),
+    getJobs(kw, loc, { sido: sd, sigungu: sg, specialty: spec, employmentType: et }, pageNum),
     getJobSidoList(),
     getJobSigunguList(sd), // 시도 미선택이면 즉시 [](비용 0)
     getMyProfile(),
@@ -46,10 +38,11 @@ export default async function JobsPage({
   const savedSet = profile ? await getSavedJobIds(jobs.map((x) => x.id)) : new Set<string>();
 
   // 검색 조건 유지 URL — 목록 이동(href)·카드→상세(detailHref)가 같은 검색결과를 따라간다. 직렬화는 jobFilterQs 한 곳.
-  const href = (toPage?: number) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec, et, days }, toPage); return "/jobs" + (s ? `?${s}` : ""); };
-  const detailHref = (jobId: string) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec, et, days }, pageNum); return `/jobs/${jobId}` + (s ? `?${s}` : ""); };
-  // 진료과 칩 href — 지역·키워드는 유지, 고용형태·게시일·페이지는 리셋.
-  const chipHref = (nextSpec?: string) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec: nextSpec }); return "/jobs" + (s ? `?${s}` : ""); };
+  const href = (toPage?: number) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec, et }, toPage); return "/jobs" + (s ? `?${s}` : ""); };
+  const detailHref = (jobId: string) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec, et }, pageNum); return `/jobs/${jobId}` + (s ? `?${s}` : ""); };
+  // 진료과·근무형태 칩 href — 둘은 독립 필터라 서로를 유지하고 지역·키워드도 유지, 페이지만 리셋.
+  const chipHref = (nextSpec?: string) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec: nextSpec, et }); return "/jobs" + (s ? `?${s}` : ""); };
+  const etHref = (nextEt?: string) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec, et: nextEt }); return "/jobs" + (s ? `?${s}` : ""); };
 
   return (
     <>
@@ -63,16 +56,21 @@ export default async function JobsPage({
         </div>
       </div>
 
-      {/* 진료과 칩 nav + 상세검색(고용형태·게시일) */}
+      {/* 진료과 칩 + 근무형태 칩 — 둘 다 펼쳐 나열(독립 필터). */}
       <div className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-[1280px] space-y-3 px-4 py-3">
+        <div className="mx-auto max-w-[1280px] space-y-2 px-4 py-3">
           <nav aria-label="진료과" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
-            <a href={chipHref()} aria-current={!spec ? "page" : undefined} className={chip(!spec)}>전체</a>
+            <a href={chipHref()} aria-current={!spec ? "page" : undefined} className={chip(!spec)}>진료과 전체</a>
             {JOB_SPECIALTIES.map((s) => (
               <a key={s} href={chipHref(s)} aria-current={spec === s ? "page" : undefined} className={chip(spec === s)}>{s}</a>
             ))}
           </nav>
-          <FilterBar />
+          <nav aria-label="근무형태" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+            <a href={etHref()} aria-current={!et ? "page" : undefined} className={chip(!et)}>근무형태 전체</a>
+            {EMPLOYMENT_TYPES.map((t) => (
+              <a key={t} href={etHref(t)} aria-current={et === t ? "page" : undefined} className={chip(et === t)}>{t}</a>
+            ))}
+          </nav>
         </div>
       </div>
 

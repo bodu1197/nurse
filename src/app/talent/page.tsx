@@ -1,23 +1,22 @@
 import SiteHeader from "@/components/SiteHeader";
-import Button from "@/components/Button";
 import { Pager } from "@/components/MasterDetail";
 import TalentCard from "@/components/TalentCard";
+import TalentRegionBar from "@/components/TalentRegionBar";
 import { redirect } from "next/navigation";
 import { getMyProfile } from "@/lib/data/user";
 import {
   searchPublicTalent, revealContacts, canRevealContacts, TALENT_PER_PAGE,
 } from "@/lib/data/talent";
-import { REGIONS } from "@/lib/resumeOptions";
 import { JOB_SPECIALTIES } from "@/lib/constants";
+import { chipClass as chip } from "@/lib/chip";
 
 export const metadata = {
   title: "간호사 인재정보 — 널스넷",
-  description: "이력서를 공개한 간호사 인재를 경력·진료과·근무형태로 검색하세요.",
+  description: "이력서를 공개한 간호사 인재를 지역·진료과·경력으로 검색하세요.",
   alternates: { canonical: "/talent" },
 };
 
-const field = "h-11 rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
-const YEARS = [1, 3, 5, 10];
+const YEARS = [1, 3, 5, 10] as const;
 
 export default async function TalentPage({
   searchParams,
@@ -51,6 +50,18 @@ export default async function TalentPage({
     const s = q.toString();
     return s ? `/talent?${s}` : "/talent";
   };
+  // 칩 href — 나머지 필터는 유지하고 하나만 바꾼다(페이지는 리셋). undefined 로 넘긴 값은 유지, "" 은 해제.
+  const build = (o: { spec?: string; loc?: string; years?: number }) => {
+    const q = new URLSearchParams();
+    const s2 = o.spec !== undefined ? o.spec : specialty;
+    const l2 = o.loc !== undefined ? o.loc : loc;
+    const y2 = o.years !== undefined ? o.years : minYears;
+    if (s2) q.set("spec", s2);
+    if (l2) q.set("loc", l2);
+    if (y2) q.set("years", String(y2));
+    const s = q.toString();
+    return s ? `/talent?${s}` : "/talent";
+  };
 
   return (
     <>
@@ -62,30 +73,22 @@ export default async function TalentPage({
           {!canSeeContacts && " 이름·연락처는 광고 중인 병원 회원만 볼 수 있습니다."}
         </p>
 
-        <form action="/talent" method="get" className="mt-4 flex flex-wrap items-end gap-2 rounded-2xl border border-slate-200 bg-white p-3">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="spec" className="text-xs font-medium text-slate-600">진료과</label>
-            <select id="spec" name="spec" defaultValue={specialty ?? ""} className={field}>
-              <option value="">전체</option>
-              {JOB_SPECIALTIES.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="loc" className="text-xs font-medium text-slate-600">희망 근무지</label>
-            <select id="loc" name="loc" defaultValue={loc ?? ""} className={field}>
-              <option value="">전체</option>
-              {REGIONS.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label htmlFor="years" className="text-xs font-medium text-slate-600">최소 경력</label>
-            <select id="years" name="years" defaultValue={minYears || ""} className={field}>
-              <option value="">무관</option>
-              {YEARS.map((y) => <option key={y} value={y}>{y}년 이상</option>)}
-            </select>
-          </div>
-          <Button type="submit" size="md">검색</Button>
-        </form>
+        {/* /jobs 검색과 동일한 UI — 지역 픽커(pill) + 진료과 칩 + 경력 칩. 고르면 즉시 조회(검색 버튼 없음). */}
+        <div className="mt-4">
+          <TalentRegionBar loc={loc ?? ""} />
+        </div>
+        <nav aria-label="진료과" className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+          <a href={build({ spec: "" })} aria-current={!specialty ? "page" : undefined} className={chip(!specialty)}>진료과 전체</a>
+          {JOB_SPECIALTIES.map((s) => (
+            <a key={s} href={build({ spec: s })} aria-current={specialty === s ? "page" : undefined} className={chip(specialty === s)}>{s}</a>
+          ))}
+        </nav>
+        <nav aria-label="최소 경력" className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+          <a href={build({ years: 0 })} aria-current={!minYears ? "page" : undefined} className={chip(!minYears)}>경력 무관</a>
+          {YEARS.map((y) => (
+            <a key={y} href={build({ years: y })} aria-current={minYears === y ? "page" : undefined} className={chip(minYears === y)}>{y}년 이상</a>
+          ))}
+        </nav>
 
         {showAdCta && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm">
