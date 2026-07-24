@@ -295,6 +295,8 @@ export type Database = {
           recruit_count: number | null
           salary_text: string | null
           shift_type: string | null
+          sido: string | null
+          sigungu: string | null
           source: string
           specialty: string | null
           status: string
@@ -327,6 +329,8 @@ export type Database = {
           recruit_count?: number | null
           salary_text?: string | null
           shift_type?: string | null
+          sido?: string | null
+          sigungu?: string | null
           source?: string
           specialty?: string | null
           status?: string
@@ -359,6 +363,8 @@ export type Database = {
           recruit_count?: number | null
           salary_text?: string | null
           shift_type?: string | null
+          sido?: string | null
+          sigungu?: string | null
           source?: string
           specialty?: string | null
           status?: string
@@ -700,6 +706,8 @@ export type Database = {
           id: string
           keyword: string | null
           location: string | null
+          sido: string | null
+          sigungu: string | null
           profile_id: string
         }
         Insert: {
@@ -707,6 +715,8 @@ export type Database = {
           id?: string
           keyword?: string | null
           location?: string | null
+          sido?: string | null
+          sigungu?: string | null
           profile_id: string
         }
         Update: {
@@ -714,6 +724,8 @@ export type Database = {
           id?: string
           keyword?: string | null
           location?: string | null
+          sido?: string | null
+          sigungu?: string | null
           profile_id?: string
         }
         Relationships: [
@@ -791,6 +803,8 @@ export type Database = {
     }
     Functions: {
       recompute_hospital_rating: { Args: { h: string }; Returns: undefined }
+      nurse_job_sido_list: { Args: Record<string, never>; Returns: { name: string; cnt: number }[] }
+      nurse_job_sigungu_list: { Args: { p_sido: string }; Returns: { name: string; cnt: number }[] }
     }
     Enums: {
       user_role: "nurse" | "hospital" | "admin"

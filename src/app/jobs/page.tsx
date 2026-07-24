@@ -1,64 +1,82 @@
 import { redirect } from "next/navigation";
-import Button from "@/components/Button";
 import { SaveIcon } from "@/components/JobDetail";
-import { getJobs, getSavedJobIds, jobFilterQs, PER_PAGE } from "@/lib/data/jobs";
-import { getMyProfile } from "@/lib/data/user";
-import { saveSearch, toggleSaveJob } from "./actions";
+import Button from "@/components/Button";
+import JobNearMeButton from "@/components/JobNearMeButton";
+import JobSearchBar from "@/components/JobSearchBar";
 import FilterBar from "@/components/FilterBar";
+import { getJobs, getSavedJobIds, getJobSidoList, getJobSigunguList, jobFilterQs, PER_PAGE } from "@/lib/data/jobs";
+import { getMyProfile } from "@/lib/data/user";
+import { JOB_SPECIALTIES } from "@/lib/constants";
+import { saveSearch, toggleSaveJob } from "./actions";
 import { daysAgo, nowMs, listingEnd, fmtDate } from "@/lib/date";
 
 // 시드 샘플 데이터 단계 — 실제 워크넷/직접등록 데이터 전까지 noindex.
 export const metadata = { title: "채용 검색 — 널스넷", robots: { index: false } };
 
+// 진료과 칩 — 클릭 시 지역(sido/sigungu)+키워드는 유지, 고용형태·게시일·페이지는 리셋(dolpagu 게시판 칩과 동일).
+const chip = (active: boolean) =>
+  `inline-flex min-h-11 items-center whitespace-nowrap rounded-full border px-4 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${
+    active
+      ? "border-teal-600 bg-teal-600 text-white shadow-sm"
+      : "border-slate-200 bg-white text-slate-700 hover:border-teal-400 hover:text-teal-700"
+  }`;
+
 export default async function JobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string; page?: string }> }>) {
-  const { q, l, j, saved, spec, et, days, page } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; sido?: string; sigungu?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string; page?: string }> }>) {
+  const { q, l, sido, sigungu, j, saved, spec, et, days, page } = await searchParams;
   // 예전 마스터-디테일의 ?j= 링크(저장·지원 내역 등)는 단독 상세로 넘긴다.
   if (j) redirect(`/jobs/${encodeURIComponent(j)}`);
 
   const kw = (q ?? "").trim();
   const loc = (l ?? "").trim();
+  const sd = (sido ?? "").trim();
+  // 시군구는 시도에 종속 — 시도 없으면 무시(서버 필터와 같은 계약).
+  const sg = sd ? (sigungu ?? "").trim() : "";
   const pageNum = Math.max(1, Number(page) || 1);
 
-  const [{ jobs, total }, profile] = await Promise.all([
-    getJobs(kw, loc, { specialty: spec, employmentType: et, days: days ? Number(days) : undefined }, pageNum),
+  const [{ jobs, total }, sidos, sigungus, profile] = await Promise.all([
+    getJobs(kw, loc, { sido: sd, sigungu: sg, specialty: spec, employmentType: et, days: days ? Number(days) : undefined }, pageNum),
+    getJobSidoList(),
+    getJobSigunguList(sd), // 시도 미선택이면 즉시 [](비용 0)
     getMyProfile(),
   ]);
   const now = nowMs();
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
   const savedSet = profile ? await getSavedJobIds(jobs.map((x) => x.id)) : new Set<string>();
 
-  // 검색 조건을 유지한 URL — 목록 이동용(href)과, 상세에서 사이드바·닫기(X)가 이 검색결과를
-  // 그대로 따라가도록 필터를 실어 보내는 카드 링크(detailHref). 직렬화 규칙은 jobFilterQs 한 곳.
-  const href = (toPage?: number) => { const s = jobFilterQs({ q: kw, l: loc, spec, et, days }, toPage); return "/jobs" + (s ? `?${s}` : ""); };
-  const detailHref = (jobId: string) => { const s = jobFilterQs({ q: kw, l: loc, spec, et, days }, pageNum); return `/jobs/${jobId}` + (s ? `?${s}` : ""); };
-  const inputClass = "h-full w-full bg-transparent text-base outline-none placeholder:text-slate-400";
+  // 검색 조건 유지 URL — 목록 이동(href)·카드→상세(detailHref)가 같은 검색결과를 따라간다. 직렬화는 jobFilterQs 한 곳.
+  const href = (toPage?: number) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec, et, days }, toPage); return "/jobs" + (s ? `?${s}` : ""); };
+  const detailHref = (jobId: string) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec, et, days }, pageNum); return `/jobs/${jobId}` + (s ? `?${s}` : ""); };
+  // 진료과 칩 href — 지역·키워드는 유지, 고용형태·게시일·페이지는 리셋.
+  const chipHref = (nextSpec?: string) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec: nextSpec }); return "/jobs" + (s ? `?${s}` : ""); };
 
   return (
     <>
-      {/* 헤더는 상위 layout.tsx가 그린다 */}
-      <div className="border-b border-slate-200">
+      {/* 상단: 내 주변 → 지역 → 검색 한 줄(dolpagu 와 동일 배치) */}
+      <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-[1280px] px-4 py-4">
-          <form action="/jobs" method="get" className="flex flex-col gap-2 rounded-xl border border-slate-300 p-1.5 shadow-sm focus-within:border-teal-500 sm:flex-row sm:items-center sm:rounded-full">
-            <label className="flex flex-1 items-center gap-2 px-3 py-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-slate-400" aria-hidden><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>
-              <input name="q" defaultValue={kw} aria-label="직무·키워드·병원 검색" placeholder="직무, 키워드 및 병원" className={inputClass} />
-            </label>
-            <span className="mx-1 hidden h-7 w-px bg-slate-200 sm:block" />
-            <label className="flex items-center gap-2 px-3 py-2 sm:w-64">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="shrink-0 text-slate-400" aria-hidden><path d="M12 21s-7-6.3-7-11a7 7 0 1114 0c0 4.7-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
-              <input name="l" defaultValue={loc} aria-label="지역 검색" placeholder="지역" className={inputClass} />
-            </label>
-            <Button type="submit" size="md">검색</Button>
-          </form>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <JobNearMeButton />
+            <JobSearchBar sidos={sidos} sigungus={sigungus} />
+          </div>
+        </div>
+      </div>
 
+      {/* 진료과 칩 nav + 상세검색(고용형태·게시일) */}
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-[1280px] space-y-3 px-4 py-3">
+          <nav aria-label="진료과" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+            <a href={chipHref()} aria-current={!spec ? "page" : undefined} className={chip(!spec)}>전체</a>
+            {JOB_SPECIALTIES.map((s) => (
+              <a key={s} href={chipHref(s)} aria-current={spec === s ? "page" : undefined} className={chip(spec === s)}>{s}</a>
+            ))}
+          </nav>
           <FilterBar />
         </div>
       </div>
 
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-5">
-        {/* 화면에는 검색창이 제목 역할을 하지만, 문서에는 h1이 하나 있어야 한다(스크린리더 · 검색엔진). */}
         <h1 className="sr-only">간호사 채용공고 검색</h1>
         <p className="text-sm text-slate-600">
           <a href={profile ? "/mypage/resume" : "/signup"} className="font-semibold text-teal-700 hover:underline">
@@ -67,12 +85,13 @@ export default async function JobsPage({
         </p>
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-slate-500">
-            {kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{total}건</span>{loc ? `, ${loc}` : ""} · 정렬: 연관성{totalPages > 1 ? ` · ${pageNum}/${totalPages}p` : ""}
+            {spec || kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{total.toLocaleString()}건</span>{sd ? `, ${sg || sd}` : ""} · 정렬: 연관성{totalPages > 1 ? ` · ${pageNum}/${totalPages}p` : ""}
           </p>
-          {profile && (kw || loc) && (
+          {profile && (kw || sd) && (
             <form action={saveSearch}>
               <input type="hidden" name="q" value={kw} />
-              <input type="hidden" name="l" value={loc} />
+              <input type="hidden" name="sido" value={sd} />
+              <input type="hidden" name="sigungu" value={sg} />
               <Button type="submit" variant="outline" size="sm" className="hover:border-teal-400 hover:text-teal-700">
                 🔔 검색 저장
               </Button>
@@ -86,10 +105,10 @@ export default async function JobsPage({
         )}
 
         {jobs.length === 0 ? (
-          <p className="py-20 text-center text-slate-500">검색 결과가 없습니다. 다른 키워드로 검색해 보세요.</p>
+          <p className="py-20 text-center text-slate-500">검색 결과가 없습니다. 다른 조건으로 검색해 보세요.</p>
         ) : (
           <>
-            {/* 메인처럼 카드만 2열로 나열 — 누르면 단독 상세(/jobs/[id])로 이동한다. */}
+            {/* 메인처럼 카드만 2열로 — 누르면 단독 상세(/jobs/[id])로 이동. */}
             <ul className="mt-4 grid gap-3 sm:grid-cols-2">
               {jobs.map((job) => (
                 <li key={job.id} className="relative">

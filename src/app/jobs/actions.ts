@@ -105,12 +105,15 @@ export async function saveSearch(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const keyword = String(formData.get("q") ?? "").trim() || null;
-  const location = String(formData.get("l") ?? "").trim() || null;
-  if (!keyword && !location) redirect("/jobs");
-  await supabase.from("saved_searches").insert({ profile_id: user.id, keyword, location });
+  // 지역은 정규화 sido/sigungu 로 저장·재생(검색바와 같은 eq 경로). 시군구는 시도에 종속.
+  const sido = String(formData.get("sido") ?? "").trim() || null;
+  const sigungu = sido ? String(formData.get("sigungu") ?? "").trim() || null : null;
+  if (!keyword && !sido) redirect("/jobs");
+  await supabase.from("saved_searches").insert({ profile_id: user.id, keyword, sido, sigungu });
   const p = new URLSearchParams();
   if (keyword) p.set("q", keyword);
-  if (location) p.set("l", location);
+  if (sido) p.set("sido", sido);
+  if (sigungu) p.set("sigungu", sigungu);
   p.set("saved", "1");
   redirect("/jobs?" + p.toString());
 }

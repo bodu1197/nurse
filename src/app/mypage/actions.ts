@@ -13,6 +13,7 @@ import { CANCELABLE, isHospitalStatus } from "@/lib/data/applications";
 import { DAY_MS, FREE_LISTING_MS } from "@/lib/date";
 import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
+import { regionOfLocation } from "@/lib/jobRegion";
 import { totalYears } from "@/lib/data/resume";
 import { CAREER_EXPERIENCED } from "@/lib/resumeOptions";
 
@@ -141,11 +142,15 @@ export async function createJob(formData: FormData) {
   const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
   const am = formData.getAll("apply_methods").map(String).filter((m) => ["platform", "email", "offline"].includes(m));
   const methods = am.length ? am : ["platform"];
+  const location = s("location") || hosp.address || hosp.region || null;
+  const region = regionOfLocation(location); // 지역 드롭다운·필터용 정규화(ingest 시점 확정)
   const { data: created, error } = await admin.from("jobs").insert({
     hospital_id: hospitalId,
     title,
     specialty: s("specialty") || null,
-    location: s("location") || hosp.address || hosp.region || null,
+    location,
+    sido: region.sido,
+    sigungu: region.sigungu,
     employment_type: s("employment_type") || null,
     salary_text: s("salary_text") || null,
     description: s("description") || null,
@@ -193,10 +198,14 @@ export async function updateJob(formData: FormData) {
   const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
   const am = formData.getAll("apply_methods").map(String).filter((m) => ["platform", "email", "offline"].includes(m));
   const methods = am.length ? am : ["platform"];
+  const location = s("location") || hosp.region || null;
+  const region = regionOfLocation(location);
   const { error } = await admin.from("jobs").update({
     title,
     specialty: s("specialty") || null,
-    location: s("location") || hosp.region || null,
+    location,
+    sido: region.sido,
+    sigungu: region.sigungu,
     employment_type: s("employment_type") || null,
     salary_text: s("salary_text") || null,
     description: s("description") || null,

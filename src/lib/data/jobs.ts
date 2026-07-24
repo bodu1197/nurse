@@ -45,10 +45,12 @@ export const PER_PAGE = 20;
 
 // 검색 필터를 URL 쿼리스트링으로 — 목록(/jobs)과 상세(/jobs/[id])가 같은 규칙으로 직렬화해야
 // 카드→상세→사이드바로 넘어가도 필터가 안 끊긴다. 필터 키가 늘면 여기 한 곳만 고치면 된다.
-export function jobFilterQs(f: { q?: string; l?: string; spec?: string; et?: string; days?: string }, page?: number): string {
+export function jobFilterQs(f: { q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; et?: string; days?: string }, page?: number): string {
   const p = new URLSearchParams();
   if (f.q) p.set("q", f.q);
   if (f.l) p.set("l", f.l);
+  if (f.sido) p.set("sido", f.sido);
+  if (f.sigungu) p.set("sigungu", f.sigungu);
   if (f.spec) p.set("spec", f.spec);
   if (f.et) p.set("et", f.et);
   if (f.days) p.set("days", f.days);
@@ -63,7 +65,27 @@ const REVIVABLE = ["closed", "expired"] as const satisfies readonly JobStatus[];
 // PostgREST or 필터 주입 방지: %,(),쉼표 제거
 const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
 
-export type JobFilters = { specialty?: string; employmentType?: string; days?: number };
+export type JobFilters = { sido?: string; sigungu?: string; specialty?: string; employmentType?: string; days?: number };
+
+// 🗂 지역 계단 노드(도/시군구 + 건수) — nurse_job_sido_list / nurse_job_sigungu_list RPC 반환형.
+export type JobRegionNode = { name: string; cnt: number };
+
+// 도 목록(건수 포함). RPC 술어는 getJobs 와 동일(마감·direct 노출) → 드롭다운 건수 = 클릭 후 건수.
+// cache(): 한 요청 안에서 중복 호출을 dedup(반환형은 database.ts Functions 로 이미 타입 지정 → 단언 불필요).
+export const getJobSidoList = cache(async (): Promise<JobRegionNode[]> => {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("nurse_job_sido_list");
+  if (error) console.error("getJobSidoList failed:", error.message);
+  return data ?? [];
+});
+// 선택한 도의 시군구 목록. 시도 미선택이면 즉시 [](비용 0).
+export const getJobSigunguList = cache(async (sido: string): Promise<JobRegionNode[]> => {
+  if (!sido) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("nurse_job_sigungu_list", { p_sido: sido });
+  if (error) console.error("getJobSigunguList failed:", error.message);
+  return data ?? [];
+});
 
 // 관리자 테스트 공고(hospitals.is_test)를 여기서 걸러내지 않는 것은 의도된 결정이다.
 // 숨기면 등록→광고→지원까지 실제 화면에서 확인할 방법이 없어 테스트 기능이 무용지물이 된다.
@@ -94,6 +116,10 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   if (kw) query = query.or(`title.ilike.%${kw}%,specialty.ilike.%${kw}%`);
   const loc = clean(location);
   if (loc) query = query.ilike("location", `%${loc}%`);
+  // 🗂 지역은 정규화 컬럼 eq(정확·인덱스). 🔴 시군구는 시도에 종속 — 시도 없이 걸면 시군구명이
+  // 시도 간 중복이라('중구'가 여러 시도) 엉뚱한 지역을 긁는다. 시도 있을 때만 시군구를 적용한다.
+  if (filters.sido) query = query.eq("sido", filters.sido);
+  if (filters.sido && filters.sigungu) query = query.eq("sigungu", filters.sigungu);
   if (filters.specialty) query = query.eq("specialty", filters.specialty);
   if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
   if (filters.days && filters.days > 0) query = query.gte("posted_at", new Date(Date.now() - filters.days * DAY_MS).toISOString());
@@ -218,7 +244,7 @@ export async function getMyLastJob(): Promise<MyJobDetail | null> {
   return data ? { ...data, hospital: data.hospital } : null;
 }
 
-export type SavedSearch = { id: string; keyword: string | null; location: string | null; created_at: string };
+export type SavedSearch = { id: string; keyword: string | null; sido: string | null; sigungu: string | null; created_at: string };
 
 // 마이페이지 카드 배지용 — 개수만.
 export async function countSaved(): Promise<number> {
@@ -242,7 +268,7 @@ export async function getMySavedSearches(): Promise<SavedSearch[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("saved_searches")
-    .select("id,keyword,location,created_at")
+    .select("id,keyword,sido,sigungu,created_at")
     .eq("profile_id", user.id)
     .order("created_at", { ascending: false })
     .returns<SavedSearch[]>();

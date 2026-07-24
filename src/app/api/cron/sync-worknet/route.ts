@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchNurseJobs, fetchDetails } from "@/lib/worknet";
+import { regionOfLocation } from "@/lib/jobRegion";
 
 // 워크넷(고용24) 채용정보 "간호" 키워드 수집 → jobs upsert.
 // 워크넷 공고는 "구인 광고"다 — 병원 명부(hospitals, 심사평가원)와 다른 것이라 명부에 레코드를 만들지 않는다.
@@ -63,6 +64,7 @@ export async function GET(request: Request) {
     const rows = jobs.map((j) => {
       const d = details.get(j.authNo);
       const s = stored.get(j.authNo);
+      const region = regionOfLocation(j.region || null); // 지역 드롭다운·필터용 정규화(백필과 같은 경로)
       return {
         company_name: j.company || null,
         hospital_id: null,
@@ -70,6 +72,8 @@ export async function GET(request: Request) {
         specialty: j.specialty,
         employment_type: j.employmentType,
         location: j.region || null,
+        sido: region.sido,
+        sigungu: region.sigungu,
         salary_text: [j.salTpNm, j.sal].filter(Boolean).join(" ") || null,
         description: d?.description ?? s?.description ?? listDesc(j),
         recruit_count: d?.recruitCount ?? s?.recruit_count ?? null,

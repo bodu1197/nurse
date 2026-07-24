@@ -17,13 +17,16 @@ export default async function AlertsPage({
   if (p.role !== "nurse") redirect("/mypage");
   const [{ error }, searches] = await Promise.all([searchParams, getMySavedSearches()]);
 
-  const toHref = (kw: string | null, loc: string | null) => {
+  const toHref = (kw: string | null, sido: string | null, sigungu: string | null) => {
     const q = new URLSearchParams();
     if (kw) q.set("q", kw);
-    if (loc) q.set("l", loc);
+    if (sido) q.set("sido", sido);
+    if (sido && sigungu) q.set("sigungu", sigungu);
     const s = q.toString();
     return "/jobs" + (s ? `?${s}` : "");
   };
+  // 표시 라벨: 시군구가 있으면 시군구, 없으면 시도(가장 구체적인 지역명).
+  const regionLabel = (sido: string | null, sigungu: string | null) => (sido && sigungu) || sido || null;
 
   return (
     <NurseShell displayName={p.displayName} active="/mypage/alerts">
@@ -39,8 +42,8 @@ export default async function AlertsPage({
           <ul className="mt-6 space-y-3">
             {searches.map((s) => (
               <li key={s.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
-                <a href={toHref(s.keyword, s.location)} className="min-w-0 font-medium text-slate-800 hover:text-teal-700">
-                  {[s.keyword, s.location].filter(Boolean).join(" · ") || "전체 공고"}
+                <a href={toHref(s.keyword, s.sido, s.sigungu)} className="min-w-0 font-medium text-slate-800 hover:text-teal-700">
+                  {[s.keyword, regionLabel(s.sido, s.sigungu)].filter(Boolean).join(" · ") || "전체 공고"}
                 </a>
                 <form action={deleteSavedSearch} className="inline">
                   <input type="hidden" name="id" value={s.id} />
