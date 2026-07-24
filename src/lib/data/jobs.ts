@@ -56,12 +56,13 @@ export type JobFilters = { specialty?: string; employmentType?: string; days?: n
 // 숨기면 등록→광고→지원까지 실제 화면에서 확인할 방법이 없어 테스트 기능이 무용지물이 된다.
 // 병원명이 "[테스트] …"로 시작해 목록·상세에서 사용자도 테스트임을 알아볼 수 있고,
 // 테스트가 끝나면 해당 공고를 삭제하면 된다. (공고 등록 시 병원 검색에서는 계속 제외 — /api/hospitals/search)
-export async function getJobs(keyword: string, location: string, filters: JobFilters = {}, page = 1): Promise<{ jobs: JobRow[]; total: number }> {
+// withCount=false: total(전체 개수)이 필요 없는 호출(사이드바 등)은 COUNT 스캔을 생략한다.
+export async function getJobs(keyword: string, location: string, filters: JobFilters = {}, page = 1, withCount = true): Promise<{ jobs: JobRow[]; total: number }> {
   const supabase = await createClient();
   const from = (Math.max(1, page) - 1) * PER_PAGE;
   let query = supabase
     .from("jobs")
-    .select(SELECT, { count: "exact" })
+    .select(SELECT, withCount ? { count: "exact" } : undefined)
     .eq("status", "open")
     .order("featured_until", { ascending: false, nullsFirst: false })
     .order("posted_at", { ascending: false })
@@ -89,7 +90,19 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
     console.error("getJobs failed:", error.message);
     return { jobs: [], total: 0 };
   }
-  return { jobs: data ?? [], total: count ?? 0 };
+  return { jobs: data ?? [], total: withCount ? (count ?? 0) : (data?.length ?? 0) };
+}
+
+// 같은 지역 다른 공고(상세 페이지 좌측 사이드바). 지역 키는 앞 2토큰("경기 성남시")으로 잡아
+// 시/군 단위로 묶는다. 노출 규칙(마감·유료기간 등)은 getJobs를 그대로 재사용해 목록과 어긋나지 않게 한다.
+export function regionOf(location: string | null): string {
+  return (location ?? "").trim().split(/\s+/).slice(0, 2).join(" ");
+}
+export async function getNearbyJobs(location: string | null, excludeId: string, limit = 8): Promise<JobRow[]> {
+  const region = regionOf(location);
+  if (!region) return [];
+  const { jobs } = await getJobs("", region, {}, 1, false); // 총개수 불필요 → COUNT 생략
+  return jobs.filter((j) => j.id !== excludeId).slice(0, limit);
 }
 
 export type MyJob = { id: string; title: string; status: JobStatus; posted_at: string; featured_until: string | null; applicant_count: number };

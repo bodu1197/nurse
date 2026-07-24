@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
 import Button from "@/components/Button";
-import JobDetail, { SaveIcon } from "@/components/JobDetail";
-import { getJobs, getSavedJobIds, PER_PAGE, type JobRow } from "@/lib/data/jobs";
+import { SaveIcon } from "@/components/JobDetail";
+import { getJobs, getSavedJobIds, PER_PAGE } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
-import { hasApplied } from "@/lib/data/applications";
 import { saveSearch, toggleSaveJob } from "./actions";
 import FilterBar from "@/components/FilterBar";
 import { daysAgo, nowMs, listingEnd, fmtDate } from "@/lib/date";
@@ -13,8 +12,11 @@ export const metadata = { title: "채용 검색 — 널스넷", robots: { index:
 
 export default async function JobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string; apply?: string; page?: string }> }>) {
-  const { q, l, j, saved, spec, et, days, apply, page } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; j?: string; saved?: string; spec?: string; et?: string; days?: string; page?: string }> }>) {
+  const { q, l, j, saved, spec, et, days, page } = await searchParams;
+  // 예전 마스터-디테일의 ?j= 링크(저장·지원 내역 등)는 단독 상세로 넘긴다.
+  if (j) redirect(`/jobs/${encodeURIComponent(j)}`);
+
   const kw = (q ?? "").trim();
   const loc = (l ?? "").trim();
   const pageNum = Math.max(1, Number(page) || 1);
@@ -23,21 +25,12 @@ export default async function JobsPage({
     getJobs(kw, loc, { specialty: spec, employmentType: et, days: days ? Number(days) : undefined }, pageNum),
     getMyProfile(),
   ]);
-  // ?j=가 이 페이지 목록에 없으면 단독 상세로 보낸다. 예전처럼 jobs[0]으로 떨어뜨리면
-  // 저장·지원 내역에서 온 링크가 **엉뚱한 병원 공고**를 열고, 그 화면에서 그대로 지원까지 된다.
-  const selected: JobRow | undefined = j ? jobs.find((x) => x.id === j) : jobs[0];
-  // 실패 사유(apply)를 달고 왔다면 그대로 넘겨야 안내 문구가 상세에서도 보인다.
-  // 값은 그대로 URL에 붙지 않도록 인코딩한다(사용자가 넣은 문자열이 그대로 경로가 되면 안 된다).
-  if (j && !selected) redirect(`/jobs/${encodeURIComponent(j)}${apply ? `?apply=${encodeURIComponent(apply)}` : ""}`);
   const now = nowMs();
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
-  // 서로 의존하지 않는 조회는 함께 보낸다(직렬이면 목록 화면이 왕복 한 번만큼 늦어진다).
-  const [applied, savedSet] = await Promise.all([
-    selected && profile?.role === "nurse" ? hasApplied(selected.id) : Promise.resolve(false),
-    profile ? getSavedJobIds(jobs.map((x) => x.id)) : Promise.resolve(new Set<string>()),
-  ]);
+  const savedSet = profile ? await getSavedJobIds(jobs.map((x) => x.id)) : new Set<string>();
 
-  const href = (jobId?: string, toPage?: number) => {
+  // 검색 조건을 유지한 목록 URL(페이지 이동·저장 후 복귀용).
+  const href = (toPage?: number) => {
     const p = new URLSearchParams();
     if (kw) p.set("q", kw);
     if (loc) p.set("l", loc);
@@ -45,10 +38,6 @@ export default async function JobsPage({
     if (et) p.set("et", et);
     if (days) p.set("days", days);
     if (toPage && toPage > 1) p.set("page", String(toPage));
-    // 공고를 고를 때 현재 페이지를 유지한다 — 안 넣으면 2페이지 이후 공고는 1페이지 목록에 없어
-    // 목록 옆 패널이 아니라 단독 상세로 튕기고 검색 조건까지 날아간다.
-    else if (jobId && pageNum > 1) p.set("page", String(pageNum));
-    if (jobId) p.set("j", jobId);
     const s = p.toString();
     return "/jobs" + (s ? `?${s}` : "");
   };
@@ -107,61 +96,44 @@ export default async function JobsPage({
         {jobs.length === 0 ? (
           <p className="py-20 text-center text-slate-500">검색 결과가 없습니다. 다른 키워드로 검색해 보세요.</p>
         ) : (
-          <div className="mt-4 lg:grid lg:grid-cols-[minmax(0,470px)_1fr] lg:gap-4">
-            <div className={j ? "hidden lg:block" : ""}>
-            <ul className="space-y-3">
-              {jobs.map((job) => {
-                const on = selected?.id === job.id;
-                return (
-                  <li key={job.id} className="relative">
-                    <a href={href(job.id)} className={`block rounded-lg border bg-white p-4 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 ${on ? "border-teal-600 ring-1 ring-teal-600" : "border-slate-200 hover:border-slate-300 hover:shadow-sm"}`}>
-                      <h3 className="font-semibold leading-snug text-slate-900">{job.title}</h3>
-                      <div className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? job.company_name ?? "병원 미상"}</div>
-                      <div className="text-sm text-slate-500">{job.location}</div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2 pr-10 text-xs">
-                        {job.salary_text && <span className="text-slate-500">{job.salary_text}</span>}
-                        {job.source === "direct" && job.shift_type && <span className="text-slate-500">{job.shift_type}</span>}
-                        <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
-                        {job.source === "direct"
-                          ? <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job, now)).slice(5)} 마감</span>
-                          : job.deadline && <span className="font-medium text-rose-600">~{job.deadline.slice(5).replace("-", ".")} 마감</span>}
-                      </div>
-                    </a>
-                    <form action={toggleSaveJob} className="absolute bottom-2 right-2">
-                      <input type="hidden" name="job_id" value={job.id} />
-                      <input type="hidden" name="next" value={href(job.id)} />
-                      <button type="submit" aria-label={savedSet.has(job.id) ? "저장 해제" : "저장"} className={`grid h-9 w-9 place-items-center rounded-full hover:bg-slate-100 ${savedSet.has(job.id) ? "text-teal-600" : "text-slate-400"}`}>
-                        <SaveIcon filled={savedSet.has(job.id)} />
-                      </button>
-                    </form>
-                  </li>
-                );
-              })}
+          <>
+            {/* 메인처럼 카드만 2열로 나열 — 누르면 단독 상세(/jobs/[id])로 이동한다. */}
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+              {jobs.map((job) => (
+                <li key={job.id} className="relative">
+                  <a href={`/jobs/${job.id}`} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="font-bold leading-snug text-slate-900">{job.title}</h3>
+                      {job.is_featured && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">추천</span>}
+                    </div>
+                    <p className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? job.company_name ?? "병원 미상"}</p>
+                    <p className="text-sm text-slate-500">{job.location}</p>
+                    <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pr-12 pt-3 text-xs">
+                      <span className="font-bold text-teal-700">{job.salary_text ?? "급여 협의"}</span>
+                      <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
+                      {job.source === "direct"
+                        ? <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job, now)).slice(5)} 마감</span>
+                        : job.deadline && <span className="font-medium text-rose-600">~{job.deadline.slice(5).replace("-", ".")} 마감</span>}
+                    </div>
+                  </a>
+                  <form action={toggleSaveJob} className="absolute bottom-3 right-3">
+                    <input type="hidden" name="job_id" value={job.id} />
+                    <input type="hidden" name="next" value={href(pageNum)} />
+                    <button type="submit" aria-label={savedSet.has(job.id) ? "저장 해제" : "저장"} className={`grid h-11 w-11 place-items-center rounded-full hover:bg-slate-100 ${savedSet.has(job.id) ? "text-teal-600" : "text-slate-400"}`}>
+                      <SaveIcon filled={savedSet.has(job.id)} />
+                    </button>
+                  </form>
+                </li>
+              ))}
             </ul>
             {totalPages > 1 && (
-              <nav className="mt-4 flex items-center justify-center gap-3 text-sm">
-                {pageNum > 1 ? <a href={href(undefined, pageNum - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">← 이전</a> : <span />}
+              <nav className="mt-6 flex items-center justify-center gap-3 text-sm">
+                {pageNum > 1 ? <a href={href(pageNum - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">← 이전</a> : <span />}
                 <span className="text-slate-500">{pageNum} / {totalPages}</span>
-                {pageNum < totalPages ? <a href={href(undefined, pageNum + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">다음 →</a> : <span />}
+                {pageNum < totalPages ? <a href={href(pageNum + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">다음 →</a> : <span />}
               </nav>
             )}
-            </div>
-
-            {selected && (
-              <section className={`${j ? "" : "hidden lg:block"} lg:self-start`}>
-                <JobDetail
-                  job={selected}
-                  profile={profile}
-                  applied={applied}
-                  saved={savedSet.has(selected.id)}
-                  selfHref={href(selected.id)}
-                  backHref={href()}
-                  applyError={apply}
-                  now={now}
-                />
-              </section>
-            )}
-          </div>
+          </>
         )}
       </main>
     </>

@@ -2,10 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JobDetail from "@/components/JobDetail";
-import { getPublicJob, getSavedJobIds, type JobRow } from "@/lib/data/jobs";
+import { getPublicJob, getSavedJobIds, getNearbyJobs, regionOf, type JobRow } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
 import { hasApplied } from "@/lib/data/applications";
-import { nowMs, listingEnd } from "@/lib/date";
+import { daysAgo, nowMs, listingEnd } from "@/lib/date";
 import { isOpenToSeekers } from "@/lib/jobState";
 
 // 시드 데이터 단계 — 목록(/jobs)과 동일하게 noindex.
@@ -61,10 +61,13 @@ export default async function JobPage({
   if (!job) notFound();
 
   // 서로 의존하지 않는 조회는 함께 보낸다(직렬로 두면 상세 화면이 왕복 한 번만큼 늦어진다).
-  const [applied, savedIds] = await Promise.all([
+  const [applied, savedIds, nearby] = await Promise.all([
     profile?.role === "nurse" ? hasApplied(job.id) : Promise.resolve(false),
     profile ? getSavedJobIds([job.id]) : Promise.resolve(new Set<string>()),
+    getNearbyJobs(job.location, job.id), // 같은 지역 다른 공고(좌측 사이드바)
   ]);
+  // 사이드바 제목용 지역명(시/군). "경기 성남시" → "성남시".
+  const regionLabel = regionOf(job.location).split(" ")[1] ?? regionOf(job.location);
 
   // 검색엔진용 채용공고 구조화 데이터 — 목록 옆 패널이 아니라 이 단독 라우트에서만 낸다
   // (한 페이지에 JobPosting이 둘이면 어느 공고의 페이지인지 알 수 없다).
@@ -91,7 +94,7 @@ export default async function JobPage({
   };
 
   return (
-    <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5">
+    <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-5">
       {/* 공고 제목·상세는 병원이 입력하거나 외부에서 수집한 값이다.
           JSON 안의 "</script>"가 태그를 닫아 버리지 않도록 '<'를 이스케이프한다. */}
       <script
@@ -99,16 +102,46 @@ export default async function JobPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
       <Link href="/jobs" className="mb-3 inline-block text-sm text-teal-700 hover:underline">← 채용공고 목록</Link>
-      <JobDetail
-        job={job}
-        profile={profile}
-        applied={applied}
-        saved={savedIds.has(job.id)}
-        selfHref={`/jobs/${job.id}`}
-        applyError={apply}
-        asH1
-        now={now}
-      />
+
+      {/* 같은 지역 공고가 있을 때만 2열(좌측 사이드바). 없으면 상세만 읽기 좋은 폭으로. */}
+      <div className={nearby.length > 0 ? "lg:grid lg:grid-cols-[minmax(0,320px)_1fr] lg:items-start lg:gap-6" : "mx-auto max-w-3xl"}>
+        {/* 상세 — 모바일에선 먼저, 데스크톱에선 오른쪽(넓은 화면서 본문폭 과대 방지) */}
+        <div className="lg:col-start-2 lg:row-start-1 lg:max-w-3xl">
+          <JobDetail
+            job={job}
+            profile={profile}
+            applied={applied}
+            saved={savedIds.has(job.id)}
+            selfHref={`/jobs/${job.id}`}
+            applyError={apply}
+            asH1
+            now={now}
+          />
+        </div>
+
+        {/* 같은 지역 공고 — 모바일에선 상세 아래, 데스크톱에선 왼쪽 사이드바 */}
+        {nearby.length > 0 && (
+          <aside aria-label={`${regionLabel} 채용공고`} className="mt-10 lg:col-start-1 lg:row-start-1 lg:mt-0">
+            <h2 className="mb-3 text-sm font-bold text-slate-900">
+              {regionLabel ? `${regionLabel} 채용공고` : "같은 지역 채용공고"} <span className="font-normal text-slate-400">({nearby.length})</span>
+            </h2>
+            <ul className="space-y-2">
+              {nearby.map((n) => (
+                <li key={n.id}>
+                  <a href={`/jobs/${n.id}`} className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-teal-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    <p className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900">{n.title}</p>
+                    <p className="mt-1 truncate text-xs text-slate-500">{n.hospital?.name ?? n.company_name ?? "병원 미상"}{n.location ? ` · ${n.location}` : ""}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs">
+                      {n.salary_text && <span className="font-medium text-teal-700">{n.salary_text}</span>}
+                      <span className="text-slate-400">{daysAgo(n.posted_at)}일 전</span>
+                    </div>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </aside>
+        )}
+      </div>
     </main>
   );
 }
