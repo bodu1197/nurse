@@ -16,7 +16,7 @@ import { chunk, restHeaders, fetchAllPages } from "./_legacy-util.ts";
 const APPLY = process.argv.includes("--apply");
 const BUCKET = "board";
 const LEGACY_ORIGIN = "https://nursenet.co.kr";
-const CONCURRENCY = 4;
+const CONCURRENCY = 4; // 레거시 서버가 공유호스팅이라 과하게 당기면 502 를 낸다(파일이 88장뿐이라 서두를 이유도 없다)
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -71,10 +71,14 @@ console.log(mk.ok ? `✅ ${BUCKET} 버킷 생성` : `버킷 준비: ${mk.status}
 
 // ── 1) 내려받아 올리기 ──────────────────────────────────
 const failures: string[] = [];
+// 🔴 실패한 **오브젝트 키**를 그대로 모은다. 전에는 원본 URL 만 남기고 나중에 키로 되조합했는데,
+//    src 가 상대경로("./files/…")거나 뒤에 ?쿼리가 붙은 경우 재조합이 안 맞아 실패한 사진이
+//    images 에 그대로 남는다 → 화면에 깨진 이미지가 뜬다.
+const failedKeys = new Set<string>();
 let done = 0, bytes = 0;
 async function moveOne(d: { from: string; key: string }) {
   const res = await fetch(d.from, { signal: AbortSignal.timeout(30000) }).catch(() => null);
-  if (!res?.ok) { failures.push(`${d.from} → 받기 실패 ${res?.status ?? "네트워크"}`); return; }
+  if (!res?.ok) { failures.push(`${d.from} → 받기 실패 ${res?.status ?? "네트워크"}`); failedKeys.add(d.key); return; }
   const buf = await res.arrayBuffer();
   const up = await fetch(`${url}/storage/v1/object/${BUCKET}/${d.key}`, {
     method: "POST",
@@ -84,7 +88,7 @@ async function moveOne(d: { from: string; key: string }) {
     },
     body: buf,
   });
-  if (!up.ok) { failures.push(`${d.key} → 올리기 ${up.status}`); return; }
+  if (!up.ok) { failures.push(`${d.key} → 올리기 ${up.status}`); failedKeys.add(d.key); return; }
   done += 1; bytes += buf.byteLength;
 }
 
@@ -97,7 +101,6 @@ for (const f of failures.slice(0, 8)) console.log("   -", f);
 
 // ── 2) board_posts.images 잇기 ──────────────────────────
 // 받기에 실패한 파일은 목록에서 뺀다 — 없는 사진을 걸어두면 화면에 깨진 이미지가 남는다.
-const failedKeys = new Set(failures.map((f) => f.split(" ")[0]));
 const idByLegacy = new Map(
   (await fetchAllPages<{ id: string; legacy_srl: number }>(
     url, H, "board_posts", "select=id,legacy_srl&legacy_srl=not.is.null", "legacy_srl",
@@ -108,7 +111,7 @@ let linked = 0;
 for (const j of jobs) {
   const id = idByLegacy.get(j.legacySrl);
   if (!id) { console.log(`⚠ 글을 못 찾음 legacy_srl=${j.legacySrl}`); continue; }
-  const images = j.images.filter((v) => !failedKeys.has(v) && !failedKeys.has(LEGACY_ORIGIN + "/files/attach/images/" + v));
+  const images = j.images.filter((v) => !failedKeys.has(v));
   const r = await fetch(`${url}/rest/v1/board_posts?id=eq.${id}`, {
     method: "PATCH", headers: { ...H, Prefer: "return=minimal" }, body: JSON.stringify({ images }),
   });

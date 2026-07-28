@@ -1,14 +1,13 @@
 import SiteHeader from "@/components/SiteHeader";
 import { Pager } from "@/components/MasterDetail";
 import TalentCard from "@/components/TalentCard";
-import TalentRegionBar from "@/components/TalentRegionBar";
+import TalentSearchBar from "@/components/TalentSearchBar";
 import { redirect } from "next/navigation";
 import { getMyProfile } from "@/lib/data/user";
 import {
   searchPublicTalent, revealContacts, canRevealContacts, TALENT_PER_PAGE,
-  getTalentSidoList, getTalentSigunguList, type RevealedContact,
+  getTalentSidoList, getTalentSigunguList, getTalentFacets, type RevealedContact,
 } from "@/lib/data/talent";
-import { JOB_SPECIALTIES } from "@/lib/constants";
 import { chipClass as chip } from "@/lib/chip";
 
 // 인재정보는 개인정보다 — 검색엔진에 절대 올리지 않는다(오너 확정).
@@ -22,7 +21,7 @@ import { chipClass as chip } from "@/lib/chip";
 //    이미 색인된 하위 페이지(/talent/[id])를 다시 방문해 빼낼 길이 없어진다.
 export const metadata = {
   title: "간호사 인재정보 — 널스넷",
-  description: "이력서를 공개한 간호사 인재를 지역·진료과·경력으로 검색하세요.",
+  description: "이력서를 공개한 간호사 인재를 지역·근무부서·직종·경력으로 검색하세요.",
   robots: { index: false },
 };
 
@@ -30,28 +29,33 @@ const YEARS = [1, 3, 5, 10] as const;
 
 export default async function TalentPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ spec?: string; sido?: string; sigungu?: string; loc?: string; years?: string; page?: string; t?: string }> }>) {
-  const [{ spec, sido, sigungu, loc, years, page, t: selectedId }, p] = await Promise.all([searchParams, getMyProfile()]);
+}: Readonly<{ searchParams: Promise<{ q?: string; dept?: string; cat?: string; spec?: string; sido?: string; sigungu?: string; loc?: string; years?: string; page?: string; t?: string }> }>) {
+  const [{ q, dept, cat, spec, sido, sigungu, loc, years, page, t: selectedId }, p] =
+    await Promise.all([searchParams, getMyProfile()]);
   // 예전 마스터-디테일의 ?t= 링크(공유 주소)는 단독 상세로 넘긴다(/jobs의 ?j= 처리와 동일).
   if (selectedId) redirect(`/talent/${encodeURIComponent(selectedId)}`);
   const pageNum = Math.max(1, Number(page) || 1);
   const minYears = Number(years) || 0;
-  const specialty = JOB_SPECIALTIES.includes(spec as (typeof JOB_SPECIALTIES)[number]) ? spec : undefined;
+  const kw = (q ?? "").trim();
   // 예전 1단 링크(?loc=서울)는 시도로 받아준다 — 저장된 주소·외부 링크가 끊기지 않게.
   const sd = (sido ?? loc ?? "").trim();
   // 시군구는 시도에 종속 — 시도 없이 오면 무시한다(서버 필터와 같은 계약).
   const sgg = sd ? (sigungu ?? "").trim() : "";
+  // 예전 링크(?spec=중환자실)는 근무부서(?dept=)로 받아준다 — 저장된 주소·외부 링크가 끊기지 않게.
+  // 목록에 없는 값이면 조회 결과가 0건이 될 뿐이고, 화면에 그대로 찍히는 곳은 없다(칩 강조 비교에만 쓴다).
+  const department = (dept ?? spec ?? "").trim();
 
-  // 지역 팝업 목록은 목록 조회와 독립이라 같이 띄운다(순차로 하면 왕복이 그만큼 늘어난다).
-  const [{ rows, total }, sidos, sigungus] = await Promise.all([
-    searchPublicTalent({ specialty, sido: sd, sigungu: sgg, minYears }, pageNum),
+  // 지역·부서·직종 목록은 목록 조회와 독립이라 같이 띄운다(순차로 하면 왕복이 그만큼 늘어난다).
+  // canRevealContacts 도 여기 넣는다 — 뒤에 두면 목록을 다 받은 뒤에야 자격 조회가 시작돼 왕복이 한 번 더 붙는다.
+  const [{ rows, total }, sidos, sigungus, facets, canSeeContacts] = await Promise.all([
+    searchPublicTalent({ q: kw, specialty: department, category: cat, sido: sd, sigungu: sgg, minYears }, pageNum),
     getTalentSidoList(),
     getTalentSigunguList(sd),
+    getTalentFacets(),
+    canRevealContacts(p),
   ]);
   const totalPages = Math.max(1, Math.ceil(total / TALENT_PER_PAGE));
 
-  // 광고 중인 병원(또는 관리자)만 이름·전화를 붙인다.
-  const canSeeContacts = await canRevealContacts(p);
   // 광고를 낼 수 있는(=아직 못 보는) 병원·비로그인에게만 광고 안내를 띄운다.
   const showAdCta = !canSeeContacts;
 
@@ -60,55 +64,66 @@ export default async function TalentPage({
     ? await revealContacts(rows.map((r) => r.profile_id))
     : new Map<string, RevealedContact>();
 
-  const href = (params: Record<string, string | number | undefined>) => {
-    const q = new URLSearchParams();
-    if (specialty) q.set("spec", specialty);
-    if (sd) q.set("sido", sd);
-    if (sgg) q.set("sigungu", sgg);
-    if (minYears) q.set("years", String(minYears));
-    for (const [k, v] of Object.entries(params)) if (v) q.set(k, String(v));
-    const s = q.toString();
-    return s ? `/talent?${s}` : "/talent";
+  // 검색 조건 유지 URL. 한 곳에서 직렬화해 목록 이동·칩 전환이 같은 조건을 따라간다.
+  const qs = (o: { dept?: string; cat?: string; years?: number; page?: number }) => {
+    const s = new URLSearchParams();
+    if (kw) s.set("q", kw);
+    if (sd) s.set("sido", sd);
+    if (sgg) s.set("sigungu", sgg);
+    const d = o.dept !== undefined ? o.dept : department;
+    const c = o.cat !== undefined ? o.cat : cat;
+    const y = o.years !== undefined ? o.years : minYears;
+    if (d) s.set("dept", d);
+    if (c) s.set("cat", c);
+    if (y) s.set("years", String(y));
+    if (o.page && o.page > 1) s.set("page", String(o.page));
+    const out = s.toString();
+    return out ? `/talent?${out}` : "/talent";
   };
-  // 칩 href — 나머지 필터는 유지하고 하나만 바꾼다(페이지는 리셋). undefined 로 넘긴 값은 유지, "" 은 해제.
-  const build = (o: { spec?: string; years?: number }) => {
-    const q = new URLSearchParams();
-    const s2 = o.spec !== undefined ? o.spec : specialty;
-    const y2 = o.years !== undefined ? o.years : minYears;
-    if (s2) q.set("spec", s2);
-    if (sd) q.set("sido", sd);
-    if (sgg) q.set("sigungu", sgg);
-    if (y2) q.set("years", String(y2));
-    const s = q.toString();
-    return s ? `/talent?${s}` : "/talent";
-  };
+
+  const filtered = !!(kw || department || cat || sd || minYears);
 
   return (
     <>
       <SiteHeader user={p ? { displayName: p.displayName } : null} />
+
+      {/* 상단 검색: /jobs 와 같은 pill(지역 + 키워드 + 검색) — 두 화면의 조작법을 통일한다. */}
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-[1280px] px-4 py-4">
+          <TalentSearchBar sidos={sidos} sigungus={sigungus} />
+        </div>
+      </div>
+
+      {/* 근무부서·직종 칩 — **인재가 있는 것만** 많은 순. 0명인 칩은 눌러도 빈 화면이라 아예 안 그린다. */}
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-[1280px] space-y-2 px-4 py-3">
+          <nav aria-label="근무부서" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+            <a href={qs({ dept: "" })} aria-current={!department ? "page" : undefined} className={chip(!department)}>근무부서 전체</a>
+            {facets.departments.map((d) => (
+              <a key={d.name} href={qs({ dept: d.name })} aria-current={department === d.name ? "page" : undefined} className={chip(department === d.name)}>{d.name}</a>
+            ))}
+          </nav>
+          <nav aria-label="직종" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+            <a href={qs({ cat: "" })} aria-current={!cat ? "page" : undefined} className={chip(!cat)}>직종 전체</a>
+            {facets.categories.map((c) => (
+              <a key={c.name} href={qs({ cat: c.name })} aria-current={cat === c.name ? "page" : undefined} className={chip(cat === c.name)}>{c.name}</a>
+            ))}
+          </nav>
+          <nav aria-label="최소 경력" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+            <a href={qs({ years: 0 })} aria-current={!minYears ? "page" : undefined} className={chip(!minYears)}>경력 무관</a>
+            {YEARS.map((y) => (
+              <a key={y} href={qs({ years: y })} aria-current={minYears === y ? "page" : undefined} className={chip(minYears === y)}>{y}년 이상</a>
+            ))}
+          </nav>
+        </div>
+      </div>
+
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6">
         <h1 className="text-2xl font-bold text-slate-900">간호사 인재정보</h1>
         <p className="mt-1 text-sm text-slate-600">
-          {specialty || sd || minYears ? "검색 결과" : "이력서를 공개한 간호사"} <b className="text-slate-800">{total}명</b>.
+          {filtered ? "검색 결과" : "이력서를 공개한 간호사"} <b className="text-slate-800">{total}명</b>.
           {!canSeeContacts && " 이름·연락처·사진은 광고 중인 병원 회원만 볼 수 있습니다."}
         </p>
-
-        {/* /jobs 검색과 동일한 UI — 지역 픽커(pill) + 진료과 칩 + 경력 칩. 고르면 즉시 조회(검색 버튼 없음). */}
-        <div className="mt-4">
-          <TalentRegionBar sido={sd} sigungu={sgg} sidos={sidos} sigungus={sigungus} />
-        </div>
-        <nav aria-label="진료과" className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
-          <a href={build({ spec: "" })} aria-current={!specialty ? "page" : undefined} className={chip(!specialty)}>진료과 전체</a>
-          {JOB_SPECIALTIES.map((s) => (
-            <a key={s} href={build({ spec: s })} aria-current={specialty === s ? "page" : undefined} className={chip(specialty === s)}>{s}</a>
-          ))}
-        </nav>
-        <nav aria-label="최소 경력" className="-mx-4 mt-2 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
-          <a href={build({ years: 0 })} aria-current={!minYears ? "page" : undefined} className={chip(!minYears)}>경력 무관</a>
-          {YEARS.map((y) => (
-            <a key={y} href={build({ years: y })} aria-current={minYears === y ? "page" : undefined} className={chip(minYears === y)}>{y}년 이상</a>
-          ))}
-        </nav>
 
         {showAdCta && (
           <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm">
@@ -138,7 +153,7 @@ export default async function TalentPage({
                 </li>
               ))}
             </ul>
-            <Pager page={pageNum} totalPages={totalPages} href={(n) => href({ page: n })} />
+            <Pager page={pageNum} totalPages={totalPages} href={(n) => qs({ page: n })} />
           </>
         )}
       </main>

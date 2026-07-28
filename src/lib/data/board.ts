@@ -43,9 +43,15 @@ export const authorName = (v: { author: { display_name: string | null } | null; 
  * 원본은 한 장에 1.8MB 짜리도 있어(실측) 그대로 내보내면 모바일에서 글 하나가 몇 MB 다.
  * 변환을 걸면 같은 사진이 300KB webp 로 온다(실측 1,864KB → 292KB).
  */
-const BOARD_IMG_BASE = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/render/image/public/board/`;
+// 🔴 빌드 때 값이 없으면 "undefined/storage/..." 가 그대로 박혀 **사진 전체가 조용히 깨진다**.
+//    supabase/admin.ts 와 같이 그 자리에서 터뜨려 배포 전에 알아채게 한다.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+if (!SUPABASE_URL) throw new Error("NEXT_PUBLIC_SUPABASE_URL 이 없습니다 — 게시판 사진 주소를 만들 수 없습니다");
+const BOARD_IMG_BASE = `${SUPABASE_URL}/storage/v1/render/image/public/board/`;
+
+export const isExternalImage = (v: string): boolean => v.startsWith("http");
 export const boardImageUrl = (v: string, width = 900): string =>
-  v.startsWith("http") ? v : `${BOARD_IMG_BASE}${v}?width=${width}&quality=75`;
+  isExternalImage(v) ? v : `${BOARD_IMG_BASE}${v}?width=${width}&quality=75`;
 
 export const BOARD_PER_PAGE = 20;
 

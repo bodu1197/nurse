@@ -47,10 +47,22 @@ console.log(`profiles 의 레거시 회원: ${byLegacy.size}명`);
 
 // ── 글 ──────────────────────────────────────────────────
 const P = {
-  srl: at(POST_COLS, "document_srl"), member: at(POST_COLS, "member_srl"), nick: at(POST_COLS, "nick_name"),
-  title: at(POST_COLS, "title"), content: at(POST_COLS, "content"), reg: at(POST_COLS, "regdate"),
+  srl: at(POST_COLS, "document_srl"), module: at(POST_COLS, "module_srl"), member: at(POST_COLS, "member_srl"),
+  nick: at(POST_COLS, "nick_name"), title: at(POST_COLS, "title"), content: at(POST_COLS, "content"),
+  reg: at(POST_COLS, "regdate"),
 };
-const postRows = load("board_posts.json");
+
+// 🔴 공개 게시판 모듈만. 덤프를 만들 때도 걸렀지만 **여기서 한 번 더** 확인한다 —
+//    나중에 덤프를 다시 뽑으면서 이 조건을 빠뜨리면, 비공개 1:1 문의(모듈 52, SECRET 49건)가
+//    아무 경고 없이 공개 게시판으로 들어간다. 걸러지는 게 있으면 화면에 알린다.
+//    50 RN,AN이야기 / 373 간호뉴스 / 18099 사진게시판 / 18095 이벤트 / 18101 영상 / 18097 열정백서 / 54 공지사항
+const PUBLIC_MODULES = new Set(["50", "373", "18099", "18095", "18101", "18097", "54"]);
+
+const allPostRows = load("board_posts.json");
+const postRows = allPostRows.filter((d) => PUBLIC_MODULES.has((d[P.module] ?? "").trim()));
+if (postRows.length !== allPostRows.length) {
+  console.log(`⚠ 공개 게시판이 아닌 글 ${allPostRows.length - postRows.length}건을 걸렀습니다(1:1 문의 등)`);
+}
 const posts = postRows.map((d) => {
   const authorId = byLegacy.get((d[P.member] ?? "").trim()) ?? null;
   return {

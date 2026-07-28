@@ -142,7 +142,9 @@ export async function canRevealContacts(p: { role: Role; isAdmin?: boolean } | n
   return p.role === "hospital" && (await isAdvertiser());
 }
 
-export type TalentFilters = { specialty?: string; sido?: string; sigungu?: string; minYears?: number };
+export type TalentFilters = {
+  q?: string; specialty?: string; category?: string; sido?: string; sigungu?: string; minYears?: number;
+};
 
 // 🗂 지역 계단 노드(도/시군구 + 인재 수) — nurse_talent_sido_list / nurse_talent_sigungu_list RPC 반환형.
 //    고정 표(koreaRegions)를 그대로 뿌리지 않고 **실제 인재가 있는 곳만** 내려준다(오너 확정 2026-07-28:
@@ -159,9 +161,24 @@ export const getTalentSidoList = cache(async (): Promise<TalentRegionNode[]> => 
 // 선택한 도의 시군구. 시도 미선택이면 즉시 [](비용 0).
 export const getTalentSigunguList = cache(async (sido: string): Promise<TalentRegionNode[]> => {
   if (!sido) return [];
-  const { data, error } = await createAdminClient().rpc("nurse_talent_sigungu_list", { p_sido: sido });
+  const { data, error } = await createAdminClient().rpc("nurse_talent_sigungu_list", { p_sido: clean(sido) });
   if (error) console.error("getTalentSigunguList failed:", error.message);
   return data ?? [];
+});
+
+/**
+ * 근무부서·직종 칩 — **인재가 있는 것만** 많은 순으로. 지역 계단과 같은 사고방식이다.
+ * 전에는 고정 목록(JOB_SPECIALTIES 9개)을 뿌렸는데 그 중 6개가 0명이라, 누르면 빈 화면이 나왔다.
+ * 한 번의 RPC 로 둘 다 받는다(따로 부르면 7천 행을 두 번 훑는다).
+ */
+export const getTalentFacets = cache(async (): Promise<{ departments: TalentRegionNode[]; categories: TalentRegionNode[] }> => {
+  const { data, error } = await createAdminClient().rpc("nurse_talent_facet_list");
+  if (error) console.error("getTalentFacets failed:", error.message);
+  const rows = data ?? [];
+  return {
+    departments: rows.filter((r) => r.kind === "department").map(({ name, cnt }) => ({ name, cnt })),
+    categories: rows.filter((r) => r.kind === "category").map(({ name, cnt }) => ({ name, cnt })),
+  };
 });
 
 // PostgREST or 필터 주입 방지: %,(),쉼표 제거 (jobs.ts와 동일 규칙)
@@ -183,6 +200,11 @@ export async function searchPublicTalent(f: TalentFilters, page = 1, withCount =
     .range(from, from + TALENT_PER_PAGE - 1);
 
   if (f.specialty) query = query.contains("specialties", [f.specialty]);
+  if (f.category) query = query.contains("job_categories", [f.category]);
+  // 키워드 — 이력서 제목과 자기소개에서 찾는다. 이름·연락처는 게이트 뒤라 검색 대상이 아니다
+  // (검색으로 "김OO" 를 넣어 존재 여부를 떠보는 길을 열면 이름을 가린 의미가 없다).
+  const kw = f.q ? clean(f.q) : "";
+  if (kw) query = query.or(`resume_title.ilike.%${kw}%,intro.ilike.%${kw}%`);
   // 희망지역은 "서울 종로구, 경기 성남시" 처럼 여러 개가 한 컬럼에 있어 부분일치로 건다.
   // 시군구는 시도에 종속 — 시도 없이 걸면 '중구'처럼 여러 시도에 있는 이름이 엉뚱한 지역을 긁는다(jobs 와 같은 계약).
   const sido = f.sido ? clean(f.sido) : "";
@@ -259,6 +281,11 @@ export async function searchTalent(f: TalentFilters, page = 1): Promise<{ rows: 
     .range(from, from + TALENT_PER_PAGE - 1);
 
   if (f.specialty) query = query.contains("specialties", [f.specialty]);
+  if (f.category) query = query.contains("job_categories", [f.category]);
+  // 키워드 — 이력서 제목과 자기소개에서 찾는다. 이름·연락처는 게이트 뒤라 검색 대상이 아니다
+  // (검색으로 "김OO" 를 넣어 존재 여부를 떠보는 길을 열면 이름을 가린 의미가 없다).
+  const kw = f.q ? clean(f.q) : "";
+  if (kw) query = query.or(`resume_title.ilike.%${kw}%,intro.ilike.%${kw}%`);
   // 희망지역은 "서울 종로구, 경기 성남시" 처럼 여러 개가 한 컬럼에 있어 부분일치로 건다.
   // 시군구는 시도에 종속 — 시도 없이 걸면 '중구'처럼 여러 시도에 있는 이름이 엉뚱한 지역을 긁는다(jobs 와 같은 계약).
   const sido = f.sido ? clean(f.sido) : "";

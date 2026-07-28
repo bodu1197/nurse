@@ -535,6 +535,7 @@ export type Database = {
           has_integrated_care: boolean | null
           intro: string | null
           is_public: boolean
+          job_categories: string[]
           license_reported: boolean | null
           license_type: string | null
           license_year: number | null
@@ -568,6 +569,7 @@ export type Database = {
           has_integrated_care?: boolean | null
           intro?: string | null
           is_public?: boolean
+          job_categories?: string[]
           license_reported?: boolean | null
           license_type?: string | null
           license_year?: number | null
@@ -601,6 +603,7 @@ export type Database = {
           has_integrated_care?: boolean | null
           intro?: string | null
           is_public?: boolean
+          job_categories?: string[]
           license_reported?: boolean | null
           license_type?: string | null
           license_year?: number | null
@@ -822,6 +825,7 @@ export type Database = {
       nurse_job_sigungu_list: { Args: { p_sido: string }; Returns: { name: string; cnt: number }[] }
       nurse_talent_sido_list: { Args: Record<string, never>; Returns: { name: string; cnt: number }[] }
       nurse_talent_sigungu_list: { Args: { p_sido: string }; Returns: { name: string; cnt: number }[] }
+      nurse_talent_facet_list: { Args: Record<string, never>; Returns: { kind: string; name: string; cnt: number }[] }
     }
     Enums: {
       user_role: "nurse" | "hospital" | "admin"

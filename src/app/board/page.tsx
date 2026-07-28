@@ -7,7 +7,7 @@ import MasterDetail, { ListCard, Pager } from "@/components/MasterDetail";
 import { getCurrentUser } from "@/lib/data/user";
 import { getCommunityAccess } from "@/lib/data/community";
 import CommunityGate from "@/components/CommunityGate";
-import { getBoardPosts, getBoardPost, currentUserId, authorName, boardImageUrl, BOARD_PER_PAGE } from "@/lib/data/board";
+import { getBoardPosts, getBoardPost, currentUserId, authorName, boardImageUrl, isExternalImage, BOARD_PER_PAGE } from "@/lib/data/board";
 import { fmtDay } from "@/lib/date";
 import { messageFor } from "@/lib/constants";
 import { createComment, deleteComment, deletePost } from "./actions";
@@ -35,7 +35,7 @@ async function PostPanel({ id, uid, loggedIn, error }: Readonly<{ id: string; ui
       <h2 className="text-xl font-bold text-slate-900">{post.title}</h2>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
         <p className="text-sm text-slate-500">{authorName(post)} · {fmtDay(post.created_at)}</p>
-        {uid === post.author_id && (
+        {uid !== null && uid === post.author_id && (
           <form action={deletePost}>
             <input type="hidden" name="post_id" value={post.id} />
             <ConfirmSubmit size="sm" message="이 글을 삭제할까요? 댓글도 함께 삭제되며 되돌릴 수 없습니다.">삭제</ConfirmSubmit>
@@ -45,18 +45,22 @@ async function PostPanel({ id, uid, loggedIn, error }: Readonly<{ id: string; ui
       <p className="mt-4 whitespace-pre-line text-[15px] leading-relaxed text-slate-800">{post.body}</p>
 
       {/* 구 널스넷에서 옮겨온 글의 사진. 본문은 평문이라(HTML 을 그대로 그리면 XSS) 아래에 따로 붙인다.
-          원본 크기·비율을 모르는 레거시 파일이라 높이를 미리 잡아둘 수 없다 → 이 44건에 한해 CLS 를 감수한다. */}
+          레거시 파일이라 원본 크기·비율을 모른다 → 자리(4:3)를 미리 잡고 object-contain 으로 안에 맞춘다.
+          비워두면 사진이 도착하는 순간 글이 아래로 밀린다(읽던 줄을 놓친다). */}
       {post.images.length > 0 && (
         <div className="mt-4 flex flex-col gap-3">
           {post.images.map((src, i) => (
-            // eslint-disable-next-line @next/next/no-img-element -- 외부 도메인 + 크기 미상이라 next/image 로 못 감싼다
-            <img
-              key={src}
-              src={boardImageUrl(src)}
-              alt={`${post.title} 첨부 사진 ${i + 1}`}
-              loading="lazy"
-              className="h-auto w-full max-w-2xl rounded-lg border border-slate-200"
-            />
+            <div key={src} className="aspect-[4/3] w-full max-w-2xl overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+              {/* eslint-disable-next-line @next/next/no-img-element -- 외부 도메인 + 크기 미상이라 next/image 로 못 감싼다 */}
+              <img
+                src={boardImageUrl(src)}
+                alt={`${post.title} 첨부 사진 ${i + 1}`}
+                loading="lazy"
+                // 뉴스 기사 이미지는 남의 서버에서 불러온다 → 회원 전용 페이지 주소가 그쪽 로그에 남지 않게 막는다.
+                referrerPolicy={isExternalImage(src) ? "no-referrer" : undefined}
+                className="h-full w-full object-contain"
+              />
+            </div>
           ))}
         </div>
       )}
@@ -73,7 +77,7 @@ async function PostPanel({ id, uid, loggedIn, error }: Readonly<{ id: string; ui
                   <span className="text-sm font-semibold text-slate-800">{authorName(c)}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-500">{fmtDay(c.created_at)}</span>
-                    {uid === c.author_id && (
+                    {uid !== null && uid === c.author_id && (
                       <form action={deleteComment}>
                         <input type="hidden" name="comment_id" value={c.id} />
                         <input type="hidden" name="post_id" value={post.id} />

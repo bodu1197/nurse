@@ -23,7 +23,7 @@ const SHEET_FIELDS = [
   // 경력
   "career_level", "experience_years", "has_integrated_care", "can_charge",
   // 희망 근무조건
-  "shift_types", "night_available", "desired_location", "specialties", "desired_hospital_types",
+  "shift_types", "night_available", "desired_location", "specialties", "job_categories", "desired_hospital_types",
   "desired_employment_type", "desired_salary", "available_from", "needs_dormitory",
   // 소개
   "intro",

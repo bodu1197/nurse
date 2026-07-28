@@ -15,7 +15,15 @@ import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { totalYears } from "@/lib/data/resume";
-import { CAREER_EXPERIENCED } from "@/lib/resumeOptions";
+import { CAREER_EXPERIENCED, DEPARTMENTS, JOB_CATEGORIES } from "@/lib/resumeOptions";
+import { SIDO_LIST, SIDO_SIGUNGU, LEGACY_REGIONS } from "@/lib/koreaRegions";
+
+// 이력서에서 고를 수 있는 희망 근무지 전체("부산", "부산 수영구" 두 형태) + 구 널스넷 잔재 6종.
+// 모듈 로드 때 한 번만 만든다.
+const KNOWN_REGIONS: ReadonlySet<string> = new Set([
+  ...SIDO_LIST.flatMap((sd) => [sd, ...SIDO_SIGUNGU[sd].map((s) => `${sd} ${s}`)]),
+  ...LEGACY_REGIONS,
+]);
 
 // 관리자 보기 전환(병원/간호사로 테스트). admin 계정만 유효 — 그 외에는 쿠키를 넣어도 무시된다.
 export async function setViewAs(formData: FormData) {
@@ -267,10 +275,21 @@ export async function saveResume(formData: FormData) {
   // 안 물어본 항목까지 인쇄 서식에 '아니오'로 단정 출력된다.
   const bool = (k: string) => { const v = formData.get(k); return v === "yes" ? true : v === "no" ? false : null; };
   // 체크박스 다중 선택 — 자유 입력이면 "중환자"/"중환자실"처럼 표기가 갈려 검색이 안 잡힌다.
-  // 상한(300개 × 60자)은 조작된 POST 전용이다. 화면에서 고를 수 있는 최대는 희망 근무지 287개
-  // (시도 17 + 시군구 270)이고 가장 긴 값이 "경기 고양시 일산동구"(12자)라, 정상 선택이 잘릴 일은 없다.
+  // 상한(300개 × 60자)은 조작된 POST 전용이다. 화면에서 고를 수 있는 최대는 희망 근무지 281개
+  // (시도 17 + 시군구 264)이고 가장 긴 값이 "경기 고양시 일산동구"(12자)라, 정상 선택이 잘릴 일은 없다.
+  // 중복은 여기서 없앤다 — "부산 전체"와 "부산 수영구"를 같이 고르면 같은 값이 두 번 실려 온다.
   const many = (k: string) =>
-    formData.getAll(k).slice(0, 300).map((x) => String(x).trim().slice(0, 60)).filter(Boolean);
+    [...new Set(formData.getAll(k).slice(0, 300).map((x) => String(x).trim().slice(0, 60)).filter(Boolean))];
+
+  /**
+   * 🔴 목록에 있는 값만 통과시킨다.
+   *    이 값들은 **모든 방문자의 인재 검색 칩·지역 팝업에 그대로 뜬다**(공용 화면에 실리는 경로다).
+   *    화면에서는 체크박스로만 고르지만, 조작된 POST 로 "무료광고 010-0000-0000" 을 넣으면
+   *    그게 남의 화면에 필터 항목으로 걸린다. 표시 단계(RPC)에서도 막지만 입력에서 먼저 잘라낸다.
+   *    ⚠️ 모르는 값은 조용히 버려지므로, 목록을 줄일 때는 기존 데이터가 잘리지 않는지 먼저 확인할 것.
+   */
+  const onlyKnown = (values: readonly string[], allowed: ReadonlySet<string>) =>
+    values.filter((v) => allowed.has(v));
 
   // 경력 상세 — 화면에서 줄 단위로 보내온다. 20줄이면 어떤 이력서든 충분하다.
   const work = formData.getAll("w_hospital_name").slice(0, 20).map((v, i) => ({
@@ -289,7 +308,9 @@ export async function saveResume(formData: FormData) {
 
   // 필수 검증 — 화면에 별표(*)를 붙여놓고 서버가 안 막으면 빈 채로 저장되고 "저장했습니다"가 뜬다.
   const shiftTypes = many("shift_types");
-  const regions = many("desired_location");
+  const regions = onlyKnown(many("desired_location"), KNOWN_REGIONS);
+  const departments = onlyKnown(many("specialties"), new Set(DEPARTMENTS));
+  const jobCategories = onlyKnown(many("job_categories"), new Set(JOB_CATEGORIES));
   const careerLevel = s("career_level");
   if (shiftTypes.length === 0) redirect("/mypage/resume?error=shift");
   if (regions.length === 0) redirect("/mypage/resume?error=region");
@@ -323,7 +344,8 @@ export async function saveResume(formData: FormData) {
     shift_types: shiftTypes,
     night_available: bool("night_available"),
     desired_location: regions.join(", ") || null,
-    specialties: many("specialties"),
+    specialties: departments,
+    job_categories: jobCategories,
     desired_hospital_types: many("desired_hospital_types"),
     desired_employment_type: s("desired_employment_type"),
     desired_salary: s("desired_salary"),

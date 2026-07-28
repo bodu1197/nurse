@@ -49,6 +49,11 @@ const nz = (v: string | undefined) => {
 };
 
 /** 라이믹스 본문 HTML → 평문. 새 앱은 description 을 whitespace-pre-line 으로 그대로 렌더한다. */
+// ⚠️ 아래 htmlToText 는 **옛 버전**이다(태그 주변 소스 개행을 지우지 않아 줄마다 빈 줄이 낀다).
+//    공용본(_legacy-util.ts)은 2026-07-28 에 고쳤지만 여기는 그대로 뒀다 — 이 스크립트는 이미 돌았고,
+//    지금 결과는 fix-legacy-text.ts 가 공용본으로 다시 변환해 덮어놨기 때문이다.
+//    🔴 이 스크립트를 다시 돌릴 일이 생기면 **반드시 _legacy-util 의 htmlToText 로 바꾼 뒤** 돌릴 것.
+//       안 그러면 그 빈 줄 버그가 되살아난다.
 function htmlToText(html: string): string {
   return html
     .replace(/<\s*br\s*\/?\s*>/gi, "\n")

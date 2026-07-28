@@ -7,10 +7,10 @@ import ConfirmSubmit from "@/components/ConfirmSubmit";
 import WorkExperienceFields from "@/components/WorkExperienceFields";
 import { getMyProfile } from "@/lib/data/user";
 import { getMyResume, completeness, type ResumeWithWork } from "@/lib/data/resume";
-import { JOB_SPECIALTIES, INPUT_CLASS, LINK_CLASS, messageFor } from "@/lib/constants";
+import { INPUT_CLASS, LINK_CLASS, messageFor } from "@/lib/constants";
 import {
   SHIFT_TYPES, CERTIFICATIONS, APN_FIELDS, LICENSE_TYPES, EDUCATION_LEVELS, GRADUATION_STATUS,
-  CAREER_LEVELS, HOSPITAL_TYPES, AVAILABLE_FROM, EMPLOYMENT_TYPES,
+  CAREER_LEVELS, HOSPITAL_TYPES, AVAILABLE_FROM, EMPLOYMENT_TYPES, DEPARTMENTS, JOB_CATEGORIES,
 } from "@/lib/resumeOptions";
 import { SIDO_LIST, SIDO_SIGUNGU } from "@/lib/koreaRegions";
 import { safeNext } from "@/lib/url";
@@ -125,15 +125,15 @@ function DesiredLocationField({ saved }: Readonly<{ saved: readonly string[] }>)
         const picked = values.filter((v) => savedSet.has(v)).length;
         return (
           // open — 이미 고른 게 있는 도는 펼쳐둔다. 접혀 있으면 저장된 선택이 안 보여 "안 골랐나?" 싶어진다.
-          <details key={sido} open={picked > 0} className="rounded-lg border border-slate-200">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm">
-              <span aria-hidden className="text-slate-400">▸</span>
+          <details key={sido} open={picked > 0} className="group rounded-lg border border-slate-200 has-[input:checked]:border-teal-300">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm [&::-webkit-details-marker]:hidden">
+              {/* 기본 삼각형 마커를 지웠으므로 대체 마커가 열림/닫힘을 나타내야 한다(안 그러면 접힌 도와 펼친 도가 똑같아 보인다). */}
+              <span aria-hidden className="text-slate-400 transition-transform group-open:rotate-90">▸</span>
               <span className="font-medium text-slate-800">{sido}</span>
-              {picked > 0 ? (
-                <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{picked}곳 선택</span>
-              ) : (
-                <span className="text-xs text-slate-500">시·군·구 {SIDO_SIGUNGU[sido].length}곳</span>
-              )}
+              {/* 선택 여부는 CSS(:has)로 표시한다 — 숫자 배지는 **저장된 값** 기준이라, 지금 체크박스를
+                  누르는 동안 갱신되지 않는다("3곳 선택"이라 해놓고 실제로는 0곳인 상태가 생긴다). */}
+              <span className="hidden rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700 group-has-[input:checked]:inline">선택함</span>
+              <span className="text-xs text-slate-500 group-has-[input:checked]:hidden">시·군·구 {SIDO_SIGUNGU[sido].length}곳</span>
             </summary>
             <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 px-3 py-2">
               {values.map((v, i) => (
@@ -188,7 +188,8 @@ function ResumeView({ r }: Readonly<{ r: ResumeWithWork }>) {
     ["최종학력", [r.education_level, r.graduation_status].filter(Boolean).join(" · ") || null],
     ["가능한 근무형태", r.shift_types.length > 0 ? r.shift_types.join(", ") : null],
     ["희망 근무지", r.desired_location],
-    ["희망 진료과", r.specialties.length > 0 ? r.specialties.join(", ") : null],
+    ["희망 근무부서", r.specialties.length > 0 ? r.specialties.join(", ") : null],
+    ["희망 직종", r.job_categories.length > 0 ? r.job_categories.join(", ") : null],
   ];
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5">
@@ -252,7 +253,10 @@ export default async function ResumePage({
     [...saved.filter((v) => !options.includes(v)), ...options];
 
   const savedRegions = (r?.desired_location ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const specialtyOptions = withSaved(JOB_SPECIALTIES, r?.specialties ?? []);
+  // 🔴 근무부서는 구 널스넷 코드표(DEPARTMENTS 28개)를 쓴다. 전에는 채용용 JOB_SPECIALTIES(9개)를 썼는데
+  //    이관한 이력서 7,257건이 전부 DEPARTMENTS 값이라, 인재 검색 칩 9개 중 6개가 0명이었다.
+  const specialtyOptions = withSaved(DEPARTMENTS, r?.specialties ?? []);
+  const categoryOptions = withSaved(JOB_CATEGORIES, r?.job_categories ?? []);
   const licenseOptions = withSaved(LICENSE_TYPES, r?.license_type ? [r.license_type] : []);
   const certOptions = withSaved(CERTIFICATIONS, r?.certifications ?? []);
   const shiftOptions = withSaved(SHIFT_TYPES, r?.shift_types ?? []);
@@ -367,8 +371,12 @@ export default async function ResumePage({
             <DesiredLocationField saved={savedRegions} />
           </fieldset>
           <fieldset>
-            <legend className={label}>희망 진료과 / 부서 <span className="text-slate-500">(복수 선택)</span></legend>
+            <legend className={label}>희망 근무부서 <span className="text-slate-500">(복수 선택)</span></legend>
             <div className="mt-1"><CheckGroup name="specialties" options={specialtyOptions} checked={r?.specialties ?? []} /></div>
+          </fieldset>
+          <fieldset>
+            <legend className={label}>희망 직종 <span className="text-slate-500">(복수 선택)</span></legend>
+            <div className="mt-1"><CheckGroup name="job_categories" options={categoryOptions} checked={r?.job_categories ?? []} /></div>
           </fieldset>
           <fieldset>
             <legend className={label}>희망 의료기관 종별 <span className="text-slate-500">(복수 선택)</span></legend>
