@@ -3,8 +3,8 @@ import { careerSummary } from "@/lib/resumeOptions";
 import { fmtDay } from "@/lib/date";
 import type { PublicTalentDetail } from "@/lib/data/talent";
 
-// 인재 상세(우측 패널). 이름·전화는 광고 병원(contact 전달 시)만 보인다.
-type Contact = { name: string | null; phone: string | null } | undefined;
+// 인재 상세(우측 패널). 이름·전화·이메일은 광고 병원(contact 전달 시)만 보인다.
+type Contact = { name: string | null; phone: string | null; email: string | null } | undefined;
 
 function Row({ k, v }: Readonly<{ k: string; v: string | null }>) {
   if (!v) return null;
@@ -42,12 +42,20 @@ export default function TalentDetail({
       <div className="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-sm">
         <p className="font-semibold text-slate-700">연락</p>
         {contact ? (
-          contact.phone ? (
-            <a href={`tel:${contact.phone}`} className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-lg font-bold text-teal-700 hover:underline">📞 {contact.phone}</a>
+          // 전화·이메일 둘 다 보여준다 — 전화를 안 적었거나 안 받는 사람에게 닿는 유일한 수단이 이메일이다.
+          contact.phone || contact.email ? (
+            <div className="mt-1 flex flex-col gap-1">
+              {contact.phone && (
+                <a href={`tel:${contact.phone}`} className="inline-flex min-h-11 items-center gap-1.5 text-lg font-bold text-teal-700 hover:underline">📞 {contact.phone}</a>
+              )}
+              {contact.email && (
+                <a href={`mailto:${contact.email}`} className="inline-flex min-h-11 items-center gap-1.5 break-all font-semibold text-teal-700 hover:underline">✉️ {contact.email}</a>
+              )}
+            </div>
           ) : <p className="mt-1 text-slate-500">연락처 미입력</p>
         ) : (
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-slate-500">🔒 이름·연락처는 광고 중인 병원만 볼 수 있습니다.</span>
+            <span className="text-slate-500">🔒 이름·연락처·사진은 광고 중인 병원만 볼 수 있습니다.</span>
             {contactGated && <Link href="/hospital" className="shrink-0 rounded font-semibold text-teal-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">광고 안내 →</Link>}
           </div>
         )}

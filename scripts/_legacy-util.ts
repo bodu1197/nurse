@@ -9,6 +9,31 @@
 export const chunk = <T>(a: T[], n: number) =>
   Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
 
+/**
+ * 라이믹스 본문 HTML → 평문. 새 앱은 이 값을 whitespace-pre-line 으로 그대로 렌더한다.
+ *
+ * 🔴 첫 줄(`>\s+<`)이 핵심이다. 원문이 `<p>A</p>\n\n<p>B</p>` 처럼 **태그 사이에 소스 개행**을 갖고 있어,
+ *    그걸 지우지 않으면 `</p>` 변환분과 합쳐져 한 줄마다 빈 줄이 하나씩 끼어든다
+ *    (실측: 자기소개 10줄이 빈 줄 10개와 함께 저장돼 화면에서 한 줄 읽고 스크롤해야 했다).
+ *    의도적인 빈 줄(`<p><br></p>`)은 이 처리 뒤에도 남는다.
+ */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/>\s+</g, "><")
+    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
+    .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi, "\n")
+    .replace(/<\s*li[^>]*>/gi, "· ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"').replace(/&#39;/g, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/ /g, " ") // NBSP — 눈에 안 보이는 공백이 줄 끝에 남아 지저분해진다
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 /** PostgREST 는 URL 이 길면 414 를 낸다. UUID 100개면 약 3.7KB — 게이트웨이 기본 버퍼(8KB) 안이다. */
 export const IN_BATCH = 100;
 

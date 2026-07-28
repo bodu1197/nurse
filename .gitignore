@@ -54,6 +54,7 @@ next-env.d.ts
 # 구 널스넷 이관 원천 데이터 — 개인정보(이름·휴대폰·이메일)·사업자번호가 들어 있어 절대 커밋하지 않는다.
 # 이관 스크립트는 1회성이며, 다시 돌릴 일이 있으면 phpMyAdmin에서 새로 뽑는다.
 /resumes_legacy_*.json
+/talent_*.json
 /scripts/legacy-data/*
 !/scripts/legacy-data/bhjob_codes.json
 !/scripts/legacy-data/area_codes.json

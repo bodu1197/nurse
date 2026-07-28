@@ -5,7 +5,7 @@ import SiteHeader from "@/components/SiteHeader";
 import TalentDetail from "@/components/TalentDetail";
 import TalentCard from "@/components/TalentCard";
 import { getMyProfile } from "@/lib/data/user";
-import { getPublicTalent, revealContacts, canRevealContacts, getRelatedTalent } from "@/lib/data/talent";
+import { getPublicTalent, revealContacts, canRevealContacts, getRelatedTalent, type RevealedContact } from "@/lib/data/talent";
 
 // 개인 이력서 상세 — 색인 제외. 이름은 광고 병원만 보므로 제목엔 넣지 않는다(PII 누출 방지).
 // follow:false 까지 준다 — 이 화면의 '관련 인재' 사이드바가 다른 이력서로 이어지므로,
@@ -27,9 +27,13 @@ export default async function TalentDetailPage({ params }: Readonly<{ params: Pr
   ]);
   const sidebar = related.rows;
   const contactIds = [t.profile_id, ...sidebar.map((r) => r.profile_id)];
-  const contacts = canSeeContacts ? await revealContacts(contactIds) : new Map<string, { name: string | null; phone: string | null }>();
+  const contacts = canSeeContacts ? await revealContacts(contactIds) : new Map<string, RevealedContact>();
   const contact = contacts.get(t.profile_id);
-  const sidebarTitle = related.sameRegion ? `${(t.desired_location ?? "").split(",")[0]} 인재` : "다른 인재";
+  // 관련 인재는 **시도 단위**로 찾는다(getRelatedTalent). 제목에 "서울 종로구"를 쓰면
+  // 실제 목록(서울 전체)과 어긋나 사용자를 속이므로 제목도 시도만 쓴다.
+  const sidebarTitle = related.sameRegion
+    ? `${(t.desired_location ?? "").split(",")[0].trim().split(/\s+/)[0]} 인재`
+    : "다른 인재";
 
   return (
     <>
@@ -54,7 +58,7 @@ export default async function TalentDetailPage({ params }: Readonly<{ params: Pr
                 {sidebar.map((r) => (
                   <li key={r.profile_id}>
                     <a href={`/talent/${r.profile_id}`} className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-teal-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
-                      <TalentCard t={r} contactName={contacts.get(r.profile_id)?.name} />
+                      <TalentCard t={r} contactName={contacts.get(r.profile_id)?.name} contactAvatar={contacts.get(r.profile_id)?.avatarUrl} compact />
                     </a>
                   </li>
                 ))}

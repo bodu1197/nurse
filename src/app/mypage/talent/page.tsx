@@ -75,7 +75,7 @@ export default async function TalentPage({
   const specialty = JOB_SPECIALTIES.includes(spec as (typeof JOB_SPECIALTIES)[number]) ? spec : undefined;
 
   const { rows, total } = allowed
-    ? await searchTalent({ specialty, location: loc, minYears }, pageNum)
+    ? await searchTalent({ specialty, sido: loc, minYears }, pageNum)
     : { rows: [], total: 0 };
   const totalPages = Math.max(1, Math.ceil(total / TALENT_PER_PAGE));
 

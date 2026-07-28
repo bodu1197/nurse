@@ -14,6 +14,22 @@ export const nowMs = cache(() => Date.now());
 // ISO 날짜 → "N일 전"의 N (0 이상).
 export const daysAgo = (iso: string) => Math.max(0, Math.floor((nowMs() - new Date(iso).getTime()) / DAY_MS));
 
+/**
+ * "19시간 전" 처럼 사람이 읽는 경과 시간. 목록 카드에서 갱신 시점을 한눈에 보여주는 용도다.
+ * 30일이 넘어가면 상대 표기가 오히려 감을 흐려서(“67일 전”) 날짜로 떨어뜨린다.
+ */
+export const timeAgo = (iso: string) => {
+  const diff = nowMs() - new Date(iso).getTime();
+  if (!Number.isFinite(diff) || diff < 0) return "";
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return "방금 전";
+  if (min < 60) return `${min}분 전`;
+  const hour = Math.floor(min / 60);
+  if (hour < 24) return `${hour}시간 전`;
+  const day = Math.floor(hour / 24);
+  return day <= 30 ? `${day}일 전` : fmtDay(iso);
+};
+
 // 직접등록 공고의 노출 종료 시각: 광고 중이면 featured_until, 아니면 게시 + 7일(무료 노출).
 // 화면(목록·상세)과 서버 액션(지원 가능 여부)이 **같은 규칙**을 써야 해서 여기 한 곳에만 둔다.
 // 컴포넌트가 아니라 lib에 두는 이유: actions.ts가 컴포넌트를 import하면 순환이 된다.
