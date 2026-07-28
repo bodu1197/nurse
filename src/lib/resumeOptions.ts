@@ -36,8 +36,6 @@ export const POSITIONS = ["일반간호사", "책임간호사", "수간호사", 
 export const AVAILABLE_FROM = ["즉시 가능", "1개월 이내", "협의"] as const;
 export const EMPLOYMENT_TYPES = ["정규직", "계약직", "파트타임", "무관"] as const;
 
-/** 전국 시·도 — 희망 근무지·거주지 */
-export const REGIONS = [
-  "서울", "경기", "인천", "부산", "대구", "광주", "대전", "울산", "세종",
-  "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주",
-] as const;
+// 희망 근무지·거주지의 시·도 목록은 여기 있었지만 lib/koreaRegions 의 SIDO_LIST 로 옮겼다.
+// 이력서가 시·군·구까지 고르게 되면서 시도 목록만으로는 부족해졌고, 같은 17개를 두 곳에 두면
+// 반드시 한쪽만 고쳐진다(인재 검색은 이미 koreaRegions 를 쓰고 있었다).

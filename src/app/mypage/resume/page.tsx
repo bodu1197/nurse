@@ -10,8 +10,9 @@ import { getMyResume, completeness, type ResumeWithWork } from "@/lib/data/resum
 import { JOB_SPECIALTIES, INPUT_CLASS, LINK_CLASS, messageFor } from "@/lib/constants";
 import {
   SHIFT_TYPES, CERTIFICATIONS, APN_FIELDS, LICENSE_TYPES, EDUCATION_LEVELS, GRADUATION_STATUS,
-  CAREER_LEVELS, HOSPITAL_TYPES, AVAILABLE_FROM, EMPLOYMENT_TYPES, REGIONS,
+  CAREER_LEVELS, HOSPITAL_TYPES, AVAILABLE_FROM, EMPLOYMENT_TYPES,
 } from "@/lib/resumeOptions";
+import { SIDO_LIST, SIDO_SIGUNGU } from "@/lib/koreaRegions";
 import { safeNext } from "@/lib/url";
 import { saveResume, deleteResume } from "../actions";
 
@@ -80,6 +81,90 @@ function Select({ id, defaultValue, options, placeholder = "선택 안 함" }: R
     <select id={id} name={id} defaultValue={defaultValue ?? ""} className={INPUT_CLASS}>
       <option value="">{placeholder}</option>
       {options.map((o) => <option key={o} value={o}>{o}</option>)}
+    </select>
+  );
+}
+
+/**
+ * 희망 근무지 — 전국 시·군·구까지 고른다. 값은 "부산 수영구"(시군구) 또는 "부산"(그 도 전체) 형태로,
+ * 인재 검색 필터(desired_location 부분일치)와 정확히 같은 표기를 쓴다. 표기가 어긋나면 검색에 안 잡힌다.
+ *
+ * 시도 17개만 고를 수 있던 것을 바꾼 이유: 이관한 이력서 8천 건은 구까지 적혀 있는데
+ * 앞으로 쓰는 이력서는 구가 없어, 병원이 "부산 수영구"로 좁히면 새 간호사들이 통째로 사라진다.
+ *
+ * ponytail: 팝업(RegionPicker) 대신 native `<details>` 아코디언을 쓴다. 이 폼의 다른 항목이 전부
+ * 체크박스 묶음이라 같은 조작법이고, 자바스크립트 없이 서버 컴포넌트로 끝난다(다중 선택도 공짜).
+ */
+function DesiredLocationField({ saved }: Readonly<{ saved: readonly string[] }>) {
+  const savedSet = new Set(saved);
+  const known = new Set(
+    SIDO_LIST.flatMap((sd) => [sd, ...SIDO_SIGUNGU[sd].map((s) => `${sd} ${s}`)]),
+  );
+  // 표에 없는 예전 값(레거시의 "경기 북부출장소" 등 6종)도 체크된 채로 남긴다.
+  // 안 그리면 다른 항목만 고치고 저장하는 순간 이 사람의 희망지역이 조용히 사라진다.
+  const leftovers = saved.filter((v) => !known.has(v));
+
+  const box = "h-4 w-4 rounded border-slate-300 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600";
+  const item = "flex min-h-11 items-center gap-2 text-sm text-slate-700";
+
+  return (
+    <div className="mt-1 flex flex-col gap-1">
+      {leftovers.length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+          <span className="flex min-h-11 items-center text-xs font-medium text-amber-800">이전에 고른 지역</span>
+          {leftovers.map((v) => (
+            <label key={v} className={item}>
+              <input type="checkbox" name="desired_location" value={v} defaultChecked className={box} />
+              {v}
+            </label>
+          ))}
+        </div>
+      )}
+      {SIDO_LIST.map((sido) => {
+        const values = [sido, ...SIDO_SIGUNGU[sido].map((s) => `${sido} ${s}`)];
+        const picked = values.filter((v) => savedSet.has(v)).length;
+        return (
+          // open — 이미 고른 게 있는 도는 펼쳐둔다. 접혀 있으면 저장된 선택이 안 보여 "안 골랐나?" 싶어진다.
+          <details key={sido} open={picked > 0} className="rounded-lg border border-slate-200">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm">
+              <span aria-hidden className="text-slate-400">▸</span>
+              <span className="font-medium text-slate-800">{sido}</span>
+              {picked > 0 ? (
+                <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{picked}곳 선택</span>
+              ) : (
+                <span className="text-xs text-slate-500">시·군·구 {SIDO_SIGUNGU[sido].length}곳</span>
+              )}
+            </summary>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-100 px-3 py-2">
+              {values.map((v, i) => (
+                <label key={v} className={item}>
+                  <input type="checkbox" name="desired_location" value={v} defaultChecked={savedSet.has(v)} className={box} />
+                  {i === 0 ? <b className="font-semibold">{sido} 전체</b> : v.slice(sido.length + 1)}
+                </label>
+              ))}
+            </div>
+          </details>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 시·도 > 시·군·구 단일 선택(거주지). optgroup 이라 270개를 넣어도 모바일 기본 선택기가 그대로 잘 뜬다. */
+function RegionSelect({ id, defaultValue }: Readonly<{ id: string; defaultValue: string | null }>) {
+  const v = defaultValue ?? "";
+  const known = SIDO_LIST.some((sd) => v === sd || SIDO_SIGUNGU[sd].some((s) => `${sd} ${s}` === v));
+  return (
+    <select id={id} name={id} defaultValue={v} className={INPUT_CLASS}>
+      <option value="">선택 안 함</option>
+      {/* 목록에 없는 예전 값(예: "수도권")도 남겨둔다 — 없으면 저장 순간 조용히 지워진다. */}
+      {v && !known && <option value={v}>{v}</option>}
+      {SIDO_LIST.map((sd) => (
+        <optgroup key={sd} label={sd}>
+          <option value={sd}>{sd} 전체</option>
+          {SIDO_SIGUNGU[sd].map((s) => <option key={s} value={`${sd} ${s}`}>{s}</option>)}
+        </optgroup>
+      ))}
     </select>
   );
 }
@@ -168,7 +253,6 @@ export default async function ResumePage({
 
   const savedRegions = (r?.desired_location ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const specialtyOptions = withSaved(JOB_SPECIALTIES, r?.specialties ?? []);
-  const regionOptions = withSaved(REGIONS, savedRegions);
   const licenseOptions = withSaved(LICENSE_TYPES, r?.license_type ? [r.license_type] : []);
   const certOptions = withSaved(CERTIFICATIONS, r?.certifications ?? []);
   const shiftOptions = withSaved(SHIFT_TYPES, r?.shift_types ?? []);
@@ -214,7 +298,7 @@ export default async function ResumePage({
               <input id="email" name="email" type="email" defaultValue={r?.email ?? ""} className={INPUT_CLASS} />
             </Field>
             <Field id="residence_region" text="거주 지역" hint="(통근 가능 여부 판단용)">
-              <Select id="residence_region" defaultValue={r?.residence_region ?? null} options={REGIONS} />
+              <RegionSelect id="residence_region" defaultValue={r?.residence_region ?? null} />
             </Field>
           </div>
         </Section>
@@ -276,8 +360,11 @@ export default async function ResumePage({
           </fieldset>
           <YesNo name="night_available" text="나이트 전담도 가능합니다" value={r?.night_available ?? null} />
           <fieldset>
-            <legend className={label}>희망 근무지 {req} <span className="text-slate-500">(복수 선택)</span></legend>
-            <div className="mt-1"><CheckGroup name="desired_location" options={regionOptions} checked={savedRegions} /></div>
+            <legend className={label}>희망 근무지 {req} <span className="text-slate-500">(복수 선택 · 시·군·구까지)</span></legend>
+            <p className="mt-1 text-xs text-slate-600">
+              도를 눌러 펼친 뒤 원하는 시·군·구를 고르세요. 어디든 좋으면 <b>“○○ 전체”</b>만 고르면 됩니다.
+            </p>
+            <DesiredLocationField saved={savedRegions} />
           </fieldset>
           <fieldset>
             <legend className={label}>희망 진료과 / 부서 <span className="text-slate-500">(복수 선택)</span></legend>

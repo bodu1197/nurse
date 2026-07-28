@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser, type Role } from "@/lib/data/user";
@@ -142,6 +143,26 @@ export async function canRevealContacts(p: { role: Role; isAdmin?: boolean } | n
 }
 
 export type TalentFilters = { specialty?: string; sido?: string; sigungu?: string; minYears?: number };
+
+// 🗂 지역 계단 노드(도/시군구 + 인재 수) — nurse_talent_sido_list / nurse_talent_sigungu_list RPC 반환형.
+//    고정 표(koreaRegions)를 그대로 뿌리지 않고 **실제 인재가 있는 곳만** 내려준다(오너 확정 2026-07-28:
+//    "부산 수영구에 한 명도 없으면 수영구는 안 보이게"). RPC 술어는 searchPublicTalent 와 같아 건수가 일치한다.
+//    ⚠️ resumes 는 RLS 로 잠겨 있어 anon 클라이언트로는 빈 결과가 나온다 → 목록과 같은 admin 클라이언트로 부른다.
+export type TalentRegionNode = { name: string; cnt: number };
+
+export const getTalentSidoList = cache(async (): Promise<TalentRegionNode[]> => {
+  const { data, error } = await createAdminClient().rpc("nurse_talent_sido_list");
+  if (error) console.error("getTalentSidoList failed:", error.message);
+  return data ?? [];
+});
+
+// 선택한 도의 시군구. 시도 미선택이면 즉시 [](비용 0).
+export const getTalentSigunguList = cache(async (sido: string): Promise<TalentRegionNode[]> => {
+  if (!sido) return [];
+  const { data, error } = await createAdminClient().rpc("nurse_talent_sigungu_list", { p_sido: sido });
+  if (error) console.error("getTalentSigunguList failed:", error.message);
+  return data ?? [];
+});
 
 // PostgREST or 필터 주입 방지: %,(),쉼표 제거 (jobs.ts와 동일 규칙)
 const clean = (s: string) => s.replace(/[%,()]/g, "").trim();

@@ -267,7 +267,10 @@ export async function saveResume(formData: FormData) {
   // 안 물어본 항목까지 인쇄 서식에 '아니오'로 단정 출력된다.
   const bool = (k: string) => { const v = formData.get(k); return v === "yes" ? true : v === "no" ? false : null; };
   // 체크박스 다중 선택 — 자유 입력이면 "중환자"/"중환자실"처럼 표기가 갈려 검색이 안 잡힌다.
-  const many = (k: string) => formData.getAll(k).map((x) => String(x).trim()).filter(Boolean);
+  // 상한(300개 × 60자)은 조작된 POST 전용이다. 화면에서 고를 수 있는 최대는 희망 근무지 287개
+  // (시도 17 + 시군구 270)이고 가장 긴 값이 "경기 고양시 일산동구"(12자)라, 정상 선택이 잘릴 일은 없다.
+  const many = (k: string) =>
+    formData.getAll(k).slice(0, 300).map((x) => String(x).trim().slice(0, 60)).filter(Boolean);
 
   // 경력 상세 — 화면에서 줄 단위로 보내온다. 20줄이면 어떤 이력서든 충분하다.
   const work = formData.getAll("w_hospital_name").slice(0, 20).map((v, i) => ({

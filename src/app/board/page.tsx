@@ -7,7 +7,7 @@ import MasterDetail, { ListCard, Pager } from "@/components/MasterDetail";
 import { getCurrentUser } from "@/lib/data/user";
 import { getCommunityAccess } from "@/lib/data/community";
 import CommunityGate from "@/components/CommunityGate";
-import { getBoardPosts, getBoardPost, currentUserId, BOARD_PER_PAGE } from "@/lib/data/board";
+import { getBoardPosts, getBoardPost, currentUserId, authorName, boardImageUrl, BOARD_PER_PAGE } from "@/lib/data/board";
 import { fmtDay } from "@/lib/date";
 import { messageFor } from "@/lib/constants";
 import { createComment, deleteComment, deletePost } from "./actions";
@@ -34,7 +34,7 @@ async function PostPanel({ id, uid, loggedIn, error }: Readonly<{ id: string; ui
     <div className="rounded-lg border border-slate-200 bg-white p-6">
       <h2 className="text-xl font-bold text-slate-900">{post.title}</h2>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-        <p className="text-sm text-slate-500">{post.author?.display_name ?? "탈퇴한 회원"} · {fmtDay(post.created_at)}</p>
+        <p className="text-sm text-slate-500">{authorName(post)} · {fmtDay(post.created_at)}</p>
         {uid === post.author_id && (
           <form action={deletePost}>
             <input type="hidden" name="post_id" value={post.id} />
@@ -43,6 +43,23 @@ async function PostPanel({ id, uid, loggedIn, error }: Readonly<{ id: string; ui
         )}
       </div>
       <p className="mt-4 whitespace-pre-line text-[15px] leading-relaxed text-slate-800">{post.body}</p>
+
+      {/* 구 널스넷에서 옮겨온 글의 사진. 본문은 평문이라(HTML 을 그대로 그리면 XSS) 아래에 따로 붙인다.
+          원본 크기·비율을 모르는 레거시 파일이라 높이를 미리 잡아둘 수 없다 → 이 44건에 한해 CLS 를 감수한다. */}
+      {post.images.length > 0 && (
+        <div className="mt-4 flex flex-col gap-3">
+          {post.images.map((src, i) => (
+            // eslint-disable-next-line @next/next/no-img-element -- 외부 도메인 + 크기 미상이라 next/image 로 못 감싼다
+            <img
+              key={src}
+              src={boardImageUrl(src)}
+              alt={`${post.title} 첨부 사진 ${i + 1}`}
+              loading="lazy"
+              className="h-auto w-full max-w-2xl rounded-lg border border-slate-200"
+            />
+          ))}
+        </div>
+      )}
 
       <section id="comments" className="mt-8">
         <h3 className="font-bold text-slate-900">댓글 {comments.length}</h3>
@@ -53,7 +70,7 @@ async function PostPanel({ id, uid, loggedIn, error }: Readonly<{ id: string; ui
             {comments.map((c) => (
               <li key={c.id} className="py-3">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-slate-800">{c.author?.display_name ?? "탈퇴한 회원"}</span>
+                  <span className="text-sm font-semibold text-slate-800">{authorName(c)}</span>
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-500">{fmtDay(c.created_at)}</span>
                     {uid === c.author_id && (
@@ -144,7 +161,7 @@ export default async function BoardPage({
                           {v.title}
                           {v.comment_count > 0 && <span className="ml-1.5 text-sm font-bold text-teal-700">[{v.comment_count}]</span>}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-500">{v.author?.display_name ?? "탈퇴한 회원"} · {fmtDay(v.created_at)}</p>
+                        <p className="mt-0.5 text-xs text-slate-500">{authorName(v)} · {fmtDay(v.created_at)}</p>
                       </ListCard>
                     </li>
                   ))}

@@ -5,7 +5,8 @@ import TalentRegionBar from "@/components/TalentRegionBar";
 import { redirect } from "next/navigation";
 import { getMyProfile } from "@/lib/data/user";
 import {
-  searchPublicTalent, revealContacts, canRevealContacts, TALENT_PER_PAGE, type RevealedContact,
+  searchPublicTalent, revealContacts, canRevealContacts, TALENT_PER_PAGE,
+  getTalentSidoList, getTalentSigunguList, type RevealedContact,
 } from "@/lib/data/talent";
 import { JOB_SPECIALTIES } from "@/lib/constants";
 import { chipClass as chip } from "@/lib/chip";
@@ -41,7 +42,12 @@ export default async function TalentPage({
   // 시군구는 시도에 종속 — 시도 없이 오면 무시한다(서버 필터와 같은 계약).
   const sgg = sd ? (sigungu ?? "").trim() : "";
 
-  const { rows, total } = await searchPublicTalent({ specialty, sido: sd, sigungu: sgg, minYears }, pageNum);
+  // 지역 팝업 목록은 목록 조회와 독립이라 같이 띄운다(순차로 하면 왕복이 그만큼 늘어난다).
+  const [{ rows, total }, sidos, sigungus] = await Promise.all([
+    searchPublicTalent({ specialty, sido: sd, sigungu: sgg, minYears }, pageNum),
+    getTalentSidoList(),
+    getTalentSigunguList(sd),
+  ]);
   const totalPages = Math.max(1, Math.ceil(total / TALENT_PER_PAGE));
 
   // 광고 중인 병원(또는 관리자)만 이름·전화를 붙인다.
@@ -89,7 +95,7 @@ export default async function TalentPage({
 
         {/* /jobs 검색과 동일한 UI — 지역 픽커(pill) + 진료과 칩 + 경력 칩. 고르면 즉시 조회(검색 버튼 없음). */}
         <div className="mt-4">
-          <TalentRegionBar sido={sd} sigungu={sgg} />
+          <TalentRegionBar sido={sd} sigungu={sgg} sidos={sidos} sigungus={sigungus} />
         </div>
         <nav aria-label="진료과" className="-mx-4 mt-3 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
           <a href={build({ spec: "" })} aria-current={!specialty ? "page" : undefined} className={chip(!specialty)}>진료과 전체</a>

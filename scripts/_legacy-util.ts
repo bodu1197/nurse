@@ -9,19 +9,26 @@
 export const chunk = <T>(a: T[], n: number) =>
   Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
 
+/** 줄바꿈 예약 자리. 원문 개행과 구분해야 해서 본문에 나올 리 없는 제어문자를 쓴다. */
+const NL_MARK = "";
+
 /**
  * 라이믹스 본문 HTML → 평문. 새 앱은 이 값을 whitespace-pre-line 으로 그대로 렌더한다.
  *
- * 🔴 첫 줄(`>\s+<`)이 핵심이다. 원문이 `<p>A</p>\n\n<p>B</p>` 처럼 **태그 사이에 소스 개행**을 갖고 있어,
- *    그걸 지우지 않으면 `</p>` 변환분과 합쳐져 한 줄마다 빈 줄이 하나씩 끼어든다
- *    (실측: 자기소개 10줄이 빈 줄 10개와 함께 저장돼 화면에서 한 줄 읽고 스크롤해야 했다).
- *    의도적인 빈 줄(`<p><br></p>`)은 이 처리 뒤에도 남는다.
+ * 🔴 핵심은 **원문의 줄바꿈을 하나도 믿지 않는 것**이다. HTML 에서 소스 개행은 화면에 줄을 바꾸지
+ *    않는다(그냥 공백이다). 그런데 라이믹스 본문은 `<p>A</p>\n\n<p>B</p>` 나 `…였으며,<br />\n간호사…`
+ *    처럼 태그 주변에 개행을 잔뜩 갖고 있어, 그걸 남긴 채 `<br>`·`</p>` 를 줄바꿈으로 바꾸면
+ *    한 줄마다 빈 줄이 하나씩 끼어든다(실측: 자기소개 10줄 → 빈 줄 10개. 한 줄 읽고 스크롤해야 했다).
+ *
+ *    그래서 순서가 중요하다: ① 줄을 바꾸는 태그만 자리표시자로 빼두고 → ② 남은 공백·개행을 전부
+ *    공백 하나로 뭉갠 뒤 → ③ 자리표시자를 진짜 줄바꿈으로 되돌린다.
+ *    의도적인 빈 줄(`<p><br></p>`)은 자리표시자가 연달아 나오므로 이 처리 뒤에도 남는다.
  */
 export function htmlToText(html: string): string {
   return html
-    .replace(/>\s+</g, "><")
-    .replace(/<\s*br\s*\/?\s*>/gi, "\n")
-    .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi, "\n")
+    .replaceAll(NL_MARK, "") // 만에 하나 원문에 있으면 자리표시자와 섞인다
+    .replace(/<\s*br\s*\/?\s*>/gi, NL_MARK)
+    .replace(/<\/\s*(p|div|li|tr|h[1-6])\s*>/gi, NL_MARK)
     .replace(/<\s*li[^>]*>/gi, "· ")
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/gi, " ")
@@ -29,7 +36,8 @@ export function htmlToText(html: string): string {
     .replace(/&quot;/gi, '"').replace(/&#39;/g, "'")
     .replace(/&amp;/gi, "&")
     .replace(/ /g, " ") // NBSP — 눈에 안 보이는 공백이 줄 끝에 남아 지저분해진다
-    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\s+/g, " ")    // 원문 개행·들여쓰기를 공백 하나로(자리표시자는 \s 가 아니라 살아남는다)
+    .split(NL_MARK).map((line) => line.trim()).join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }

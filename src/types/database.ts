@@ -134,24 +134,30 @@ export type Database = {
       }
       board_comments: {
         Row: {
-          author_id: string
+          author_id: string | null
           body: string
           created_at: string
           id: string
+          legacy_nickname: string | null
+          legacy_srl: number | null
           post_id: string
         }
         Insert: {
-          author_id: string
+          author_id?: string | null
           body: string
           created_at?: string
           id?: string
+          legacy_nickname?: string | null
+          legacy_srl?: number | null
           post_id: string
         }
         Update: {
-          author_id?: string
+          author_id?: string | null
           body?: string
           created_at?: string
           id?: string
+          legacy_nickname?: string | null
+          legacy_srl?: number | null
           post_id?: string
         }
         Relationships: [
@@ -173,26 +179,35 @@ export type Database = {
       }
       board_posts: {
         Row: {
-          author_id: string
+          author_id: string | null
           body: string
           created_at: string
           id: string
+          images: string[]
+          legacy_nickname: string | null
+          legacy_srl: number | null
           title: string
           updated_at: string
         }
         Insert: {
-          author_id: string
+          author_id?: string | null
           body: string
           created_at?: string
           id?: string
+          images?: string[]
+          legacy_nickname?: string | null
+          legacy_srl?: number | null
           title: string
           updated_at?: string
         }
         Update: {
-          author_id?: string
+          author_id?: string | null
           body?: string
           created_at?: string
           id?: string
+          images?: string[]
+          legacy_nickname?: string | null
+          legacy_srl?: number | null
           title?: string
           updated_at?: string
         }
@@ -805,6 +820,8 @@ export type Database = {
       recompute_hospital_rating: { Args: { h: string }; Returns: undefined }
       nurse_job_sido_list: { Args: Record<string, never>; Returns: { name: string; cnt: number }[] }
       nurse_job_sigungu_list: { Args: { p_sido: string }; Returns: { name: string; cnt: number }[] }
+      nurse_talent_sido_list: { Args: Record<string, never>; Returns: { name: string; cnt: number }[] }
+      nurse_talent_sigungu_list: { Args: { p_sido: string }; Returns: { name: string; cnt: number }[] }
     }
     Enums: {
       user_role: "nurse" | "hospital" | "admin"
