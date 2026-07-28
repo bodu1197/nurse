@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchNurseJobs, fetchDetails } from "@/lib/worknet";
 import { regionOfLocation } from "@/lib/jobRegion";
+import { departmentFromText } from "@/lib/jobTaxonomy";
 
 // 워크넷(고용24) 채용정보 "간호" 키워드 수집 → jobs upsert.
 // 워크넷 공고는 "구인 광고"다 — 병원 명부(hospitals, 심사평가원)와 다른 것이라 명부에 레코드를 만들지 않는다.
@@ -42,12 +43,12 @@ export async function GET(request: Request) {
     //    보강 완료는 전용 마커 detail_fetched_at으로 판별(성공 파싱마다 세팅). 접수정보 없는 공고도 1회로 종료 → starvation 방지.
     //    미보강분만 실행당 상한(?detail=, 기본 1500)으로 증분. 초기 백필은 여러 번 실행하거나 ?detail 상향(로컬).
     const detailMax = Math.min(Math.max(0, Number(new URL(request.url).searchParams.get("detail") ?? 1500) || 1500), 15000);
-    type Stored = { title: string; description: string | null; recruit_count: number | null; manager_phone: string | null; manager_name: string | null; shift_type: string | null; benefits: string[]; apply_detail: string | null; deadline: string | null; detail_fetched_at: string | null };
+    type Stored = { title: string; specialty: string | null; facility_type: string | null; job_category: string | null; description: string | null; recruit_count: number | null; manager_phone: string | null; manager_name: string | null; shift_type: string | null; benefits: string[]; apply_detail: string | null; deadline: string | null; detail_fetched_at: string | null };
     const stored = new Map<string, Stored>();
     for (let from = 0; ; from += 1000) {
       const { data: page, error } = await admin
         .from("jobs")
-        .select("external_id,title,description,recruit_count,manager_phone,manager_name,shift_type,benefits,apply_detail,deadline,detail_fetched_at")
+        .select("external_id,title,specialty,facility_type,job_category,description,recruit_count,manager_phone,manager_name,shift_type,benefits,apply_detail,deadline,detail_fetched_at")
         .eq("source", "worknet").range(from, from + 999);
       if (error) return NextResponse.json({ error: `jobs select: ${error.message}` }, { status: 500 });
       for (const r of page ?? []) if (r.external_id) stored.set(r.external_id, r as Stored);
@@ -67,11 +68,23 @@ export async function GET(request: Request) {
       const d = details.get(j.authNo);
       const s = stored.get(j.authNo);
       const region = regionOfLocation(j.region || null); // 지역 드롭다운·필터용 정규화(백필과 같은 경로)
+      // 🗂 진료과는 상세를 받은 뒤 다시 뽑는다. 리스트에는 제목뿐이라 10.8% 밖에 안 잡히는데,
+      //    상세의 사업내용(busiCont)·직무내용(jobCont)까지 보면 22.3% 로 오른다(실측 400건).
+      //    상세를 아직 못 받은 공고는 리스트 단계 추론값(j.specialty)을 그대로 쓴다.
+      // 🔴 어느 경우에도 **이미 있는 값을 null 로 덮지 않는다**. 상세를 받았는데 그 본문에
+      //    진료과 단어가 없으면 추론은 null 이 되는데, 그걸 그대로 쓰면 저장돼 있던 값이 지워진다.
+      const specialty = (d ? departmentFromText(d.title ?? j.title, d.busiCont, d.description) : j.specialty)
+        ?? s?.specialty ?? null;
       return {
         company_name: j.company || null,
         hospital_id: null,
         title: d?.title ?? s?.title ?? j.title,
-        specialty: j.specialty,
+        specialty,
+        // 기관 종별·직종은 워크넷이 코드로 정확히 준다(누락 0건) — 추론이 아니라 정답이다.
+        // 다만 산업분류가 표에 없는 3.2% 는 유도가 null 이라, 그때는 저장값을 지키지 않으면
+        // 마이그레이션이 회사명으로 채워둔 값이 첫 동기화(6시간 내)에 통째로 날아간다.
+        facility_type: j.facilityType ?? s?.facility_type ?? null,
+        job_category: j.jobCategory ?? s?.job_category ?? null,
         employment_type: j.employmentType,
         location: j.region || null,
         sido: region.sido,

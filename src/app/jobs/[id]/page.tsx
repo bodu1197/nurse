@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import JobDetail from "@/components/JobDetail";
 import { getPublicJob, getSavedJobIds, getNearbyJobs, getJobs, jobFilterQs, regionOf, PER_PAGE, type JobRow } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
-import { hasApplied } from "@/lib/data/applications";
+import { myApplication } from "@/lib/data/applications";
 import { daysAgo, nowMs, listingEnd } from "@/lib/date";
 import { isOpenToSeekers } from "@/lib/jobState";
 
@@ -49,8 +49,8 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
 export default async function JobPage({
   params,
   searchParams,
-}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ apply?: string; q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; et?: string; page?: string }> }>) {
-  const [{ id }, { apply, q, l, sido, sigungu, spec, et, page }] = await Promise.all([params, searchParams]);
+}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ apply?: string; ok?: string; q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; et?: string; page?: string }> }>) {
+  const [{ id }, { apply, ok, q, l, sido, sigungu, spec, et, page }] = await Promise.all([params, searchParams]);
   // 시군구는 시도에 종속 — 시도 없으면 무시(목록과 같은 계약).
   const sg = sido ? sigungu : undefined;
   const now = nowMs();
@@ -73,8 +73,8 @@ export default async function JobPage({
   const pageHref = (toPage: number) => { const s = qsFor(toPage); return `/jobs/${id}` + (s ? `?${s}` : ""); };
 
   // 서로 의존하지 않는 조회는 함께 보낸다(직렬로 두면 상세 화면이 왕복 한 번만큼 늦어진다).
-  const [applied, savedIds, side] = await Promise.all([
-    profile?.role === "nurse" ? hasApplied(job.id) : Promise.resolve(false),
+  const [application, savedIds, side] = await Promise.all([
+    profile?.role === "nurse" ? myApplication(job.id) : Promise.resolve(null),
     profile ? getSavedJobIds([job.id]) : Promise.resolve(new Set<string>()),
     // 필터로 들어왔으면 같은 검색결과(전체 개수 포함)를, 아니면 같은 지역(없으면 최근) 공고를 좌측 사이드바로.
     fromSearch
@@ -134,10 +134,11 @@ export default async function JobPage({
           <JobDetail
             job={job}
             profile={profile}
-            applied={applied}
+            application={application}
             saved={savedIds.has(job.id)}
             selfHref={`/jobs/${job.id}`}
             applyError={apply}
+            cancelled={ok === "cancel"}
             asH1
             now={now}
           />

@@ -1,6 +1,9 @@
 import type { ReactNode } from "react";
 import Button from "@/components/Button";
+import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { toggleSaveJob, applyToJob } from "@/app/jobs/actions";
+import { withdrawApplication } from "@/app/mypage/actions";
+import { CANCELABLE, type JobApplicationState } from "@/lib/data/applications";
 import { listingEnd, fmtDate } from "@/lib/date";
 import type { JobRow } from "@/lib/data/jobs";
 import type { Role } from "@/lib/data/role";
@@ -59,12 +62,15 @@ function ApplyError({ code, resumeHref }: Readonly<{ code: string; resumeHref: s
 type Props = Readonly<{
   job: JobRow;
   profile: { displayName: string; role: Role } | null;
-  applied: boolean;
+  /** 이 공고에 넣어둔 내 지원(없으면 null). 취소를 여기서 바로 하려고 id·상태까지 받는다. */
+  application: JobApplicationState | null;
   saved: boolean;
   /** 저장 후 돌아올 곳 + 로그인 후 돌아올 곳 */
   selfHref: string;
   /** 모바일에서 목록으로 돌아가는 링크. 단독 상세 페이지에서는 생략 */
   backHref?: string;
+  /** 방금 이 화면에서 지원을 취소했는가(?ok=cancel) */
+  cancelled?: boolean;
   /** ?apply= 로 넘어온 지원 실패 사유 */
   applyError?: string;
   /** 단독 상세 페이지에서는 공고 제목이 그 페이지의 h1이다(목록 옆 패널일 때는 h2). */
@@ -72,7 +78,7 @@ type Props = Readonly<{
   now: number;
 }>;
 
-export default function JobDetail({ job, profile, applied, saved, selfHref, backHref, applyError, asH1, now }: Props) {
+export default function JobDetail({ job, profile, application, saved, selfHref, backHref, applyError, cancelled, asH1, now }: Props) {
   const loginHref = `/login?notice=apply&next=${encodeURIComponent(selfHref)}`;
   const resumeHref = `/mypage/resume?next=${encodeURIComponent(selfHref)}`;
   const Title = asH1 ? "h1" : "h2";
@@ -137,13 +143,33 @@ export default function JobDetail({ job, profile, applied, saved, selfHref, back
                   </div>
                 ) : profile.role !== "nurse" ? (
                   <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">간편지원은 간호사 회원만 가능합니다.</p>
-                ) : applied ? (
+                ) : application ? (
+                  // 취소를 여기서 바로 하게 둔다. 전에는 지원 내역으로 가는 링크뿐이라, 마음이 바뀐
+                  // 사람이 취소하려면 화면을 옮겨야 했다(구 널스넷에서 이게 이탈 원인 — 오너 확인).
                   <div className="flex flex-col gap-2 rounded-[12px] border border-teal-200 bg-teal-50 px-4 py-3">
                     <p className="text-sm font-semibold text-teal-800">✓ 지원 완료</p>
-                    <a href="/mypage/applications" className="text-sm font-semibold text-teal-700 hover:underline">지원 내역에서 확인·취소 →</a>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <a href="/mypage/applications" className="text-sm font-semibold text-teal-700 hover:underline">지원 내역 보기 →</a>
+                      {CANCELABLE.some((st) => st === application.status) && (
+                        <form action={withdrawApplication} className="ml-auto">
+                          <input type="hidden" name="application_id" value={application.id} />
+                          <input type="hidden" name="next" value={selfHref} />
+                          <ConfirmSubmit className="min-h-11" message="이 지원을 취소할까요? 취소 후 같은 공고에 다시 지원할 수 있습니다.">
+                            지원 취소
+                          </ConfirmSubmit>
+                        </form>
+                      )}
+                    </div>
                   </div>
                 ) : (
+                  // 방금 취소했다면 그 사실을 지원 폼 **위에** 붙인다. 배타 분기로 두면 "다시 지원할 수
+                  // 있다"고 말해놓고 정작 폼이 사라진다.
                   <form action={applyToJob} className="flex flex-col gap-2">
+                    {cancelled && (
+                      <p role="status" className="rounded-[12px] border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        지원을 취소했습니다. 마음이 바뀌면 여기서 다시 지원할 수 있습니다.
+                      </p>
+                    )}
                     <input type="hidden" name="job_id" value={job.id} />
                     <input type="hidden" name="next" value={selfHref} />
                     <textarea name="message" rows={2} maxLength={500} placeholder="지원 메시지 (선택)" className="w-full resize-none rounded-[12px] border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />

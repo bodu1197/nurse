@@ -3,7 +3,7 @@ import HospitalShell from "@/components/HospitalShell";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { isAdvertiser, searchTalent, TALENT_PER_PAGE, type TalentRow } from "@/lib/data/talent";
-import { JOB_SPECIALTIES } from "@/lib/constants";
+import { DEPARTMENTS } from "@/lib/resumeOptions";
 
 export const metadata = { title: "인재 검색 — 널스넷", robots: { index: false } };
 
@@ -72,7 +72,9 @@ export default async function TalentPage({
   const allowed = await isAdvertiser();
   const pageNum = Math.max(1, Number(page) || 1);
   const minYears = Number(years) || 0;
-  const specialty = JOB_SPECIALTIES.includes(spec as (typeof JOB_SPECIALTIES)[number]) ? spec : undefined;
+  // 🔴 이력서를 검색하는 화면이므로 어휘는 이력서 표(DEPARTMENTS 28개)여야 한다.
+  //    옛 채용용 9개로 걸면 이력서 7,257건이 쓰는 값과 3개만 겹쳐 대부분 0명이 나온다(/talent 와 같은 사고).
+  const specialty = DEPARTMENTS.includes(spec as (typeof DEPARTMENTS)[number]) ? spec : undefined;
 
   const { rows, total } = allowed
     ? await searchTalent({ specialty, sido: loc, minYears }, pageNum)
@@ -103,7 +105,7 @@ export default async function TalentPage({
               <label htmlFor="spec" className="text-xs font-medium text-slate-500">진료과</label>
               <select id="spec" name="spec" defaultValue={specialty ?? ""} className={field}>
                 <option value="">전체</option>
-                {JOB_SPECIALTIES.map((s) => <option key={s} value={s}>{s}</option>)}
+                {DEPARTMENTS.map((s) => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div className="flex flex-col gap-1">

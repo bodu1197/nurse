@@ -87,18 +87,27 @@ export async function countMyApplications(): Promise<number> {
   return count ?? 0;
 }
 
-// 간호사가 특정 공고에 이미 지원했는지(공고 상세에서 '지원완료' 표시용).
-// 취소한 지원은 제외 — 다시 지원할 수 있어야 한다.
-export async function hasApplied(jobId: string): Promise<boolean> {
+/**
+ * 간호사가 이 공고에 넣어둔 지원(공고 상세의 '지원완료' 표시 + **그 자리에서 취소**용).
+ * 취소한 지원은 없는 것으로 본다 — 다시 지원할 수 있어야 한다.
+ *
+ * boolean 이 아니라 행을 돌려주는 이유: 전에는 "지원 완료" 옆에 지원 내역으로 가는 링크만 있어서,
+ * 취소하려면 화면을 옮겨야 했다. 어차피 이 쿼리가 그 행을 읽고 있었으므로 id·상태를 버리지 않고
+ * 넘겨 같은 자리에서 취소하게 한다(구 널스넷에서 취소가 숨어 있던 것이 이탈 원인 — 오너 확인).
+ */
+export type JobApplicationState = { id: string; status: AppStatus };
+
+export async function myApplication(jobId: string): Promise<JobApplicationState | null> {
   const user = await getSessionUser();
-  if (!user) return false;
+  if (!user) return null;
   const supabase = await createClient();
   const { data, error } = await supabase
-    .from("applications").select("status")
+    .from("applications").select("id,status")
     .eq("job_id", jobId).eq("applicant_id", user.id).maybeSingle();
   // 조회가 실패하면 '지원 안 함'으로 보여 폼이 다시 뜨고, 눌러도 액션이 dup으로 되돌린다 → 원인을 남긴다.
-  if (error) console.error("hasApplied failed:", error.message);
-  return !!data && data.status !== "withdrawn";
+  if (error) console.error("myApplication failed:", error.message);
+  if (!data || data.status === "withdrawn") return null;
+  return { id: data.id, status: data.status as AppStatus };
 }
 
 /** 병원이 보는 지원자 이력서 전문 — 본인 화면·인쇄 서식과 같은 항목(+ 어느 회원인지). */

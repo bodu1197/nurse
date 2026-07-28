@@ -1,5 +1,8 @@
 import "server-only";
 import { decodeEntities } from "@/lib/html";
+import {
+  categoryFromJobCode, departmentFromText, facilityFromIndustry, isNurseJobCode,
+} from "@/lib/jobTaxonomy";
 
 // 워크넷(고용24) 채용정보 오픈API(210L01) — **직종코드(occupation)** 로 간호 직군 구인공고 수집.
 // 응답은 고정 스키마 XML(<wanted> 반복)이라 파서 의존성 대신 정규식 추출(기존 worknet 직업정보 코드와 동일 방식).
@@ -40,25 +43,13 @@ export type WorknetJob = {
   url: string; // 공고 상세 링크
   addr: string; // 근무지 주소
   infoSvc: string; // 상세 API 호출용(VALIDATION 등)
-  specialty: string | null; // title에서 추출한 진료과(필터용, JOB_SPECIALTIES 값)
+  jobsCd: string; // 직종코드(304000 간호사 / 307500 간호조무사 …). 직종 축의 정답 — 누락 0건.
+  industry: string; // indTpNm 산업분류명("노인 요양 복지시설 운영업" 등). 기관 종별의 정답 — 누락 0건.
+  specialty: string | null; // 텍스트에서 추출한 진료과(DEPARTMENTS 어휘). 상세 수신 후 본문까지 보고 다시 채운다.
+  facilityType: string | null; // industry → 기관 종별(FACILITY_TYPES)
+  jobCategory: string | null; // jobsCd → 직종(JOB_CATEGORIES)
   employmentType: string | null; // empTpCd/급여형태 → 고용형태(필터용, EMPLOYMENT_TYPES 값)
 };
-
-// title 키워드 → 진료과(JOB_SPECIALTIES). 첫 매칭. 없으면 null(진료과 필터에서 "전체"로만 노출).
-const SPEC_RULES: ReadonlyArray<readonly [string, RegExp]> = [
-  ["중환자실", /중환자|ICU/i],
-  ["응급실", /응급/],
-  ["수술실", /수술|마취회복|\bOR\b/i],
-  ["투석실", /투석/],
-  ["정신과", /정신|폐쇄병동/],
-  ["마취과", /마취/],
-  ["외래", /외래|검진|주사실/],
-  ["요양병원", /요양|재활|노인|실버|주간보호|방문/],
-  ["병동", /병동|입원|일반병실/],
-];
-function deriveSpecialty(title: string): string | null {
-  return SPEC_RULES.find(([, re]) => re.test(title))?.[0] ?? null;
-}
 
 // empTpCd(10/11 정규직, 20/21 계약직) + 급여형태(시급→파트타임) → 고용형태(EMPLOYMENT_TYPES).
 function deriveEmploymentType(empTpCd: string, salTpNm: string): string | null {
@@ -87,6 +78,8 @@ function parsePage(xml: string): { jobs: WorknetJob[]; total: number } {
     const b = m[1];
     const title = decode(pick(b, "title"));
     const salTpNm = pick(b, "salTpNm");
+    const jobsCd = pick(b, "jobsCd");
+    const industry = decode(pick(b, "indTpNm"));
     return {
       authNo: pick(b, "wantedAuthNo"),
       company: decode(pick(b, "company")), // 회사명도 &amp; 등 엔티티 디코드(카드 표시명)
@@ -102,7 +95,12 @@ function parsePage(xml: string): { jobs: WorknetJob[]; total: number } {
       url: decode(pick(b, "wantedInfoUrl")),
       addr: pick(b, "basicAddr"),
       infoSvc: pick(b, "infoSvc") || "VALIDATION",
-      specialty: deriveSpecialty(title),
+      jobsCd,
+      industry,
+      // 리스트 단계에선 제목만 있다(10.8%). 상세를 받은 뒤 사업내용·직무내용까지 보고 다시 채운다(22.3%).
+      specialty: departmentFromText(title),
+      facilityType: facilityFromIndustry(industry),
+      jobCategory: categoryFromJobCode(jobsCd),
       employmentType: deriveEmploymentType(pick(b, "empTpCd"), salTpNm),
     };
   });
@@ -147,13 +145,20 @@ export async function fetchNurseJobs(codes: readonly string[] = NURSE_JOB_CODES)
   const all: WorknetJob[] = [];
   for (const code of codes) all.push(...await fetchOccupation(code));
   const seen = new Set<string>();
-  return all.filter((j) => j.authNo && !seen.has(j.authNo) && seen.add(j.authNo));
+  return all.filter((j) =>
+    j.authNo && !seen.has(j.authNo) && seen.add(j.authNo)
+    // 🔴 occupation 파라미터는 정확 필터가 아니다(실측 2026-07-29): occupation=304000 으로 요청해도
+    //    요양보호사(550100)·치과위생사(306400) 등 간호 직군이 아닌 공고가 **7.1%** 섞여 온다.
+    //    공고 하나에 직종이 여럿 달릴 수 있어 부수 직종으로도 매칭되고, jobsCd 는 대표 직종만 온다.
+    //    "요양보호사 원천 배제"는 여기서 실제로 이뤄진다.
+    && isNurseJobCode(j.jobsCd));
 }
 
 // 상세 API(210D01) — 리스트에 없는 풍부한 필드. 전체제목·직무내용·연락처·모집인원·근무시간·복지·전형·정확한 마감일.
 export type WorknetDetail = {
   title: string | null;        // wantedTitle (앞잘림 없는 전체 제목)
   description: string | null;  // jobCont (실제 직무 상세)
+  busiCont: string | null;     // 사업내용("요양병원"·"주.야간 보호시설" 등). 진료과 추론 재료 — 저장하지는 않는다.
   recruitCount: number | null; // collectPsncnt (모집인원)
   managerPhone: string | null; // contactTelno (담당 연락처)
   managerName: string | null;  // empChargerDpt (담당 부서/고용센터)
@@ -192,6 +197,7 @@ function parseDetail(xml: string): WorknetDetail | null {
   return {
     title: decode(pick(xml, "wantedTitle")) || null,
     description: cleanBody(pick(xml, "jobCont")) || null,
+    busiCont: clean1(pick(xml, "busiCont")) || null,
     recruitCount: Number.isFinite(recruit) && recruit > 0 ? recruit : null,
     managerPhone: /\d{2,}/.test(tel) ? tel.trim() : null, // "--" 등 빈값 제외
     managerName: pick(xml, "empChargerDpt") || null,

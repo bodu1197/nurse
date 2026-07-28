@@ -16,6 +16,7 @@ import { isSettableJobStatus } from "@/lib/jobState";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { totalYears } from "@/lib/data/resume";
 import { CAREER_EXPERIENCED, DEPARTMENTS, JOB_CATEGORIES } from "@/lib/resumeOptions";
+import { JOB_DEPARTMENTS, FACILITY_TYPES } from "@/lib/jobTaxonomy";
 import { SIDO_LIST, SIDO_SIGUNGU, LEGACY_REGIONS } from "@/lib/koreaRegions";
 
 // 이력서에서 고를 수 있는 희망 근무지 전체("부산", "부산 수영구" 두 형태) + 구 널스넷 잔재 6종.
@@ -26,6 +27,28 @@ const KNOWN_REGIONS: ReadonlySet<string> = new Set([
 ]);
 
 // 관리자 보기 전환(병원/간호사로 테스트). admin 계정만 유효 — 그 외에는 쿠키를 넣어도 무시된다.
+/**
+ * 🔴 검색 축 3개는 **아는 값만** 받는다.
+ *
+ * 화면에서는 select 로만 고르지만, 조작된 POST 로 임의 문자열을 넣으면 그 값이 jobs 에 저장되고
+ * 칩 목록 RPC(nurse_job_facet_list)를 통해 **모든 방문자의 검색 화면**에 필터 항목으로 걸릴 수 있다.
+ * RPC 쪽 화이트리스트가 마지막 방어선이지만 그 목록은 SQL 에 손으로 복제돼 있어, 한쪽만 늘리면
+ * 그대로 뚫린다. 입력에서 먼저 잘라낸다(이력서의 onlyKnown 과 같은 사고방식).
+ *
+ * ⚠️ 모르는 값은 조용히 null 이 된다. 목록을 줄일 때는 기존 공고가 잘리지 않는지 먼저 확인할 것.
+ */
+function jobAxes(s: (k: string) => string) {
+  const pick = (key: string, allowed: readonly string[]) => {
+    const v = s(key);
+    return v && allowed.includes(v) ? v : null;
+  };
+  return {
+    specialty: pick("specialty", JOB_DEPARTMENTS),
+    facility_type: pick("facility_type", FACILITY_TYPES),
+    job_category: pick("job_category", JOB_CATEGORIES),
+  };
+}
+
 export async function setViewAs(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -155,7 +178,7 @@ export async function createJob(formData: FormData) {
   const { data: created, error } = await admin.from("jobs").insert({
     hospital_id: hospitalId,
     title,
-    specialty: s("specialty") || null,
+    ...jobAxes(s),
     location,
     sido: region.sido,
     sigungu: region.sigungu,
@@ -210,7 +233,7 @@ export async function updateJob(formData: FormData) {
   const region = regionOfLocation(location);
   const { error } = await admin.from("jobs").update({
     title,
-    specialty: s("specialty") || null,
+    ...jobAxes(s),
     location,
     sido: region.sido,
     sigungu: region.sigungu,
@@ -352,7 +375,14 @@ export async function saveResume(formData: FormData) {
     available_from: s("available_from"),
     needs_dormitory: bool("needs_dormitory"),
     intro: s("intro"),
-    is_public: formData.get("is_public") === "on",
+    // 🔴 공개 여부는 **이력서가 아직 없을 때만** 이 폼이 정한다(첫 저장의 동의 체크박스).
+    //    이미 있는 이력서는 화면 맨 위 스위치(setResumePublic)가 유일한 주인이다.
+    //    둘 다 쓰면: 스위치로 비공개로 바꾼 뒤 열어둔 다른 탭이나 뒤로가기로 되돌아온 낡은
+    //    폼을 저장하는 순간, 체크된 채로 남아 있던 체크박스가 **조용히 다시 공개로 돌려놓는다**.
+    //    개인정보 공개가 사용자 의사와 무관하게 켜지는 경로는 없어야 한다.
+    ...(formData.get("visibility_field") === "1"
+      ? { is_public: formData.get("is_public") === "on" }
+      : {}),
   });
   if (error) {
     console.error("saveResume failed:", error.message);
@@ -534,6 +564,33 @@ export async function openApplicantResume(formData: FormData) {
   redirect(`/mypage/applicants/${encodeURIComponent(id)}/print${jobId ? `?job_id=${encodeURIComponent(jobId)}` : ""}`);
 }
 
+/**
+ * 간호사 — 이력서 공개/비공개 즉시 전환.
+ *
+ * 🔴 왜 이력서 저장(saveResume)과 따로 두는가:
+ *    전에는 공개 여부가 447줄짜리 편집 폼의 411번째 줄 체크박스 하나뿐이었다. 비공개로 바꾸려면
+ *    이력서 편집 → 끝까지 스크롤 → 체크 해제 → 폼 전체 저장 이었고, 폼의 다른 항목이 검증에
+ *    걸리면 비공개조차 되지 않았다. 구 널스넷에서 이게 회원 이탈의 주된 원인이었다(오너 확인).
+ *    개인정보 제공 동의 철회는 **한 번에, 마찰 없이** 되어야 한다.
+ *
+ * 켤 때는 화면에서 무엇이 공개되는지 확인을 받는다(동의 행위). 끌 때는 즉시 — 철회에 확인을
+ * 요구하는 건 다크패턴이다.
+ */
+export async function setResumePublic(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const next = formData.get("is_public") === "on";
+  // 이력서 PK 는 profile_id 이고 곧 user.id 다(saveResume 과 같은 계약) — 남의 이력서를 건드릴 경로가 없다.
+  const { data, error } = await supabase
+    .from("resumes").update({ is_public: next }).eq("profile_id", user.id).select("profile_id");
+  if (error || !data?.length) {
+    console.error("setResumePublic failed:", error?.message ?? "no row");
+    redirect("/mypage/resume?error=visibility");
+  }
+  redirect(`/mypage/resume?ok=${next ? "public" : "private"}`);
+}
+
 // 간호사 — 지원 취소(변심). 정책상 본인 지원을 'withdrawn'으로만 바꿀 수 있다.
 // 행을 지우지 않는 이유: 병원 화면에서 지원자가 흔적 없이 사라지면 면접까지 본 기록이 없어진다.
 export async function withdrawApplication(formData: FormData) {
@@ -547,8 +604,12 @@ export async function withdrawApplication(formData: FormData) {
   const { data, error } = await supabase
     .from("applications").update({ status: "withdrawn" })
     .eq("id", id).eq("applicant_id", user.id).in("status", [...CANCELABLE]).select("id");
-  if (error || !data?.length) redirect("/mypage/applications?error=1");
-  redirect("/mypage/applications?ok=cancel");
+  // 공고 상세에서 취소했으면 그 공고로 돌아온다 — 보던 화면이 튀지 않게(지원·저장 폼과 같은 규약).
+  // 목록에서 취소했으면 next 가 없어 지원 내역에 남는다.
+  const back = safeNext(String(formData.get("next") ?? ""), "/mypage/applications");
+  const sep = back.includes("?") ? "&" : "?";
+  if (error || !data?.length) redirect(`${back}${sep}error=1`);
+  redirect(`${back}${sep}ok=cancel`);
 }
 
 // 병원 — 공고 마감/재개 (RLS로 소유 공고만).

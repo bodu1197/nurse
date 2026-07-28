@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import NurseShell from "@/components/NurseShell";
 import SubmitButton from "@/components/SubmitButton";
-import Button from "@/components/Button";
+import Button, { buttonClass } from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import WorkExperienceFields from "@/components/WorkExperienceFields";
 import { getMyProfile } from "@/lib/data/user";
@@ -14,7 +14,7 @@ import {
 } from "@/lib/resumeOptions";
 import { SIDO_LIST, SIDO_SIGUNGU } from "@/lib/koreaRegions";
 import { safeNext } from "@/lib/url";
-import { saveResume, deleteResume } from "../actions";
+import { saveResume, deleteResume, setResumePublic } from "../actions";
 
 export const metadata = { title: "내 이력서 — 널스넷", robots: { index: false } };
 
@@ -23,6 +23,7 @@ const req = <><span className="text-red-500" aria-hidden>*</span><span className
 
 const SAVE_ERRORS: Record<string, string> = {
   save: "저장에 실패했습니다. 다시 시도해 주세요.",
+  visibility: "공개 설정을 바꾸지 못했습니다. 다시 시도해 주세요.",
   delete: "삭제에 실패했습니다. 다시 시도해 주세요.",
   shift: "가능한 근무형태를 하나 이상 선택해 주세요.",
   region: "희망 근무지를 하나 이상 선택해 주세요.",
@@ -178,6 +179,54 @@ function Field({ id, text, hint, children }: Readonly<{ id: string; text: React.
   );
 }
 
+/**
+ * 🔴 공개/비공개 스위치 — 화면 **맨 위**에 둔다.
+ *
+ * 전에는 이게 아래 편집 폼 끝(자기소개 다음)의 체크박스 하나뿐이었다. 비공개로 바꾸려면
+ * 끝까지 스크롤 → 체크 해제 → 폼 전체 저장이었고, 폼의 다른 항목이 검증에 걸리면 비공개조차
+ * 되지 않았다. 구 널스넷에서 이게 회원 이탈의 주된 원인이었다(오너 확인 2026-07-29).
+ *
+ * 끄기는 확인 없이 한 번에 — 개인정보 제공 동의 철회에 확인을 요구하는 건 다크패턴이다.
+ * 켜기는 무엇이 누구에게 가는지 확인을 받는다(동의 행위라서).
+ */
+function VisibilitySwitch({ isPublic }: Readonly<{ isPublic: boolean }>) {
+  return (
+    <section
+      aria-label="이력서 공개 설정"
+      className={`rounded-2xl border p-5 ${isPublic ? "border-teal-300 bg-teal-50" : "border-slate-300 bg-slate-50"}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 font-bold text-slate-900">
+            <span aria-hidden className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${isPublic ? "bg-teal-600" : "bg-slate-400"}`} />
+            {isPublic ? "지금 이력서가 공개 중입니다" : "지금 이력서는 비공개입니다"}
+          </p>
+          <p className="mt-1 text-sm text-slate-700">
+            {isPublic
+              ? "널스넷에 광고 중인 병원이 이름·휴대폰을 포함한 이력서 전체를 볼 수 있습니다. 이 버튼으로 언제든 즉시 멈출 수 있습니다."
+              : "아무도 볼 수 없습니다. 공개하면 광고 중인 병원이 이름·휴대폰을 포함한 이력서 전체를 봅니다."}
+          </p>
+        </div>
+        <form action={setResumePublic} className="shrink-0">
+          <input type="hidden" name="is_public" value={isPublic ? "off" : "on"} />
+          {isPublic ? (
+            // 끄기: 확인 없이 즉시. 되돌리기도 이 버튼 한 번이라 실수해도 손해가 없다.
+            // 같은 값을 두 번 눌러도 결과가 같아(멱등) 중복 제출 방어가 따로 필요 없다.
+            <button type="submit" className={buttonClass("outline", "md", "min-h-11")}>비공개로 바꾸기</button>
+          ) : (
+            <ConfirmSubmit
+              variant="primary" size="md" className="min-h-11"
+              message="이력서를 공개할까요?&#10;이름·휴대폰을 포함한 이력서 전체가 널스넷에 광고 중인 병원에 공개됩니다.&#10;같은 버튼으로 언제든 즉시 되돌릴 수 있습니다."
+            >
+              공개하기
+            </ConfirmSubmit>
+          )}
+        </form>
+      </div>
+    </section>
+  );
+}
+
 // 저장된 이력서를 그대로 확인하는 화면 — 수정 폼만 있으면 "저장이 된 건지" 알 수 없다.
 function ResumeView({ r }: Readonly<{ r: ResumeWithWork }>) {
   const pct = completeness(r, r.work.length);
@@ -272,9 +321,13 @@ export default async function ResumePage({
 
       {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서가 저장되었습니다.</div>}
       {ok === "deleted" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 삭제했습니다.</div>}
+      {ok === "public" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 공개했습니다. 광고 중인 병원이 볼 수 있습니다.</div>}
+      {ok === "private" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">이력서를 비공개로 바꿨습니다. 이제 아무도 볼 수 없습니다 — 위 버튼으로 언제든 다시 공개할 수 있습니다.</div>}
       {messageFor(SAVE_ERRORS, error) && <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{messageFor(SAVE_ERRORS, error)}</div>}
 
-      {r && <div className="mt-6"><ResumeView r={r} /></div>}
+      {/* 공개 스위치는 이력서보다 먼저 — 회원이 가장 급하게 찾는 것이라 스크롤 없이 보여야 한다. */}
+      {r && <div className="mt-6"><VisibilitySwitch isPublic={r.is_public} /></div>}
+      {r && <div className="mt-4"><ResumeView r={r} /></div>}
 
       {backTo && (
         <p className="mt-6 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
@@ -407,19 +460,33 @@ export default async function ResumePage({
               placeholder="경력에서 다루지 못한 강점, 지원 동기 등을 자유롭게 적어주세요."
               className="w-full rounded-xl border border-slate-300 p-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
           </div>
-          <label className="flex items-start gap-2 text-sm text-slate-700">
-            <input type="checkbox" name="is_public" defaultChecked={r?.is_public ?? false}
-              className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600" />
-            <span>
-              이력서 공개에 동의합니다
-              <span className="mt-1 block text-xs leading-relaxed text-slate-600">
-                <b className="text-slate-700">누가 봅니까?</b> 널스넷에 광고 중인 병원.
-                <b className="text-slate-700"> 왜 봅니까?</b> 채용 제안 · 인재 검색 목적.
-                <b className="text-slate-700"> 무엇이 갑니까?</b> 이름 · 휴대폰을 포함한 이 이력서 전체.
-                <b className="text-slate-700"> 언제까지?</b> 체크를 해제하면 즉시 중단됩니다.
+          {/* 🔴 공개 동의는 **첫 저장 때만** 여기서 받는다. 이력서가 이미 있으면 이 자리는 안내만 두고,
+              바꾸는 것은 화면 맨 위 스위치 하나로 몬다(VisibilitySwitch).
+              둘 다 두면: 스위치로 비공개로 바꾼 뒤, 열어둔 다른 탭이나 뒤로가기로 되살아난 낡은 폼을
+              저장하는 순간 체크된 채 남아 있던 이 체크박스가 조용히 다시 공개로 돌려놓는다. */}
+          {r ? (
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              공개 여부는 <b className="text-slate-900">이 화면 맨 위</b>에서 바꿉니다 — 지금은{" "}
+              <b className={r.is_public ? "text-teal-700" : "text-slate-900"}>{r.is_public ? "공개 중" : "비공개"}</b>입니다.
+              여기서 저장해도 공개 여부는 바뀌지 않습니다.
+            </p>
+          ) : (
+            <label className="flex items-start gap-2 text-sm text-slate-700">
+              {/* 이 필드가 함께 올 때만 서버가 공개 여부를 받아들인다(saveResume) */}
+              <input type="hidden" name="visibility_field" value="1" />
+              <input type="checkbox" name="is_public" defaultChecked={false}
+                className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600" />
+              <span>
+                이력서 공개에 동의합니다
+                <span className="mt-1 block text-xs leading-relaxed text-slate-600">
+                  <b className="text-slate-700">누가 봅니까?</b> 널스넷에 광고 중인 병원.
+                  <b className="text-slate-700"> 왜 봅니까?</b> 채용 제안 · 인재 검색 목적.
+                  <b className="text-slate-700"> 무엇이 갑니까?</b> 이름 · 휴대폰을 포함한 이 이력서 전체.
+                  <b className="text-slate-700"> 언제까지?</b> 저장 뒤에는 이 화면 맨 위 스위치로 언제든 즉시 중단할 수 있습니다.
+                </span>
               </span>
-            </span>
-          </label>
+            </label>
+          )}
         </Section>
 
         <SubmitButton pendingText="저장 중…">{r ? "이력서 수정" : "이력서 저장"}</SubmitButton>

@@ -33,6 +33,8 @@ export default async function NewJobPage({
     ? {
         title: dup ? template.title : "",
         specialty: template.specialty,
+        facility_type: template.facility_type,
+        job_category: template.job_category,
         employment_type: template.employment_type,
         location: template.location ?? myHosp?.address ?? myHosp?.region ?? null,
         salary_text: template.salary_text,

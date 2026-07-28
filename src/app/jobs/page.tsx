@@ -4,15 +4,43 @@ import { SaveIcon } from "@/components/JobDetail";
 import Button from "@/components/Button";
 import JobNearMeButton from "@/components/JobNearMeButton";
 import JobSearchBar from "@/components/JobSearchBar";
-import { getJobs, getSavedJobIds, getJobSidoList, getJobSigunguList, jobFilterQs, PER_PAGE } from "@/lib/data/jobs";
+import { getJobs, getSavedJobIds, getJobSidoList, getJobSigunguList, getJobFacets, jobFilterQs, PER_PAGE } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
-import { JOB_SPECIALTIES, EMPLOYMENT_TYPES } from "@/lib/constants";
+import { EMPLOYMENT_TYPES } from "@/lib/constants";
 import { chipClass as chip } from "@/lib/chip";
 import { saveSearch, toggleSaveJob } from "./actions";
 import { daysAgo, nowMs, listingEnd, fmtDate } from "@/lib/date";
 
 // 실데이터(워크넷 수집 + 병원 직접등록) 운영 중이라 색인 대상이다.
 // 이 사이트에서 검색엔진에 여는 건 채용공고뿐이다 — 인재정보(/talent)·게시판(/board)·리뷰(/reviews)는 noindex.
+/**
+ * 필터 칩 한 줄. 네 축(진료과·기관종별·직종·근무형태)이 같은 모양이어야 사용자가 규칙을 한 번만 배운다.
+ * cnt 가 있으면 건수를 함께 보여준다 — 누르기 전에 몇 건인지 알 수 있어야 헛클릭이 준다.
+ * 항목이 하나도 없으면 줄 자체를 그리지 않는다(빈 "전체" 칩만 덩그러니 남는 걸 막는다).
+ */
+function ChipRow({ label, allHref, active, items }: Readonly<{
+  label: string;
+  allHref: string;
+  active?: string;
+  items: ReadonlyArray<{ name: string; cnt: number | null; href: string }>;
+}>) {
+  if (items.length === 0) return null;
+  return (
+    <nav aria-label={label} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
+      <a href={allHref} aria-current={!active ? "page" : undefined} className={chip(!active)}>{label} 전체</a>
+      {items.map((it) => (
+        <a key={it.name} href={it.href} aria-current={active === it.name ? "page" : undefined} className={chip(active === it.name)}>
+          {it.name}
+          {/* opacity 로 흐리면 활성 칩에서 대비 2.6:1 로 떨어져 AA(4.5:1) 미달이다 → 고정 색을 쓴다. */}
+          {it.cnt != null && (
+            <span className={`ml-1 text-xs ${active === it.name ? "text-teal-50" : "text-slate-500"}`}>{it.cnt}</span>
+          )}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
 const JOBS_TITLE = "간호사 채용공고 검색 — 널스넷";
 const JOBS_DESC = "간호사·간호조무사 채용공고를 지역·진료과·근무형태로 검색하세요. 전국 병원 채용정보를 한곳에서.";
 
@@ -26,7 +54,7 @@ export async function generateMetadata({
   searchParams,
 }: Readonly<{ searchParams: Promise<Record<string, string | undefined>> }>): Promise<Metadata> {
   const sp = await searchParams;
-  const filtered = !!(sp.q || sp.l || sp.sido || sp.sigungu || sp.spec || sp.et || sp.page);
+  const filtered = !!(sp.q || sp.l || sp.sido || sp.sigungu || sp.spec || sp.fac || sp.cat || sp.et || sp.page);
   return {
     title: JOBS_TITLE,
     description: JOBS_DESC,
@@ -38,8 +66,8 @@ export async function generateMetadata({
 
 export default async function JobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; sido?: string; sigungu?: string; j?: string; saved?: string; spec?: string; et?: string; page?: string }> }>) {
-  const { q, l, sido, sigungu, j, saved, spec, et, page } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; sido?: string; sigungu?: string; j?: string; saved?: string; spec?: string; fac?: string; cat?: string; et?: string; page?: string }> }>) {
+  const { q, l, sido, sigungu, j, saved, spec, fac, cat, et, page } = await searchParams;
   // 예전 마스터-디테일의 ?j= 링크(저장·지원 내역 등)는 단독 상세로 넘긴다.
   if (j) redirect(`/jobs/${encodeURIComponent(j)}`);
 
@@ -50,10 +78,11 @@ export default async function JobsPage({
   const sg = sd ? (sigungu ?? "").trim() : "";
   const pageNum = Math.max(1, Number(page) || 1);
 
-  const [{ jobs, total }, sidos, sigungus, profile] = await Promise.all([
-    getJobs(kw, loc, { sido: sd, sigungu: sg, specialty: spec, employmentType: et }, pageNum),
+  const [{ jobs, total }, sidos, sigungus, facets, profile] = await Promise.all([
+    getJobs(kw, loc, { sido: sd, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et }, pageNum),
     getJobSidoList(),
     getJobSigunguList(sd), // 시도 미선택이면 즉시 [](비용 0)
+    getJobFacets(), // 진료과·기관종별·직종 칩 — 공고 있는 것만
     getMyProfile(),
   ]);
   const now = nowMs();
@@ -61,11 +90,15 @@ export default async function JobsPage({
   const savedSet = profile ? await getSavedJobIds(jobs.map((x) => x.id)) : new Set<string>();
 
   // 검색 조건 유지 URL — 목록 이동(href)·카드→상세(detailHref)가 같은 검색결과를 따라간다. 직렬화는 jobFilterQs 한 곳.
-  const href = (toPage?: number) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec, et }, toPage); return "/jobs" + (s ? `?${s}` : ""); };
-  const detailHref = (jobId: string) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec, et }, pageNum); return `/jobs/${jobId}` + (s ? `?${s}` : ""); };
-  // 진료과·근무형태 칩 href — 둘은 독립 필터라 서로를 유지하고 지역·키워드도 유지, 페이지만 리셋.
-  const chipHref = (nextSpec?: string) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec: nextSpec, et }); return "/jobs" + (s ? `?${s}` : ""); };
-  const etHref = (nextEt?: string) => { const s = jobFilterQs({ q: kw, l: loc, sido: sd, sigungu: sg, spec, et: nextEt }); return "/jobs" + (s ? `?${s}` : ""); };
+  const base = { q: kw, l: loc, sido: sd, sigungu: sg, spec, fac, cat, et };
+  const href = (toPage?: number) => { const s = jobFilterQs(base, toPage); return "/jobs" + (s ? `?${s}` : ""); };
+  const detailHref = (jobId: string) => { const s = jobFilterQs(base, pageNum); return `/jobs/${jobId}` + (s ? `?${s}` : ""); };
+  // 칩 href — 네 축(진료과·기관종별·직종·근무형태)은 서로 독립이라 나머지를 유지하고 자기 값만 바꾼다.
+  // 지역·키워드도 유지하고 페이지만 리셋한다(2페이지에서 칩을 누르면 없는 페이지로 가버린다).
+  const axisHref = (patch: Partial<typeof base>) => {
+    const s = jobFilterQs({ ...base, ...patch });
+    return "/jobs" + (s ? `?${s}` : "");
+  };
 
   return (
     <>
@@ -79,21 +112,20 @@ export default async function JobsPage({
         </div>
       </div>
 
-      {/* 진료과 칩 + 근무형태 칩 — 둘 다 펼쳐 나열(독립 필터). */}
+      {/* 네 축 칩 — 서로 독립이라 겹쳐 걸 수 있다("의원의 내과 간호조무사").
+          진료과·기관종별·직종은 **공고가 있는 것만** 많은 순으로 그린다(getJobFacets).
+          고정 목록을 뿌리면 0건인 칩을 누른 사용자가 빈 화면을 만난다. */}
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-[1280px] space-y-2 px-4 py-3">
-          <nav aria-label="진료과" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
-            <a href={chipHref()} aria-current={!spec ? "page" : undefined} className={chip(!spec)}>진료과 전체</a>
-            {JOB_SPECIALTIES.map((s) => (
-              <a key={s} href={chipHref(s)} aria-current={spec === s ? "page" : undefined} className={chip(spec === s)}>{s}</a>
-            ))}
-          </nav>
-          <nav aria-label="근무형태" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
-            <a href={etHref()} aria-current={!et ? "page" : undefined} className={chip(!et)}>근무형태 전체</a>
-            {EMPLOYMENT_TYPES.map((t) => (
-              <a key={t} href={etHref(t)} aria-current={et === t ? "page" : undefined} className={chip(et === t)}>{t}</a>
-            ))}
-          </nav>
+          <ChipRow label="진료과" allHref={axisHref({ spec: "" })} active={spec}
+            items={facets.departments.map((d) => ({ ...d, href: axisHref({ spec: d.name }) }))} />
+          <ChipRow label="기관 종별" allHref={axisHref({ fac: "" })} active={fac}
+            items={facets.facilities.map((d) => ({ ...d, href: axisHref({ fac: d.name }) }))} />
+          <ChipRow label="직종" allHref={axisHref({ cat: "" })} active={cat}
+            items={facets.categories.map((d) => ({ ...d, href: axisHref({ cat: d.name }) }))} />
+          {/* 근무형태는 고정 목록 그대로 — 값이 4개뿐이고 전부 실제로 쓰인다. */}
+          <ChipRow label="근무형태" allHref={axisHref({ et: "" })} active={et}
+            items={EMPLOYMENT_TYPES.map((t) => ({ name: t, cnt: null, href: axisHref({ et: t }) }))} />
         </div>
       </div>
 

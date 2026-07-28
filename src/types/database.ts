@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.5"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       ad_orders: {
@@ -299,10 +324,12 @@ export type Database = {
           employment_type: string | null
           external_id: string | null
           external_url: string | null
+          facility_type: string | null
           featured_until: string | null
           hospital_id: string | null
           id: string
           is_featured: boolean
+          job_category: string | null
           location: string | null
           manager_name: string | null
           manager_phone: string | null
@@ -333,10 +360,12 @@ export type Database = {
           employment_type?: string | null
           external_id?: string | null
           external_url?: string | null
+          facility_type?: string | null
           featured_until?: string | null
           hospital_id?: string | null
           id?: string
           is_featured?: boolean
+          job_category?: string | null
           location?: string | null
           manager_name?: string | null
           manager_phone?: string | null
@@ -367,10 +396,12 @@ export type Database = {
           employment_type?: string | null
           external_id?: string | null
           external_url?: string | null
+          facility_type?: string | null
           featured_until?: string | null
           hospital_id?: string | null
           id?: string
           is_featured?: boolean
+          job_category?: string | null
           location?: string | null
           manager_name?: string | null
           manager_phone?: string | null
@@ -724,27 +755,27 @@ export type Database = {
           id: string
           keyword: string | null
           location: string | null
+          profile_id: string
           sido: string | null
           sigungu: string | null
-          profile_id: string
         }
         Insert: {
           created_at?: string
           id?: string
           keyword?: string | null
           location?: string | null
+          profile_id: string
           sido?: string | null
           sigungu?: string | null
-          profile_id: string
         }
         Update: {
           created_at?: string
           id?: string
           keyword?: string | null
           location?: string | null
+          profile_id?: string
           sido?: string | null
           sigungu?: string | null
-          profile_id?: string
         }
         Relationships: [
           {
@@ -820,12 +851,56 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      is_admin: { Args: never; Returns: boolean }
+      is_community_member: { Args: never; Returns: boolean }
+      is_talent_advertiser: { Args: never; Returns: boolean }
+      nurse_job_facet_list: {
+        Args: never
+        Returns: {
+          cnt: number
+          kind: string
+          name: string
+        }[]
+      }
+      nurse_job_sido_list: {
+        Args: never
+        Returns: {
+          cnt: number
+          name: string
+        }[]
+      }
+      nurse_job_sigungu_list: {
+        Args: { p_sido: string }
+        Returns: {
+          cnt: number
+          name: string
+        }[]
+      }
+      nurse_talent_facet_list: {
+        Args: never
+        Returns: {
+          cnt: number
+          kind: string
+          name: string
+        }[]
+      }
+      nurse_talent_sido_list: {
+        Args: never
+        Returns: {
+          cnt: number
+          name: string
+        }[]
+      }
+      nurse_talent_sigungu_list: {
+        Args: { p_sido: string }
+        Returns: {
+          cnt: number
+          name: string
+        }[]
+      }
       recompute_hospital_rating: { Args: { h: string }; Returns: undefined }
-      nurse_job_sido_list: { Args: Record<string, never>; Returns: { name: string; cnt: number }[] }
-      nurse_job_sigungu_list: { Args: { p_sido: string }; Returns: { name: string; cnt: number }[] }
-      nurse_talent_sido_list: { Args: Record<string, never>; Returns: { name: string; cnt: number }[] }
-      nurse_talent_sigungu_list: { Args: { p_sido: string }; Returns: { name: string; cnt: number }[] }
-      nurse_talent_facet_list: { Args: Record<string, never>; Returns: { kind: string; name: string; cnt: number }[] }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       user_role: "nurse" | "hospital" | "admin"
@@ -954,6 +1029,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       user_role: ["nurse", "hospital", "admin"],

@@ -1,10 +1,12 @@
 import ApplyMethodFields from "@/components/ApplyMethodFields";
-import { JOB_SPECIALTIES } from "@/lib/constants";
+import { JOB_DEPARTMENTS, FACILITY_TYPES, JOB_CATEGORIES } from "@/lib/jobTaxonomy";
 
 // 공고 입력 필드 — 등록/수정/복제 폼이 공유(일관성 + 유지보수).
 export type JobDefaults = {
   title?: string | null;
   specialty?: string | null;
+  facility_type?: string | null;
+  job_category?: string | null;
   employment_type?: string | null;
   location?: string | null;
   salary_text?: string | null;
@@ -25,10 +27,13 @@ const TYPES = ["정규직", "계약직", "파트타임", "인턴"];
 const SHIFTS = ["협의", "3교대", "2교대", "낮번 전담", "야간 전담", "평일 주간"];
 
 export default function JobFields({ d = {} }: { d?: JobDefaults }) {
-  // 진료과는 자유 입력이면 표기가 제각각이라 검색 필터(JOB_SPECIALTIES)에서 통째로 빠진다 → 목록에서 선택.
-  // 다만 기존 공고에 목록 밖 값이 있으면 그 값도 옵션으로 남긴다(수정할 때 조용히 지워지지 않게).
-  const all: readonly string[] = JOB_SPECIALTIES;
-  const specialties = d.specialty && !all.includes(d.specialty) ? [d.specialty, ...all] : all;
+  // 자유 입력이면 표기가 제각각이라 검색 필터에서 통째로 빠진다 → 목록에서 선택.
+  // 기존 공고에 목록 밖 값이 있으면 그 값도 옵션으로 남긴다(수정할 때 조용히 지워지지 않게).
+  const withCurrent = (list: readonly string[], cur: string | null | undefined) =>
+    cur && !list.includes(cur) ? [cur, ...list] : list;
+  const specialties = withCurrent(JOB_DEPARTMENTS, d.specialty);
+  const facilities = withCurrent(FACILITY_TYPES, d.facility_type);
+  const categories = withCurrent(JOB_CATEGORIES, d.job_category);
 
   return (
     <>
@@ -42,6 +47,22 @@ export default function JobFields({ d = {} }: { d?: JobDefaults }) {
           <select id="specialty" name="specialty" defaultValue={d.specialty ?? ""} className={field}>
             <option value="">선택 안 함</option>
             {specialties.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        {/* 기관 종별·직종은 검색 필터의 독립 축이다. 워크넷 공고는 API 가 코드로 주지만
+            직접 등록 공고는 여기서 받는 수밖에 없다 — 안 받으면 그 광고만 필터에서 빠진다. */}
+        <div className="flex flex-col gap-1">
+          <label htmlFor="facility_type" className={label}>기관 종별 <span className="text-slate-400">(검색 필터에 사용)</span></label>
+          <select id="facility_type" name="facility_type" defaultValue={d.facility_type ?? ""} className={field}>
+            <option value="">선택 안 함</option>
+            {facilities.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <label htmlFor="job_category" className={label}>직종 <span className="text-slate-400">(검색 필터에 사용)</span></label>
+          <select id="job_category" name="job_category" defaultValue={d.job_category ?? ""} className={field}>
+            <option value="">선택 안 함</option>
+            {categories.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1">
