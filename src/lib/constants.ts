@@ -32,10 +32,12 @@ export const FOOTER_NAV = [
   { label: "병원 서비스", href: "/hospital" },
 ] as const;
 
-// sitemap 용 — 실제 색인(index) 대상만. noindex 페이지(jobs/reviews/board/about/terms/privacy 시드·스텁·회원전용)는
-// sitemap/noindex 충돌 방지를 위해 제외. 콘텐츠/실데이터 오픈 시 noindex 해제와 함께 재등재.
-// /board·/reviews는 이력서 등록한 간호사 회원 전용(noindex)이라 등재하지 않는다.
-export const PUBLIC_ROUTES = ["/", "/hospital", "/talent"] as const;
+// sitemap 용 — 실제 색인(index) 대상만. noindex 페이지를 여기 넣으면 "색인해달라"와 "하지 마라"를
+// 동시에 말하는 꼴이라 반드시 같이 관리한다.
+//  · /board·/reviews — 이력서 등록한 간호사 회원 전용(noindex)
+//  · /talent — 인재정보는 개인정보라 검색엔진 노출 금지(오너 확정). 목록·상세 모두 noindex
+//  · /about·/terms·/privacy — 스텁이거나 색인 가치가 없어 noindex
+export const PUBLIC_ROUTES = ["/", "/hospital"] as const;
 
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://nurse-app-nine.vercel.app";

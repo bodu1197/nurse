@@ -10,10 +10,19 @@ import {
 import { JOB_SPECIALTIES } from "@/lib/constants";
 import { chipClass as chip } from "@/lib/chip";
 
+// 인재정보는 개인정보다 — 검색엔진에 절대 올리지 않는다(오너 확정).
+// 카드가 이름을 가려도 경력·자격·희망지역이 모이면 개인 식별로 이어지고, 한 번 색인되면
+// 캐시·스크래핑으로 우리 손을 떠난다. 상세(/talent/[id])는 이미 noindex 이고 목록도 같이 막는다.
+// sitemap 에서도 뺀다(lib/constants.ts PUBLIC_ROUTES) — sitemap 등재 + noindex 는 서로 모순이다.
+//
+// 두 가지는 일부러 **안 한다**. 둘 다 noindex 를 무력화하기 때문이다:
+//  · robots.txt Disallow — 크롤러가 못 들어오면 이 noindex 태그를 읽지 못해 URL만 색인된 채 남는다.
+//  · follow:false — noindex 는 크롤러가 페이지를 가져와야 작동한다. 링크 통로를 막으면
+//    이미 색인된 하위 페이지(/talent/[id])를 다시 방문해 빼낼 길이 없어진다.
 export const metadata = {
   title: "간호사 인재정보 — 널스넷",
   description: "이력서를 공개한 간호사 인재를 지역·진료과·경력으로 검색하세요.",
-  alternates: { canonical: "/talent" },
+  robots: { index: false },
 };
 
 const YEARS = [1, 3, 5, 10] as const;

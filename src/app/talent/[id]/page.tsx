@@ -8,9 +8,11 @@ import { getMyProfile } from "@/lib/data/user";
 import { getPublicTalent, revealContacts, canRevealContacts, getRelatedTalent } from "@/lib/data/talent";
 
 // 개인 이력서 상세 — 색인 제외. 이름은 광고 병원만 보므로 제목엔 넣지 않는다(PII 누출 방지).
+// follow:false 까지 준다 — 이 화면의 '관련 인재' 사이드바가 다른 이력서로 이어지므로,
+// 링크만 따라가게 두면 크롤러가 인재 목록 전체를 훑는 통로가 된다.
 export const metadata: Metadata = {
   title: "간호사 인재 상세 — 널스넷",
-  robots: { index: false },
+  robots: { index: false, follow: false },
 };
 
 export default async function TalentDetailPage({ params }: Readonly<{ params: Promise<{ id: string }> }>) {

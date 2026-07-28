@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAnonClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/data/user";
 import { LIST_LIMIT } from "@/lib/data/applications";
@@ -128,6 +129,54 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
     return { jobs: [], total: 0 };
   }
   return { jobs: data ?? [], total: withCount ? (count ?? 0) : (data?.length ?? 0) };
+}
+
+/**
+ * sitemap 에 실을 공고 목록. **getJobs 와 똑같은 노출 규칙**을 쓴다 —
+ * 어긋나면 사이트맵에 올린 URL 이 404 로 응답해(상세는 노출 종료 공고를 notFound 처리한다)
+ * 검색엔진에 "없는 페이지를 색인하라"고 시키는 꼴이 된다.
+ * 사이트맵 파일 하나의 URL 상한은 50,000건 — 그 위로 늘면 sitemap index 로 쪼개야 한다.
+ */
+export async function getSitemapJobs(): Promise<{ id: string; updated_at: string }[]> {
+  // 공개 데이터만 쓴다 — RLS 가 status='open' 을 anon 에 열어두므로 service_role 이 필요 없다.
+  // 쿠키를 읽는 server 클라이언트를 쓰면 라우트가 동적이 되어 sitemap 의 revalidate 가 무력화되고,
+  // admin 클라이언트는 빌드 시점에 SUPABASE_SERVICE_ROLE_KEY 가 없으면 빌드를 통째로 깨뜨린다.
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anon) {
+    console.error("getSitemapJobs: Supabase 공개 환경변수 누락");
+    return [];
+  }
+  const supabase = createAnonClient<Database>(url, anon, { auth: { persistSession: false } });
+
+  const now = Date.now();
+  const fresh = new Date(now - FREE_LISTING_MS).toISOString();
+  const nowIso = new Date(now).toISOString();
+  const today = todayKst(now);
+
+  // 🔴 PostgREST 는 supabase/config.toml 의 max_rows(1000)를 **하드 상한**으로 건다.
+  //    .limit(50000) 을 줘도 에러 없이 1000행에서 조용히 잘린다(같은 함정이 지역 RPC 주석에도 있다).
+  //    → range 로 나눠 받는다. 사이트맵 상한 50,000건 안에서만 돈다.
+  const PAGE = 1000;
+  const out: { id: string; updated_at: string }[] = [];
+  for (let from = 0; from < 50_000; from += PAGE) {
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("id, updated_at")
+      .eq("status", "open")
+      .or(`source.neq.direct,posted_at.gte.${fresh},featured_until.gte.${nowIso}`)
+      .or(`deadline.is.null,deadline.gte.${today}`)
+      .order("posted_at", { ascending: false })
+      .range(from, from + PAGE - 1);
+
+    if (error) {
+      console.error("getSitemapJobs failed:", error.message);
+      return out; // 사이트맵은 일부만 나가도 사이트가 죽지 않는다 — 정적 경로는 그대로 실린다
+    }
+    out.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
 }
 
 // 같은 지역 다른 공고(상세 페이지 좌측 사이드바). 지역 키는 앞 2토큰("경기 성남시")으로 잡아

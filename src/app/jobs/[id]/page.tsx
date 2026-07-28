@@ -8,10 +8,6 @@ import { hasApplied } from "@/lib/data/applications";
 import { daysAgo, nowMs, listingEnd } from "@/lib/date";
 import { isOpenToSeekers } from "@/lib/jobState";
 
-// 시드 데이터 단계 — 목록(/jobs)과 동일하게 noindex.
-// 실데이터를 공개할 때 이 한 줄만 지우면 제목·설명·canonical·JobPosting이 이미 준비돼 있다.
-const NOINDEX = { index: false } as const;
-
 // 노출이 끝난 공고(직접등록 기간 만료 · 마감일 경과)는 없는 것과 같이 다룬다.
 // 목록과 같은 규칙(isOpenToSeekers)을 써야 "목록엔 없는데 링크로는 열리는" 공고가 안 생기고,
 // 메타데이터와 본문이 같은 판정을 써야 한쪽만 살아 있는 상태가 안 생긴다.
@@ -36,7 +32,8 @@ const EMPLOYMENT_TYPE: Record<string, string> = {
 export async function generateMetadata({ params }: Readonly<{ params: Promise<{ id: string }> }>): Promise<Metadata> {
   const { id } = await params;
   const job = await getLiveJob(id, nowMs());
-  if (!job) return { title: "공고를 찾을 수 없습니다 — 널스넷", robots: NOINDEX };
+  // 없거나 노출이 끝난 공고: 본문은 404 로 응답하고 메타는 색인에서 빼둔다.
+  if (!job) return { title: "공고를 찾을 수 없습니다 — 널스넷", robots: { index: false } };
   const description = jobSummary(job).slice(0, 150);
   return {
     title: `${job.title} — ${job.hospital?.name ?? job.company_name ?? "병원"} | 널스넷`,
@@ -44,7 +41,6 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
     alternates: { canonical: `/jobs/${job.id}` },
     // 자식이 openGraph를 선언하면 루트 값이 통째로 대체된다 → siteName·locale을 여기서 다시 준다.
     openGraph: { type: "website", siteName: "널스넷", locale: "ko_KR", title: job.title, description, url: `/jobs/${job.id}` },
-    robots: NOINDEX,
   };
 }
 

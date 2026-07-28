@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { SaveIcon } from "@/components/JobDetail";
 import Button from "@/components/Button";
@@ -10,8 +11,30 @@ import { chipClass as chip } from "@/lib/chip";
 import { saveSearch, toggleSaveJob } from "./actions";
 import { daysAgo, nowMs, listingEnd, fmtDate } from "@/lib/date";
 
-// 시드 샘플 데이터 단계 — 실제 워크넷/직접등록 데이터 전까지 noindex.
-export const metadata = { title: "채용 검색 — 널스넷", robots: { index: false } };
+// 실데이터(워크넷 수집 + 병원 직접등록) 운영 중이라 색인 대상이다.
+// 이 사이트에서 검색엔진에 여는 건 채용공고뿐이다 — 인재정보(/talent)·게시판(/board)·리뷰(/reviews)는 noindex.
+const JOBS_TITLE = "간호사 채용공고 검색 — 널스넷";
+const JOBS_DESC = "간호사·간호조무사 채용공고를 지역·진료과·근무형태로 검색하세요. 전국 병원 채용정보를 한곳에서.";
+
+/**
+ * 검색결과 화면(?q=·?l=·필터)은 색인하지 않는다.
+ * canonical 은 "힌트"일 뿐이라 구글이 무시하고 각 조합을 따로 색인할 수 있는데,
+ * 검색결과 안의 검색결과(search-within-search)는 얇은 페이지로 취급돼 사이트 평가를 깎는다.
+ * 색인 대상은 목록 본체(/jobs)와 개별 공고(/jobs/[id])뿐이다.
+ */
+export async function generateMetadata({
+  searchParams,
+}: Readonly<{ searchParams: Promise<Record<string, string | undefined>> }>): Promise<Metadata> {
+  const sp = await searchParams;
+  const filtered = !!(sp.q || sp.l || sp.sido || sp.sigungu || sp.spec || sp.et || sp.page);
+  return {
+    title: JOBS_TITLE,
+    description: JOBS_DESC,
+    alternates: { canonical: "/jobs" },
+    openGraph: { type: "website", locale: "ko_KR", siteName: "널스넷", url: "/jobs", title: JOBS_TITLE, description: JOBS_DESC },
+    ...(filtered ? { robots: { index: false } } : {}),
+  };
+}
 
 export default async function JobsPage({
   searchParams,
