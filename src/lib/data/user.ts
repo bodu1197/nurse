@@ -43,6 +43,7 @@ export type MyProfile = {
   email: string;
   role: Role;          // 전환 중이면 전환된 역할
   isAdmin: boolean;    // DB상 실제 관리자 여부(전환 UI 표시용)
+  businessNo: string | null; // 이관·인증으로 저장된 사업자번호(인증 폼 프리필용)
   businessVerified: boolean;
   businessVerifiedAt: string | null;
 };
@@ -55,7 +56,7 @@ export const getMyProfile = cache(async (): Promise<MyProfile | null> => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
-    .select("username, display_name, email, role, business_verified, business_verified_at")
+    .select("username, display_name, email, role, business_no, business_verified, business_verified_at")
     .eq("id", user.id)
     .maybeSingle();
   if (!data) return null;
@@ -66,6 +67,8 @@ export const getMyProfile = cache(async (): Promise<MyProfile | null> => {
     email: data.email ?? user.email ?? "",
     role: await viewAsRole(data.role),
     isAdmin,
+    // 구 널스넷에서 옮겨온 병원은 사업자번호가 이미 있다(인증은 아직). 인증 폼을 미리 채워준다.
+    businessNo: data.business_no ?? null,
     // 관리자는 사업자 인증 통과로 취급(테스트용) — 실제 병원 회원은 인증해야 공고 등록 가능.
     businessVerified: isAdmin || (data.business_verified ?? false),
     businessVerifiedAt: data.business_verified_at ?? null,

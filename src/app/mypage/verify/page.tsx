@@ -10,6 +10,10 @@ import { verifyHospitalBusiness } from "../actions";
 
 export const metadata = { title: "병원 사업자 인증 — 널스넷", robots: { index: false } };
 
+// 국세청 API 가 느릴 때 재시도까지 하면 최악 12.4초가 걸린다(src/lib/data/nts.ts).
+// 기본 실행시간 예산 안에서 잘리면 안내 문구 대신 504 가 뜨므로 여유를 명시한다.
+export const maxDuration = 30;
+
 const ERR: Record<string, string> = {
   input: "입력값을 확인해 주세요. (사업자등록번호 10자리, 개업일 필요)",
   mismatch: "국세청 정보와 일치하지 않습니다. 사업자번호·대표자명·개업일을 확인해 주세요.",
@@ -29,6 +33,8 @@ export default async function VerifyPage({
   if (p.role !== "hospital") redirect("/mypage");
   const { ok, error, from, reverify } = await searchParams;
   const verified = p.businessVerified || ok === "1";
+  // 이관해온 번호가 폼에 미리 채워지는 경우에만 안내를 띄운다(재인증은 새 번호를 받으므로 제외).
+  const prefilled = reverify !== "1" && !!p.businessNo;
   const myHosp = await getMyHospital();
   const verifiedAt = p.businessVerifiedAt ? new Date(p.businessVerifiedAt).toISOString().slice(0, 10).replace(/-/g, ".") : null;
 
@@ -68,7 +74,16 @@ export default async function VerifyPage({
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="b_no" className="text-sm font-medium text-slate-700">사업자등록번호</label>
-                <input id="b_no" name="b_no" inputMode="numeric" required placeholder="숫자 10자리 (예: 1234567890)" className={INPUT_CLASS} />
+                {/* 구 널스넷에서 옮겨온 번호를 미리 채운다. 재인증(reverify)일 때는 새 번호를 받아야 하므로 비워 둔다. */}
+                <input id="b_no" name="b_no" inputMode="numeric" required placeholder="숫자 10자리 (예: 1234567890)" className={INPUT_CLASS}
+                  aria-describedby={prefilled ? "b_no_help" : undefined}
+                  defaultValue={reverify === "1" ? "" : p.businessNo ?? ""} />
+                {/* 이관해온 번호는 옛 사이트에서 자진신고로 받은 값이라 틀릴 수 있다 — 그대로 내면 '불일치'가 뜬다. */}
+                {prefilled && (
+                  <span id="b_no_help" className="text-xs text-slate-500">
+                    이전 널스넷에 등록하셨던 번호입니다. 사업자등록증과 다르면 고쳐 주세요.
+                  </span>
+                )}
               </div>
               <div className="flex flex-col gap-1">
                 <label htmlFor="p_nm" className="text-sm font-medium text-slate-700">대표자명</label>
@@ -78,9 +93,9 @@ export default async function VerifyPage({
                 <label htmlFor="start_dt" className="text-sm font-medium text-slate-700">개업일자</label>
                 <input id="start_dt" name="start_dt" type="date" required className={INPUT_CLASS} />
               </div>
-              <SubmitButton pendingText="인증 확인 중…">사업자 인증</SubmitButton>
+              <SubmitButton pendingText="국세청 확인 중… (최대 30초)">사업자 인증</SubmitButton>
             </form>
-            <p className="mt-4 text-xs text-slate-400">입력 정보는 국세청 진위확인에만 사용되며, 사업자번호 외에는 저장하지 않습니다.</p>
+            <p className="mt-4 text-xs text-slate-400">입력 정보는 국세청 진위확인에만 사용되며, 사업자번호 외에는 저장하지 않습니다. 국세청 서버 상황에 따라 확인에 시간이 걸릴 수 있습니다.</p>
           </>
         )}
       </div>
