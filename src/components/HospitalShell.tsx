@@ -1,5 +1,6 @@
 import SiteHeader from "@/components/SiteHeader";
 import type { ReactNode } from "react";
+import { getMembership, TIER_UPGRADE } from "@/lib/data/membership";
 
 // 병원 마이페이지 공용 셸 — LNB(사이드바)로 모든 병원 페이지 레이아웃 통일.
 const NAV = [
@@ -12,7 +13,9 @@ const NAV = [
   { href: "/mypage/account", label: "내 정보 · 계정" },
 ];
 
-export default function HospitalShell({ displayName, active, children }: Readonly<{ displayName: string; active: string; children: ReactNode }>) {
+export default async function HospitalShell({ displayName, active, children }: Readonly<{ displayName: string; active: string; children: ReactNode }>) {
+  const membership = await getMembership();
+  const upgrade = TIER_UPGRADE[membership.tier];
   return (
     <>
       <SiteHeader user={{ displayName }} />
@@ -23,7 +26,14 @@ export default function HospitalShell({ displayName, active, children }: Readonl
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-teal-50 text-base font-bold text-teal-700" aria-hidden>{displayName.slice(0, 1)}</span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold text-slate-900">{displayName}</p>
-                <span className="text-xs font-semibold text-teal-700">병원 회원</span>
+                {/* 역할이 아니라 **등급**을 보여준다 — 회원이 자기가 왜 막혔는지 알아야 한다.
+                    이력서(간호사)·광고(병원)를 올리면 여기 이름이 바뀐다. */}
+                <span className={`text-xs font-semibold ${upgrade ? "text-slate-500" : "text-teal-700"}`}>{membership.label}</span>
+                {upgrade && (
+                  <a href={upgrade.href} className="mt-0.5 block text-xs font-semibold text-amber-700 hover:underline">
+                    {upgrade.label} →
+                  </a>
+                )}
               </div>
             </div>
           </div>

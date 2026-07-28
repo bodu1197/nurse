@@ -9,7 +9,10 @@ import { adProduct } from "@/lib/ads";
 import { getPayment, iamportReady } from "@/lib/iamport";
 import { viewAsRole } from "@/lib/data/user";
 import { safeNext } from "@/lib/url";
-import { CANCELABLE, isHospitalStatus } from "@/lib/data/applications";
+import { CANCELABLE, isHospitalStatus, STATUS_LABEL, type AppStatus } from "@/lib/data/applications";
+
+/** 병원이 이미 판정을 내린 상태 — 이걸 되돌릴 때만 메모에 흔적을 남긴다. */
+const isDecided = (s: string): boolean => s === "accepted" || s === "rejected";
 import { DAY_MS, FREE_LISTING_MS } from "@/lib/date";
 import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
@@ -511,14 +514,41 @@ export async function deleteResume() {
   redirect("/mypage/resume?ok=deleted");
 }
 
-// 지원자 화면으로 돌아가는 주소 — 보고 있던 공고 탭을 유지한다.
-// 이게 없으면 한 건 처리할 때마다 '전체'로 튕겨 그 공고를 다시 찾아 들어가야 한다.
+// 지원자 화면으로 돌아가는 주소 — 보고 있던 공고·상태·검색어·페이지를 그대로 유지한다.
+// 이게 없으면 한 건 처리할 때마다 '전체 1페이지'로 튕겨, 500건짜리 목록에서 보던 자리를 잃는다.
+const APPLICANT_VIEW_KEYS = ["job_id", "status", "q", "page"] as const;
 function applicantsHref(formData: FormData, extra?: Record<string, string>): string {
   const p = new URLSearchParams(extra);
-  const jobId = String(formData.get("job_id") ?? "");
-  if (jobId) p.set("job_id", jobId);
+  for (const k of APPLICANT_VIEW_KEYS) {
+    const v = String(formData.get(k) ?? "").trim();
+    if (v) p.set(k, v);
+  }
   const s = p.toString();
   return "/mypage/applicants" + (s ? `?${s}` : "");
+}
+
+/**
+ * 병원 — 지원자 메모 저장.
+ *
+ * 500건 규모에서는 상태 5가지만으로 관리가 안 된다(오너 지시): 두 번째 통화에서 무슨 말을
+ * 했는지, 왜 보류인지 적을 곳이 필요하다.
+ * 🔴 메모는 applications 가 아니라 application_notes 에 있다 — applications 는 지원자 본인에게
+ *    행 전체가 열려 있어(applications_select), 거기 두면 간호사가 병원 내부 기록을 그대로 읽는다.
+ *    RLS(application_notes_owner)가 공고 소유 병원만 통과시키므로 여기서 소유 검사를 또 하지 않는다.
+ */
+export async function saveApplicantNote(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const id = String(formData.get("application_id") ?? "");
+  if (!id) redirect(applicantsHref(formData));
+  // 길이 상한 — 메모는 기록이지 문서가 아니다. 넘치면 잘라서 저장한다(입력에서도 maxLength 로 막는다).
+  const memo = String(formData.get("memo") ?? "").slice(0, 1000);
+  const { data, error } = await supabase
+    .from("application_notes")
+    .upsert({ application_id: id, memo, updated_by: user.id }, { onConflict: "application_id" })
+    .select("application_id");
+  redirect(applicantsHref(formData, error || !data?.length ? { error: "1" } : { ok: "memo" }));
 }
 
 // 병원 — 지원자 상태 변경(열람/합격/불합격). RLS로 공고 소유 병원만.
@@ -527,12 +557,28 @@ export async function updateApplicationStatus(formData: FormData) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const id = String(formData.get("application_id") ?? "");
-  const status = String(formData.get("status") ?? "");
+  // 🔴 필드 이름이 to_status 인 이유: 이 화면의 목록 필터도 `status` 를 쓴다(APPLICANT_VIEW_KEYS).
+  //    같은 이름을 쓰면 applicantsHref 가 "바꿀 상태"를 "보던 필터"로 잘못 읽어, 판정 취소 후
+  //    ?status=viewed 필터가 멋대로 걸린 채 돌아온다(실측).
+  const status = String(formData.get("to_status") ?? "");
   // isHospitalStatus로 좁혀야 오타·위조된 상태가 그대로 update로 들어가지 않는다.
   if (!id || !isHospitalStatus(status)) redirect(applicantsHref(formData));
   // 반환 행으로 실제 반영을 확인한다 — RLS에 막혀 0행이어도 error는 null이라 "처리되었습니다"가 뜬다.
   // 취소된 지원은 병원이 되살릴 수 없다(간호사가 거둬간 지원서다).
+  // 바꾸기 전 상태를 먼저 읽는다 — 되돌리기(합격/불합격 → 열람됨)는 지원자 화면에서 예고 없이
+  // 결과가 사라지는 일이라, 언제 무엇을 뒤집었는지 근거가 남아야 한다(RLS 로 병원만 읽는 메모에 적는다).
+  const { data: before } = await supabase.from("applications").select("status").eq("id", id).maybeSingle();
   const { data, error } = await supabase.from("applications").update({ status }).eq("id", id).neq("status", "withdrawn").select("id");
+  if (!error && data?.length && before && isDecided(before.status) && status === "viewed") {
+    const stamp = `[${new Date().toISOString().slice(0, 10)}] '${STATUS_LABEL[before.status as AppStatus]}' 판정을 취소함`;
+    const { data: prev } = await supabase
+      .from("application_notes").select("memo").eq("application_id", id).maybeSingle();
+    const memo = [prev?.memo, stamp].filter(Boolean).join("\n").slice(0, 1000);
+    // 기록 실패가 판정 자체를 되돌리지는 않는다 — 상태는 이미 바뀌었고, 기록은 부가다.
+    const { error: noteErr } = await supabase
+      .from("application_notes").upsert({ application_id: id, memo, updated_by: user.id }, { onConflict: "application_id" });
+    if (noteErr) console.error("판정 취소 기록 실패:", noteErr.message);
+  }
   redirect(applicantsHref(formData, error || !data?.length ? { error: "1" } : { ok: "1" }));
 }
 
@@ -560,8 +606,15 @@ export async function openApplicantResume(formData: FormData) {
   // 여기서 실패를 삼키면 병원은 계속 열어보는데 지원자 화면은 영원히 '지원완료'에 멈춘다.
   const { error } = await supabase.from("applications").update({ status: "viewed" }).eq("id", id).eq("status", "submitted");
   if (error) redirect(applicantsHref(formData, { error: "1" }));
-  const jobId = String(formData.get("job_id") ?? "");
-  redirect(`/mypage/applicants/${encodeURIComponent(id)}/print${jobId ? `?job_id=${encodeURIComponent(jobId)}` : ""}`);
+  // 보던 화면(공고·상태·검색어·페이지)을 인쇄 화면까지 들고 간다 — 거기 '목록으로' 링크가
+  // 이 값을 그대로 되돌려줘야, 2페이지에서 이력서를 연 사람이 1페이지 전체로 튕기지 않는다.
+  const back = new URLSearchParams();
+  for (const k of APPLICANT_VIEW_KEYS) {
+    const v = String(formData.get(k) ?? "").trim();
+    if (v) back.set(k, v);
+  }
+  const qs = back.toString();
+  redirect(`/mypage/applicants/${encodeURIComponent(id)}/print${qs ? `?${qs}` : ""}`);
 }
 
 /**

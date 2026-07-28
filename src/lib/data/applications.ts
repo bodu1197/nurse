@@ -137,35 +137,126 @@ type ReceivedBase = {
 /** 지원자 1건(이력서 전문 + 경력) — 인쇄·상세용 */
 export type ReceivedApplication = ReceivedBase & { resume: ApplicantResume | null; work: WorkExperience[] };
 /** 지원자 목록의 한 줄 — 카드에 필요한 만큼만 */
-export type ApplicantListItem = ReceivedBase & { resume: ApplicantCardResume | null };
+export type ApplicantListItem = ReceivedBase & {
+  resume: ApplicantCardResume | null;
+  /** 병원만 보는 메모(application_notes). 지원자에게는 절대 안 간다 — 테이블이 분리돼 있다. */
+  memo: string;
+  memoUpdatedAt: string | null;
+};
 
 const RESUME_COLS = `profile_id,${SHEET_COLS}`;
 const CARD_COLS = CARD_FIELDS.join(",");
 const APP_COLS = "id,status,message,created_at,applicant_id,job:jobs(id,title)";
 
-// 병원 — 내 공고에 들어온 지원자(+이력서 전문). RLS로 소유 공고만. jobId 지정 시 해당 공고만.
-// 목록을 여는 것만으로 '열람됨'으로 바꾸지 않는다 — 실제로 보지 않았는데 지원자에게 열람으로 표시되고,
-// 병원 입장에서도 "아직 안 본 지원자"를 구분할 수 없게 된다. 열람 처리는 화면의 버튼으로 한다.
-export async function getReceivedApplications(jobId?: string): Promise<ApplicantListItem[]> {
+/** 지원자 목록 한 페이지 — 500건 규모에서 스크롤로는 관리가 안 된다. */
+export const APPLICANTS_PER_PAGE = 25;
+
+export type ApplicantFilters = {
+  jobId?: string;
+  /** 상태 칩. 미지정이면 전부(지원취소 포함) */
+  status?: AppStatus;
+  /** 이름 부분일치 — 담당자가 "김간호" 로 찾는다 */
+  q?: string;
+};
+
+/** 상태별 인원 — 칩에 숫자를 달아 "미확인 12" 를 보고 바로 누르게 한다. */
+export type ApplicantCounts = Partial<Record<AppStatus, number>> & { all: number };
+
+/**
+ * 병원 — 내 공고에 들어온 지원자(+이력서 카드 항목 + 메모). RLS 로 소유 공고만.
+ *
+ * 목록을 여는 것만으로 '열람됨'으로 바꾸지 않는다 — 실제로 보지 않았는데 지원자에게 열람으로
+ * 표시되고, 병원 입장에서도 "아직 안 본 지원자"를 구분할 수 없게 된다. 열람 처리는 화면의 버튼으로.
+ *
+ * 🔴 이름 검색은 applications 가 아니라 resumes 에 걸린다(이름이 거기 있다).
+ *    RLS 가 "내 공고 지원자" 로 한정해 줄 것 같지만 **아니다** — SELECT 정책은 OR 합집합이라
+ *    광고 중인 병원에게는 resumes_select_advertiser 가 공개 이력서 전부를 연다. 그대로 두면
+ *    상한(1000)이 남의 이력서로 차서 **내 지원자가 검색에서 조용히 빠진다**.
+ *    그래서 먼저 내 지원자 목록으로 좁힌 뒤 그 안에서만 이름을 찾는다.
+ */
+export async function getReceivedApplications(
+  f: ApplicantFilters = {},
+  page = 1,
+): Promise<{ rows: ApplicantListItem[]; total: number; counts: ApplicantCounts; searchTruncated: boolean }> {
   const user = await getSessionUser();
-  if (!user) return [];
+  if (!user) return { rows: [], total: 0, counts: { all: 0 }, searchTruncated: false };
   const supabase = await createClient();
+
+  // 상태 칩 숫자 — 목록 필터와 무관하게 "이 공고 전체" 기준으로 센다(칩을 눌러도 숫자가 안 흔들리게).
+  //
+  // 🔴 행을 실어와 JS 로 세면 안 된다. PostgREST 는 supabase/config.toml 의 max_rows(1000)를
+  //    **하드 상한**으로 걸어, 지원자가 1000명을 넘는 순간 에러 없이 잘리고 칩 숫자가 조용히
+  //    틀린다(이 저장소의 getSitemapJobs 에 같은 함정 주석이 있다). 정작 이 화면은 500건 이상을
+  //    관리하려고 만든 것이라 그 지점에서 바로 깨진다.
+  //    → head:true + count:"exact" 로 **개수만** 받는다(body 0바이트, 상한과 무관).
+  const countOf = async (status?: AppStatus) => {
+    let cq = supabase.from("applications").select("id", { count: "exact", head: true });
+    if (f.jobId) cq = cq.eq("job_id", f.jobId);
+    if (status) cq = cq.eq("status", status);
+    const { count } = await cq;
+    return count ?? 0;
+  };
+  const ALL_STATUSES: AppStatus[] = ["submitted", "viewed", "accepted", "rejected", "withdrawn"];
+  const [allCount, ...perStatus] = await Promise.all([countOf(), ...ALL_STATUSES.map((st) => countOf(st))]);
+  const counts: ApplicantCounts = { all: allCount };
+  ALL_STATUSES.forEach((st, i) => { if (perStatus[i] > 0) counts[st] = perStatus[i]; });
+
+  // 이름 검색 — 매칭되는 이력서가 하나도 없으면 조회를 더 하지 않는다.
+  let nameIds: string[] | null = null;
+  let searchTruncated = false;
+  const name = (f.q ?? "").replace(/[%,()]/g, "").trim();
+  if (name) {
+    // 상한 1000 = PostgREST max_rows. 넘으면 잘리는데, 이름 검색은 보통 수십 명이라 실제로는
+    // 닿지 않는다. 닿았다면 검색어가 너무 짧다는 뜻이라 화면에서 그렇게 알린다(truncated).
+    // 먼저 내 지원자(=이 공고에 지원한 사람)만 추린다. 이게 없으면 위 주석의 사고가 난다.
+    let mineQ = supabase.from("applications").select("applicant_id").limit(1000);
+    if (f.jobId) mineQ = mineQ.eq("job_id", f.jobId);
+    const { data: mine } = await mineQ.returns<{ applicant_id: string }[]>();
+    const mineIds = [...new Set((mine ?? []).map((m) => m.applicant_id))];
+    searchTruncated = (mine?.length ?? 0) >= 1000; // 지원자가 1000명을 넘으면 이름 검색이 불완전하다
+    if (mineIds.length === 0) return { rows: [], total: 0, counts, searchTruncated };
+    const { data: hit } = await supabase
+      .from("resumes").select("profile_id").in("profile_id", mineIds).ilike("name", `%${name}%`)
+      .returns<{ profile_id: string }[]>();
+    nameIds = (hit ?? []).map((h) => h.profile_id);
+    if (nameIds.length === 0) return { rows: [], total: 0, counts, searchTruncated };
+  }
+
+  const from = (Math.max(1, page) - 1) * APPLICANTS_PER_PAGE;
   let q = supabase
     .from("applications")
-    .select(APP_COLS)
+    .select(APP_COLS, { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(LIST_LIMIT);
-  if (jobId) q = q.eq("job_id", jobId);
-  const { data: apps } = await q.returns<ReceivedBase[]>();
-  if (!apps || apps.length === 0) return [];
+    .range(from, from + APPLICANTS_PER_PAGE - 1);
+  if (f.jobId) q = q.eq("job_id", f.jobId);
+  if (f.status) q = q.eq("status", f.status);
+  if (nameIds) q = q.in("applicant_id", nameIds);
 
-  const ids = [...new Set(apps.map((a) => a.applicant_id))];
-  const { data: resumes } = await supabase
-    .from("resumes").select(CARD_COLS).in("profile_id", ids)
-    .returns<ApplicantCardResume[]>();
+  const { data: apps, count } = await q.returns<ReceivedBase[]>();
+  if (!apps || apps.length === 0) return { rows: [], total: count ?? 0, counts, searchTruncated };
+
+  // 이력서 카드 항목과 메모를 한 번씩만 더 조회한다(행마다 부르면 25번 왕복한다).
+  const applicantIds = [...new Set(apps.map((a) => a.applicant_id))];
+  const appIds = apps.map((a) => a.id);
+  const [{ data: resumes }, { data: notes }] = await Promise.all([
+    supabase.from("resumes").select(CARD_COLS).in("profile_id", applicantIds).returns<ApplicantCardResume[]>(),
+    supabase.from("application_notes").select("application_id,memo,updated_at").in("application_id", appIds)
+      .returns<{ application_id: string; memo: string; updated_at: string }[]>(),
+  ]);
   const byId = new Map((resumes ?? []).map((r) => [r.profile_id, r]));
+  const noteById = new Map((notes ?? []).map((n) => [n.application_id, n]));
 
-  return apps.map((a) => ({ ...a, resume: byId.get(a.applicant_id) ?? null }));
+  return {
+    rows: apps.map((a) => ({
+      ...a,
+      resume: byId.get(a.applicant_id) ?? null,
+      memo: noteById.get(a.id)?.memo ?? "",
+      memoUpdatedAt: noteById.get(a.id)?.updated_at ?? null,
+    })),
+    total: count ?? 0,
+    counts,
+    searchTruncated,
+  };
 }
 
 // 병원 — 지원자 1건(이력서 인쇄·다운로드용). 소유 공고가 아니면 RLS가 막는다.

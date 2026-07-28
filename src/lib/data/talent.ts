@@ -1,7 +1,8 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSessionUser, type Role } from "@/lib/data/user";
+import type { Role } from "@/lib/data/user";
+import { getMembership } from "@/lib/data/membership";
 import { SHEET_COLS, type ResumeSheetFields } from "@/lib/data/resume";
 import { todayKst, nowMs } from "@/lib/date";
 import type { Database } from "@/types/database";
@@ -105,28 +106,12 @@ export async function getPublicTalent(profileId: string): Promise<PublicTalentDe
 }
 
 // 광고 노출 중인 공고가 하나라도 있으면 열람 가능.
+/**
+ * 인재정보를 볼 수 있는가 = 병원회원(광고를 낸 병원)인가.
+ * 판정은 lib/data/membership.ts 한 곳 — 간호사 쪽 게이트와 같은 표를 쓴다.
+ */
 export async function isAdvertiser(): Promise<boolean> {
-  const user = await getSessionUser();
-  if (!user) return false;
-  const supabase = await createClient();
-
-  // 테스트 병원(hospitals.is_test)은 광고를 낸 것으로 간주한다 — 결제 없이 광고 병원 화면을
-  // 실제와 같게 확인할 수 있어야 한다. 이 병원은 병원 검색·명부에서 이미 제외돼 있어(api/hospitals/search)
-  // 일반 사용자에게 새어나가지 않는다.
-  const { data: testHosp } = await supabase
-    .from("hospitals").select("id").eq("owner_profile_id", user.id).eq("is_test", true).limit(1);
-  if ((testHosp?.length ?? 0) > 0) return true;
-
-  const { data, error } = await supabase
-    .from("jobs")
-    .select("id, hospital:hospitals!inner(owner_profile_id)")
-    .eq("hospitals.owner_profile_id", user.id)
-    .gt("featured_until", new Date().toISOString())
-    .limit(1);
-  // 열람 자격 판정이라 실패 시에는 막는 쪽(false)이 맞다 — 조회가 안 되는데 열어주면 이력서가 샌다.
-  // 다만 광고 병원이 영문 모른 채 잠긴 화면을 볼 수 있으므로 원인은 반드시 남긴다.
-  if (error) console.error("isAdvertiser failed:", error.message);
-  return (data?.length ?? 0) > 0;
+  return (await getMembership()).canViewTalent;
 }
 
 // 인재 이름·전화·사진 열람 자격 — 광고 중인 병원 또는 관리자. 목록·상세가 같은 판정을 쓰게 한 곳에 둔다

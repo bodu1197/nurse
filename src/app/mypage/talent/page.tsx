@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import HospitalShell from "@/components/HospitalShell";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
-import { isAdvertiser, searchTalent, TALENT_PER_PAGE, type TalentRow } from "@/lib/data/talent";
+import { searchTalent, TALENT_PER_PAGE, type TalentRow } from "@/lib/data/talent";
+import { getMembership, TIER_LABEL, TIER_UPGRADE, type MemberTier } from "@/lib/data/membership";
 import { DEPARTMENTS } from "@/lib/resumeOptions";
 
 export const metadata = { title: "인재 검색 — 널스넷", robots: { index: false } };
@@ -45,16 +46,21 @@ function Talent({ t }: Readonly<{ t: TalentRow }>) {
 }
 
 // 광고 없는 병원이 보는 안내 — 왜 못 보는지와 다음 행동을 같이 준다.
-function LockedNotice() {
+/**
+ * 인재 검색이 막힌 화면 — **지금 내 등급이 무엇이고 무엇을 해야 올라가는지**를 말한다.
+ * 전에는 "광고 중인 병원만"이라고만 해서, 병원 회원이 자기가 어떤 상태인지 알 수 없었다.
+ */
+function LockedNotice({ tier }: Readonly<{ tier: MemberTier }>) {
+  const up = TIER_UPGRADE[tier];
   return (
     <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-6">
-      <h2 className="font-bold text-amber-900">인재 검색은 광고 중인 병원만 이용할 수 있습니다</h2>
+      <p className="text-xs font-semibold text-amber-700">지금 내 등급: {TIER_LABEL[tier]}</p>
+      <h2 className="mt-1 font-bold text-amber-900">인재 검색은 병원회원만 이용할 수 있습니다</h2>
       <p className="mt-2 text-sm text-amber-800">
-        공고에 광고를 적용하면 광고 기간 동안 공개 이력서를 열람하고 직접 연락할 수 있습니다.
-        (광고가 끝나면 열람도 함께 종료됩니다.)
+        {up?.text ?? "공고에 광고를 적용하면 이용할 수 있습니다."} 광고가 끝나면 열람도 함께 종료됩니다.
       </p>
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button href="/mypage/jobs" size="md">내 공고에 광고 올리기</Button>
+        <Button href={up?.href ?? "/mypage/jobs"} size="md">{up?.label ?? "내 공고에 광고 올리기"}</Button>
         <Button href="/mypage/jobs/new" variant="outline" size="md">공고 먼저 등록하기</Button>
       </div>
     </div>
@@ -69,7 +75,8 @@ export default async function TalentPage({
   if (p.role !== "hospital") redirect("/mypage");
 
   const { spec, loc, years, page } = await searchParams;
-  const allowed = await isAdvertiser();
+  const membership = await getMembership();
+  const allowed = membership.canViewTalent;
   const pageNum = Math.max(1, Number(page) || 1);
   const minYears = Number(years) || 0;
   // 🔴 이력서를 검색하는 화면이므로 어휘는 이력서 표(DEPARTMENTS 28개)여야 한다.
@@ -97,7 +104,7 @@ export default async function TalentPage({
       <p className="mt-1 text-sm text-slate-500">이력서를 공개한 간호사만 표시됩니다. 연락처로 직접 채용 제안을 보낼 수 있습니다.</p>
 
       {!allowed ? (
-        <LockedNotice />
+        <LockedNotice tier={membership.tier} />
       ) : (
         <>
           <form method="get" className="mt-5 flex flex-wrap items-end gap-2 rounded-2xl border border-slate-200 bg-white p-4">

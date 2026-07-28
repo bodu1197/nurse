@@ -1,7 +1,10 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { getSessionUser, getMyProfile } from "@/lib/data/user";
+import { getMembership } from "@/lib/data/membership";
+
+// 등급 판정은 lib/data/membership.ts 한 곳에서 한다 — 여기는 리뷰·게시판 화면이 쓰는 얇은 껍데기다.
+// 전에는 여기와 talent.ts 의 isAdvertiser 가 같은 개념을 따로 판정해, 병원 쪽엔 사유 안내가 없었다.
+export { hasResume } from "@/lib/data/membership";
 
 // 리뷰·게시판은 "이력서를 등록한 간호사 회원"만 이용한다 — 보기·읽기·작성·수정 전부.
 // 판정: (보기 전환 반영) 역할이 간호사 + resumes에 본인 이력서가 존재.
@@ -9,20 +12,12 @@ import { getSessionUser, getMyProfile } from "@/lib/data/user";
 export type CommunityDenied = "guest" | "not_nurse" | "no_resume";
 export type CommunityAccess = { ok: true; userId: string } | { ok: false; reason: CommunityDenied };
 
-// 본인 이력서 등록 여부 — head+count로 행을 안 실어온다(RLS: 본인 select 허용).
-export async function hasResume(userId: string): Promise<boolean> {
-  const supabase = await createClient();
-  const { count } = await supabase.from("resumes").select("profile_id", { count: "exact", head: true }).eq("profile_id", userId);
-  return !!count;
-}
-
 export const getCommunityAccess = cache(async (): Promise<CommunityAccess> => {
-  const [user, profile] = await Promise.all([getSessionUser(), getMyProfile()]);
-  if (!user || !profile) return { ok: false, reason: "guest" };
-  // 최고 관리자는 관리·모더레이션을 위해 항상 입장(DB-real admin 기준, 보기전환과 무관).
-  if (profile.isAdmin) return { ok: true, userId: user.id };
-  if (profile.role !== "nurse") return { ok: false, reason: "not_nurse" };
-  return (await hasResume(user.id)) ? { ok: true, userId: user.id } : { ok: false, reason: "no_resume" };
+  const m = await getMembership();
+  if (m.canUseCommunity) return { ok: true, userId: m.userId! };
+  if (m.tier === "guest") return { ok: false, reason: "guest" };
+  // 간호 일반회원(이력서 없음)과 병원 회원을 갈라 사유를 정확히 알린다.
+  return { ok: false, reason: m.tier === "nurse_basic" ? "no_resume" : "not_nurse" };
 });
 
 // 서버 액션용 — 통과하면 userId, 아니면 로그인/게이트 화면으로 보낸다.
