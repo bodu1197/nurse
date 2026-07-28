@@ -1,11 +1,37 @@
 @import "tailwindcss";
+/* Pretendard 상용/희귀 2벌 @font-face — scripts/build-fonts.py 가 생성 */
+@import "./fonts.css";
+
+/* 윈도우에서 Pretendard를 받는 동안 대신 그려지는 맑은 고딕이 17% 넓어서, 폰트가 바뀌는
+   순간 글자가 확 줄며 화면이 흔들렸다. 85.5%로 미리 좁혀 그리게 해 자리를 맞춘다.
+   (측정: 같은 문장이 Pretendard 329px / 맑은 고딕 385px → 329/385 = 85.5%)
+   맥·iOS는 맑은 고딕이 없어 이 벌이 통째로 무시되고 아래 Apple SD Gothic Neo로 넘어간다.
+   Pretendard가 원래 Apple SD Gothic Neo를 본떠 만든 글꼴이라 거긴 보정이 필요 없다.
+   ponytail: 굵은 글씨는 이 0.5초 동안 가짜 볼드로 그려진다. 눈에 걸리면 Bold 벌을 따로 판다. */
+@font-face {
+  font-family: "Pretendard Fallback";
+  src: local("Malgun Gothic"), local("맑은 고딕");
+  /* 일부러 CSS 전 범위로 넓게 잡는다. 진짜 Pretendard 벌의 범위(fonts.css, 폰트의 fvar 에서
+     읽어 생성)보다 좁으면 그 바깥 굵기가 이 폴백을 못 쓰고 보정 없는 시스템 글꼴로 새는데,
+     여기 숫자를 손으로 맞춰두면 폰트를 갈 때 어긋난다. 넓은 쪽은 어긋날 수가 없다. */
+  font-weight: 1 1000;
+  size-adjust: 85.5%;
+  /* size-adjust 는 가로만 맞춘다. 세로(줄 안에서 글자가 앉는 높이)는 폰트가 신고하는
+     ascent/descent 로 정해지므로 따로 맞춰야 글자가 위아래로 안 튄다.
+     값은 Pretendard 원본에서 뽑았다 — ascent 1950, descent 494, unitsPerEm 2048.
+     size-adjust 로 이미 0.855 배 줄어든 뒤에 적용되므로 그만큼 나눠준다:
+       1950 / 2048 / 0.855 = 111.36%,  494 / 2048 / 0.855 = 28.21%,  lineGap 은 0. */
+  ascent-override: 111.36%;
+  descent-override: 28.21%;
+  line-gap-override: 0%;
+}
 
 @theme inline {
   --color-brand: #0d9488;
   --color-brand-dark: #0f766e;
   --font-sans:
-    var(--font-pretendard), -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
-    "Malgun Gothic", "맑은 고딕", system-ui, Roboto, "Helvetica Neue", sans-serif;
+    "Pretendard", "Pretendard Fallback", -apple-system, BlinkMacSystemFont,
+    "Apple SD Gothic Neo", system-ui, Roboto, "Helvetica Neue", sans-serif;
 }
 
 /* 일반 텍스트 확대는 데스크톱만(모바일은 16px 유지 — 과확대 방지) */

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.ts\""
+    "test": "node --test \"src/**/*.test.ts\" \"scripts/**/*.test.ts\"",
+    "fonts:build": "python scripts/build-fonts.py"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

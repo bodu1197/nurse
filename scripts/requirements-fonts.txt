@@ -1,0 +1,7 @@
+# scripts/build-fonts.py 전용. 이 저장소에서 파이썬을 쓰는 곳은 여기뿐이다.
+#   pip install -r scripts/requirements-fonts.txt
+#   npm run fonts:build
+# 버전을 고정하는 이유: 서브셋 결과 바이트가 달라지면 파일명 해시가 같이 바뀌어,
+# 폰트를 안 건드렸는데도 diff 에 1.7MB 가 오르내린다.
+fonttools==4.61.1
+brotli==1.2.0

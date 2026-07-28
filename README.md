@@ -18,7 +18,13 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+글꼴은 Pretendard 를 자가호스팅한다. `next/font` 는 쓰지 않는다 — unicode-range 를 다루지 못해서다.
+상용 한글(448KB)과 희귀 한글(1.3MB) 두 벌로 나눠 굽고, 평소에는 상용 벌만 받는다.
+
+```bash
+pip install -r scripts/requirements-fonts.txt
+npm run fonts:build   # 원본(scripts/assets/) 을 바꿨을 때만. 생성물은 커밋한다.
+```
 
 ## Learn More
 

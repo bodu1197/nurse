@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
 import { SITE_URL } from "@/lib/constants";
+import { FONT_PRELOAD_HREF } from "./fonts";
 import "./globals.css";
 
-// Pretendard 자가호스팅(외부요청 0). preload:false + display:swap = 초기 렌더 비차단·지연 로드(속도지표 영향 0).
-const pretendard = localFont({
-  src: "./fonts/PretendardVariable.subset.woff2",
-  weight: "45 920",
-  display: "swap",
-  preload: false,
-  variable: "--font-pretendard",
-  fallback: ["-apple-system", "BlinkMacSystemFont", "Apple SD Gothic Neo", "Malgun Gothic", "system-ui", "sans-serif"],
-});
+// 폰트는 globals.css → fonts.css 의 @font-face 로 자가호스팅(외부요청 0).
+// next/font/local 은 unicode-range 를 못 다뤄서 직접 선언한다.
 
 const TITLE = "널스넷 — 간호사 채용, 검색 한 번으로";
 const DESCRIPTION =
@@ -49,8 +42,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" className={`h-full antialiased ${pretendard.variable}`}>
+    <html lang="ko" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-white text-slate-900">
+        {/* 상용 한글 벌만 미리 받는다. CSS를 다 읽고 나서야 받기 시작하던 걸 앞당겨, 글꼴이
+            바뀌는 게 눈에 보이기 전에 도착시킨다. 희귀 벌은 필요할 때만 받게 둔다.
+            <head> 를 직접 열지 않는다 — Next 가 metadata·CSS 를 넣는 자리와 순서를 다투게
+            된다. React 19 가 이 link 를 알아서 head 로 올린다(실측: 초기 HTML 에 나옴).
+            ReactDOM.preload() 로는 안 된다 — 서버 컴포넌트에서는 RSC 페이로드에만 실리고
+            초기 HTML head 에는 안 나와서, 정작 필요한 첫 렌더에 효과가 없다(실측). */}
+        <link
+          rel="preload"
+          href={FONT_PRELOAD_HREF}
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSONLD) }}

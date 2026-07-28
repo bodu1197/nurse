@@ -145,6 +145,9 @@ export default function RegionPicker<K extends string>({
   // 열림 동안: Escape 닫기 + 배경 스크롤 잠금(ConfirmDialog 와 동일 규약). 닫을 때 트리거로 포커스 복귀.
   useEffect(() => {
     if (!open) return;
+    // 정리 시점의 ref 를 읽으면 그때 가리키는 건 다른 노드일 수 있다(리렌더로 교체됐거나 null).
+    // 열릴 때의 트리거를 붙잡아 둔다 — 포커스를 되돌려야 할 곳은 "이 패널을 연 그 버튼"이다.
+    const trigger = triggerRef.current;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
@@ -154,7 +157,7 @@ export default function RegionPicker<K extends string>({
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prevOverflow;
-      triggerRef.current?.focus();
+      trigger?.focus();
     };
   }, [open]);
 
