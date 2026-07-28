@@ -175,11 +175,18 @@ export const getTalentFacets = cache(async (): Promise<{ departments: TalentRegi
   const { data, error } = await createAdminClient().rpc("nurse_talent_facet_list");
   if (error) console.error("getTalentFacets failed:", error.message);
   const rows = data ?? [];
-  return {
-    departments: rows.filter((r) => r.kind === "department").map(({ name, cnt }) => ({ name, cnt })),
-    categories: rows.filter((r) => r.kind === "category").map(({ name, cnt }) => ({ name, cnt })),
-  };
+  const pick = (kind: string) => tailLast(rows.filter((r) => r.kind === kind).map(({ name, cnt }) => ({ name, cnt })));
+  return { departments: pick("department"), categories: pick("category") };
 });
+
+/**
+ * "기타"류는 인재 수가 많아도 **맨 뒤**로 보낸다.
+ * 기타(869명)가 내과·정형외과보다 앞에 오면 목록이 이상해 보인다(오너 지적 2026-07-28).
+ * sort 는 안정 정렬이라 같은 무리 안에서는 RPC 가 준 인재 수 내림차순이 그대로 유지된다.
+ */
+const TAIL_LAST = new Set(["기타", "의료기타"]);
+const tailLast = (rows: TalentRegionNode[]): TalentRegionNode[] =>
+  [...rows].sort((a, b) => Number(TAIL_LAST.has(a.name)) - Number(TAIL_LAST.has(b.name)));
 
 // PostgREST or 필터 주입 방지: %,(),쉼표 제거 (jobs.ts와 동일 규칙)
 const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
