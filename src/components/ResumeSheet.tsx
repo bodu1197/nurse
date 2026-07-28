@@ -20,11 +20,14 @@ export default function ResumeSheet({
   resume,
   work = [],
   applied,
+  photoUrl,
 }: Readonly<{
   resume: ResumeSheetFields;
   work?: readonly WorkExperience[];
   /** 병원이 받은 이력서일 때만 — 어느 공고에 언제 지원했는지 */
   applied?: { jobTitle: string; at: string; message: string | null };
+  /** 서명된 사진 URL. 선택 항목이라 없으면 자리 자체를 그리지 않는다(빈 네모가 남지 않게). */
+  photoUrl?: string | null;
 }>) {
   return (
     <article className="mx-auto max-w-2xl bg-white p-8 text-sm print:p-0">
@@ -43,12 +46,21 @@ export default function ResumeSheet({
       )}
 
       <h2 className="mt-6 font-bold text-slate-900">기본 정보</h2>
-      <dl className="mt-2">
-        <Row k="이름" v={resume.name} />
-        <Row k="연락처" v={resume.phone} />
-        <Row k="이메일" v={resume.email} />
-        <Row k="거주 지역" v={resume.residence_region} />
-      </dl>
+      <div className="mt-2 flex gap-4">
+        <dl className="min-w-0 flex-1">
+          <Row k="이름" v={resume.name} />
+          <Row k="연락처" v={resume.phone} />
+          <Row k="이메일" v={resume.email} />
+          <Row k="거주 지역" v={resume.residence_region} />
+        </dl>
+        {photoUrl && (
+          // 서명 URL 이라 next/image 로 최적화하지 않는다(서명이 매번 달라 캐시가 안 먹는다).
+          // 인쇄에서도 나와야 하므로 print:block 를 따로 걸지 않고 항상 그린다.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photoUrl} alt="이력서 사진" width={96} height={128}
+            className="h-32 w-24 shrink-0 rounded border border-slate-200 object-cover" />
+        )}
+      </div>
 
       <h2 className="mt-6 font-bold text-slate-900">면허 · 자격</h2>
       <dl className="mt-2">

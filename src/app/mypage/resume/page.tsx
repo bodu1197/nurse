@@ -14,7 +14,9 @@ import {
 } from "@/lib/resumeOptions";
 import { SIDO_LIST, SIDO_SIGUNGU } from "@/lib/koreaRegions";
 import { safeNext } from "@/lib/url";
-import { saveResume, deleteResume, setResumePublic } from "../actions";
+import { saveResume, deleteResume, setResumePublic, saveResumePhoto, deleteResumePhoto } from "../actions";
+import { getMyAvatarUrl } from "@/lib/data/avatar";
+import PhotoPicker from "@/components/PhotoPicker";
 
 export const metadata = { title: "내 이력서 — 널스넷", robots: { index: false } };
 
@@ -24,6 +26,11 @@ const req = <><span className="text-red-500" aria-hidden>*</span><span className
 const SAVE_ERRORS: Record<string, string> = {
   save: "저장에 실패했습니다. 다시 시도해 주세요.",
   visibility: "공개 설정을 바꾸지 못했습니다. 다시 시도해 주세요.",
+  photo: "사진을 저장하지 못했습니다. 다시 시도해 주세요.",
+  photo_delete: "사진을 삭제하지 못했습니다. 다시 시도해 주세요.",
+  photo_empty: "사진 파일을 선택해 주세요.",
+  photo_size: "사진은 2MB 이하만 올릴 수 있습니다.",
+  photo_type: "사진은 JPG · PNG · WEBP 만 올릴 수 있습니다.",
   delete: "삭제에 실패했습니다. 다시 시도해 주세요.",
   shift: "가능한 근무형태를 하나 이상 선택해 주세요.",
   region: "희망 근무지를 하나 이상 선택해 주세요.",
@@ -180,6 +187,56 @@ function Field({ id, text, hint, children }: Readonly<{ id: string; text: React.
 }
 
 /**
+ * 이력서 사진 — **선택 항목**(오너 확정 2026-07-29).
+ *
+ * 지금까지 사진을 넣는 길이 없어서 이관 회원과 네이버 가입자만 사진이 있었다.
+ * 본인은 언제나 자기 사진을 본다. 남의 사진을 보는 곳은 두 군데뿐이고 둘 다 10분짜리 서명 URL 이다
+ * (버킷이 비공개라 경로를 알아도 못 연다):
+ *   · 인재 검색 — 광고 중인 병원만(revealContacts)
+ *   · 내가 지원한 공고의 병원 — 그 화면은 이미 이름·연락처를 보여준다. 스스로 지원한 사람이라
+ *     사진만 더 가릴 이유가 없다. **화면 고지 문구가 이 둘을 다 말해야 한다.**
+ *
+ * 폼을 따로 두는 이유: 이력서 본문 폼에 파일을 섞으면 사진만 바꾸려 해도 전체 검증을 통과해야 한다.
+ * 공개 스위치와 같은 사고방식이다.
+ */
+function PhotoCard({ url }: Readonly<{ url: string | null }>) {
+  return (
+    <section aria-label="이력서 사진" className="rounded-2xl border border-slate-200 bg-white p-5">
+      <h2 className="font-bold text-slate-900">사진 <span className="text-sm font-normal text-slate-500">(선택)</span></h2>
+      <p className="mt-1 text-xs text-slate-600">
+        넣지 않아도 이력서를 저장할 수 있습니다. 사진은 <b className="text-slate-800">내가 지원한 병원</b>과{" "}
+        <b className="text-slate-800">광고 중인 병원</b>에게만 보입니다.
+      </p>
+      <div className="mt-4 flex flex-wrap items-start gap-4">
+        {url ? (
+          // 서명 URL 이라 next/image 최적화 대상이 아니다(도메인마다 서명이 달라 캐시가 안 먹는다) → img.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="등록된 이력서 사진" width={96} height={128}
+            className="h-32 w-24 shrink-0 rounded-lg border border-slate-200 object-cover" />
+        ) : (
+          <div className="grid h-32 w-24 shrink-0 place-items-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400">
+            사진 없음
+          </div>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <form action={saveResumePhoto} className="flex flex-wrap items-center gap-2">
+            <PhotoPicker hasPhoto={!!url} />
+          </form>
+          <p className="text-xs text-slate-500">JPG · PNG · WEBP. 큰 사진은 자동으로 줄여서 올립니다. 증명사진 비율(3:4)을 권장합니다.</p>
+          {url && (
+            <form action={deleteResumePhoto}>
+              <ConfirmSubmit variant="outline" size="sm" className="min-h-11" message="등록된 사진을 지울까요?">
+                사진 삭제
+              </ConfirmSubmit>
+            </form>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/**
  * 🔴 공개/비공개 스위치 — 화면 **맨 위**에 둔다.
  *
  * 전에는 이게 아래 편집 폼 끝(자기소개 다음)의 체크박스 하나뿐이었다. 비공개로 바꾸려면
@@ -294,7 +351,7 @@ export default async function ResumePage({
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "nurse") redirect("/mypage");
-  const [{ ok, error, next }, r] = await Promise.all([searchParams, getMyResume()]);
+  const [{ ok, error, next }, r, photoUrl] = await Promise.all([searchParams, getMyResume(), getMyAvatarUrl()]);
   const backTo = safeNext(next, "");
   // 예전에 저장된 값(예: "중환자", "수도권", "기타")이 지금 선택지에 없더라도 목록에 끼워 넣는다.
   // 안 그러면 체크·선택이 복원되지 않아 다시 저장하는 순간 조용히 지워진다.
@@ -321,12 +378,15 @@ export default async function ResumePage({
 
       {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서가 저장되었습니다.</div>}
       {ok === "deleted" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 삭제했습니다.</div>}
+      {ok === "photo" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">사진을 저장했습니다.</div>}
+      {ok === "photo_deleted" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">사진을 삭제했습니다.</div>}
       {ok === "public" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 공개했습니다. 광고 중인 병원이 볼 수 있습니다.</div>}
       {ok === "private" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">이력서를 비공개로 바꿨습니다. 이제 아무도 볼 수 없습니다 — 위 버튼으로 언제든 다시 공개할 수 있습니다.</div>}
       {messageFor(SAVE_ERRORS, error) && <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{messageFor(SAVE_ERRORS, error)}</div>}
 
       {/* 공개 스위치는 이력서보다 먼저 — 회원이 가장 급하게 찾는 것이라 스크롤 없이 보여야 한다. */}
       {r && <div className="mt-6"><VisibilitySwitch isPublic={r.is_public} /></div>}
+      <div className="mt-4"><PhotoCard url={photoUrl} /></div>
       {r && <div className="mt-4"><ResumeView r={r} /></div>}
 
       {backTo && (

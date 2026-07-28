@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import ResumeSheet from "@/components/ResumeSheet";
+import { getMyAvatarUrl } from "@/lib/data/avatar";
 import PrintSheet from "@/components/PrintSheet";
 import { getMyProfile } from "@/lib/data/user";
 import { getMyResume } from "@/lib/data/resume";
@@ -11,12 +12,12 @@ export default async function ResumePrintPage() {
   const p = await getMyProfile();
   if (!p) redirect("/login");
   if (p.role !== "nurse") redirect("/mypage");
-  const resume = await getMyResume();
+  const [resume, photoUrl] = await Promise.all([getMyResume(), getMyAvatarUrl()]);
   if (!resume) redirect("/mypage/resume");
 
   return (
     <PrintSheet backHref="/mypage/resume" backLabel="내 이력서">
-      <ResumeSheet resume={resume} work={resume.work} />
+      <ResumeSheet resume={resume} work={resume.work} photoUrl={photoUrl} />
     </PrintSheet>
   );
 }

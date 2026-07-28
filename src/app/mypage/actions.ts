@@ -1,5 +1,6 @@
 "use server";
 
+import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -9,10 +10,9 @@ import { adProduct } from "@/lib/ads";
 import { getPayment, iamportReady } from "@/lib/iamport";
 import { viewAsRole } from "@/lib/data/user";
 import { safeNext } from "@/lib/url";
+import { AVATAR_BUCKET } from "@/lib/data/avatar";
+import { AVATAR_MAX_BYTES, AVATAR_MIME } from "@/lib/avatarLimits";
 import { CANCELABLE, isHospitalStatus, STATUS_LABEL, type AppStatus } from "@/lib/data/applications";
-
-/** 병원이 이미 판정을 내린 상태 — 이걸 되돌릴 때만 메모에 흔적을 남긴다. */
-const isDecided = (s: string): boolean => s === "accepted" || s === "rejected";
 import { DAY_MS, FREE_LISTING_MS } from "@/lib/date";
 import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
@@ -21,6 +21,9 @@ import { totalYears } from "@/lib/data/resume";
 import { CAREER_EXPERIENCED, DEPARTMENTS, JOB_CATEGORIES } from "@/lib/resumeOptions";
 import { JOB_DEPARTMENTS, FACILITY_TYPES } from "@/lib/jobTaxonomy";
 import { SIDO_LIST, SIDO_SIGUNGU, LEGACY_REGIONS } from "@/lib/koreaRegions";
+
+/** 병원이 이미 판정을 내린 상태 — 이걸 되돌릴 때만 메모에 흔적을 남긴다. */
+const isDecided = (s: string): boolean => s === "accepted" || s === "rejected";
 
 // 이력서에서 고를 수 있는 희망 근무지 전체("부산", "부산 수영구" 두 형태) + 구 널스넷 잔재 6종.
 // 모듈 로드 때 한 번만 만든다.
@@ -615,6 +618,92 @@ export async function openApplicantResume(formData: FormData) {
   }
   const qs = back.toString();
   redirect(`/mypage/applicants/${encodeURIComponent(id)}/print${qs ? `?${qs}` : ""}`);
+}
+
+/** 파일 앞부분이 JPEG/PNG/WEBP 시그니처인가. 확장자·MIME 이 아니라 내용을 본다. */
+async function looksLikeImage(file: File): Promise<boolean> {
+  const b = new Uint8Array(await file.slice(0, 12).arrayBuffer());
+  const jpeg = b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff;
+  const png = b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+  const webp = b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46
+    && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50;
+  return jpeg || png || webp;
+}
+
+/**
+ * 간호사 — 이력서 사진 등록·교체.
+ *
+ * 선택 항목이다(오너 확정 2026-07-29). 지금까지 사진을 넣는 길이 아예 없어서, 이관 회원과
+ * 네이버 가입자만 사진이 있고 이메일로 새로 가입한 사람은 영영 없었다.
+ *
+ * 🔴 버킷(avatars)은 비공개이고 스토리지 RLS 정책이 없다 — 서버(service_role)만 읽고 쓴다는 설계다.
+ *    그래서 사용자 클라이언트로 올리지 않고 여기서 admin 으로 올린다.
+ * 🔴 오브젝트 키는 **난수**여야 한다. 예전에 `{profile_id}.jpg` 로 지었다가, 목록 HTML 에 실리는
+ *    profile_id 로 경로를 조합해 얼굴 사진 전량을 긁어갈 수 있었다(20260728120000 참고).
+ */
+export async function saveResumePhoto(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const file = formData.get("photo");
+  if (!(file instanceof File) || file.size === 0) redirect("/mypage/resume?error=photo_empty");
+  // 버킷 제약과 같은 값으로 먼저 거른다 — 여기서 안 막으면 스토리지가 뱉는 영문 에러만 보인다.
+  if (file.size > AVATAR_MAX_BYTES) redirect("/mypage/resume?error=photo_size");
+  if (!AVATAR_MIME.some((m) => m === file.type)) redirect("/mypage/resume?error=photo_type");
+  // file.type 은 **브라우저가 보내는 값**이라 위조된다. 버킷의 allowed_mime_types 도 같은 값을
+  // 보므로 독립 방어가 아니다 → 앞부분 바이트로 진짜 이미지인지 한 번 더 본다.
+  // (실행 위험은 낮지만 — 저장 Content-Type 이 image/* 이고 다른 오리진이다 — 임의 바이너리를
+  //  우리 버킷에 보관해 주는 일은 막는다.)
+  if (!(await looksLikeImage(file))) redirect("/mypage/resume?error=photo_type");
+
+  const admin = createAdminClient();
+  const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const path = `${randomUUID()}.${ext}`;
+  const { error: upErr } = await admin.storage.from(AVATAR_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false });
+  if (upErr) {
+    console.error("saveResumePhoto upload failed:", upErr.message);
+    redirect("/mypage/resume?error=photo");
+  }
+
+  // 이전 사진 경로를 먼저 읽어둔다 — 교체 후 지워야 실패해도 사진이 사라지지 않는다.
+  // 🔴 이 조회가 실패하면 중단한다. 그냥 넘기면 옛 경로를 모른 채 avatar_url 만 덮어써서,
+  //    지워야 할 파일이 버킷에 영원히 남는다(고아 오브젝트).
+  const { data: prof, error: profErr } = await admin
+    .from("profiles").select("avatar_url").eq("id", user.id).maybeSingle();
+  if (profErr) {
+    console.error("saveResumePhoto read prev failed:", profErr.message);
+    await admin.storage.from(AVATAR_BUCKET).remove([path]);
+    redirect("/mypage/resume?error=photo");
+  }
+  const { error: setErr } = await admin.from("profiles").update({ avatar_url: path }).eq("id", user.id);
+  if (setErr) {
+    console.error("saveResumePhoto update failed:", setErr.message);
+    await admin.storage.from(AVATAR_BUCKET).remove([path]); // 가리키는 데 없는 파일을 남기지 않는다
+    redirect("/mypage/resume?error=photo");
+  }
+  const old = (prof?.avatar_url ?? "").trim();
+  // 외부 URL(네이버 프로필)은 우리 버킷이 아니라 지울 게 없다.
+  if (old && !old.startsWith("http")) await admin.storage.from(AVATAR_BUCKET).remove([old]);
+  redirect("/mypage/resume?ok=photo");
+}
+
+/** 간호사 — 이력서 사진 삭제. 넣는 것과 같은 무게로 뺄 수 있어야 한다. */
+export async function deleteResumePhoto() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const admin = createAdminClient();
+  const { data: prof } = await admin.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle();
+  const { error } = await admin.from("profiles").update({ avatar_url: null }).eq("id", user.id);
+  if (error) {
+    console.error("deleteResumePhoto failed:", error.message);
+    redirect("/mypage/resume?error=photo_delete");
+  }
+  const old = (prof?.avatar_url ?? "").trim();
+  if (old && !old.startsWith("http")) await admin.storage.from(AVATAR_BUCKET).remove([old]);
+  redirect("/mypage/resume?ok=photo_deleted");
 }
 
 /**

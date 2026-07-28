@@ -1,6 +1,18 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // 이력서 사진 때문에 기본값(1MB)에서 조금만 올린다.
+    //
+    // 왜 필요: 기본 상한에서는 사진이 서버 액션에 닿기도 전에 막혀, 우리 안내("2MB 이하만 …")
+    // 대신 "A server error occurred" 회색 화면이 떴다(실측 5.6MB).
+    //
+    // 🔴 왜 크게 올리지 않는가: 이건 **전역 설정**이라 이 저장소의 서버 액션 38개 전부에 걸린다.
+    //    Next 가 1MB 를 기본으로 둔 이유가 "과도한 자원 소모·DDoS 방지"라고 문서에 명시돼 있다.
+    //    사진 상한(2MB) + multipart 오버헤드만 넘기면 충분하다.
+    //    실제 사용자는 화면에서 캔버스로 줄여 보내므로(PhotoPicker) 보통 100~400KB 만 올라온다.
+    serverActions: { bodySizeLimit: "3mb" },
+  },
   async headers() {
     return [
       {

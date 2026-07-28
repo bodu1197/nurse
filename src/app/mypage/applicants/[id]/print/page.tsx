@@ -3,6 +3,7 @@ import ResumeSheet from "@/components/ResumeSheet";
 import PrintSheet from "@/components/PrintSheet";
 import { getMyProfile } from "@/lib/data/user";
 import { getReceivedApplication } from "@/lib/data/applications";
+import { signAvatarOf } from "@/lib/data/avatar";
 
 export const metadata = { title: "지원자 이력서 — 널스넷", robots: { index: false } };
 
@@ -17,6 +18,8 @@ export default async function ApplicantPrintPage({
   const [{ id }, { job_id }] = await Promise.all([params, searchParams]);
   const app = await getReceivedApplication(id);
   if (!app || !app.resume) redirect("/mypage/applicants");
+  // RLS 를 통과해 이 지원서를 실제로 받은 뒤에만 사진을 서명한다(위 redirect 뒤라는 게 중요하다).
+  const photoUrl = await signAvatarOf(app.resume.profile_id);
 
   // 보고 있던 공고 탭으로 그대로 돌아간다.
   const back = job_id ? `/mypage/applicants?job_id=${encodeURIComponent(job_id)}` : "/mypage/applicants";
@@ -27,6 +30,7 @@ export default async function ApplicantPrintPage({
         resume={app.resume}
         work={app.work}
         applied={{ jobTitle: app.job?.title ?? "공고", at: app.created_at, message: app.message }}
+        photoUrl={photoUrl}
       />
     </PrintSheet>
   );
