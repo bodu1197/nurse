@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { departmentFromText, facilityFor } from "./jobTaxonomy.ts";
+import { departmentFromText, facilityFor, stillValid } from "./jobTaxonomy.ts";
 
 /**
  * 진료과 추론 회귀 테스트.
@@ -63,4 +63,14 @@ test("소스에 제어문자가 섞이지 않았다", async () => {
   const buf = readFileSync(new URL("./jobTaxonomy.ts", import.meta.url));
   const bad = [...buf].filter((b) => b < 0x09 || (b > 0x0d && b < 0x20));
   assert.equal(bad.length, 0, `제어문자 ${bad.length}개 발견 — \\b 를 쓰려다 백스페이스를 심었을 수 있다`);
+});
+
+test("저장된 값이 지금 규칙으로 설명되는지 검사한다", () => {
+  // 규칙을 고쳐도 저장값이 살아남으면 오분류가 영원히 남는다.
+  // 실제로 "요양원에 분만실 8건"을 정리한 직후 크론 한 번에 되살아났다.
+  assert.equal(stillValid("분만실", "분만실 간호사 모집"), true);
+  assert.equal(stillValid("분만실", "오래 하실 분만 연락주세요"), false);   // 옛 규칙 산물
+  assert.equal(stillValid("건강진단센터", "직원 건강검진 지원"), false);     // 복리후생
+  assert.equal(stillValid("건강진단센터", "특수검진실 간호사"), true);
+  assert.equal(stillValid("병동", "병동 간호사"), false);                  // 폐기된 옛 어휘
 });

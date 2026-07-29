@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchNurseJobs, fetchDetails } from "@/lib/worknet";
 import { regionOfLocation } from "@/lib/jobRegion";
-import { departmentFromText } from "@/lib/jobTaxonomy";
+import { departmentFromText, stillValid } from "@/lib/jobTaxonomy";
 
 // 워크넷(고용24) 채용정보 "간호" 키워드 수집 → jobs upsert.
 // 워크넷 공고는 "구인 광고"다 — 병원 명부(hospitals, 심사평가원)와 다른 것이라 명부에 레코드를 만들지 않는다.
@@ -71,14 +71,33 @@ export async function GET(request: Request) {
       // 🗂 진료과는 상세를 받은 뒤 다시 뽑는다. 리스트에는 제목뿐이라 10.8% 밖에 안 잡히는데,
       //    상세의 사업내용(busiCont)·직무내용(jobCont)까지 보면 22.3% 로 오른다(실측 400건).
       //    상세를 아직 못 받은 공고는 리스트 단계 추론값(j.specialty)을 그대로 쓴다.
-      // 🔴 어느 경우에도 **이미 있는 값을 null 로 덮지 않는다**. 상세를 받았는데 그 본문에
-      //    진료과 단어가 없으면 추론은 null 이 되는데, 그걸 그대로 쓰면 저장돼 있던 값이 지워진다.
-      const specialty = (d ? departmentFromText(d.title ?? j.title, d.busiCont, d.description) : j.specialty)
-        ?? s?.specialty ?? null;
+      // 🔴 저장값(s.specialty)을 남길지 말지가 핵심이다.
+      //    · 상세를 **이번에 받았으면**(d) 지금 규칙이 본 것이 정답이다 — null 이면 null 로 둔다.
+      //      옛 값을 `?? s?.specialty` 로 살려두면 **규칙을 고쳐도 옛 오분류가 영원히 남는다**.
+      //      실제로 그래서 "요양원에 분만실 8건"이 정리 후에도 크론 한 번에 되살아났다(2026-07-29).
+      //    · 상세를 못 받았으면(d 없음) 제목만으로는 근거가 얕으므로 저장값을 지킨다.
+      //      단, 그 저장값이 **지금 규칙으로 설명되지 않으면** 옛 규칙 산물이니 버린다.
+      // 🔴 판정에 쓰는 텍스트는 **실제로 저장할 텍스트와 같아야** 한다. 상세를 받았는데 본문이
+      //    비어 오면(jobCont 공백) description 컬럼은 아래에서 옛 값을 지키는데, 판정만 빈 본문으로
+      //    하면 근거가 컬럼에 남아 있는데도 진료과가 지워진다.
+      const finalTitle = d?.title ?? s?.title ?? j.title;
+      const finalDesc = d?.description ?? s?.description ?? listDesc(j);
+      const fresh = d ? departmentFromText(finalTitle, d.busiCont, finalDesc) : j.specialty;
+      // 🔴 저장값을 버릴지 판단할 때, **근거가 컬럼에 남아 있는지**를 함께 본다.
+      //    진료과는 제목·직무내용뿐 아니라 상세의 사업내용(busiCont)으로도 맞추는데 그건 저장하지
+      //    않는다. 상세는 공고당 한 번만 받으므로(detail_fetched_at), 보강이 끝난 공고에서
+      //    "제목·본문에 없다"를 근거로 지우면 busiCont 로 맞춘 정상값이 영영 사라진다.
+      //    → 이미 보강된 공고는 저장값을 그대로 둔다. 규칙 변경을 반영하려면 마이그레이션으로
+      //      detail_fetched_at 을 비워 상세를 다시 받게 한다(그때 fresh 가 정답을 준다).
+      const keep = s?.specialty
+        && (s.detail_fetched_at || stillValid(s.specialty, `${s.title ?? ""} ${s.description ?? ""}`))
+        ? s.specialty
+        : null;
+      const specialty = d ? fresh : (fresh ?? keep);
       return {
         company_name: j.company || null,
         hospital_id: null,
-        title: d?.title ?? s?.title ?? j.title,
+        title: finalTitle,
         specialty,
         // 기관 종별·직종은 워크넷이 코드로 정확히 준다(누락 0건) — 추론이 아니라 정답이다.
         // 다만 산업분류가 표에 없는 3.2% 는 유도가 null 이라, 그때는 저장값을 지키지 않으면
@@ -90,7 +109,7 @@ export async function GET(request: Request) {
         sido: region.sido,
         sigungu: region.sigungu,
         salary_text: [j.salTpNm, j.sal].filter(Boolean).join(" ") || null,
-        description: d?.description ?? s?.description ?? listDesc(j),
+        description: finalDesc,
         recruit_count: d?.recruitCount ?? s?.recruit_count ?? null,
         manager_phone: d?.managerPhone ?? s?.manager_phone ?? null,
         manager_name: d?.managerName ?? s?.manager_name ?? null,

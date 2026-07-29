@@ -188,6 +188,21 @@ const DEPARTMENT_RULES: ReadonlyArray<readonly [(typeof DEPARTMENTS)[number], Re
   ["외과", /외과/],
 ];
 
+/**
+ * 저장된 진료과가 **지금 규칙으로 설명되는가**.
+ *
+ * 왜 필요한가: 규칙을 고쳐도 이미 저장된 값은 안 바뀐다. 크론이 `?? 저장값` 으로 옛 값을
+ * 살려두면 오분류가 영원히 남는다 — 실제로 "요양원에 분만실 8건"을 정리한 직후 크론 한 번에
+ * 되살아났다(2026-07-29). 근거가 사라진 값은 버려야 규칙 수정이 데이터에 반영된다.
+ *
+ * 🔴 **우선순위까지 본다**(자기 규칙만 보면 안 된다). 본문에 "정형외과" 가 있는데 저장값이
+ *    '외과' 면, 자기 규칙만으로는 통과해 낮은 우선순위 값이 눌러앉아 재분류를 막는다.
+ *    "지금 규칙으로 이 텍스트를 다시 분류해도 같은 값이 나오는가" 를 묻는다.
+ */
+export function stillValid(specialty: string, text: string): boolean {
+  return departmentFromText(text) === specialty;
+}
+
 /** 공고 제목·사업내용·직무내용에서 진료과를 고른다. 못 고르면 null. */
 export function departmentFromText(...parts: ReadonlyArray<string | null | undefined>): (typeof DEPARTMENTS)[number] | null {
   const text = parts.filter(Boolean).join(" ");
