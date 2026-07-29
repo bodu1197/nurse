@@ -51,6 +51,11 @@ next-env.d.ts
 # playwright MCP 아티팩트 (콘솔·페이지 스냅샷 로그)
 .playwright-mcp/
 
+# Supabase CLI 로컬 캐시 — link 할 때마다 버전·풀러주소 파일이 새로 생긴다(기계마다 다름).
+# 프로젝트 ref 만 공유하면 되므로 linked-project.json 만 남긴다.
+supabase/.temp/*
+!supabase/.temp/linked-project.json
+
 # 구 널스넷 이관 원천 데이터 — 개인정보(이름·휴대폰·이메일)·사업자번호가 들어 있어 절대 커밋하지 않는다.
 # 이관 스크립트는 1회성이며, 다시 돌릴 일이 있으면 phpMyAdmin에서 새로 뽑는다.
 /resumes_legacy_*.json

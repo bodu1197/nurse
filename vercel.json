@@ -2,6 +2,7 @@
   "regions": ["icn1"],
   "crons": [
     { "path": "/api/cron/sync-hospitals", "schedule": "0 18 * * 0" },
-    { "path": "/api/cron/sync-worknet", "schedule": "30 3,9,15,21 * * *" }
+    { "path": "/api/cron/sync-worknet", "schedule": "30 3,9,15,21 * * *" },
+    { "path": "/api/cron/guard-avatars-bucket", "schedule": "*/10 * * * *" }
   ]
 }
