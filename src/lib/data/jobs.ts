@@ -67,8 +67,11 @@ export function jobFilterQs(
 // draft·hidden 은 한 번도 공개된 적이 없어 제목조차 보여주면 안 된다.
 const REVIVABLE = ["closed", "expired"] as const satisfies readonly JobStatus[];
 
-// PostgREST or 필터 주입 방지: %,(),쉼표 제거
-const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
+// PostgREST or 필터 주입 방지: %,(),쉼표 제거.
+// 🔴 `*` 도 지운다. PostgREST 는 ilike 값의 `*` 를 `%` 로 바꿔주지만(실측: "%성형*%" = "%성형%"),
+//    칩 집계 RPC 는 순수 SQL ilike 라 `*` 를 리터럴로 본다. 안 지우면 `?q=성형*` 에서
+//    목록엔 5건이 나오는데 칩은 전부 0건이 되어 칩 줄이 통째로 사라진다.
+const clean = (s: string) => s.replace(/[%,()*]/g, "").trim();
 
 export type JobFilters = {
   sido?: string; sigungu?: string; specialty?: string; facilityType?: string; jobCategory?: string; employmentType?: string;
@@ -102,16 +105,33 @@ export const getJobSigunguList = cache(async (sido: string): Promise<JobRegionNo
  *   · 반대로 내과·안과·정형외과 공고는 값이 있는데 칩이 없어 **73%가 검색되지 않았다**.
  * 한 번의 RPC 로 셋 다 받는다(따로 부르면 같은 행을 세 번 훑는다).
  */
-export const getJobFacets = cache(async (): Promise<{
+// cache() 로 감싸지 않는다: React cache 는 인자를 **참조로** 비교해서, 매번 새로 만드는 객체
+// 리터럴을 넘기는 이 함수에서는 절대 히트하지 않는다(실측). 게다가 한 요청에 한 번만 부른다 —
+// 감싸두면 "중복 호출이 합쳐진다"고 잘못 읽히기만 한다.
+export async function getJobFacets(f: JobFilters & { keyword?: string; location?: string } = {}): Promise<{
   departments: JobRegionNode[]; facilities: JobRegionNode[]; categories: JobRegionNode[];
-}> => {
+}> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("nurse_job_facet_list");
+  // 🔴 지금 걸린 필터를 그대로 넘긴다. 안 넘기면 '요양원·주간보호'(652건)를 골라도 진료과 칩이
+  //    26개 전부 뜨는데, 그 안에 실제로 있는 건 9개뿐이라 나머지는 눌러도 빈 화면이다(실측).
+  //    RPC 는 축마다 **자기 자신을 뺀** 나머지로 세므로, 고른 축 안에서 다른 값으로 갈아탈 수 있다.
+  const { data, error } = await supabase.rpc("nurse_job_facet_list", {
+    p_sido: f.sido ?? "",
+    p_sigungu: f.sigungu ?? "",
+    p_specialty: f.specialty ?? "",
+    p_facility: f.facilityType ?? "",
+    p_category: f.jobCategory ?? "",
+    p_employment: f.employmentType ?? "",
+    p_keyword: f.keyword ? clean(f.keyword) : "",
+    // 홈 검색폼이 넣는 지역 텍스트(?l=성남). 이것도 getJobs 가 location ilike 로 거는데
+    // 여기 안 넘기면 "의원 70" 이라 해놓고 눌렀을 때 더 적게 나온다.
+    p_location: f.location ? clean(f.location) : "",
+  });
   if (error) console.error("getJobFacets failed:", error.message);
   const rows = data ?? [];
   const pick = (kind: string) => tailLast(rows.filter((r) => r.kind === kind).map(({ name, cnt }) => ({ name, cnt })));
   return { departments: pick("department"), facilities: pick("facility"), categories: pick("category") };
-});
+}
 
 /**
  * "기타"류는 공고 수가 많아도 **맨 뒤**로 보낸다 — 인재 칩과 같은 규칙(lib/data/talent.ts).

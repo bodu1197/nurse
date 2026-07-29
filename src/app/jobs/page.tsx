@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SaveIcon } from "@/components/JobDetail";
 import Button from "@/components/Button";
@@ -24,10 +25,22 @@ function ChipRow({ label, allHref, active, items }: Readonly<{
   active?: string;
   items: ReadonlyArray<{ name: string; cnt: number | null; href: string }>;
 }>) {
-  if (items.length === 0) return null;
+  // 🔴 고른 값이 목록에 없어도 칩을 남긴다. 칩은 "지금 조건에서 공고가 있는 것"만 그리는데,
+  //    다른 축을 좁히다 보면 이미 고른 값이 0건이 될 수 있다. 그때 칩이 사라지면 **해제할 방법이
+  //    없어져** 빈 화면에 갇힌다(주소를 손으로 고치는 수밖에 없다).
+  // 고른 값이 이 조건에서 0건이면 목록에 없다. 그래도 "지금 이게 걸려 있다"는 건 보여야 한다.
+  const orphan = active && !items.some((i) => i.name === active) ? active : null;
+  if (items.length === 0 && !orphan) return null;
   return (
     <nav aria-label={label} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
       <a href={allHref} aria-current={!active ? "page" : undefined} className={chip(!active)}>{label} 전체</a>
+      {/* 0건이 된 선택값 — 링크로 두면 눌러도 맨 위로 튀기만 한다(href="#"). 상태 표시로만 그리고,
+          해제는 왼쪽 "{label} 전체" 가 맡는다. */}
+      {orphan && (
+        <span aria-current="page" className={`${chip(true)} cursor-default`}>
+          {orphan}<span className="ml-1 text-xs text-teal-50">0</span>
+        </span>
+      )}
       {items.map((it) => (
         <a key={it.name} href={it.href} aria-current={active === it.name ? "page" : undefined} className={chip(active === it.name)}>
           {it.name}
@@ -82,7 +95,9 @@ export default async function JobsPage({
     getJobs(kw, loc, { sido: sd, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et }, pageNum),
     getJobSidoList(),
     getJobSigunguList(sd), // 시도 미선택이면 즉시 [](비용 0)
-    getJobFacets(), // 진료과·기관종별·직종 칩 — 공고 있는 것만
+    // 칩은 **지금 걸린 필터 안에서** 센다 — 안 그러면 기관 종별을 골라도 그 안에 0건인
+    // 진료과 칩이 그대로 떠서 눌러도 빈 화면이 나온다.
+    getJobFacets({ sido: sd, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et, keyword: kw, location: loc }),
     getMyProfile(),
   ]);
   const now = nowMs();
@@ -117,10 +132,12 @@ export default async function JobsPage({
           고정 목록을 뿌리면 0건인 칩을 누른 사용자가 빈 화면을 만난다. */}
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-[1280px] space-y-2 px-4 py-3">
-          <ChipRow label="진료과" allHref={axisHref({ spec: "" })} active={spec}
-            items={facets.departments.map((d) => ({ ...d, href: axisHref({ spec: d.name }) }))} />
+          {/* 기관 종별을 맨 위에 둔다(오너 지시 2026-07-29) — 요양원·병원·의원 중 어디서 일할지가
+              진료과보다 먼저 갈리고, 이걸 고르면 아래 진료과 칩이 그 안에 있는 것만 남는다. */}
           <ChipRow label="기관 종별" allHref={axisHref({ fac: "" })} active={fac}
             items={facets.facilities.map((d) => ({ ...d, href: axisHref({ fac: d.name }) }))} />
+          <ChipRow label="진료과" allHref={axisHref({ spec: "" })} active={spec}
+            items={facets.departments.map((d) => ({ ...d, href: axisHref({ spec: d.name }) }))} />
           <ChipRow label="직종" allHref={axisHref({ cat: "" })} active={cat}
             items={facets.categories.map((d) => ({ ...d, href: axisHref({ cat: d.name }) }))} />
           {/* 근무형태는 고정 목록 그대로 — 값이 4개뿐이고 전부 실제로 쓰인다. */}
@@ -136,9 +153,27 @@ export default async function JobsPage({
             {profile ? "내 이력서 관리" : "이력서를 등록하세요"}
           </a> — 손쉽게 지원하세요
         </p>
+        {/* 지금 걸린 필터를 한 줄로 모아 보여준다. 축이 넷이라 따로 풀려면 네 번 눌러야 했다. */}
+        {(spec || fac || cat || et || sd || kw) && (
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="text-slate-400">적용된 조건</span>
+            {[
+              kw && `"${kw}"`,
+              sd && (sg ? `${sd} ${sg}` : sd),
+              fac, spec, cat, et,
+            ].filter(Boolean).map((v) => (
+              <span key={String(v)} className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">{v}</span>
+            ))}
+            {/* 칩들은 쿼리가 붙어 <a> 로 두지만, 이건 페이지 자체(/jobs)로 가는 링크라 Link 를 쓴다. */}
+            <Link href="/jobs" className="ml-1 min-h-11 self-center font-semibold text-teal-700 underline-offset-2 hover:underline">
+              전체 초기화
+            </Link>
+          </div>
+        )}
+
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-slate-500">
-            {spec || kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{total.toLocaleString()}건</span>{sd ? `, ${sg || sd}` : ""} · 정렬: 연관성{totalPages > 1 ? ` · ${pageNum}/${totalPages}p` : ""}
+            {spec || fac || kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{total.toLocaleString()}건</span>{sd ? `, ${sg || sd}` : ""} · 정렬: 연관성{totalPages > 1 ? ` · ${pageNum}/${totalPages}p` : ""}
           </p>
           {profile && (kw || sd) && (
             <form action={saveSearch}>

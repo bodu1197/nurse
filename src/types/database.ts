@@ -891,7 +891,16 @@ export type Database = {
       is_community_member: { Args: never; Returns: boolean }
       is_talent_advertiser: { Args: never; Returns: boolean }
       nurse_job_facet_list: {
-        Args: never
+        Args: {
+          p_category?: string
+          p_employment?: string
+          p_facility?: string
+          p_keyword?: string
+          p_location?: string
+          p_sido?: string
+          p_sigungu?: string
+          p_specialty?: string
+        }
         Returns: {
           cnt: number
           kind: string
