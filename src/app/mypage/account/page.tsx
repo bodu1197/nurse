@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import NurseShell from "@/components/NurseShell";
 import HospitalShell from "@/components/HospitalShell";
 import SiteHeader from "@/components/SiteHeader";
 import SubmitButton from "@/components/SubmitButton";
-import { getMyProfile } from "@/lib/data/user";
+import { requireProfile } from "@/lib/data/user";
 import { ROLE_LABEL } from "@/lib/data/role";
 import { INPUT_CLASS, LINK_CLASS, MIN_PASSWORD, messageFor } from "@/lib/constants";
 import { updateDisplayName, changePassword, deleteAccount } from "../actions";
@@ -16,6 +15,7 @@ const MESSAGES = {
   weak: `새 비밀번호는 ${MIN_PASSWORD}자 이상이어야 합니다.`,
   mismatch: "새 비밀번호와 확인이 서로 다릅니다.",
   wrong_password: "현재 비밀번호가 올바르지 않습니다.",
+  password_required: "탈퇴하려면 현재 비밀번호를 입력해 주세요.",
   confirm: "확인란에 '탈퇴'라고 정확히 입력해 주세요.",
   save: "처리에 실패했습니다. 잠시 후 다시 시도해 주세요.",
 } satisfies Record<string, string>;
@@ -38,8 +38,7 @@ function Card({ title, hint, children }: Readonly<{ title: string; hint?: string
 export default async function AccountPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ ok?: string; error?: string }> }>) {
-  const p = await getMyProfile();
-  if (!p) redirect("/login");
+  const p = await requireProfile("/mypage/account");
   const { ok, error } = await searchParams;
 
   const body = (
@@ -107,9 +106,10 @@ export default async function AccountPage({
               <label htmlFor="confirm" className="text-sm font-medium text-slate-700">확인을 위해 <b>탈퇴</b> 두 글자를 입력해 주세요</label>
               <input id="confirm" name="confirm" required autoComplete="off" className={INPUT_CLASS} />
             </div>
-            {/* 소셜 로그인 계정은 비밀번호가 없으므로 비워두면 건너뛴다 */}
+            {/* 서버(deleteAccount)가 이 계정에 비밀번호 로그인이 있는지 보고 요구 여부를 정한다.
+                소셜 전용 계정이면 비워도 통과하고, 이메일 가입자는 비우면 되돌려 보낸다. */}
             <div className="flex flex-col gap-1">
-              <label htmlFor="del_password" className="text-sm font-medium text-slate-700">현재 비밀번호 <span className="text-slate-500">(이메일 가입자만)</span></label>
+              <label htmlFor="del_password" className="text-sm font-medium text-slate-700">현재 비밀번호 <span className="text-slate-500">(소셜 로그인만 쓰면 비워두세요)</span></label>
               <input id="del_password" name="password" type="password" autoComplete="current-password" className={INPUT_CLASS} />
             </div>
             {/* confirm 입력 자체가 1차 방어라 여기서는 별도 confirm() 창을 겹치지 않는다 */}

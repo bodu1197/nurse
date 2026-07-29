@@ -1,21 +1,25 @@
 import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
+import DraftCleaner from "@/components/DraftCleaner";
 import { getMyProfile } from "@/lib/data/user";
 import { getJobs } from "@/lib/data/jobs";
-import { FOOTER_NAV } from "@/lib/constants";
 import { daysAgo } from "@/lib/date";
 
 // 홈만 자기 자신을 정본으로 선언한다(루트 레이아웃에서 canonical을 걷어냈다).
 export const metadata = { alternates: { canonical: "/" } };
 
-export default async function Home() {
-  const [profile, { jobs }] = await Promise.all([getMyProfile(), getJobs("", "")]);
+export default async function Home({
+  searchParams,
+}: Readonly<{ searchParams: Promise<{ left?: string }> }>) {
+  const [profile, { jobs }, { left }] = await Promise.all([getMyProfile(), getJobs("", ""), searchParams]);
   const latest = jobs.slice(0, 6);
 
   return (
     <>
       <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
+      {/* 로그아웃·탈퇴로 도착했으면 이 브라우저에 남은 임시저장 초안을 전부 지운다 */}
+      {left && <DraftCleaner />}
 
       <main className="flex-1">
         {/* ── 히어로 ───────────────────────── */}
@@ -60,9 +64,12 @@ export default async function Home() {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600" aria-hidden><path d="M3 21h18M6 21V7l6-4 6 4v14M10 9h4M10 13h4M10 17h4" /></svg>
               <span><b className="font-extrabold text-teal-700">79,000+</b> 병원 데이터</span>
             </span>
+            {/* 🔴 "16,000+ 간호사 회원"을 뺐다 — 근거를 댈 수 없는 숫자였다(이관한 이력서는 7,257건).
+                증명할 수 없는 수치는 적지 않는다. 실제 회원 수를 세어 보여주려면 집계 쿼리를 붙이고
+                그때 다시 넣는다. 병원 데이터 79,000+ 는 심평원 명부 건수라 근거가 있다. */}
             <span className="inline-flex items-center gap-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600" aria-hidden><circle cx="9" cy="7" r="3.5" /><path d="M2.5 20c0-3 3-5 6.5-5s6.5 2 6.5 5" /><path d="M16 4a3.5 3.5 0 010 6.5" /><path d="M21.5 20c0-2.2-1.4-3.9-3.5-4.6" /></svg>
-              <span><b className="font-extrabold text-teal-700">16,000+</b> 간호사 회원</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600" aria-hidden><path d="M20 6L9 17l-5-5" /></svg>
+              <span>이력서 등록·지원 <b className="font-extrabold text-teal-700">무료</b></span>
             </span>
           </div>
         </section>
@@ -104,27 +111,7 @@ export default async function Home() {
         </div>
       </main>
 
-      {/* ── 푸터 ─────────────────────────── */}
-      <footer className="border-t border-slate-200 bg-slate-50">
-        <div className="mx-auto max-w-[1280px] px-4 py-10">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <span className="text-lg font-bold text-teal-700">✚ 널스넷</span>
-              <p className="mt-2 max-w-xs text-sm text-slate-500">간호사와 병원을 잇는 전문 채용 플랫폼.</p>
-            </div>
-            <nav className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm sm:grid-cols-1">
-              {FOOTER_NAV.map((l) => (
-                <a key={l.href} href={l.href} className="text-slate-600 hover:text-teal-700">{l.label}</a>
-              ))}
-            </nav>
-          </div>
-          <div className="mt-8 flex flex-wrap gap-x-4 gap-y-1 border-t border-slate-200 pt-5 text-xs text-slate-400">
-            <span>© 2026 널스넷 (NurseNet)</span>
-            <a href="/privacy" className="hover:text-slate-600">개인정보처리방침</a>
-            <a href="/terms" className="hover:text-slate-600">이용약관</a>
-          </div>
-        </div>
-      </footer>
+      {/* 푸터는 루트 레이아웃(components/SiteFooter)으로 옮겼다 — 전 화면 공용 */}
     </>
   );
 }

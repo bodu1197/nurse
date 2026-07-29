@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import ResumeSheet from "@/components/ResumeSheet";
 import PrintSheet from "@/components/PrintSheet";
-import { getMyProfile } from "@/lib/data/user";
+import { requireProfile } from "@/lib/data/user";
 import { getReceivedApplication } from "@/lib/data/applications";
 import { signAvatarOf } from "@/lib/data/avatar";
 
@@ -11,18 +11,23 @@ export const metadata = { title: "지원자 이력서 — 널스넷", robots: { 
 export default async function ApplicantPrintPage({
   params,
   searchParams,
-}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ job_id?: string }> }>) {
-  const p = await getMyProfile();
-  if (!p) redirect("/login");
-  if (p.role !== "hospital") redirect("/mypage");
-  const [{ id }, { job_id }] = await Promise.all([params, searchParams]);
+}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ job_id?: string; status?: string; q?: string; page?: string }> }>) {
+  await requireProfile("/mypage/applicants", "hospital");
+  const [{ id }, view] = await Promise.all([params, searchParams]);
   const app = await getReceivedApplication(id);
   if (!app || !app.resume) redirect("/mypage/applicants");
   // RLS 를 통과해 이 지원서를 실제로 받은 뒤에만 사진을 서명한다(위 redirect 뒤라는 게 중요하다).
   const photoUrl = await signAvatarOf(app.resume.profile_id);
 
-  // 보고 있던 공고 탭으로 그대로 돌아간다.
-  const back = job_id ? `/mypage/applicants?job_id=${encodeURIComponent(job_id)}` : "/mypage/applicants";
+  // 🔴 보던 화면을 **네 값 모두** 그대로 되돌린다. openApplicantResume 은 job_id·status·q·page 를
+  //    전부 실어 보내는데 여기서 job_id 만 읽어서, '미확인' 필터 3페이지에서 이력서를 연 담당자가
+  //    '받은 지원자'를 누르면 필터 없는 1페이지로 튕겼다(500건 목록에서 매번 자리를 잃는다).
+  const qs = new URLSearchParams();
+  for (const k of ["job_id", "status", "q", "page"] as const) {
+    const v = (view[k] ?? "").trim();
+    if (v) qs.set(k, v);
+  }
+  const back = "/mypage/applicants" + (qs.toString() ? `?${qs}` : "");
 
   return (
     <PrintSheet backHref={back} backLabel="받은 지원자">

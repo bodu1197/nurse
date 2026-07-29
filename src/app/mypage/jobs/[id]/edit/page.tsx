@@ -1,14 +1,17 @@
 import { redirect } from "next/navigation";
 import HospitalShell from "@/components/HospitalShell";
 import SubmitButton from "@/components/SubmitButton";
+import { todayKst, nowMs } from "@/lib/date";
 import JobFields from "@/components/JobFields";
-import { getMyProfile } from "@/lib/data/user";
+import FormDraft from "@/components/FormDraft";
+import { requireProfile } from "@/lib/data/user";
 import { getMyJob } from "@/lib/data/jobs";
 import { updateJob } from "../../../actions";
 
 export const metadata = { title: "공고 수정 — 널스넷", robots: { index: false } };
 
 const ERR: Record<string, string> = {
+  deadline: "마감일이 오늘보다 이전입니다. 그대로 두면 공고가 한 번도 노출되지 않습니다.",
   missing: "공고 제목은 필수입니다.",
   save: "저장에 실패했습니다. 다시 시도해 주세요.",
 };
@@ -17,9 +20,7 @@ export default async function EditJobPage({
   params,
   searchParams,
 }: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ error?: string }> }>) {
-  const p = await getMyProfile();
-  if (!p) redirect("/login");
-  if (p.role !== "hospital") redirect("/mypage");
+  const p = await requireProfile(`/mypage/jobs/${(await params).id}/edit`, "hospital");
   const { id } = await params;
   const job = await getMyJob(id);
   if (!job) redirect("/mypage/jobs");
@@ -39,7 +40,9 @@ export default async function EditJobPage({
 
         <form action={updateJob} className="mt-6 flex flex-col gap-4">
           <input type="hidden" name="job_id" value={job.id} />
-          <JobFields d={job} />
+          {/* 공고별로 따로 보관한다 — A 공고 초안이 B 공고 수정 화면에 떠오면 안 된다. */}
+          <FormDraft storageKey={`nursenet:draft:job-edit:${p.email}:${job.id}`} ownErrors={["missing", "save", "deadline"]} />
+          <JobFields d={job} minDeadline={todayKst(nowMs())} />
           <SubmitButton pendingText="저장 중…">수정 저장</SubmitButton>
         </form>
       </div>

@@ -17,6 +17,8 @@ export default async function LoginPage({
   const message = error ? (authErrorMessage(error) ?? "로그인에 실패했습니다. 다시 시도해 주세요.") : null;
   const NOTICES: Record<string, string> = {
     apply: "지원하려면 먼저 로그인하세요.",
+    save: "관심 공고를 저장하려면 먼저 로그인하세요.",
+    mypage: "마이페이지를 보려면 먼저 로그인하세요.",
     board: "게시판을 이용하려면 먼저 로그인하세요.",
     community: "리뷰·게시판은 간호사 회원 전용입니다. 먼저 로그인하세요.",
   };
@@ -49,7 +51,7 @@ export default async function LoginPage({
         <span className="h-px flex-1 bg-slate-200" />또는<span className="h-px flex-1 bg-slate-200" />
       </div>
 
-      <LoginButtons />
+      <LoginButtons next={next} />
 
       <p className="mt-6 text-center text-sm text-slate-500">
         계정이 없으신가요?{" "}

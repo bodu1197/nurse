@@ -8,7 +8,8 @@ const NAV = [
   { href: "/mypage/jobs/new", label: "공고 등록" },
   { href: "/mypage/jobs", label: "공고 관리" },
   { href: "/mypage/applicants", label: "받은 지원자" },
-  { href: "/mypage/talent", label: "인재 검색" },
+  // 헤더 '인재정보'와 **같은** 화면을 가리킨다 — 예전엔 필터가 3개뿐인 복제본(/mypage/talent)이었다.
+  { href: "/talent", label: "인재 검색" },
   { href: "/mypage/verify", label: "사업자 인증" },
   { href: "/mypage/account", label: "내 정보 · 계정" },
 ];

@@ -1,9 +1,8 @@
-import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import HospitalShell from "@/components/HospitalShell";
 import NurseShell from "@/components/NurseShell";
-import { getMyProfile, type MyProfile } from "@/lib/data/user";
+import { requireProfile, type MyProfile } from "@/lib/data/user";
 import { getMyResume, completeness, type ResumeWithWork } from "@/lib/data/resume";
 import { countMyApplications } from "@/lib/data/applications";
 import { countSaved, countSavedSearches } from "@/lib/data/jobs";
@@ -42,6 +41,14 @@ function ViewAsSwitch({ current }: Readonly<{ current: MyProfile["role"] }>) {
 // 판정은 공고 관리 화면·배지와 **같은 함수**로 — 여기서 따로 계산하면 두 화면이 다른 말을 한다.
 const endMs = (j: MyJob, now: number) => (isLive(jobState(j, now)) ? listingEnd(j, now) : 0);
 
+function DeniedNotice({ message }: Readonly<{ message: string }>) {
+  return (
+    <div role="status" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+      {message}
+    </div>
+  );
+}
+
 function Widget({ label, value, accent }: Readonly<{ label: string; value: string; accent?: string }>) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
@@ -51,7 +58,7 @@ function Widget({ label, value, accent }: Readonly<{ label: string; value: strin
   );
 }
 
-function HospitalDashboard({ profile, jobs }: Readonly<{ profile: MyProfile; jobs: MyJob[] }>) {
+function HospitalDashboard({ profile, jobs, notice }: Readonly<{ profile: MyProfile; jobs: MyJob[]; notice?: string | null }>) {
   const now = nowMs();
   const liveCount = jobs.filter((j) => endMs(j, now) > 0).length;
   const applicants = jobs.reduce((s, j) => s + j.applicant_count, 0);
@@ -60,6 +67,7 @@ function HospitalDashboard({ profile, jobs }: Readonly<{ profile: MyProfile; job
   return (
     <HospitalShell displayName={profile.displayName} active="/mypage">
       {profile.isAdmin && <ViewAsSwitch current="hospital" />}
+      {notice && <DeniedNotice message={notice} />}
       <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">대시보드</h1>
 
       {!profile.businessVerified && (
@@ -120,7 +128,7 @@ const NURSE_ITEMS: Item[] = [
   { title: "내 이력서", desc: "이력서를 작성하고 병원에 지원하세요. (무료)", href: "/mypage/resume" },
   { title: "저장한 공고", desc: "관심 있는 채용공고를 모아 봅니다.", href: "/mypage/saved" },
   { title: "지원 내역", desc: "지원한 공고의 진행 상황을 확인합니다.", href: "/mypage/applications" },
-  { title: "채용 알림", desc: "검색 조건을 저장하고 빠르게 다시 찾습니다.", href: "/mypage/alerts" },
+  { title: "저장한 검색", desc: "검색 조건을 저장하고 빠르게 다시 찾습니다.", href: "/mypage/alerts" },
   { title: "내 정보 · 계정", desc: "표시 이름 · 비밀번호 변경 · 회원 탈퇴", href: "/mypage/account" },
 ];
 const ADMIN_ITEMS: Item[] = [
@@ -144,7 +152,7 @@ function nurseItems(resume: ResumeWithWork | null, counts: { applied: number; sa
     }
     if (it.title === "지원 내역") return { ...it, badge: `${counts.applied}건`, muted: counts.applied === 0 };
     if (it.title === "저장한 공고") return { ...it, badge: `${counts.saved}건`, muted: counts.saved === 0 };
-    if (it.title === "채용 알림") return { ...it, badge: `${counts.searches}건`, muted: counts.searches === 0 };
+    if (it.title === "저장한 검색") return { ...it, badge: `${counts.searches}건`, muted: counts.searches === 0 };
     return it;
   });
 }
@@ -177,13 +185,22 @@ function Card({ item }: Readonly<{ item: Item }>) {
   );
 }
 
-export default async function MyPage() {
-  const profile = await getMyProfile();
-  if (!profile) redirect("/login");
+// 역할이 맞지 않아 되돌아온 경우의 안내 — 어느 역할 전용 화면이었는지로 문구가 갈린다.
+// 조용히 되돌리기만 하면 "클릭이 안 먹었나" 하고 같은 링크를 두세 번 더 누르게 된다.
+const DENIED: Record<string, string> = {
+  hospital: "그 화면은 병원 회원 전용입니다. 지금 계정은 간호사 회원이라 열 수 없습니다.",
+  nurse: "그 화면은 간호사 회원 전용입니다. 지금 계정은 병원 회원이라 열 수 없습니다.",
+};
+
+export default async function MyPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<{ denied?: string }> }>) {
+  const [profile, { denied }] = await Promise.all([requireProfile("/mypage"), searchParams]);
+  const deniedMsg = denied ? DENIED[denied] ?? null : null;
 
   if (profile.role === "hospital") {
     const jobs = await getMyJobs();
-    return <HospitalDashboard profile={profile} jobs={jobs} />;
+    return <HospitalDashboard profile={profile} jobs={jobs} notice={deniedMsg} />;
   }
 
   let items = ADMIN_ITEMS;
@@ -199,6 +216,7 @@ export default async function MyPage() {
     <Shell displayName={profile.displayName} active="/mypage">
       <>
         {profile.isAdmin && <ViewAsSwitch current={profile.role} />}
+        {deniedMsg && <DeniedNotice message={deniedMsg} />}
         <h1 className="text-2xl font-bold text-slate-900">마이페이지</h1>
         <section className="mt-4 rounded-2xl border border-slate-200 bg-white p-6">
           <div className="flex flex-wrap items-center gap-3">

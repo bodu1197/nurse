@@ -1,16 +1,16 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import NurseShell from "@/components/NurseShell";
 import SubmitButton from "@/components/SubmitButton";
 import Button, { buttonClass } from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import WorkExperienceFields from "@/components/WorkExperienceFields";
-import { getMyProfile } from "@/lib/data/user";
+import { requireProfile } from "@/lib/data/user";
 import { getMyResume, completeness, type ResumeWithWork } from "@/lib/data/resume";
 import { INPUT_CLASS, LINK_CLASS, messageFor } from "@/lib/constants";
 import {
   SHIFT_TYPES, CERTIFICATIONS, APN_FIELDS, LICENSE_TYPES, EDUCATION_LEVELS, GRADUATION_STATUS,
   CAREER_LEVELS, HOSPITAL_TYPES, AVAILABLE_FROM, EMPLOYMENT_TYPES, DEPARTMENTS, JOB_CATEGORIES,
+  RESUME_PUBLIC_SCOPE,
 } from "@/lib/resumeOptions";
 import { SIDO_LIST, SIDO_SIGUNGU } from "@/lib/koreaRegions";
 import { safeNext } from "@/lib/url";
@@ -18,6 +18,8 @@ import { saveResume, deleteResume, setResumePublic, saveResumePhoto, deleteResum
 import { getMyAvatarUrl } from "@/lib/data/avatar";
 import IdPhoto from "@/components/IdPhoto";
 import PhotoPicker from "@/components/PhotoPicker";
+import ResumeFormGuard from "@/components/ResumeFormGuard";
+import FormDraft from "@/components/FormDraft";
 
 export const metadata = { title: "내 이력서 — 널스넷", robots: { index: false } };
 
@@ -261,11 +263,23 @@ function VisibilitySwitch({ isPublic }: Readonly<{ isPublic: boolean }>) {
             <span aria-hidden className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${isPublic ? "bg-teal-600" : "bg-slate-400"}`} />
             {isPublic ? "지금 이력서가 공개 중입니다" : "지금 이력서는 비공개입니다"}
           </p>
+          {/* 🔴 이 문구는 **동의의 내용**이다. 전에는 "광고 중인 병원이 봅니다"라고만 적었는데,
+              실제 인재정보 목록(/talent)은 로그인하지 않은 사람에게도 열려 있다(레거시 널스넷과
+              같은 정책). 고지와 실제가 다르면 동의를 받은 것이 아니다 → 두 단계로 나눠 적는다.
+              공개 범위를 바꾸면 여기 문구도 반드시 함께 바꾼다. */}
           <p className="mt-1 text-sm text-slate-700">
             {isPublic
-              ? "널스넷에 광고 중인 병원이 이름·휴대폰을 포함한 이력서 전체를 볼 수 있습니다. 이 버튼으로 언제든 즉시 멈출 수 있습니다."
-              : "아무도 볼 수 없습니다. 공개하면 광고 중인 병원이 이름·휴대폰을 포함한 이력서 전체를 봅니다."}
+              ? "누구나 볼 수 있는 상태입니다. 이 버튼으로 언제든 즉시 멈출 수 있습니다."
+              : "아무도 볼 수 없습니다. 공개하면 아래 범위로 열립니다."}
           </p>
+          <ul className="mt-2 space-y-1 text-xs text-slate-600">
+            <li>
+              <b className="font-semibold text-slate-800">누구나(로그인 안 해도)</b> — {RESUME_PUBLIC_SCOPE.anyone}
+            </li>
+            <li>
+              <b className="font-semibold text-slate-800">광고 중인 병원만</b> — {RESUME_PUBLIC_SCOPE.advertiser}
+            </li>
+          </ul>
         </div>
         <form action={setResumePublic} className="shrink-0">
           <input type="hidden" name="is_public" value={isPublic ? "off" : "on"} />
@@ -276,7 +290,12 @@ function VisibilitySwitch({ isPublic }: Readonly<{ isPublic: boolean }>) {
           ) : (
             <ConfirmSubmit
               variant="primary" size="md" className="min-h-11"
-              message="이력서를 공개할까요?&#10;이름·휴대폰을 포함한 이력서 전체가 널스넷에 광고 중인 병원에 공개됩니다.&#10;같은 버튼으로 언제든 즉시 되돌릴 수 있습니다."
+              message={`이력서를 공개할까요?
+
+· 누구나(로그인 안 해도) — ${RESUME_PUBLIC_SCOPE.anyone}
+· 광고 중인 병원만 — ${RESUME_PUBLIC_SCOPE.advertiser}
+
+같은 버튼으로 언제든 즉시 되돌릴 수 있습니다.`}
             >
               공개하기
             </ConfirmSubmit>
@@ -357,9 +376,7 @@ function ResumeView({ r, photoUrl }: Readonly<{ r: ResumeWithWork; photoUrl: str
 export default async function ResumePage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ ok?: string; error?: string; next?: string }> }>) {
-  const p = await getMyProfile();
-  if (!p) redirect("/login");
-  if (p.role !== "nurse") redirect("/mypage");
+  const p = await requireProfile("/mypage/resume", "nurse");
   const [{ ok, error, next }, r, photoUrl] = await Promise.all([searchParams, getMyResume(), getMyAvatarUrl()]);
   const backTo = safeNext(next, "");
   // 예전에 저장된 값(예: "중환자", "수도권", "기타")이 지금 선택지에 없더라도 목록에 끼워 넣는다.
@@ -389,7 +406,7 @@ export default async function ResumePage({
       {ok === "deleted" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 삭제했습니다.</div>}
       {ok === "photo" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">사진을 저장했습니다.</div>}
       {ok === "photo_deleted" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">사진을 삭제했습니다.</div>}
-      {ok === "public" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 공개했습니다. 광고 중인 병원이 볼 수 있습니다.</div>}
+      {ok === "public" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 공개했습니다. 연락처를 뺀 내용은 누구나 볼 수 있고, 이름·연락처·사진은 광고 중인 병원만 봅니다.</div>}
       {ok === "private" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">이력서를 비공개로 바꿨습니다. 이제 아무도 볼 수 없습니다 — 위 버튼으로 언제든 다시 공개할 수 있습니다.</div>}
       {messageFor(SAVE_ERRORS, error) && <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{messageFor(SAVE_ERRORS, error)}</div>}
 
@@ -407,6 +424,25 @@ export default async function ResumePage({
       <h2 className="mt-8 text-sm font-semibold text-slate-600">{r ? "이력서 수정" : "이력서 작성"}</h2>
 
       <form action={saveResume} className="mt-3 flex flex-col gap-4">
+        {/* 필수 체크박스 그룹을 제출 전에 막는다 — 서버에서 걸리면 화면을 떠나며 입력이 전부 날아간다.
+            서버 검증(saveResume)은 그대로 있다. 여기 이름은 그쪽 검증과 **같은 name** 이어야 한다. */}
+        <ResumeFormGuard
+          groups={[
+            { name: "shift_types", message: "가능한 근무형태를 하나 이상 선택해 주세요." },
+            { name: "desired_location", message: "희망 근무지를 하나 이상 선택해 주세요." },
+          ]}
+        />
+        {/* 임시저장 — 30개 넘는 항목을 쓰다 중단해도 다음에 이어 쓴다.
+            키에 계정(이메일)을 넣어 같은 PC 의 다른 사람이 못 읽게 한다.
+            rowName·addRowLabel: 경력 줄이 동적이라 복원할 때 줄 수부터 맞춰야 한다. */}
+        <FormDraft
+          storageKey={`nursenet:draft:resume:${p.email}`}
+          rowName="w_hospital_name"
+          addRowLabel="+ 경력 추가"
+          // 이 폼의 서버 검증 코드만 인정한다 — 같은 화면의 사진·공개 스위치 오류(?error=photo_size 등)로
+          // 이미 저장에 성공한 초안이 되살아나면 최신 이력서를 옛 값으로 덮어쓴다.
+          ownErrors={["shift", "region", "work", "work_required", "work_lost", "save"]}
+        />
         <input type="hidden" name="next" value={backTo} />
 
         <Section title="① 기본" hint="이름과 휴대폰이 없으면 병원이 연락할 방법이 없어 지원이 막힙니다.">
@@ -548,9 +584,9 @@ export default async function ResumePage({
               <span>
                 이력서 공개에 동의합니다
                 <span className="mt-1 block text-xs leading-relaxed text-slate-600">
-                  <b className="text-slate-700">누가 봅니까?</b> 널스넷에 광고 중인 병원.
+                  <b className="text-slate-700">누가 봅니까?</b> 인재정보 화면에서 <b className="text-slate-800">로그인하지 않은 방문자를 포함한 누구나</b> — {RESUME_PUBLIC_SCOPE.anyone}.
+                  <b className="text-slate-700"> 연락처는?</b> {RESUME_PUBLIC_SCOPE.advertiser}는 <b className="text-slate-800">널스넷에 광고 중인 병원만</b> 봅니다.
                   <b className="text-slate-700"> 왜 봅니까?</b> 채용 제안 · 인재 검색 목적.
-                  <b className="text-slate-700"> 무엇이 갑니까?</b> 이름 · 휴대폰을 포함한 이 이력서 전체.
                   <b className="text-slate-700"> 언제까지?</b> 저장 뒤에는 이 화면 맨 위 스위치로 언제든 즉시 중단할 수 있습니다.
                 </span>
               </span>

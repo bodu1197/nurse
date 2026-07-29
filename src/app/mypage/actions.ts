@@ -13,7 +13,7 @@ import { safeNext } from "@/lib/url";
 import { AVATAR_BUCKET } from "@/lib/data/avatar";
 import { AVATAR_MAX_BYTES, AVATAR_MIME } from "@/lib/avatarLimits";
 import { CANCELABLE, isHospitalStatus, STATUS_LABEL, type AppStatus } from "@/lib/data/applications";
-import { DAY_MS, FREE_LISTING_MS } from "@/lib/date";
+import { DAY_MS, FREE_LISTING_MS, todayKst, nowMs } from "@/lib/date";
 import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
 import { regionOfLocation } from "@/lib/jobRegion";
@@ -54,6 +54,20 @@ function jobAxes(s: (k: string) => string) {
     job_category: pick("job_category", JOB_CATEGORIES),
   };
 }
+
+/**
+ * 공고 마감일 — 비우면 상시모집(null).
+ * date 컬럼이라 "YYYY-MM-DD" 만 받는다. 형식이 다르면 조용히 null 로 둔다(조작된 POST 로
+ * 이상한 값이 들어가면 목록의 `deadline.gte.오늘` 비교가 통째로 어긋난다).
+ */
+const jobDeadline = (s: (k: string) => string): string | null | "past" => {
+  const v = s("deadline");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  // 🔴 지난 날짜를 그대로 받으면 저장은 성공하는데 목록·상세가 전부 걸러내서
+  //    **한 번도 노출되지 않는 공고**가 만들어진다(유료를 골랐다면 결제까지 하고 노출 0).
+  //    연도 오타("2025-")로 쉽게 일어난다 → 되돌려 알린다.
+  return v < todayKst(nowMs()) ? "past" : v;
+};
 
 export async function setViewAs(formData: FormData) {
   const supabase = await createClient();
@@ -172,10 +186,14 @@ export async function createJob(formData: FormData) {
       .eq("status", "open")
       .gte("posted_at", fresh)
       .or(`featured_until.is.null,featured_until.lt.${nowIso}`);
-    if ((freeActive ?? 0) >= 1) redirect("/mypage/jobs?error=freelimit");
+    // 🔴 쓰던 화면으로 되돌린다. 전에는 공고 관리 화면으로 보내서, 다 채운 상세내용·복리후생·
+    //    담당자 정보를 처음부터 다시 써야 했다. 같은 화면으로 돌아와야 임시저장(FormDraft)도 복원된다.
+    if ((freeActive ?? 0) >= 1) redirect("/mypage/jobs/new?error=freelimit");
   }
 
   const num = (k: string) => { const n = parseInt(s(k), 10); return Number.isFinite(n) && n > 0 ? n : null; };
+  const deadline = jobDeadline(s);
+  if (deadline === "past") redirect("/mypage/jobs/new?error=deadline");
   const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
   const am = formData.getAll("apply_methods").map(String).filter((m) => ["platform", "email", "offline"].includes(m));
   const methods = am.length ? am : ["platform"];
@@ -194,6 +212,7 @@ export async function createJob(formData: FormData) {
     benefits,
     recruit_count: num("recruit_count"),
     shift_type: s("shift_type") || null,
+    deadline,
     manager_name: s("manager_name") || null,
     manager_phone: s("manager_phone") || null,
     apply_methods: methods,
@@ -232,6 +251,8 @@ export async function updateJob(formData: FormData) {
   const num = (k: string) => { const n = parseInt(s(k), 10); return Number.isFinite(n) && n > 0 ? n : null; };
   const title = s("title");
   if (!title) redirect(`/mypage/jobs/${jobId}/edit?error=missing`);
+  const deadline = jobDeadline(s);
+  if (deadline === "past") redirect(`/mypage/jobs/${jobId}/edit?error=deadline`);
   const benefits = s("benefits").split(",").map((x) => x.trim()).filter(Boolean);
   const am = formData.getAll("apply_methods").map(String).filter((m) => ["platform", "email", "offline"].includes(m));
   const methods = am.length ? am : ["platform"];
@@ -249,6 +270,7 @@ export async function updateJob(formData: FormData) {
     benefits,
     recruit_count: num("recruit_count"),
     shift_type: s("shift_type") || null,
+    deadline,
     manager_name: s("manager_name") || null,
     manager_phone: s("manager_phone") || null,
     apply_methods: methods,
@@ -271,21 +293,49 @@ export async function repostJob(formData: FormData) {
   const hosp = await ownedJobHospital(admin, jobId, user.id);
   if (!hosp) redirect("/mypage/jobs?error=1");
 
-  // 다시 게시 = 새 7일 무료 노출 → 동시 무료 1건 규칙 적용(다른 활성 무료 공고가 있으면 불가).
-  const fresh = new Date(Date.now() - FREE_LISTING_MS).toISOString();
   const nowIso = new Date().toISOString();
-  const { count: freeActive } = await admin
-    .from("jobs")
-    .select("id", { count: "exact", head: true })
-    .eq("hospital_id", hosp.id)
-    .eq("status", "open")
-    .gte("posted_at", fresh)
-    .or(`featured_until.is.null,featured_until.lt.${nowIso}`)
-    .neq("id", jobId);
-  if ((freeActive ?? 0) >= 1) redirect("/mypage/jobs?error=freelimit");
 
-  const { error } = await admin.from("jobs").update({ status: "open", posted_at: nowIso }).eq("id", jobId);
-  if (error) redirect("/mypage/jobs?error=1");
+  // 🔴 결제 대기(draft) 공고는 이 버튼의 대상이 아니다.
+  //    형제 액션 setJobStatus 는 draft 를 막아두는데 여기만 빠져 있어서, 유료 2~4주를 골라
+  //    draft 로 만들어진 공고를 **결제 없이 open 으로 올릴 수 있었다**(조작된 POST 한 번).
+  //    화면에는 pending 분기에 이 버튼이 없지만, 서버 액션은 화면을 신뢰하지 않는다.
+  const { data: job } = await admin.from("jobs").select("status, featured_until").eq("id", jobId).maybeSingle();
+  if (!job || !isSettableJobStatus(job.status)) redirect("/mypage/jobs?error=1");
+
+  // 광고가 아직 살아 있는 공고는 **유료 자리**다 — 무료 동시 1건 규칙의 대상이 아니다.
+  // 이 구분이 없으면 돈을 낸 공고를 다시 게시하려다 무료 제한에 막힌다.
+  const paidLive = !!job.featured_until && job.featured_until > nowIso;
+  if (!paidLive) {
+    // 다시 게시 = 새 7일 무료 노출 → 동시 무료 1건 규칙 적용(다른 활성 무료 공고가 있으면 불가).
+    const fresh = new Date(Date.now() - FREE_LISTING_MS).toISOString();
+    const { count: freeActive } = await admin
+      .from("jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("hospital_id", hosp.id)
+      .eq("status", "open")
+      .gte("posted_at", fresh)
+      .or(`featured_until.is.null,featured_until.lt.${nowIso}`)
+      .neq("id", jobId);
+    if ((freeActive ?? 0) >= 1) redirect("/mypage/jobs?error=freelimit");
+  }
+
+  // 조건을 update 에도 한 번 더 건다(읽고 쓰는 사이에 상태가 바뀌는 경우) + 반환 행으로 반영 확인.
+  //
+  // 🔴 무료로 다시 게시할 때는 **끝난 광고 표식을 지운다**(featured_until·ad_tier).
+  //    목록 정렬이 `order(featured_until desc, nullsFirst:false)` 라, 지난 광고 날짜가 남아 있으면
+  //    그 공고가 무료·워크넷 공고(featured_until = null) 전부보다 **영원히 위**에 뜬다.
+  //    돈을 낸 기간은 이미 끝났는데 노출 특혜만 남는 셈이라, 다음 광고주에게 불공정하다.
+  //    결제 기록은 ad_orders 에 그대로 있고, 나중에 다시 광고를 사면 그때부터 새로 계산된다.
+  let q = admin
+    .from("jobs")
+    .update(paidLive ? { status: "open", posted_at: nowIso } : { status: "open", posted_at: nowIso, featured_until: null, ad_tier: null })
+    .eq("id", jobId).in("status", ["open", "closed"]);
+  // 광고 표식을 지우는 경우에만, "여전히 만료 상태인 행" 으로 한번 더 좀힌다 —
+  // 읽고 쓰는 사이에 결제 웹훅이 들어와 featured_until 을 연장했다면
+  // 방금 산 광고를 이 update 가 지우게 된다(돈은 나갔는데 노출은 없어진다).
+  if (!paidLive) q = q.or(`featured_until.is.null,featured_until.lt.${nowIso}`);
+  const { data: done, error } = await q.select("id");
+  if (error || !done?.length) redirect("/mypage/jobs?error=1");
   redirect("/mypage/jobs?ok=1");
 }
 
@@ -467,14 +517,42 @@ export async function deleteAccount(formData: FormData) {
   if (!user?.email) redirect("/login");
   if (String(formData.get("confirm") ?? "").trim() !== "탈퇴") redirect("/mypage/account?error=confirm");
   // 열린 브라우저 앞에서 문구만 입력해 계정을 파괴하는 것을 막는다 — 현재 비밀번호를 함께 확인한다.
-  // (소셜 로그인 계정은 비밀번호가 없으므로 이 확인을 건너뛴다.)
+  //
+  // 🔴 "비었으면 건너뛴다"로 두면 확인이 사실상 없는 것과 같다 — 이메일 가입자도 비밀번호 칸을
+  //    비운 채 '탈퇴' 두 글자만 넣으면 통과했다. 소셜 계정만 면제하려던 것이었으므로,
+  //    **면제 여부를 사용자 입력이 아니라 계정에 실제로 비밀번호가 있는지로 판단**한다.
+  const admin = createAdminClient();
+  const { data: authUser, error: authErr } = await admin.auth.admin.getUserById(user.id);
+  // 🔴 identity 이름으로 판정하면 안 된다. 네이버 로그인은 우리가 직접 구현해서
+  //    admin.createUser({ email }) 로 계정을 만드는데(비밀번호 없음), GoTrue 는 그 계정에도
+  //    provider "email" identity 를 붙인다. 그래서 "email identity = 비밀번호 있음"으로 보면
+  //    **네이버 회원 전원이 탈퇴를 못 하게 된다**(비밀번호를 만든 적이 없고, 만들 화면도 없다).
+  //    → 소셜 계정인지로 면제를 판정한다: 네이버는 우리가 넣은 metadata.provider, 카카오는 identity.
+  const au = authUser?.user;
+  // 조회 자체가 실패하면 판정할 수 없다 → 비밀번호를 강요해 소셜 회원을 가두는 대신 재시도를 안내한다.
+  if (authErr || !au) {
+    console.error("deleteAccount(getUserById) failed:", authErr?.message ?? "no user");
+    redirect("/mypage/account?error=save");
+  }
+
+  // 비밀번호 로그인이 붙은 계정인가 = email identity 가 있는가.
+  // 🔴 단, 네이버는 우리가 admin.createUser({ email }) 로 만들기 때문에 **비밀번호가 없는데도**
+  //    email identity 가 붙는다 → 그 표식으로만 예외를 둔다.
+  // 🔴 표식은 app_metadata 를 본다. user_metadata 는 세션 소유자가 브라우저에서
+  //    updateUser({ data: … }) 로 직접 쓸 수 있어 **서버 판정의 근거가 될 수 없다**.
+  //    (이관·기존 계정을 위해 user_metadata 도 함께 보되, 새로 만드는 계정은 app_metadata 를 쓴다.)
+  const isNaverAccount =
+    au.app_metadata?.provider === "naver" || au.user_metadata?.provider === "naver";
+  const requiresPassword = (au.identities ?? []).some((i) => i.provider === "email") && !isNaverAccount;
+
+  // 넣어서 왔으면 provider 와 무관하게 **항상** 검증한다 — 틀린 비밀번호가 통과하는 경로를 두지 않는다.
   const password = String(formData.get("password") ?? "");
+  if (requiresPassword && !password) redirect("/mypage/account?error=password_required");
   if (password) {
     const { error: wrong } = await supabase.auth.signInWithPassword({ email: user.email, password });
     if (wrong) redirect("/mypage/account?error=wrong_password");
   }
 
-  const admin = createAdminClient();
   // 병원 회원이면 소유 공고를 먼저 마감한다 — 계정만 지우면 연락 안 되는 공고가 목록에 남는다.
   // owner_profile_id 가 set null 이라 나중엔 아무도 못 닫으므로, 조회 실패면 삭제를 멈춘다.
   const { data: hospitals, error: hErr } = await admin.from("hospitals").select("id").eq("owner_profile_id", user.id);
@@ -492,12 +570,27 @@ export async function deleteAccount(formData: FormData) {
     }
   }
 
+  // 🔴 얼굴 사진은 스토리지 오브젝트라 **cascade 로 안 지워진다**. 계정만 지우면 증명사진이
+  //    버킷에 영원히 남는다 — 개인정보처리방침의 "탈퇴 시 지체 없이 파기"와 어긋난다.
+  //    경로는 **지금** 읽어둔다(계정을 지우면 profiles 행이 사라져 읽을 수 없다).
+  //    외부 URL(네이버 프로필)은 우리 것이 아니라 지울 게 없다.
+  const { data: me } = await admin.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle();
+  const avatar = (me?.avatar_url ?? "").trim();
+
   // profiles·resumes·applications 는 auth 사용자에 cascade 로 묶여 함께 지워진다.
   // ad_orders.buyer_id 는 set null 이라 결제 기록은 남는다(전자상거래법 5년 보존).
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) {
     console.error("deleteAccount failed:", error.message);
     redirect("/mypage/account?error=save");
+  }
+
+  // 🔴 파일 삭제는 계정 삭제에 **성공한 뒤에** 한다. 먼저 지우면, deleteUser 가 실패해 화면으로
+  //    되돌아갔을 때 계정은 그대로인데 증명사진만 사라진다(복구 불가). 경로는 위에서 이미 확보했다.
+  if (avatar && !avatar.startsWith("http")) {
+    const { error: rmErr } = await admin.storage.from(AVATAR_BUCKET).remove([avatar]);
+    // 여기서 실패해도 되돌릴 게 없다(계정은 이미 사라졌다) — 흔적만 남겨 수동 정리를 가능하게 한다.
+    if (rmErr) console.error("deleteAccount(avatar) failed:", rmErr.message, avatar);
   }
   await supabase.auth.signOut();
   redirect("/?left=1");
@@ -765,8 +858,11 @@ export async function setJobStatus(formData: FormData) {
   if (!id || !isSettableJobStatus(status)) redirect("/mypage/jobs");
   // 결제 전(draft) 공고는 이 버튼의 대상이 아니다. 막아두지 않으면 draft → closed 로 넘어가,
   // "closed = 한 번은 공개됐던 공고"라는 전제(저장 목록의 마감 공고 복원)가 깨진다.
-  const { error } = await supabase.from("jobs").update({ status }).eq("id", id).in("status", ["open", "closed"]);
-  if (error) redirect("/mypage/jobs?error=1");
+  // 반환 행으로 실제 반영을 확인한다 — RLS 에 막히면 0행일 뿐 error 는 null 이라,
+  // 병원은 "마감했다"고 믿는데 공고가 계속 노출된다(같은 파일의 다른 액션들과 같은 규약).
+  const { data, error } = await supabase
+    .from("jobs").update({ status }).eq("id", id).in("status", ["open", "closed"]).select("id");
+  if (error || !data?.length) redirect("/mypage/jobs?error=1");
   redirect("/mypage/jobs?ok=1");
 }
 
@@ -777,8 +873,9 @@ export async function deleteJob(formData: FormData) {
   if (!user) redirect("/login");
   const id = String(formData.get("job_id") ?? "");
   if (id) {
-    const { error } = await supabase.from("jobs").delete().eq("id", id);
-    if (error) redirect("/mypage/jobs?error=1");
+    // 위와 같은 이유로 반환 행을 본다 — 남의 공고를 지우려다 RLS 에 막혀도 "삭제했습니다"가 떴다.
+    const { data, error } = await supabase.from("jobs").delete().eq("id", id).select("id");
+    if (error || !data?.length) redirect("/mypage/jobs?error=1");
   }
   redirect("/mypage/jobs?ok=1");
 }

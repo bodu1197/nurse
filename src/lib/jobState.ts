@@ -11,13 +11,21 @@ export type JobStatus = "draft" | "open" | "closed" | "expired" | "hidden";
 /** 병원에게 보여줄 노출 상태 */
 export type JobState = "pending" | "featured" | "free" | "expired" | "closed";
 
+/**
+ * 🔴 deadline 을 **필수 인자**로 둔다(선택으로 두면 부르는 쪽이 조용히 빠뜨린다).
+ *    병원이 공고에 마감일을 넣을 수 있게 되면서, 이걸 안 보면 구직자 화면에서는 이미 사라진 공고를
+ *    병원 화면만 "무료 …까지 (N일 남음)" 이라고 표시하고 제목을 누르면 404 가 났다.
+ *    노출 판정의 기준은 구직자 쪽(isOpenToSeekers)과 하나여야 한다.
+ */
 export function jobState(
-  job: Readonly<{ status: JobStatus; posted_at: string; featured_until: string | null }>,
+  job: Readonly<{ status: JobStatus; posted_at: string; featured_until: string | null; deadline: string | null }>,
   now: number,
 ): JobState {
   if (job.status === "draft") return "pending";
   // closed·expired·hidden은 병원 화면에서 모두 '마감'으로 묶는다(구분해봐야 할 일이 같다).
   if (job.status !== "open") return "closed";
+  // 마감일이 지났으면 광고가 남아 있어도 구직자에게 안 보인다 → 노출 종료로 본다.
+  if (job.deadline && job.deadline < todayKst(now)) return "expired";
   if (job.featured_until && new Date(job.featured_until).getTime() > now) return "featured";
   if (new Date(job.posted_at).getTime() >= now - FREE_LISTING_MS) return "free";
   return "expired";

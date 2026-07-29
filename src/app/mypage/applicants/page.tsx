@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import HospitalShell from "@/components/HospitalShell";
 import Button from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
-import { getMyProfile } from "@/lib/data/user";
+import { requireProfile } from "@/lib/data/user";
 import { getMyJobs } from "@/lib/data/jobs";
 import {
   getReceivedApplications, STATUS_LABEL, STATUS_TONE, CANCELABLE, APPLICANTS_PER_PAGE,
@@ -119,8 +119,12 @@ function Applicant({ a, view, photoUrl }: Readonly<{ a: ApplicantListItem; view:
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                     {r.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트 전담 가능</span>}
+                    {/* 전화가 없으면 이메일이라도 보여준다 — 실측상 이메일만 있는 지원자가 수백 명이다.
+                        둘 다 없을 때만 '연락처 미입력'이라고 말한다. */}
                     {r.phone ? (
                       <span className="font-semibold text-slate-800">{r.phone}</span>
+                    ) : r.email ? (
+                      <span className="font-semibold text-slate-800">{r.email}</span>
                     ) : (
                       <span className="text-xs text-red-600">연락처 미입력</span>
                     )}
@@ -187,6 +191,10 @@ function Applicant({ a, view, photoUrl }: Readonly<{ a: ApplicantListItem; view:
                   <Button href={`sms:${r.phone}`} variant="outline" size="sm" className={TAP}>문자</Button>
                 </>
               )}
+              {/* 전화를 안 적었거나 안 받는 지원자에게 닿는 유일한 수단 */}
+              {r?.email && (
+                <Button href={`mailto:${r.email}`} variant="outline" size="sm" className={TAP}>메일</Button>
+              )}
               {open && (
                 <>
                   <StatusButton id={a.id} view={view} status="accepted" label="합격" variant="primary"
@@ -234,9 +242,7 @@ function StatusChips({ view, counts }: Readonly<{ view: View; counts: ApplicantC
 export default async function ApplicantsPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ ok?: string; error?: string; job_id?: string; status?: string; q?: string; page?: string }> }>) {
-  const p = await getMyProfile();
-  if (!p) redirect("/login");
-  if (p.role !== "hospital") redirect("/mypage");
+  const p = await requireProfile("/mypage/applicants", "hospital");
   const { ok, error, job_id, status, q, page } = await searchParams;
 
   // 상태는 알려진 값만 받는다 — 임의 문자열이 그대로 eq 로 들어가면 빈 화면만 나온다.

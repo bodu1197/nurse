@@ -13,7 +13,6 @@ import { safeNext } from "@/lib/url";
 export async function applyToJob(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
 
   const jobId = String(formData.get("job_id") ?? "");
   if (!jobId) redirect("/jobs");
@@ -21,6 +20,10 @@ export async function applyToJob(formData: FormData) {
   // 실패하면 눌렀던 화면으로 그대로 돌려보낸다(목록 옆 패널이면 그 URL, 단독 상세면 /jobs/[id]).
   const base = safeNext(String(formData.get("next") ?? ""), `/jobs/${encodeURIComponent(jobId)}`);
   const fail = (code: string) => redirect(`${base}${base.includes("?") ? "&" : "?"}apply=${code}`);
+
+  // 로그인 확인은 base 를 만든 뒤에 한다 — 그래야 로그인 후 **그 공고로** 돌아온다.
+  // (세션이 끊긴 채 지원 버튼을 누른 경우도 여기로 온다.)
+  if (!user) redirect(`/login?notice=apply&next=${encodeURIComponent(base)}`);
 
   // 서로 의존하지 않는 세 조회를 한 번에 보낸다(순서대로 기다리면 왕복이 3번이다).
   // 판정 순서는 그대로 유지한다 — 역할 → 공고 → 이력서.
@@ -82,9 +85,12 @@ export async function applyToJob(formData: FormData) {
 export async function toggleSaveJob(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
   const jobId = String(formData.get("job_id") ?? "");
   const next = safeNext(String(formData.get("next") ?? ""), "/jobs");
+  // 저장 버튼은 로그인 여부와 무관하게 그려진다 → 비로그인이 눌렀을 때 **왜 로그인해야 하는지**와
+  // **어디로 돌아올지**를 함께 넘긴다. 지원 버튼(JobDetail 의 loginHref)과 같은 규약.
+  // 이게 없으면 눌렀던 공고를 잊은 채 홈에 떨어졌다.
+  if (!user) redirect(`/login?notice=save&next=${encodeURIComponent(next)}`);
   if (!jobId) redirect(next);
   const { data: existing } = await supabase.from("saved_jobs").select("id").eq("profile_id", user.id).eq("job_id", jobId).maybeSingle();
   if (existing) {
@@ -99,7 +105,7 @@ export async function toggleSaveJob(formData: FormData) {
   redirect(next);
 }
 
-// 검색 저장(채용 알림 기반) — 로그인 사용자.
+// 검색 저장 — 로그인 사용자. 이메일 발송(SMTP)이 붙기 전까지는 '저장한 검색'이다 — 알림을 보내지 않는다.
 export async function saveSearch(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

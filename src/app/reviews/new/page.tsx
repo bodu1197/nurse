@@ -68,7 +68,12 @@ export default async function NewReviewPage({
             <textarea id="content" name="content" rows={7} required minLength={10} maxLength={2000} placeholder="근무 환경, 급여, 복지, 분위기 등 솔직한 경험을 적어주세요." className="rounded-xl border border-slate-300 p-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
           </div>
           <SubmitButton pendingText="등록 중…">리뷰 등록</SubmitButton>
-          <p className="text-xs text-slate-400">허위·비방 리뷰는 관련 법령에 따라 제한될 수 있으며, 신고 시 검토 후 비공개 처리됩니다.</p>
+          {/* 신고 버튼이 없는데 "신고 시"라고만 적어두면 사용자는 버튼을 찾다가 포기한다.
+              접수함을 만들 때까지는 실제로 닿는 곳(고객센터)을 그 자리에 링크한다. */}
+          <p className="text-xs text-slate-400">
+            허위·비방 리뷰는 관련 법령에 따라 제한될 수 있으며,{" "}
+            <a href="/contact" className="underline hover:text-slate-600">고객센터</a>로 신고하시면 검토 후 비공개 처리합니다.
+          </p>
         </form>
       </main>
     </>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { safeNext } from "@/lib/url";
 import { authErrorPath, type AuthErrorCode } from "@/lib/constants";
 
 interface NaverToken {
@@ -24,12 +25,13 @@ export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const state = searchParams.get("state");
-  // 코드를 타입으로 묶는다 — 오타가 나면 화면에 안내 없이 빈 에러만 뜨는데 그걸 컴파일에서 잡는다.
-  const fail = (r: AuthErrorCode) => {
-    const res = NextResponse.redirect(`${origin}${authErrorPath("/login", r)}`);
-    res.cookies.delete("naver_oauth_state"); // 실패 시에도 일회용 state 무효화
+  // 일회용 쿠키 3종을 한 번에 정리한다 — 하나라도 남으면 다음 로그인에 엉뚱한 역할·복귀주소가 붙는다.
+  const clearOnce = (res: NextResponse) => {
+    for (const c of ["naver_oauth_state", "naver_oauth_role", "naver_oauth_next"]) res.cookies.delete(c);
     return res;
   };
+  // 코드를 타입으로 묶는다 — 오타가 나면 화면에 안내 없이 빈 에러만 뜨는데 그걸 컴파일에서 잡는다.
+  const fail = (r: AuthErrorCode) => clearOnce(NextResponse.redirect(`${origin}${authErrorPath("/login", r)}`));
 
   const cookieStore = await cookies();
   const savedState = cookieStore.get("naver_oauth_state")?.value;
@@ -71,11 +73,19 @@ export async function GET(request: Request) {
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail("naver_email");
 
   // 3) Supabase 사용자 find-or-create (service_role)
+  // 가입 화면에서 '병원 채용담당자'를 골랐으면 그 값을 여기서 실어 준다 — 트리거(handle_new_user)가
+  // raw_user_meta_data.role 을 읽는다. 이메일 가입(signUp options.data)과 같은 경로다.
+  // 이미 가입된 이메일이면 createUser 가 실패하고 metadata 도 안 바뀐다 → 기존 회원의 역할은 그대로.
+  const wantHospital = cookieStore.get("naver_oauth_role")?.value === "hospital";
   const admin = createAdminClient();
   await admin.auth.admin
     .createUser({
       email,
       email_confirm: true,
+      // 🔴 "이 계정은 네이버로 만들었다(=비밀번호가 없다)" 는 표식은 app_metadata 에 둔다.
+      //    user_metadata 는 세션 소유자가 브라우저에서 직접 고칠 수 있어 서버 판정 근거가 못 된다
+      //    (탈퇴 시 비밀번호 확인 면제가 이 값에 걸려 있다 — mypage/actions.ts deleteAccount).
+      app_metadata: { provider: "naver" },
       user_metadata: {
         provider: "naver",
         naver_id: me?.id,
@@ -83,6 +93,7 @@ export async function GET(request: Request) {
         name: me?.name ?? me?.nickname,
         avatar_url: me?.profile_image ?? null,
         phone_number: me?.mobile_e164 ?? me?.mobile ?? null,
+        ...(wantHospital ? { role: "hospital" } : {}),
       },
     })
     .catch(() => {
@@ -99,8 +110,9 @@ export async function GET(request: Request) {
 
   // 5) 세션 발급: verifyOtp의 setAll이 쿠키를 res에 기록. 실패 시 아래에서 fail()로 응답을
   //    교체하므로(res 폐기) 무음 실패 없음. 성공 시에만 세션 쿠키가 담긴 res 반환.
-  const res = NextResponse.redirect(`${origin}/`);
-  res.cookies.delete("naver_oauth_state");
+  // 보던 공고로 돌아간다 — 전에는 무조건 홈이라, 공고 상세에서 '로그인하고 지원'을 누른 사람이
+  // 로그인만 마치고 그 공고를 다시 찾아야 했다(내부 경로만 허용 — safeNext).
+  const res = clearOnce(NextResponse.redirect(`${origin}${safeNext(cookieStore.get("naver_oauth_next")?.value)}`));
   const supabase = createServerClient(supabaseUrl, anonKey, {
     cookies: {
       getAll: () => cookieStore.getAll(),

@@ -68,7 +68,7 @@ export default async function SignupPage({
         <span className="h-px flex-1 bg-slate-200" />또는<span className="h-px flex-1 bg-slate-200" />
       </div>
 
-      <LoginButtons />
+      <LoginButtons role={isHospital ? "hospital" : "nurse"} />
 
       <p className="mt-6 text-center text-sm text-slate-500">
         이미 계정이 있으신가요?{" "}

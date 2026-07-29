@@ -165,12 +165,18 @@ export default async function JobsPage({
           </a> — 손쉽게 지원하세요
         </p>
         {/* 지금 걸린 필터를 한 줄로 모아 보여준다. 축이 넷이라 따로 풀려면 네 번 눌러야 했다. */}
-        {(spec || fac || cat || et || sd || kw) && (
+        {/* 🔴 loc(홈 히어로의 지역칸 ?l=)도 반드시 센다. 이게 빠져 있어서 "성남"으로 검색해 들어온
+            사람은 결과가 걸러지는데도 조건 줄이 아예 안 뜨고, 지역 드롭다운은 '전체'로 보이며,
+            '전체 초기화' 버튼조차 나타나지 않았다. 게다가 JobSearchBar 가 기존 쿼리를 그대로
+            복사해 옮기므로 그 보이지 않는 조건이 이후 모든 칩 클릭에 계속 따라붙었다. */}
+        {(spec || fac || cat || et || sd || kw || loc) && (
           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
             <span className="text-slate-400">적용된 조건</span>
             {[
               kw && `"${kw}"`,
               sd && (sg ? `${sd} ${sg}` : sd),
+              // 정규화 지역(sido)을 이미 고른 경우엔 같은 말을 두 번 하지 않는다.
+              !sd && loc && `지역 "${loc}"`,
               human("기관 종별", fac), human("진료과", spec), human("직종", cat), et,
             ].filter(Boolean).map((v) => (
               <span key={String(v)} className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">{v}</span>
@@ -199,7 +205,7 @@ export default async function JobsPage({
         </div>
         {saved === "1" && (
           <div role="status" className="mt-2 rounded-lg border border-teal-200 bg-teal-50 px-4 py-2 text-sm text-teal-800">
-            검색이 저장되었습니다. <a href="/mypage/alerts" className="font-semibold underline">채용 알림</a>에서 확인하세요.
+            검색이 저장되었습니다. <a href="/mypage/alerts" className="font-semibold underline">저장한 검색</a>에서 다시 찾을 수 있습니다.
           </div>
         )}
 

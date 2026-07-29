@@ -17,18 +17,21 @@ const clearRecoveryCookie = (jar: Awaited<ReturnType<typeof cookies>>) =>
 export async function signInWithId(formData: FormData) {
   const loginId = String(formData.get("loginId") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  if (!loginId || !password) redirect(authErrorPath("/login", "missing"));
+  // 실패해도 복귀 주소를 들고 되돌아간다 — 오타 한 번에 "지원하려던 공고"를 잃지 않게.
+  // safeNext 로 먼저 씻어서 되돌린다(주소창에 다시 실리는 값이라 그대로 넘기면 안 된다).
+  const next = safeNext(String(formData.get("next") ?? ""), "");
+  if (!loginId || !password) redirect(authErrorPath("/login", "missing", next));
 
   // 아이디 → 이메일 해석 (service_role, 서버 전용). 미존재 시 비번오류와 동일 메시지(아이디 노출 방지).
   const email = await resolveEmail(loginId);
-  if (!email) redirect(authErrorPath("/login", "invalid_credentials"));
+  if (!email) redirect(authErrorPath("/login", "invalid_credentials", next));
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) redirect(authErrorPath("/login", "invalid_credentials"));
+  if (error) redirect(authErrorPath("/login", "invalid_credentials", next));
 
   // 로그인 후 원래 보던 곳으로 복귀(내부 경로만 허용 — 오픈 리다이렉트 방지)
-  redirect(safeNext(String(formData.get("next") ?? "")));
+  redirect(safeNext(next));
 }
 
 export async function signOut() {
@@ -37,7 +40,9 @@ export async function signOut() {
   const jar = await cookies();
   jar.delete("view_as"); // 관리자 보기 전환 상태가 다음 로그인까지 남지 않도록
   clearRecoveryCookie(jar); // 비밀번호 재설정 표시가 다음 사람에게 넘어가지 않도록
-  redirect("/");
+  // ?left=1 — 도착한 화면이 이 브라우저에 남은 이력서·공고 초안을 지우는 신호다(DraftCleaner).
+  //   공용 PC 에서 로그아웃했는데 실명·휴대폰이 localStorage 에 남아 있으면 안 된다.
+  redirect("/?left=1");
 }
 
 // 아이디 → 이메일. 로그인과 재설정이 같은 규칙을 쓴다(레거시 회원은 아이디만 기억한다).
@@ -113,7 +118,15 @@ export async function signUpWithEmail(formData: FormData) {
   const supabase = await createClient();
   // 트리거(handle_new_user)가 raw_user_meta_data.role을 읽어 profiles.role 설정
   const { error } = await supabase.auth.signUp({ email, password, options: { data: { role } } });
-  if (error) redirect(`${authErrorPath("/signup", "signup_failed")}${keep}`);
+  if (error) {
+    // 🔴 전에는 모든 실패를 "이미 가입된 이메일일 수 있습니다" 하나로 뭉갰다. 이 서비스는 아직
+    //    커스텀 SMTP 가 없어 확인 메일이 시간당 2통으로 제한되므로(supabase/config.toml), 세 번째
+    //    가입자는 **처음 가입하는데** "이미 가입됨"이라는 말을 듣고 로그인도 재설정도 안 되는
+    //    막다른 길에 놓였다. 원인이 다르면 다르게 말한다. 원인은 로그에도 남긴다.
+    console.error("signUp failed:", error.status ?? "", error.message);
+    const code = error.status === 429 ? "rate_limited" : "signup_failed";
+    redirect(`${authErrorPath("/signup", code)}${keep}`);
+  }
 
   redirect("/signup?sent=1");
 }

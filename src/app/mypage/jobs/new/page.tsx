@@ -2,8 +2,10 @@ import { redirect } from "next/navigation";
 import HospitalShell from "@/components/HospitalShell";
 import SubmitButton from "@/components/SubmitButton";
 import HospitalPicker from "@/components/HospitalPicker";
+import { todayKst, nowMs } from "@/lib/date";
 import JobFields, { type JobDefaults } from "@/components/JobFields";
-import { getMyProfile } from "@/lib/data/user";
+import FormDraft from "@/components/FormDraft";
+import { requireProfile } from "@/lib/data/user";
 import { getMyJob, getMyHospital, getMyLastJob } from "@/lib/data/jobs";
 import { AD_PRODUCTS, won } from "@/lib/ads";
 import { createJob } from "../../actions";
@@ -11,6 +13,8 @@ import { createJob } from "../../actions";
 export const metadata = { title: "공고 등록 — 널스넷", robots: { index: false } };
 
 const ERR: Record<string, string> = {
+  deadline: "마감일이 오늘보다 이전입니다. 그대로 두면 공고가 한 번도 노출되지 않습니다.",
+  freelimit: "무료 공고는 동시 1건까지입니다. 아래 '게시 기간'을 유료로 바꾸거나, 공고 관리에서 기존 무료 공고를 마감한 뒤 다시 저장해 주세요.",
   missing: "병원과 공고 제목은 필수입니다.",
   hospital: "선택한 병원을 찾을 수 없습니다.",
   claimed: "이미 다른 계정이 등록·관리 중인 병원입니다.",
@@ -20,9 +24,7 @@ const ERR: Record<string, string> = {
 export default async function NewJobPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ error?: string; from?: string }> }>) {
-  const p = await getMyProfile();
-  if (!p) redirect("/login");
-  if (p.role !== "hospital") redirect("/mypage");
+  const p = await requireProfile("/mypage/jobs/new", "hospital");
   if (!p.businessVerified) redirect("/mypage/verify?from=jobs-new");
   const { error, from } = await searchParams;
   const dup = !!from;
@@ -65,6 +67,14 @@ export default async function NewJobPage({
         )}
 
         <form action={createJob} className="mt-6 flex flex-col gap-4">
+          {/* 임시저장 — 입력항목이 15개라 쓰다 중단하면 처음부터 다시 써야 했다.
+              무료 1건 제한에 걸려 되돌아오는 경우가 바로 그 상황이다. */}
+          <FormDraft
+            storageKey={`nursenet:draft:job-new:${p.email}`}
+            ownErrors={["missing", "hospital", "claimed", "save", "freelimit", "deadline"]}
+            // 병원은 hidden 값이라 초안에 담기지 않는다(HospitalPicker) → 복원 배너에서 먼저 알린다.
+            note={myHosp ? undefined : "병원은 다시 선택해 주세요."}
+          />
           {myHosp ? (
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium text-slate-700">병원</span>
@@ -81,7 +91,7 @@ export default async function NewJobPage({
               <HospitalPicker initial={template?.hospital ? { id: template.hospital.id, name: template.hospital.name, region: null, address: null } : null} />
             </div>
           )}
-          <JobFields d={d} />
+          <JobFields d={d} minDeadline={todayKst(nowMs())} />
 
           <fieldset className="flex flex-col gap-2">
             <legend className="text-sm font-medium text-slate-700">게시 기간</legend>

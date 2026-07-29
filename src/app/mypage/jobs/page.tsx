@@ -1,8 +1,7 @@
-import { redirect } from "next/navigation";
 import HospitalShell from "@/components/HospitalShell";
 import Button from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
-import { getMyProfile } from "@/lib/data/user";
+import { requireProfile } from "@/lib/data/user";
 import { getMyJobs } from "@/lib/data/jobs";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import { jobState, isLive } from "@/lib/jobState";
@@ -14,9 +13,7 @@ export const metadata = { title: "공고 관리 — 널스넷", robots: { index:
 export default async function MyJobsPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ ok?: string; error?: string }> }>) {
-  const p = await getMyProfile();
-  if (!p) redirect("/login");
-  if (p.role !== "hospital") redirect("/mypage");
+  const p = await requireProfile("/mypage/jobs", "hospital");
   const [{ ok, error }, jobs] = await Promise.all([searchParams, getMyJobs()]);
   const now = nowMs();
 
@@ -87,7 +84,13 @@ export default async function MyJobsPage({
                     )}
                     <form action={deleteJob} className="inline">
                       <input type="hidden" name="job_id" value={j.id} />
-                      <ConfirmSubmit message="이 공고를 삭제할까요? 지원자 정보도 함께 사라지며 되돌릴 수 없습니다.">삭제</ConfirmSubmit>
+                      {/* 광고가 살아 있는 공고는 남은 기간이 그대로 사라진다 — 돈이 걸린 일이라 그 사실을 먼저 말한다.
+                          대안(마감하기)이 바로 옆에 있다는 것도 같이 알린다. */}
+                      <ConfirmSubmit message={featured
+                        ? `이 공고는 광고가 ${daysLeft}일 남았습니다.
+삭제하면 남은 광고 기간은 환불·이전되지 않으며 지원자 정보도 함께 사라집니다.
+잠시 내리기만 하려면 '마감하기'를 쓰세요.`
+                        : "이 공고를 삭제할까요? 지원자 정보도 함께 사라지며 되돌릴 수 없습니다."}>삭제</ConfirmSubmit>
                     </form>
                   </div>
                 </li>

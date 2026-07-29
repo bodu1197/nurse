@@ -10,7 +10,7 @@ const NAV = [
   { href: "/mypage/resume", label: "내 이력서" },
   { href: "/mypage/applications", label: "지원 내역" },
   { href: "/mypage/saved", label: "저장한 공고" },
-  { href: "/mypage/alerts", label: "채용 알림" },
+  { href: "/mypage/alerts", label: "저장한 검색" },
   { href: "/mypage/account", label: "내 정보 · 계정" },
   { href: "/jobs", label: "채용공고 찾기" },
 ];

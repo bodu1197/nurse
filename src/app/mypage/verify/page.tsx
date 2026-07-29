@@ -1,9 +1,8 @@
-import { redirect } from "next/navigation";
 import HospitalShell from "@/components/HospitalShell";
 import SubmitButton from "@/components/SubmitButton";
 import Button from "@/components/Button";
 import HospitalPicker from "@/components/HospitalPicker";
-import { getMyProfile } from "@/lib/data/user";
+import { requireProfile } from "@/lib/data/user";
 import { getMyHospital } from "@/lib/data/jobs";
 import { INPUT_CLASS } from "@/lib/constants";
 import { verifyHospitalBusiness } from "../actions";
@@ -22,15 +21,13 @@ const ERR: Record<string, string> = {
   config: "인증 설정 오류입니다. 관리자에게 문의해 주세요.",
   fail: "인증에 실패했습니다. 다시 시도해 주세요.",
   hospital: "선택한 병원을 찾을 수 없습니다.",
-  claimed: "이미 다른 계정이 등록·관리 중인 병원입니다.",
+  claimed: "이미 다른 계정이 등록·관리 중인 병원입니다. 우리 병원이 맞다면 고객센터(/contact)로 사업자등록증과 함께 알려주세요 — 확인 후 연결을 옮겨드립니다.",
 };
 
 export default async function VerifyPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ ok?: string; error?: string; from?: string; reverify?: string }> }>) {
-  const p = await getMyProfile();
-  if (!p) redirect("/login");
-  if (p.role !== "hospital") redirect("/mypage");
+  const p = await requireProfile("/mypage/verify", "hospital");
   const { ok, error, from, reverify } = await searchParams;
   const verified = p.businessVerified || ok === "1";
   // 이관해온 번호가 폼에 미리 채워지는 경우에만 안내를 띄운다(재인증은 새 번호를 받으므로 제외).

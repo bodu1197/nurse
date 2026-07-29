@@ -49,8 +49,8 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
 export default async function JobPage({
   params,
   searchParams,
-}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ apply?: string; ok?: string; q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; et?: string; page?: string }> }>) {
-  const [{ id }, { apply, ok, q, l, sido, sigungu, spec, et, page }] = await Promise.all([params, searchParams]);
+}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ apply?: string; ok?: string; q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; fac?: string; cat?: string; et?: string; page?: string }> }>) {
+  const [{ id }, { apply, ok, q, l, sido, sigungu, spec, fac, cat, et, page }] = await Promise.all([params, searchParams]);
   // 시군구는 시도에 종속 — 시도 없으면 무시(목록과 같은 계약).
   const sg = sido ? sigungu : undefined;
   const now = nowMs();
@@ -59,11 +59,14 @@ export default async function JobPage({
   if (!job) notFound();
 
   // 목록에서 필터를 걸고 들어왔으면(spec·et 등) 그 검색결과를 사이드바·닫기 링크로 그대로 이어간다.
-  const fromSearch = !!(q || l || sido || spec || et);
+  // 🔴 fac(기관 종별)·cat(직종)도 같이 본다 — 목록은 이 두 칩을 실어 보내는데(jobFilterQs) 여기가
+  // 받지 않아서, '요양병원' 칩 하나로 좁힌 사람이 공고를 열자마자 사이드바가 '최근 공고'로
+  // 바뀌고 '목록으로'를 누르면 필터가 풀린 전체 목록으로 돌아갔다.
+  const fromSearch = !!(q || l || sido || spec || fac || cat || et);
   const pageNum = Math.max(1, Number(page) || 1);
   // 검색 컨텍스트 쿼리스트링(페이지 지정 가능) — 사이드바 카드·페이지네이션·닫기 공용.
   // 직렬화 규칙은 목록과 같은 jobFilterQs 한 곳을 쓴다(필터 추가 시 한쪽만 고쳐 끊기는 것 방지).
-  const qsFor = (toPage: number) => jobFilterQs({ q, l, sido, sigungu: sg, spec, et }, toPage);
+  const qsFor = (toPage: number) => jobFilterQs({ q, l, sido, sigungu: sg, spec, fac, cat, et }, toPage);
   const searchQs = qsFor(pageNum);
   // 닫기(X)·목록 링크가 돌아갈 곳: 필터가 있으면 그 검색결과, 없으면 목록 첫 화면.
   const backHref = "/jobs" + (searchQs ? `?${searchQs}` : "");
@@ -78,7 +81,7 @@ export default async function JobPage({
     profile ? getSavedJobIds([job.id]) : Promise.resolve(new Set<string>()),
     // 필터로 들어왔으면 같은 검색결과(전체 개수 포함)를, 아니면 같은 지역(없으면 최근) 공고를 좌측 사이드바로.
     fromSearch
-      ? getJobs(q ?? "", l ?? "", { sido, sigungu: sg, specialty: spec, employmentType: et }, pageNum, true)
+      ? getJobs(q ?? "", l ?? "", { sido, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et }, pageNum, true)
           .then((r) => ({ jobs: r.jobs.filter((x) => x.id !== id), sameRegion: false, total: r.total }))
       : getNearbyJobs(job.location, job.id).then((r) => ({ ...r, total: 0 })),
   ]);

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import SiteFooter from "@/components/SiteFooter";
 import { SITE_URL } from "@/lib/constants";
 import { FONT_PRELOAD_HREF } from "./fonts";
 import "./globals.css";
@@ -6,14 +7,23 @@ import "./globals.css";
 // 폰트는 globals.css → fonts.css 의 @font-face 로 자가호스팅(외부요청 0).
 // next/font/local 은 unicode-range 를 못 다뤄서 직접 선언한다.
 
-const TITLE = "널스넷 — 간호사 채용, 검색 한 번으로";
+// 🔴 제목·설명·키워드는 **레거시 널스넷(nursenet.co.kr)에서 그대로 가져온다**(오너 확정 2026-07-30).
+//    수년간 그 문구로 색인·순위가 쌓였다. 여기서 "더 나은 카피"로 바꾸면 그 축적을 버리는 것이다.
+//    바꿔야 할 일이 생기면 레거시와 함께 바꾼다 — 한쪽만 바꾸면 두 사이트가 다른 말을 한다.
+const TITLE = "널스넷 - 간호사 간호조무사 병원 구인 구직 NO.1";
 const DESCRIPTION =
-  "간호사·간호조무사 채용공고를 한곳에서. 진료과·지역·근무형태로 검색하고 간편지원하세요.";
+  "상급종합병원부터 동네 병원까지 채용, 연봉, 리뷰, 면접 후기! 간호사·조무사는 '널스넷'에서 확인하세요";
+// 레거시 meta[name=keywords] 원문. 빈 항목 하나(", ,")만 덜어냈다 — 값이 아니라 오타다.
+const KEYWORDS = [
+  "간호사 커뮤니티", "병원구인구직", "간호사구인", "간호조무사모집", "의료취업",
+  "취업", "간호조무사구인구직", "월급", "연봉", "취업사이트",
+];
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: TITLE,
   description: DESCRIPTION,
+  keywords: KEYWORDS,
   // canonical은 여기(루트)에 두지 않는다 — 하위 페이지가 alternates를 선언하지 않으면 그대로 상속돼
   // noindex 페이지들이 전부 "홈이 정본"이라고 말하게 된다. 각 공개 페이지가 자기 canonical을 선언한다.
   openGraph: {
@@ -26,6 +36,9 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
+
+// 레거시와 같은 값. 모바일 주소창 색이 사이트마다 튀지 않게 한다.
+export const viewport = { themeColor: "#0044ff" };
 
 const ORG_JSONLD = {
   "@context": "https://schema.org",
@@ -62,6 +75,9 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSONLD) }}
         />
         {children}
+        {/* 푸터는 전 화면 공용 — 홈에만 있던 것을 여기로 올렸다. 각 페이지의 <main>이 flex-1이라
+            내용이 짧아도 바닥에 붙는다. */}
+        <SiteFooter />
       </body>
     </html>
   );

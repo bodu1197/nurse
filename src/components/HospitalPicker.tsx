@@ -10,6 +10,7 @@ export default function HospitalPicker({ initial }: { initial?: Hosp | null }) {
   const [selected, setSelected] = useState<Hosp | null>(initial ?? null);
   const [loading, setLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const seq = useRef(0); // 요청 순번 — 느린 이전 응답이 최신 결과를 덮어쓰지 않게
 
   function onChange(v: string) {
     setQ(v);
@@ -20,14 +21,19 @@ export default function HospitalPicker({ initial }: { initial?: Hosp | null }) {
       return;
     }
     setLoading(true);
+    // 요청 순번 가드 — 먼저 보낸 느린 응답이 나중에 도착해 최신 결과를 덮어쓰면,
+    // 방금 지운 검색어의 병원이 목록에 남아 **엉뚱한 병원을 고를 수 있다**.
+    // 같은 API 를 쓰는 HospitalSearchBox 는 이미 이 가드를 가지고 있다.
+    const mine = ++seq.current;
     timer.current = setTimeout(async () => {
       try {
         const r = await fetch(`/api/hospitals/search?q=${encodeURIComponent(v.trim())}`);
-        setResults(r.ok ? await r.json() : []);
+        const data = r.ok ? await r.json() : [];
+        if (mine === seq.current) setResults(data);
       } catch {
-        setResults([]);
+        if (mine === seq.current) setResults([]);
       } finally {
-        setLoading(false);
+        if (mine === seq.current) setLoading(false);
       }
     }, 250);
   }

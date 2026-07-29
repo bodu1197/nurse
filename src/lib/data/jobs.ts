@@ -303,7 +303,10 @@ export async function getNearbyJobs(location: string | null, excludeId: string, 
   return { jobs: jobs.filter((j) => j.id !== excludeId).slice(0, limit), sameRegion: false };
 }
 
-export type MyJob = { id: string; title: string; status: JobStatus; posted_at: string; featured_until: string | null; applicant_count: number };
+// 🔴 deadline·source 도 실어야 한다. 병원 화면의 '노출 중' 판정을 구직자 쪽(isOpenToSeekers)과
+//    같은 규칙으로 맞추려면 필요하다. 이게 없으면 마감일이 지난 공고를 "무료 ···까지 (N일 남음)"
+//    으로 표시하고 제목을 누르면 404 가 된다.
+export type MyJob = { id: string; title: string; status: JobStatus; source: string; posted_at: string; featured_until: string | null; deadline: string | null; applicant_count: number };
 
 // 병원 — 내가 소유한 병원의 공고 목록 + 지원자 수.
 export async function getMyJobs(): Promise<MyJob[]> {
@@ -314,15 +317,15 @@ export async function getMyJobs(): Promise<MyJob[]> {
   const ids = (hosps ?? []).map((h) => h.id);
   if (ids.length === 0) return [];
 
-  type Raw = { id: string; title: string; status: JobStatus; posted_at: string; featured_until: string | null; applications: { count: number }[] };
+  type Raw = { id: string; title: string; status: JobStatus; source: string; posted_at: string; featured_until: string | null; deadline: string | null; applications: { count: number }[] };
   const { data } = await supabase
     .from("jobs")
-    .select("id,title,status,posted_at,featured_until,applications(count)")
+    .select("id,title,status,source,posted_at,featured_until,deadline,applications(count)")
     .in("hospital_id", ids)
     .order("posted_at", { ascending: false })
     .returns<Raw[]>();
   return (data ?? []).map((j) => ({
-    id: j.id, title: j.title, status: j.status, posted_at: j.posted_at, featured_until: j.featured_until,
+    id: j.id, title: j.title, status: j.status, source: j.source, posted_at: j.posted_at, featured_until: j.featured_until, deadline: j.deadline,
     applicant_count: j.applications?.[0]?.count ?? 0,
   }));
 }
@@ -356,6 +359,8 @@ export type MyJobDetail = {
   employment_type: string | null; salary_text: string | null; benefits: string[];
   description: string | null; status: JobStatus; posted_at: string;
   recruit_count: number | null; shift_type: string | null;
+  // 마감일도 수정·복제 폼이 다시 채워야 한다 — 빠지면 수정할 때마다 조용히 '상시'가 된다.
+  deadline: string | null;
   manager_name: string | null; manager_phone: string | null;
   apply_methods: string[]; apply_email: string | null; apply_detail: string | null;
   hospital: { id: string; name: string } | null;
@@ -370,7 +375,7 @@ export async function getMyJob(id: string): Promise<MyJobDetail | null> {
   type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string; owner_profile_id: string | null } | null };
   const { data } = await supabase
     .from("jobs")
-    .select("id,title,specialty,facility_type,job_category,location,employment_type,salary_text,benefits,description,status,posted_at,recruit_count,shift_type,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(id,name,owner_profile_id)")
+    .select("id,title,specialty,facility_type,job_category,location,employment_type,salary_text,benefits,description,status,posted_at,recruit_count,shift_type,deadline,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(id,name,owner_profile_id)")
     .eq("id", id)
     .maybeSingle()
     .returns<Raw>();
@@ -389,7 +394,7 @@ export async function getMyLastJob(): Promise<MyJobDetail | null> {
   type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string } | null };
   const { data } = await supabase
     .from("jobs")
-    .select("id,title,specialty,facility_type,job_category,location,employment_type,salary_text,benefits,description,status,posted_at,recruit_count,shift_type,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(id,name)")
+    .select("id,title,specialty,facility_type,job_category,location,employment_type,salary_text,benefits,description,status,posted_at,recruit_count,shift_type,deadline,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(id,name)")
     .in("hospital_id", ids)
     .order("posted_at", { ascending: false })
     .limit(1)

@@ -33,9 +33,20 @@ export const timeAgo = (iso: string) => {
 // 직접등록 공고의 노출 종료 시각: 광고 중이면 featured_until, 아니면 게시 + 7일(무료 노출).
 // 화면(목록·상세)과 서버 액션(지원 가능 여부)이 **같은 규칙**을 써야 해서 여기 한 곳에만 둔다.
 // 컴포넌트가 아니라 lib에 두는 이유: actions.ts가 컴포넌트를 import하면 순환이 된다.
-export const listingEnd = (job: { posted_at: string; featured_until: string | null }, now: number) => {
+// 🔴 deadline 도 **필수 인자**로 받는다(jobState 와 같은 계약). 병원이 마감일을 넣을 수 있게 되면서,
+//    이걸 안 보면 "무료 8월 6일까지 (7일 남음)" 이라 적어놓고 실제로는 내일 사라지는 공고가 생긴다.
+//    대시보드의 '마감 임박(3일)' 위젯도 같은 값을 쓰므로 존재 이유 자체가 무력화됐다.
+//    선택 인자로 두면 호출부가 조용히 빠뜨리므로 필수로 둔다.
+export const listingEnd = (
+  job: { posted_at: string; featured_until: string | null; deadline: string | null },
+  now: number,
+) => {
   const featured = job.featured_until ? new Date(job.featured_until).getTime() : 0;
-  return featured > now ? featured : new Date(job.posted_at).getTime() + FREE_LISTING_MS;
+  const base = featured > now ? featured : new Date(job.posted_at).getTime() + FREE_LISTING_MS;
+  if (!job.deadline) return base;
+  // 마감일은 date 컬럼이고 "그 날까지 유효"다 → KST 그날 23:59:59 까지. 둘 중 먼저 오는 쪽이 종료다.
+  const until = Date.parse(`${job.deadline}T23:59:59+09:00`);
+  return Number.isNaN(until) ? base : Math.min(base, until);
 };
 
 // ms → "2026.07.23". 한국 사용자 기준(KST)으로 자른다 —

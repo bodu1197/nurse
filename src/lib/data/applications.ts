@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/data/user";
 import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
+import { isOpenToSeekers, type JobStatus } from "@/lib/jobState";
+import { nowMs } from "@/lib/date";
 
 /**
  * 지원 상태 — DB의 check 제약(20260723140000)과 같은 집합.
@@ -49,6 +51,8 @@ export type MyApplication = {
   updated_at: string;
   job: { id: string; title: string; hospital: { name: string } | null } | null;
   job_id: string;
+  /** 그 공고가 지금도 구직자에게 열려 있는가 — '다시 지원'·제목 링크를 그릴지 정한다. */
+  jobOpen: boolean;
 };
 
 // 간호사 — 내가 지원한 내역.
@@ -66,6 +70,7 @@ export async function getMyApplications(): Promise<MyApplication[]> {
     .limit(LIST_LIMIT)
     .returns<MyApplication[]>();
   const rows = data ?? [];
+  if (rows.length === 0) return rows; // 지원 0건이면 아래 두 조회를 아예 보내지 않는다
 
   const missing = rows.filter((r) => !r.job).map((r) => r.job_id);
   if (missing.length > 0) {
@@ -75,6 +80,25 @@ export async function getMyApplications(): Promise<MyApplication[]> {
     const byId = new Map((closed ?? []).map((j) => [j.id, j]));
     rows.forEach((r) => { if (!r.job) r.job = byId.get(r.job_id) ?? null; });
   }
+
+  // 🔴 공고가 지금도 열려 있는지 함께 판정한다.
+  //    이게 없어서 화면은 취소한 지원에 '다시 지원' 버튼을 무조건 그렸고, 누르면
+  //    404 가 났다 — 직접등록 공고는 게시 7일(또는 광고 기간)만 살아 있기 때문이다.
+  //    저장한 공고 화면은 이미 같은 함수(isOpenToSeekers)로 걸러내고 있었다 — 두 화면의 규칙을 맞춘다.
+  const now = nowMs();
+  const { data: live, error: liveErr } = await createAdminClient()
+    .from("jobs").select("id,status,source,posted_at,featured_until,deadline")
+    .in("id", rows.map((r) => r.job_id))
+    .returns<Array<{ id: string; status: JobStatus; source: string; posted_at: string; featured_until: string | null; deadline: string | null }>>();
+  // 조회 자체가 실패하면 지원 내역 **전부**가 '마감'으로 보이고 공고 링크가 사라진다 →
+  // 열린 쪽으로 기울인다(링크를 눌렀을 때 404 화면은 이유를 설명한다). 원인은 로그에 남긴다.
+  if (liveErr) {
+    console.error("getMyApplications(job state) failed:", liveErr.message);
+    rows.forEach((r) => { r.jobOpen = true; });
+    return rows;
+  }
+  const openIds = new Set((live ?? []).filter((j) => isOpenToSeekers(j, now)).map((j) => j.id));
+  rows.forEach((r) => { r.jobOpen = openIds.has(r.job_id); });
   return rows;
 }
 
@@ -118,8 +142,11 @@ export type ApplicantResume = ResumeSheetFields & { profile_id: string };
  * 타입과 select 문자열을 이 배열 하나에서 뽑는다(둘이 어긋나면 화면이 런타임에 깨진다).
  */
 // 병원이 지원자를 걸러낼 때 실제로 보는 것 — 근무형태가 안 맞으면 나머지는 보지도 않는다.
+// 🔴 email 을 반드시 포함한다. 이게 빠져 있어서 목록은 이메일이 있는 지원자도
+//    "연락처 미입력"으로 표시하고 연락 버튼을 감췄다 — 이력서 전문 보기로 들어가면
+//    서식에는 이메일이 분명히 찍혀 있었다. 담당자는 연락 가능한 사람을 걸러버렸다.
 const CARD_FIELDS = [
-  "profile_id", "name", "phone", "license_type", "career_level", "experience_years",
+  "profile_id", "name", "phone", "email", "license_type", "career_level", "experience_years",
   "certifications", "shift_types", "night_available", "specialties", "desired_location", "intro",
 ] as const satisfies readonly (keyof ApplicantResume)[];
 

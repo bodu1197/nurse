@@ -14,6 +14,7 @@ export type JobDefaults = {
   description?: string | null;
   recruit_count?: number | null;
   shift_type?: string | null;
+  deadline?: string | null;
   manager_name?: string | null;
   manager_phone?: string | null;
   apply_methods?: string[] | null;
@@ -26,7 +27,8 @@ const label = "text-sm font-medium text-slate-700";
 const TYPES = ["정규직", "계약직", "파트타임", "인턴"];
 const SHIFTS = ["협의", "3교대", "2교대", "낮번 전담", "야간 전담", "평일 주간"];
 
-export default function JobFields({ d = {} }: { d?: JobDefaults }) {
+// minDeadline: 오늘 날짜(YYYY-MM-DD). 렌더 중에 Date.now() 를 부르면 순수함이 깨진다 → 페이지가 넘긴다.
+export default function JobFields({ d = {}, minDeadline }: { d?: JobDefaults; minDeadline: string }) {
   // 자유 입력이면 표기가 제각각이라 검색 필터에서 통째로 빠진다 → 목록에서 선택.
   // 기존 공고에 목록 밖 값이 있으면 그 값도 옵션으로 남긴다(수정할 때 조용히 지워지지 않게).
   const withCurrent = (list: readonly string[], cur: string | null | undefined) =>
@@ -91,6 +93,14 @@ export default function JobFields({ d = {} }: { d?: JobDefaults }) {
           <label htmlFor="recruit_count" className={label}>모집인원</label>
           <input id="recruit_count" name="recruit_count" type="number" min="1" defaultValue={d.recruit_count ?? ""} placeholder="명 (비우면 0명)" className={field} />
         </div>
+      </div>
+      {/* 🔴 마감일 입력이 없었다. jobs.deadline 컬럼도 있고 목록·상세·사이트맵이 전부 '마감일 지난
+          공고 제외'를 거는데, 병원이 그 날짜를 알려줄 칸이 폼에 없어 직접 등록 공고는 항상 '상시'였다
+          (수집한 워크넷 공고에는 마감일이 있어, 같은 목록에서 두 종류가 다른 규칙으로 사라졌다).
+          native date 입력이라 달력·검증이 공짜다. */}
+      <div className="flex flex-col gap-1 sm:max-w-[16rem]">
+        <label htmlFor="deadline" className={label}>마감일 <span className="text-slate-400">(비우면 상시모집)</span></label>
+        <input id="deadline" name="deadline" type="date" min={minDeadline} defaultValue={d.deadline ?? ""} className={field} />
       </div>
       <div className="flex flex-col gap-1">
         <label htmlFor="benefits" className={label}>복리후생 <span className="text-slate-400">(쉼표로 구분)</span></label>

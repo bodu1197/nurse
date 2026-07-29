@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import NurseShell from "@/components/NurseShell";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import Button from "@/components/Button";
-import { getMyProfile } from "@/lib/data/user";
+import { requireProfile } from "@/lib/data/user";
 import { getMyApplications, STATUS_LABEL, STATUS_TONE, CANCELABLE, LIST_LIMIT } from "@/lib/data/applications";
 import { fmtDay } from "@/lib/date";
 import { withdrawApplication } from "../actions";
@@ -13,9 +12,7 @@ export const metadata = { title: "지원 내역 — 널스넷", robots: { index:
 export default async function ApplicationsPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ ok?: string; error?: string }> }>) {
-  const p = await getMyProfile();
-  if (!p) redirect("/login");
-  if (p.role !== "nurse") redirect("/mypage");
+  const p = await requireProfile("/mypage/applications", "nurse");
   const [{ ok, error }, apps] = await Promise.all([searchParams, getMyApplications()]);
 
   return (
@@ -38,7 +35,15 @@ export default async function ApplicationsPage({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     {/* 지원 목록도 길이가 정해져 있지 않다 → 미리 받아오지 않는다 */}
-                    <Link href={`/jobs/${a.job_id}`} prefetch={false} className="font-semibold text-slate-900 hover:text-teal-700">{a.job?.title ?? "공고"}</Link>
+                    {a.jobOpen ? (
+                      <Link href={`/jobs/${a.job_id}`} prefetch={false} className="font-semibold text-slate-900 hover:text-teal-700">{a.job?.title ?? "공고"}</Link>
+                    ) : (
+                      // 노출이 끝난 공고는 열면 404 다 — 링크 대신 상태를 보여준다.
+                      <span className="font-semibold text-slate-700">
+                        {a.job?.title ?? "공고"}
+                        <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 align-middle text-xs font-medium text-slate-500">마감</span>
+                      </span>
+                    )}
                     <div className="text-sm text-slate-500">{a.job?.hospital?.name ?? "병원 미상"} · {fmtDay(a.created_at)} 지원</div>
                   </div>
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[a.status]}`}>{STATUS_LABEL[a.status]}</span>
@@ -51,7 +56,9 @@ export default async function ApplicationsPage({
                     <span className="text-xs text-slate-500">{fmtDay(a.updated_at)} 상태 변경</span>
                   )}
                   <span className="ml-auto flex items-center gap-2">
-                    {a.status === "withdrawn" && <Button href={`/jobs/${a.job_id}`} variant="outline" size="sm" className="min-h-11">다시 지원</Button>}
+                    {a.status === "withdrawn" && (a.jobOpen
+                      ? <Button href={`/jobs/${a.job_id}`} variant="outline" size="sm" className="min-h-11">다시 지원</Button>
+                      : <Button href="/jobs" variant="outline" size="sm" className="min-h-11">비슷한 공고 찾기</Button>)}
                     {CANCELABLE.some((s) => s === a.status) && (
                       <form action={withdrawApplication} className="inline">
                         <input type="hidden" name="application_id" value={a.id} />

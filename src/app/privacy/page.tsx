@@ -1,5 +1,6 @@
 import SiteHeader from "@/components/SiteHeader";
 import { getCurrentUser } from "@/lib/data/user";
+import { COMPANY, SUBTLE_LINK_CLASS } from "@/lib/constants";
 
 export const metadata = {
   title: "개인정보처리방침 — 널스넷",
@@ -14,7 +15,7 @@ export default async function PrivacyPage() {
       <SiteHeader user={user} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
         <h1 className="text-2xl font-bold text-slate-900">개인정보처리방침</h1>
-        <p className="mt-1 text-sm text-slate-500">시행일: 2026년 7월 24일</p>
+        <p className="mt-1 text-sm text-slate-500">시행일: 2026년 7월 30일</p>
 
         <div className="mt-8 space-y-6 text-sm leading-relaxed text-slate-700">
           <section>
@@ -29,11 +30,11 @@ export default async function PrivacyPage() {
           </section>
           <section>
             <h2 className="font-bold text-slate-900">2. 개인정보의 이용 목적</h2>
-            <p className="mt-1">회원 식별 및 인증, 채용 중개(지원·열람·메시지), 병원 사업자 진위확인, 서비스 운영 및 개선, 부정 이용 방지를 위해 이용합니다.</p>
+            <p className="mt-1">회원 식별 및 인증, 채용 중개(지원·이력서 열람), 병원 사업자 진위확인, 서비스 운영 및 개선, 부정 이용 방지를 위해 이용합니다.</p>
           </section>
           <section>
             <h2 className="font-bold text-slate-900">3. 제3자 제공</h2>
-            <p className="mt-1">회사는 원칙적으로 개인정보를 외부에 제공하지 않습니다. 다만 다음의 경우 이력서 정보가 병원 회원에게 제공됩니다: (1) 간호사 회원이 공고에 지원하는 경우 해당 공고를 등록한 병원 회원에게, (2) 간호사 회원이 <b>이력서 공개에 동의한 경우</b> 널스넷에 광고 중인 병원 회원이 인재 검색을 통해 이를 열람할 수 있습니다. 공개 동의는 언제든지 이력서 화면에서 철회할 수 있으며, 철회 즉시 열람이 중단됩니다. 병원 사업자 진위확인을 위해 국세청 사업자등록 정보 진위확인 OpenAPI에 사업자등록번호·대표자명·개업일을 전송합니다.</p>
+            <p className="mt-1">회사는 원칙적으로 개인정보를 외부에 제공하지 않습니다. 다만 다음의 경우 이력서 정보가 제공·공개됩니다: (1) 간호사 회원이 공고에 지원하는 경우 해당 공고를 등록한 병원 회원에게 이력서 전체가 제공됩니다. (2) 간호사 회원이 <b>이력서 공개에 동의한 경우</b> 인재정보 화면에서 <b>로그인하지 않은 방문자를 포함한 누구나</b> 성별·나이·거주지역·학력·경력·자격·희망 근무조건·자기소개를 열람할 수 있으며, <b>이름·휴대폰·이메일·증명사진은 널스넷에 광고 중인 병원 회원에게만</b> 표시됩니다. 공개 동의는 언제든지 이력서 화면에서 철회할 수 있으며, 철회 즉시 열람이 중단됩니다. 병원 사업자 진위확인을 위해 국세청 사업자등록 정보 진위확인 OpenAPI에 사업자등록번호·대표자명·개업일을 전송합니다.</p>
           </section>
           <section>
             <h2 className="font-bold text-slate-900">4. 처리 위탁</h2>
@@ -53,7 +54,12 @@ export default async function PrivacyPage() {
           </section>
           <section>
             <h2 className="font-bold text-slate-900">8. 개인정보 보호책임자 및 문의</h2>
-            <p className="mt-1">개인정보 보호책임자: 널스넷 운영팀<br />문의: howtattoo@howtattoo.co.kr</p>
+            {/* 연락처는 COMPANY 한 곳에서 온다 — 푸터·고객센터와 다른 값을 말하면 안 된다 */}
+            <p className="mt-1">
+              개인정보 보호책임자: 널스넷 운영팀<br />
+              문의: <a href={`mailto:${COMPANY.email}`} className={SUBTLE_LINK_CLASS}>{COMPANY.email}</a> · {COMPANY.tel}<br />
+              <a href="/contact" className={SUBTLE_LINK_CLASS}>고객센터</a>
+            </p>
           </section>
         </div>
       </main>

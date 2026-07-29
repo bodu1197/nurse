@@ -1,18 +1,13 @@
 import { cache } from "react";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Role } from "@/lib/data/user";
 import { getMembership } from "@/lib/data/membership";
-import { SHEET_COLS, type ResumeSheetFields } from "@/lib/data/resume";
 import { signAvatarPaths } from "@/lib/data/avatar";
 import { todayKst, nowMs } from "@/lib/date";
 import type { Database } from "@/types/database";
 
 // 인재 검색(병원 → 공개 이력서). 열람 자격은 DB 정책(resumes_select_advertiser)이 최종 판정하고,
 // 여기서는 화면 안내를 위해 같은 조건을 한 번 더 확인한다.
-export type TalentRow = ResumeSheetFields & { profile_id: string; updated_at: string };
-
-const COLS = `profile_id,${SHEET_COLS},updated_at`;
 
 export const TALENT_PER_PAGE = 20;
 
@@ -251,33 +246,3 @@ export async function revealContacts(profileIds: readonly string[]): Promise<Map
   }));
 }
 
-export async function searchTalent(f: TalentFilters, page = 1): Promise<{ rows: TalentRow[]; total: number }> {
-  const supabase = await createClient();
-  const from = (Math.max(1, page) - 1) * TALENT_PER_PAGE;
-  let query = supabase
-    .from("resumes")
-    .select(COLS, { count: "exact" })
-    .eq("is_public", true)
-    .order("updated_at", { ascending: false })
-    .range(from, from + TALENT_PER_PAGE - 1);
-
-  if (f.specialty) query = query.contains("specialties", [f.specialty]);
-  if (f.category) query = query.contains("job_categories", [f.category]);
-  // 키워드 — 이력서 제목과 자기소개에서 찾는다. 이름·연락처는 게이트 뒤라 검색 대상이 아니다
-  // (검색으로 "김OO" 를 넣어 존재 여부를 떠보는 길을 열면 이름을 가린 의미가 없다).
-  const kw = f.q ? clean(f.q) : "";
-  if (kw) query = query.or(`resume_title.ilike.%${kw}%,intro.ilike.%${kw}%`);
-  // 희망지역은 "서울 종로구, 경기 성남시" 처럼 여러 개가 한 컬럼에 있어 부분일치로 건다.
-  // 시군구는 시도에 종속 — 시도 없이 걸면 '중구'처럼 여러 시도에 있는 이름이 엉뚱한 지역을 긁는다(jobs 와 같은 계약).
-  const sido = f.sido ? clean(f.sido) : "";
-  const sigungu = sido && f.sigungu ? clean(f.sigungu) : "";
-  if (sido) query = query.ilike("desired_location", `%${sigungu ? `${sido} ${sigungu}` : sido}%`);
-  if (f.minYears && f.minYears > 0) query = query.gte("experience_years", f.minYears);
-
-  const { data, count, error } = await query.returns<TalentRow[]>();
-  if (error) {
-    console.error("searchTalent failed:", error.message);
-    return { rows: [], total: 0 };
-  }
-  return { rows: data ?? [], total: count ?? 0 };
-}

@@ -31,13 +31,27 @@ export const FOOTER_NAV = [
   { label: "간호사 게시판", href: "/board" },
   { label: "병원 리뷰", href: "/reviews" },
   { label: "병원 서비스", href: "/hospital" },
+  { label: "고객센터", href: "/contact" },
 ] as const;
+
+// 운영주체 — 레거시 널스넷(nursenet.co.kr) 푸터 원문과 같은 값이다(같은 사업자).
+// 푸터·고객센터·영수증이 전부 여기서 읽는다. 세 곳에 복붙하면 반드시 한 곳만 낡는다.
+export const COMPANY = {
+  name: "(주)플랫폼몬스터",
+  ceo: "배미미",
+  bizNo: "363-06-01936",
+  address: "서울시 마포구 월드컵로 81 3층",
+  tel: "010-5684-6664",
+  email: "nursenet.co.kr@gmail.com",
+  mailOrderNo: "제 2022-경기광명-1283호",
+  jobInfoNo: "J1513020210002",
+} as const;
 
 // sitemap 용 — 실제 색인(index) 대상만. noindex 페이지를 여기 넣으면 "색인해달라"와 "하지 마라"를
 // 동시에 말하는 꼴이라 반드시 같이 관리한다.
 //  · /board·/reviews — 이력서 등록한 간호사 회원 전용(noindex)
 //  · /talent — 인재정보는 개인정보라 검색엔진 노출 금지(오너 확정). 목록·상세 모두 noindex
-//  · /about·/terms·/privacy — 스텁이거나 색인 가치가 없어 noindex
+//  · /terms·/privacy·/contact — 색인 가치가 없어 noindex
 export const PUBLIC_ROUTES = ["/", "/hospital"] as const;
 
 export const SITE_URL =
@@ -87,6 +101,8 @@ export const AUTH_ERROR_MESSAGES = {
   invalid_credentials: "아이디 또는 비밀번호가 올바르지 않습니다.",
   weak: `비밀번호는 ${MIN_PASSWORD}자 이상이어야 합니다.`,
   signup_failed: "회원가입에 실패했습니다. 이미 가입된 이메일일 수 있습니다.",
+  // 확인 메일 발송 한도(시간당)에 걸린 경우 — 가입자 잘못이 아니므로 "이미 가입됨"이라고 하면 안 된다.
+  rate_limited: "지금은 가입 확인 메일을 보낼 수 없습니다. 잠시 후(1시간 이내) 다시 시도해 주세요.",
   // 비밀번호 재설정
   id_required: "아이디 또는 이메일을 입력해 주세요.",
   mismatch: "새 비밀번호와 확인이 서로 다릅니다.",
@@ -117,5 +133,11 @@ export function messageFor(table: Record<string, string>, code: string | undefin
 /** 인증 화면 전용 단축 — messageFor(AUTH_ERROR_MESSAGES, code) */
 export const authErrorMessage = (code: string | undefined) => messageFor(AUTH_ERROR_MESSAGES, code);
 
-/** 에러를 달고 돌아갈 주소. 코드가 타입으로 묶여 있어 오타가 나면 빌드가 깨진다. */
-export const authErrorPath = (path: string, code: AuthErrorCode) => `${path}?error=${code}`;
+/**
+ * 에러를 달고 돌아갈 주소. 코드가 타입으로 묶여 있어 오타가 나면 빌드가 깨진다.
+ *
+ * 🔴 next 를 함께 실어야 한다. 전에는 `?error=` 만 만들어서, 공고 상세에서 '로그인하고 지원'으로
+ *    넘어온 사람이 비밀번호를 **한 번만 틀려도** 복귀 주소를 잃고 로그인 성공 후 홈에 떨어졌다.
+ */
+export const authErrorPath = (path: string, code: AuthErrorCode, next?: string | null) =>
+  `${path}?error=${code}${next ? `&next=${encodeURIComponent(next)}` : ""}`;

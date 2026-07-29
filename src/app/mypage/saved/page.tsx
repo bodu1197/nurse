@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import NurseShell from "@/components/NurseShell";
 import Button from "@/components/Button";
-import { getMyProfile } from "@/lib/data/user";
+import { requireProfile } from "@/lib/data/user";
 import { getSavedJobs } from "@/lib/data/jobs";
 import { isOpenToSeekers } from "@/lib/jobState";
 import { nowMs } from "@/lib/date";
@@ -11,9 +10,7 @@ import { toggleSaveJob } from "@/app/jobs/actions";
 export const metadata = { title: "저장한 공고 — 널스넷", robots: { index: false } };
 
 export default async function SavedPage() {
-  const p = await getMyProfile();
-  if (!p) redirect("/login");
-  if (p.role !== "nurse") redirect("/mypage");
+  const p = await requireProfile("/mypage/saved", "nurse");
   const jobs = await getSavedJobs();
   const now = nowMs();
 
