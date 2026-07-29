@@ -93,8 +93,9 @@ export default async function JobsPage({
 
   const [{ jobs, total }, sidos, sigungus, facets, profile] = await Promise.all([
     getJobs(kw, loc, { sido: sd, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et }, pageNum),
-    getJobSidoList(),
-    getJobSigunguList(sd), // 시도 미선택이면 즉시 [](비용 0)
+    // 지역도 칩과 같은 조건으로 센다 — 한 화면에서 기준이 갈리면 안 된다.
+    getJobSidoList({ specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et, keyword: kw, location: loc }),
+    getJobSigunguList(sd, { specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et, keyword: kw, location: loc }), // 시도 미선택이면 즉시 [](비용 0)
     // 칩은 **지금 걸린 필터 안에서** 센다 — 안 그러면 기관 종별을 골라도 그 안에 0건인
     // 진료과 칩이 그대로 떠서 눌러도 빈 화면이 나온다.
     getJobFacets({ sido: sd, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et, keyword: kw, location: loc }),

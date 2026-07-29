@@ -1,7 +1,7 @@
 import "server-only";
 import { decodeEntities } from "@/lib/html";
 import {
-  categoryFromJobCode, departmentFromText, facilityFromIndustry, isNurseJobCode,
+  categoryFromJobCode, departmentFromText, facilityFor, isNurseJobCode,
 } from "@/lib/jobTaxonomy";
 
 // 워크넷(고용24) 채용정보 오픈API(210L01) — **직종코드(occupation)** 로 간호 직군 구인공고 수집.
@@ -99,7 +99,8 @@ function parsePage(xml: string): { jobs: WorknetJob[]; total: number } {
       industry,
       // 리스트 단계에선 제목만 있다(10.8%). 상세를 받은 뒤 사업내용·직무내용까지 보고 다시 채운다(22.3%).
       specialty: departmentFromText(title),
-      facilityType: facilityFromIndustry(industry),
+      // 회사명이 "○○산후조리원" 이면 산업분류보다 이름을 믿는다(산업분류가 업체마다 제각각).
+      facilityType: facilityFor(decode(pick(b, "company")), industry),
       jobCategory: categoryFromJobCode(jobsCd),
       employmentType: deriveEmploymentType(pick(b, "empTpCd"), salTpNm),
     };

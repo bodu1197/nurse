@@ -17,7 +17,7 @@
  *   3) 직종     job_category   = JOB_CATEGORIES(8) … 구 널스넷 직종 대분류
  */
 
-import { DEPARTMENTS, JOB_CATEGORIES, HOSPITAL_TYPES } from "@/lib/resumeOptions";
+import { DEPARTMENTS, JOB_CATEGORIES, HOSPITAL_TYPES } from "./resumeOptions.ts";
 
 export { DEPARTMENTS as JOB_DEPARTMENTS, JOB_CATEGORIES };
 
@@ -28,11 +28,15 @@ export { DEPARTMENTS as JOB_DEPARTMENTS, JOB_CATEGORIES };
  * 워크넷 간호 공고의 **47%** 가 여기다(노인요양복지시설 37.3% + 주간보호·방문·재가 등).
  * 이걸 빼면 게시판 절반을 거를 방법이 없어진다. '치과' 도 같은 이유(1.6%, 이력서 표엔 없음).
  *
+ * '산후조리원' 도 따로 뒀다 — 산업분류가 제각각이라 요양원·기타·보건소로 흩어져 있었고,
+ * 그래서 요양원 칩 아래에 신생아실·분만실이 뜨는 기이한 화면이 나왔다(오너 지적 2026-07-29).
+ * 노인 돌봄과 신생아 돌봄은 간호사에게 완전히 다른 자리다.
+ *
  * 순서 = 화면 노출 순서가 아니다(칩은 공고 수 순으로 그린다). 규모가 큰 기관부터 적어 읽기 좋게 둔다.
  */
 export const FACILITY_TYPES = [
   "상급종합병원", "종합병원", "병원", "요양병원", "한방병원", "치과",
-  "의원", "검진센터", "보건소", "요양원·주간보호", "기타",
+  "의원", "검진센터", "보건소", "산후조리원", "요양원·주간보호", "기타",
 ] as const;
 export type FacilityType = (typeof FACILITY_TYPES)[number];
 
@@ -78,6 +82,27 @@ export function facilityFromIndustry(indTpNm: string | null | undefined): Facili
   const s = (indTpNm ?? "").trim();
   if (!s) return null;
   return FACILITY_RULES.find(([, re]) => re.test(s))?.[0] ?? null;
+}
+
+/**
+ * 🔴 회사명이 산업분류보다 정확한 경우 — 여기 걸리면 산업분류를 무시한다.
+ *
+ * 산후조리원 18건이 산업분류만 보면 요양원(8)·기타(2)·보건소(1)·병원(1)·미분류(6)로 흩어졌다.
+ * 업체가 사업자등록을 어떻게 냈느냐에 따라 KSIC 가 제각각이기 때문이다. 이름에 "산후조리" 가
+ * 들어가면 그건 산후조리원이 맞다 — 애매할 여지가 없는 이름만 여기 둔다.
+ */
+const FACILITY_BY_NAME: ReadonlyArray<readonly [FacilityType, RegExp]> = [
+  ["산후조리원", /산후\s*조리/],
+];
+
+/** 회사명 + 산업분류로 기관 종별을 정한다. 이름이 확실하면 이름을, 아니면 산업분류를 쓴다. */
+export function facilityFor(
+  companyName: string | null | undefined,
+  indTpNm: string | null | undefined,
+): FacilityType | null {
+  const name = (companyName ?? "").trim();
+  const byName = name ? FACILITY_BY_NAME.find(([, re]) => re.test(name))?.[0] : undefined;
+  return byName ?? facilityFromIndustry(indTpNm);
 }
 
 /**
@@ -134,18 +159,30 @@ const DEPARTMENT_RULES: ReadonlyArray<readonly [(typeof DEPARTMENTS)[number], Re
   ["신경과", /신경과/],
   ["피부과", /피부과/],
   ["안과", /안과/],
-  ["마취과/회복실", /마취|회복실|PACU/i],
-  ["인공신장실", /인공신장|투석/],
-  ["중환자실", /중환자|ICU/i],
+  // "마취통증의학과" 같은 과 이름과 회복실만. 그냥 "마취" 는 자격·업무 설명에도 흔하다.
+  ["마취과/회복실", /마취과|마취통증|회복실|마취\s*(?:간호|실|파트|담당)|PACU/i],
+  ["인공신장실", /인공신장실|인공신장|투석실|투석\s*(?:간호|파트|담당|업무)/],
+  // 🔴 신생아실을 중환자실보다 **먼저** 본다. "NICU"(신생아중환자실)는 ICU 를 품고 있어서,
+  //    순서가 뒤면 신생아중환자실 공고가 전부 그냥 중환자실로 떨어진다.
+  ["신생아실", /신생아실|신생아\s*(?:간호|케어|파트|담당)|NICU/i],
+  // ICU 는 단어로만 — 경계가 없으면 "medicure"·"meticulous" 같은 영단어가 걸린다.
+  ["중환자실", /중환자실|중환자\s*(?:간호|파트|담당)|\bICU\b/i],
   ["응급실", /응급실|응급의료|응급센터/],
   // 'OR'(operating room)는 넣지 않는다 — 본문까지 훑으므로 "camc.or.kr" 같은 주소가 전부
   // 수술실로 잡힌다(실측 400건 중 2건). SQL 백필도 같은 이유로 빼 두었다.
   ["수술실", /수술실|스크럽|scrub/i],
-  ["분만실", /분만/],
-  ["신생아실", /신생아|NICU/i],
+  // 🔴 `/분만/` 이면 "오래 하실 **분만** 연락주세요", "경험 있으신 **분만** 지원" 같은
+  //    〈분(사람) + 만(조사)〉 을 전부 분만실로 잡는다. 실측: 15건 중 진짜는 3건뿐이었다
+  //    (요양원에 분만실이 뜬 게 이것 — 오너 지적 2026-07-29).
+  ["분만실", /분만실|분만장|분만센터|분만\s*(?:간호|업무|파트|담당|병동)|\bLDR\b/],
   ["혈관조영실", /혈관조영|심혈관센터|angio/i],
   ["내시경실", /내시경/],
-  ["건강진단센터", /건강검진|검진센터|건진|종합검진/],
+  // 🔴 "직원 **건강검진** 지원", "채용**건강검진** 1개월 이내" 는 복리후생·제출서류지
+  //    진료과가 아니다. 실측: 16건 중 진짜 검진센터는 2건뿐이었다.
+  //    '센터' 가 붙은 표현만 부서로 본다.
+  //    '센터·실' 이 붙거나 검진이 곧 업무인 표현만 잡는다. "특수검진실"·"종합검진 간호사" 같은
+  //    진짜를 놓치지 않으면서, 복리후생 문구는 걸리지 않는다(실측 오탐 0).
+  ["건강진단센터", /검진센터|건진센터|건강검진센터|종합검진센터|건강증진센터|검진실|건진실|종합검진|건강검진\s*(?:간호|파트|담당|업무)|검진\s*간호/],
   ["주사실", /주사실/],
   ["내과", /내과/],
   ["외과", /외과/],

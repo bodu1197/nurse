@@ -81,21 +81,34 @@ export type JobFilters = {
 export type JobRegionNode = { name: string; cnt: number };
 
 // 도 목록(건수 포함). RPC 술어는 getJobs 와 동일(마감·direct 노출) → 드롭다운 건수 = 클릭 후 건수.
-// cache(): 한 요청 안에서 중복 호출을 dedup(반환형은 database.ts Functions 로 이미 타입 지정 → 단언 불필요).
-export const getJobSidoList = cache(async (): Promise<JobRegionNode[]> => {
+// cache() 는 안 쓴다 — 필터 객체를 받게 되면서 참조 비교라 히트하지 않는다(getJobFacets 와 같은 이유).
+// 🔴 칩과 같은 규칙으로 **지금 걸린 필터 안에서** 센다. 안 그러면 같은 화면에서 기준이 둘로
+//    갈린다 — 요양원·주간보호를 고른 상태에서 드롭다운은 "경기도 360" 인데 실제는 265건이었다.
+//    지역 축은 자기 자신을 뺀다(고른 지역만 남으면 다른 지역으로 갈아탈 수 없다).
+type RegionFilters = Omit<JobFilters, "sido" | "sigungu"> & { keyword?: string; location?: string };
+const regionArgs = (f: RegionFilters) => ({
+  p_specialty: f.specialty ?? "",
+  p_facility: f.facilityType ?? "",
+  p_category: f.jobCategory ?? "",
+  p_employment: f.employmentType ?? "",
+  p_keyword: f.keyword ? clean(f.keyword) : "",
+  p_location: f.location ? clean(f.location) : "",
+});
+
+export async function getJobSidoList(f: RegionFilters = {}): Promise<JobRegionNode[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("nurse_job_sido_list");
+  const { data, error } = await supabase.rpc("nurse_job_sido_list", regionArgs(f));
   if (error) console.error("getJobSidoList failed:", error.message);
   return data ?? [];
-});
+}
 // 선택한 도의 시군구 목록. 시도 미선택이면 즉시 [](비용 0).
-export const getJobSigunguList = cache(async (sido: string): Promise<JobRegionNode[]> => {
+export async function getJobSigunguList(sido: string, f: RegionFilters = {}): Promise<JobRegionNode[]> {
   if (!sido) return [];
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("nurse_job_sigungu_list", { p_sido: sido });
+  const { data, error } = await supabase.rpc("nurse_job_sigungu_list", { p_sido: sido, ...regionArgs(f) });
   if (error) console.error("getJobSigunguList failed:", error.message);
   return data ?? [];
-});
+}
 
 /**
  * 🗂 진료과·기관종별·직종 칩 — **공고가 있는 것만** 많은 순. 인재 칩(getTalentFacets)과 같은 사고방식이다.

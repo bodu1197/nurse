@@ -908,14 +908,29 @@ export type Database = {
         }[]
       }
       nurse_job_sido_list: {
-        Args: never
+        Args: {
+          p_category?: string
+          p_employment?: string
+          p_facility?: string
+          p_keyword?: string
+          p_location?: string
+          p_specialty?: string
+        }
         Returns: {
           cnt: number
           name: string
         }[]
       }
       nurse_job_sigungu_list: {
-        Args: { p_sido: string }
+        Args: {
+          p_category?: string
+          p_employment?: string
+          p_facility?: string
+          p_keyword?: string
+          p_location?: string
+          p_sido: string
+          p_specialty?: string
+        }
         Returns: {
           cnt: number
           name: string
