@@ -1,10 +1,12 @@
 import Link from "next/link";
+import IdPhoto from "@/components/IdPhoto";
 import { careerSummary } from "@/lib/resumeOptions";
 import { fmtDay } from "@/lib/date";
 import type { PublicTalentDetail } from "@/lib/data/talent";
 
-// 인재 상세(우측 패널). 이름·전화·이메일은 광고 병원(contact 전달 시)만 보인다.
-type Contact = { name: string | null; phone: string | null; email: string | null } | undefined;
+// 인재 상세(우측 패널). 이름·전화·이메일·사진은 광고 병원(contact 전달 시)만 보인다.
+// 사진도 같은 게이트를 탄다 — 얼굴은 이름보다 강한 식별자라 따로 열면 이름을 가린 의미가 없다.
+type Contact = { name: string | null; phone: string | null; email: string | null; avatarUrl: string | null } | undefined;
 
 function Row({ k, v }: Readonly<{ k: string; v: string | null }>) {
   if (!v) return null;
@@ -29,14 +31,20 @@ export default function TalentDetail({
   const Heading = asH1 ? "h1" : "h2";
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-6">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Heading className="text-2xl font-bold text-slate-900">{contact?.name ?? "간호사 회원"}</Heading>
-        {t.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{t.license_type}</span>}
-        <span className="text-slate-600">{careerSummary(t.career_level, t.experience_years)}</span>
-        {t.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트 전담 가능</span>}
+      <div className="flex gap-4">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <Heading className="text-2xl font-bold text-slate-900">{contact?.name ?? "간호사 회원"}</Heading>
+            {t.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{t.license_type}</span>}
+            <span className="text-slate-600">{careerSummary(t.career_level, t.experience_years)}</span>
+            {t.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트 전담 가능</span>}
+          </div>
+          {t.resume_title && <p className="mt-1 font-medium text-slate-700">{t.resume_title}</p>}
+          <p className="mt-1 text-xs text-slate-400">{fmtDay(t.updated_at)} 갱신</p>
+        </div>
+        {/* 이름 바로 옆이라 alt 는 비운다. 한 명짜리 화면이라 사진이 없으면 자리도 두지 않는다. */}
+        <IdPhoto src={contact?.avatarUrl ?? null} />
       </div>
-      {t.resume_title && <p className="mt-1 font-medium text-slate-700">{t.resume_title}</p>}
-      <p className="mt-1 text-xs text-slate-400">{fmtDay(t.updated_at)} 갱신</p>
 
       {/* 연락 — 광고 병원만 이름·전화, 그 외엔 잠금 + 광고 안내 */}
       <div className="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-sm">

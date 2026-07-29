@@ -3,6 +3,8 @@ import HospitalShell from "@/components/HospitalShell";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { searchTalent, TALENT_PER_PAGE, type TalentRow } from "@/lib/data/talent";
+import { signAvatarsOf } from "@/lib/data/avatar";
+import IdPhoto from "@/components/IdPhoto";
 import { getMembership, TIER_LABEL, TIER_UPGRADE, type MemberTier } from "@/lib/data/membership";
 import { DEPARTMENTS } from "@/lib/resumeOptions";
 
@@ -11,36 +13,43 @@ export const metadata = { title: "인재 검색 — 널스넷", robots: { index:
 const field = "h-11 rounded-xl border border-slate-300 px-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
 const YEARS = [1, 3, 5, 10];
 
-function Talent({ t }: Readonly<{ t: TalentRow }>) {
+function Talent({ t, photoUrl }: Readonly<{ t: TalentRow; photoUrl: string | null }>) {
   return (
     <li className="rounded-2xl border border-slate-200 bg-white p-5">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <h3 className="font-bold text-slate-900">{t.name ?? "이름 미입력"}</h3>
-        {t.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{t.license_type}</span>}
-        {t.experience_years != null && <span className="text-sm text-slate-600">경력 {t.experience_years}년</span>}
-        {t.desired_employment_type && <span className="text-sm text-slate-500">· {t.desired_employment_type}</span>}
+      <div className="flex gap-4">
+        {/* 이름이 바로 옆이라 alt 는 비운다. 목록이라 사진이 없어도 자리를 남긴다 —
+            안 그러면 행마다 이름 시작 위치가 들쭉날쭉해진다(TalentCard 도 같은 이유로 빈 아바타를 그린다). */}
+        <IdPhoto src={photoUrl} keepSpace />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h3 className="font-bold text-slate-900">{t.name ?? "이름 미입력"}</h3>
+            {t.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{t.license_type}</span>}
+            {t.experience_years != null && <span className="text-sm text-slate-600">경력 {t.experience_years}년</span>}
+            {t.desired_employment_type && <span className="text-sm text-slate-500">· {t.desired_employment_type}</span>}
+          </div>
+
+          {t.specialties.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {t.specialties.map((s) => <span key={s} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{s}</span>)}
+            </div>
+          )}
+
+          <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+            {t.desired_location && <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-500">희망 근무지</dt><dd className="text-slate-800">{t.desired_location}</dd></div>}
+            {t.desired_salary && <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-500">희망 급여</dt><dd className="text-slate-800">{t.desired_salary}</dd></div>}
+            {t.education && <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-500">학력</dt><dd className="text-slate-800">{t.education}</dd></div>}
+          </dl>
+
+          {t.intro && <p className="mt-3 line-clamp-4 whitespace-pre-line text-sm text-slate-600">{t.intro}</p>}
+
+          {t.phone && (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-slate-800">{t.phone}</span>
+              <Button href={`tel:${t.phone}`} variant="outline" size="sm">전화</Button>
+            </div>
+          )}
+        </div>
       </div>
-
-      {t.specialties.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {t.specialties.map((s) => <span key={s} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{s}</span>)}
-        </div>
-      )}
-
-      <dl className="mt-3 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
-        {t.desired_location && <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-500">희망 근무지</dt><dd className="text-slate-800">{t.desired_location}</dd></div>}
-        {t.desired_salary && <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-500">희망 급여</dt><dd className="text-slate-800">{t.desired_salary}</dd></div>}
-        {t.education && <div className="flex gap-2"><dt className="w-20 shrink-0 text-slate-500">학력</dt><dd className="text-slate-800">{t.education}</dd></div>}
-      </dl>
-
-      {t.intro && <p className="mt-3 line-clamp-4 whitespace-pre-line text-sm text-slate-600">{t.intro}</p>}
-
-      {t.phone && (
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold text-slate-800">{t.phone}</span>
-          <Button href={`tel:${t.phone}`} variant="outline" size="sm">전화</Button>
-        </div>
-      )}
     </li>
   );
 }
@@ -87,6 +96,9 @@ export default async function TalentPage({
     ? await searchTalent({ specialty, sido: loc, minYears }, pageNum)
     : { rows: [], total: 0 };
   const totalPages = Math.max(1, Math.ceil(total / TALENT_PER_PAGE));
+  // 사진 — 이 페이지에 실린 인재만 한 번에 서명한다. 자격(allowed)은 위에서 이미 끝났고,
+  // 막힌 병원은 rows 가 비어 있어 조회 자체가 일어나지 않는다.
+  const photos = await signAvatarsOf(rows.map((t) => t.profile_id));
 
   const href = (toPage: number) => {
     const q = new URLSearchParams();
@@ -135,7 +147,7 @@ export default async function TalentPage({
             <p className="py-20 text-center text-slate-500">조건에 맞는 이력서가 없습니다. 검색 조건을 넓혀보세요.</p>
           ) : (
             <ul className="mt-3 space-y-3">
-              {rows.map((t) => <Talent key={t.profile_id} t={t} />)}
+              {rows.map((t) => <Talent key={t.profile_id} t={t} photoUrl={photos.get(t.profile_id) ?? null} />)}
             </ul>
           )}
 

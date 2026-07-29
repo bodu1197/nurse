@@ -8,6 +8,8 @@ import {
   getReceivedApplications, STATUS_LABEL, STATUS_TONE, CANCELABLE, APPLICANTS_PER_PAGE,
   type AppStatus, type ApplicantListItem, type ApplicantCounts,
 } from "@/lib/data/applications";
+import { signAvatarsOf } from "@/lib/data/avatar";
+import IdPhoto from "@/components/IdPhoto";
 import { fmtDay } from "@/lib/date";
 import { careerSummary } from "@/lib/resumeOptions";
 import { updateApplicationStatus, openApplicantResume, saveApplicantNote } from "../actions";
@@ -82,7 +84,7 @@ function Field({ k, v }: Readonly<{ k: string; v: string | null }>) {
  * 전에는 카드가 세로로 길어 한 화면에 3~4명뿐이라, 담당자가 스크롤만 하다 지쳤다(오너 지적).
  * 펼치면 이력서 요약·전문 열기·판정 버튼·메모가 나온다 — 자바스크립트 없이 native `<details>`.
  */
-function Applicant({ a, view }: Readonly<{ a: ApplicantListItem; view: View }>) {
+function Applicant({ a, view, photoUrl }: Readonly<{ a: ApplicantListItem; view: View; photoUrl: string | null }>) {
   const r = a.resume;
   const decided = a.status === "accepted" || a.status === "rejected";
   // 아직 판정 전 = 지원자가 취소할 수 있는 상태와 같다(진행 중인 건).
@@ -113,24 +115,29 @@ function Applicant({ a, view }: Readonly<{ a: ApplicantListItem; view: View }>) 
             {!r ? (
               <div className="text-slate-500">이력서 정보를 불러올 수 없습니다.</div>
             ) : (
-              <>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  {r.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트 전담 가능</span>}
-                  {r.phone ? (
-                    <span className="font-semibold text-slate-800">{r.phone}</span>
-                  ) : (
-                    <span className="text-xs text-red-600">연락처 미입력</span>
-                  )}
+              <div className="flex gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    {r.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트 전담 가능</span>}
+                    {r.phone ? (
+                      <span className="font-semibold text-slate-800">{r.phone}</span>
+                    ) : (
+                      <span className="text-xs text-red-600">연락처 미입력</span>
+                    )}
+                  </div>
+                  {/* 카드는 걸러내는 데 필요한 것까지만. 경력 상세·학력은 '이력서 전문 보기'에서 — 그 행위를 열람 신호로 쓴다. */}
+                  <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+                    <Field k="근무형태" v={r.shift_types.length > 0 ? r.shift_types.join(", ") : null} />
+                    <Field k="자격증" v={r.certifications.length > 0 ? r.certifications.join(", ") : null} />
+                    <Field k="희망 진료과" v={r.specialties.length > 0 ? r.specialties.join(", ") : null} />
+                    <Field k="희망 근무지" v={r.desired_location} />
+                  </dl>
+                  {r.intro && <p className="mt-2 line-clamp-2 whitespace-pre-line text-slate-600">{r.intro}</p>}
                 </div>
-                {/* 카드는 걸러내는 데 필요한 것까지만. 경력 상세·학력은 '이력서 전문 보기'에서 — 그 행위를 열람 신호로 쓴다. */}
-                <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
-                  <Field k="근무형태" v={r.shift_types.length > 0 ? r.shift_types.join(", ") : null} />
-                  <Field k="자격증" v={r.certifications.length > 0 ? r.certifications.join(", ") : null} />
-                  <Field k="희망 진료과" v={r.specialties.length > 0 ? r.specialties.join(", ") : null} />
-                  <Field k="희망 근무지" v={r.desired_location} />
-                </dl>
-                {r.intro && <p className="mt-2 line-clamp-2 whitespace-pre-line text-slate-600">{r.intro}</p>}
-              </>
+                {/* 🔴 lazy 필수 — 이 자리는 접힌 <details> 안이라 화면에 없는데도 브라우저가 25장을
+                    전부 미리 받는다(장당 60~400KB). 이름은 접힌 줄에 있고 여기서 멀어 alt 를 적는다. */}
+                <IdPhoto src={photoUrl} alt={r.name ? `${r.name} 증명사진` : "지원자 증명사진"} lazy />
+              </div>
             )}
           </div>
 
@@ -248,6 +255,9 @@ export default async function ApplicantsPage({
   // 1페이지로 돌아갈 길이 사라진다 → 1페이지로 되돌린다.
   if (total > 0 && pageNum > totalPages) redirect(viewHref(view, { page: "" }));
   const unread = counts.submitted ?? 0;
+  // 사진 — 이 페이지에 실린 지원자만, 한 번에 서명한다.
+  // 자격은 위에서 이미 끝났다(병원 role + getReceivedApplications 의 RLS 가 '내 공고 지원자'로 좁힌다).
+  const photos = await signAvatarsOf(rows.map((a) => a.resume?.profile_id).filter((v): v is string => !!v));
 
   return (
     <HospitalShell displayName={p.displayName} active="/mypage/applicants">
@@ -313,7 +323,9 @@ export default async function ApplicantsPage({
             {totalPages > 1 && ` · ${pageNum}/${totalPages}p`} · 줄을 누르면 펼쳐집니다
           </p>
           <ul className="mt-2 space-y-2">
-            {rows.map((a) => <Applicant key={a.id} a={a} view={view} />)}
+            {rows.map((a) => (
+              <Applicant key={a.id} a={a} view={view} photoUrl={(a.resume ? photos.get(a.resume.profile_id) : null) ?? null} />
+            ))}
           </ul>
           {totalPages > 1 && (
             <nav aria-label="페이지" className="mt-6 flex flex-wrap items-center justify-center gap-2">

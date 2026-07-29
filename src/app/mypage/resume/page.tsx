@@ -16,6 +16,7 @@ import { SIDO_LIST, SIDO_SIGUNGU } from "@/lib/koreaRegions";
 import { safeNext } from "@/lib/url";
 import { saveResume, deleteResume, setResumePublic, saveResumePhoto, deleteResumePhoto } from "../actions";
 import { getMyAvatarUrl } from "@/lib/data/avatar";
+import IdPhoto from "@/components/IdPhoto";
 import PhotoPicker from "@/components/PhotoPicker";
 
 export const metadata = { title: "내 이력서 — 널스넷", robots: { index: false } };
@@ -210,11 +211,13 @@ function PhotoCard({ url }: Readonly<{ url: string | null }>) {
       <div className="mt-4 flex flex-wrap items-start gap-4">
         {url ? (
           // 서명 URL 이라 next/image 최적화 대상이 아니다(도메인마다 서명이 달라 캐시가 안 먹는다) → img.
+          // object-top 은 IdPhoto 와 같은 값이어야 한다 — 미리보기가 병원이 보는 것과 다르게 잘리면
+          // "내 사진이 왜 저렇게 나오지" 를 확인할 방법이 없어진다.
           // eslint-disable-next-line @next/next/no-img-element
           <img src={url} alt="등록된 이력서 사진" width={96} height={128}
-            className="h-32 w-24 shrink-0 rounded-lg border border-slate-200 object-cover" />
+            className="h-32 w-24 shrink-0 rounded border border-slate-200 object-cover object-top" />
         ) : (
-          <div className="grid h-32 w-24 shrink-0 place-items-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400">
+          <div className="grid h-32 w-24 shrink-0 place-items-center rounded border border-dashed border-slate-300 bg-slate-50 text-xs text-slate-400">
             사진 없음
           </div>
         )}
@@ -285,7 +288,8 @@ function VisibilitySwitch({ isPublic }: Readonly<{ isPublic: boolean }>) {
 }
 
 // 저장된 이력서를 그대로 확인하는 화면 — 수정 폼만 있으면 "저장이 된 건지" 알 수 없다.
-function ResumeView({ r }: Readonly<{ r: ResumeWithWork }>) {
+// 사진도 여기 싣는다 — 위 업로드 상자에만 있으면 "올리긴 했는데 이력서에 붙었나?" 를 확인할 길이 없다.
+function ResumeView({ r, photoUrl }: Readonly<{ r: ResumeWithWork; photoUrl: string | null }>) {
   const pct = completeness(r, r.work.length);
   const rows: Array<[string, string | null]> = [
     ["이름", r.name], ["연락처", r.phone], ["면허", r.license_type],
@@ -316,14 +320,19 @@ function ResumeView({ r }: Readonly<{ r: ResumeWithWork }>) {
         </div>
       </div>
 
-      <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-        {rows.map(([k, v]) => (
-          <div key={k} className="flex gap-2">
-            <dt className="w-24 shrink-0 text-slate-500">{k}</dt>
-            <dd className="min-w-0 flex-1 text-slate-800">{v || <span className="text-slate-500">미입력</span>}</dd>
-          </div>
-        ))}
-      </dl>
+      <div className="mt-4 flex gap-4">
+        {/* dt 는 모바일에서 한 칸 좁힌다 — 사진이 옆에 붙으면서 값(dd) 자리가 90px 남짓으로 눌린다. */}
+        <dl className="grid min-w-0 flex-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          {rows.map(([k, v]) => (
+            <div key={k} className="flex gap-2">
+              <dt className="w-20 shrink-0 text-slate-500 sm:w-24">{k}</dt>
+              <dd className="min-w-0 flex-1 text-slate-800">{v || <span className="text-slate-500">미입력</span>}</dd>
+            </div>
+          ))}
+        </dl>
+        {/* 바로 위 이름 칸과 같은 내용이라 alt 는 비운다. */}
+        <IdPhoto src={photoUrl} />
+      </div>
 
       {r.work.length > 0 && (
         <ul className="mt-4 space-y-1 border-t border-slate-100 pt-4 text-sm">
@@ -387,7 +396,7 @@ export default async function ResumePage({
       {/* 공개 스위치는 이력서보다 먼저 — 회원이 가장 급하게 찾는 것이라 스크롤 없이 보여야 한다. */}
       {r && <div className="mt-6"><VisibilitySwitch isPublic={r.is_public} /></div>}
       <div className="mt-4"><PhotoCard url={photoUrl} /></div>
-      {r && <div className="mt-4"><ResumeView r={r} /></div>}
+      {r && <div className="mt-4"><ResumeView r={r} photoUrl={photoUrl} /></div>}
 
       {backTo && (
         <p className="mt-6 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">

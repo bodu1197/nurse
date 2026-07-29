@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { Role } from "@/lib/data/user";
 import { getMembership } from "@/lib/data/membership";
 import { SHEET_COLS, type ResumeSheetFields } from "@/lib/data/resume";
+import { signAvatarPaths } from "@/lib/data/avatar";
 import { todayKst, nowMs } from "@/lib/date";
 import type { Database } from "@/types/database";
 
@@ -75,11 +76,6 @@ function flattenProfile(row: ResumePublicPick & { profile?: ProfileBits | null }
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** 인재 사진 보관소 — **비공개 버킷**. 경로만 DB 에 두고 열람 자격을 통과한 요청에만 서명 URL 을 발급한다. */
-const AVATAR_BUCKET = "avatars";
-/** 서명 URL 수명(초). 한 화면을 보는 동안만 유효하면 충분하고, 새어나가도 곧 죽는다. */
-const AVATAR_URL_TTL = 60 * 10;
 
 type WorkRow = Database["public"]["Tables"]["work_experiences"]["Row"];
 const WORK_PUBLIC_FIELDS = [
@@ -246,18 +242,11 @@ export async function revealContacts(profileIds: readonly string[]): Promise<Map
   // 사진은 비공개 버킷에 있고 avatar_url 에는 **오브젝트 경로**만 저장돼 있다(전체 URL 이 아니다).
   // 공개 URL 로 두면 목록에 실리는 profile_id 로 경로를 조합해 누구나 얼굴 사진을 가져갈 수 있어
   // 게이트가 무의미해진다(/review8 지적) → 자격을 통과한 이 지점에서만 단기 서명 URL 을 만든다.
-  // 네이버 가입 시 들어온 외부 프로필 URL(http…)은 우리 버킷이 아니므로 그대로 쓴다.
-  const paths = rows.map((r) => r.profile?.avatar_url).filter((v): v is string => !!v && !v.startsWith("http"));
-  const signed = new Map<string, string>();
-  if (paths.length) {
-    const { data: urls, error: signErr } = await admin.storage.from(AVATAR_BUCKET).createSignedUrls(paths, AVATAR_URL_TTL);
-    if (signErr) console.error("createSignedUrls failed:", signErr.message);
-    for (const u of urls ?? []) if (u.path && u.signedUrl) signed.set(u.path, u.signedUrl);
-  }
+  // 서명 자체는 lib/data/avatar.ts 한 곳에서 한다(버킷 이름·수명이 두 벌로 갈라지지 않게).
+  const signed = await signAvatarPaths(rows.map((r) => r.profile?.avatar_url));
 
   return new Map(rows.map((r) => {
-    const raw = r.profile?.avatar_url ?? null;
-    const avatarUrl = raw ? (raw.startsWith("http") ? raw : signed.get(raw) ?? null) : null;
+    const avatarUrl = signed.get((r.profile?.avatar_url ?? "").trim()) ?? null;
     return [r.profile_id, { name: r.name, phone: r.phone, email: r.email, avatarUrl }];
   }));
 }
