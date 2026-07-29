@@ -73,6 +73,18 @@ const REVIVABLE = ["closed", "expired"] as const satisfies readonly JobStatus[];
 //    목록엔 5건이 나오는데 칩은 전부 0건이 되어 칩 줄이 통째로 사라진다.
 const clean = (s: string) => s.replace(/[%,()*]/g, "").trim();
 
+/**
+ * 🗂 "미분류" 를 고르는 URL 값.
+ *
+ * 왜 필요한가(오너 지적 2026-07-29): 치과 결과가 9건인데 진료과 칩 합은 2, 직종은 8이었다.
+ * 값이 없는 공고가 칩에서 통째로 빠져 **화면이 스스로 모순**됐다("방에 공이 10개면 선반 5 +
+ * 서랍 3 + 바닥 2 로 합이 맞아야 한다"). 워크넷 공고는 진료과가 원래 없는 게 정상이라 이 몫이
+ * 전체의 83%다 — 숨길 크기가 아니다.
+ *
+ * 값 자체가 될 수 없는 문자열을 쓴다(진료과·기관종별·직종 어느 목록에도 밑줄로 시작하는 값이 없다).
+ */
+export const UNSET = "_none";
+
 export type JobFilters = {
   sido?: string; sigungu?: string; specialty?: string; facilityType?: string; jobCategory?: string; employmentType?: string;
 };
@@ -122,7 +134,7 @@ export async function getJobSigunguList(sido: string, f: RegionFilters = {}): Pr
 // 리터럴을 넘기는 이 함수에서는 절대 히트하지 않는다(실측). 게다가 한 요청에 한 번만 부른다 —
 // 감싸두면 "중복 호출이 합쳐진다"고 잘못 읽히기만 한다.
 export async function getJobFacets(f: JobFilters & { keyword?: string; location?: string } = {}): Promise<{
-  departments: JobRegionNode[]; facilities: JobRegionNode[]; categories: JobRegionNode[];
+  facilities: JobRegionNode[]; categories: JobRegionNode[];
 }> {
   const supabase = await createClient();
   // 🔴 지금 걸린 필터를 그대로 넘긴다. 안 넘기면 '요양원·주간보호'(652건)를 골라도 진료과 칩이
@@ -131,6 +143,8 @@ export async function getJobFacets(f: JobFilters & { keyword?: string; location?
   const { data, error } = await supabase.rpc("nurse_job_facet_list", {
     p_sido: f.sido ?? "",
     p_sigungu: f.sigungu ?? "",
+    // UNSET 은 RPC 에 그대로 넘긴다. RPC 의 nurse_axis_match 가 '_none' 을 "그 축이 비어 있는 행"
+    // 으로 읽으므로(getJobs 의 .is(col, null) 과 같은 뜻), 미분류를 고른 채 다른 축을 봐도 숫자가 맞다.
     p_specialty: f.specialty ?? "",
     p_facility: f.facilityType ?? "",
     p_category: f.jobCategory ?? "",
@@ -142,8 +156,13 @@ export async function getJobFacets(f: JobFilters & { keyword?: string; location?
   });
   if (error) console.error("getJobFacets failed:", error.message);
   const rows = data ?? [];
-  const pick = (kind: string) => tailLast(rows.filter((r) => r.kind === kind).map(({ name, cnt }) => ({ name, cnt })));
-  return { departments: pick("department"), facilities: pick("facility"), categories: pick("category") };
+  // RPC 는 "값 없음" 을 빈 이름('')으로 내려준다 → URL 에 실을 수 있는 센티넬로 바꾼다.
+  const pick = (kind: string) =>
+    tailLast(rows.filter((r) => r.kind === kind).map(({ name, cnt }) => ({ name: name || UNSET, cnt })));
+  // 진료과는 칩으로 안 그린다(오너 결정 2026-07-29) — 검색어가 그 역할을 한다.
+  // RPC 는 여전히 department 를 내려주지만 여기서 버린다: 되살릴 때 RPC 를 안 건드려도 되고,
+  // 이미 materialize 된 CTE 위의 group by 하나라 비용이 없다.
+  return { facilities: pick("facility"), categories: pick("category") };
 }
 
 /**
@@ -153,7 +172,8 @@ export async function getJobFacets(f: JobFilters & { keyword?: string; location?
  * 인재 칩(talent.ts)과 달리 "부서무관"이 하나 더 있는 이유: 그건 진료과를 안 가린다는 뜻이라
  * 진료과를 좁히러 온 사람에게 맨 앞에 있으면 방해만 된다(이력서 쪽에는 이 값이 칩으로 안 뜬다).
  */
-const TAIL_LAST = new Set(["기타", "의료기타", "부서무관"]);
+// 미지정도 맨 뒤로 — 고르러 온 사람에게 앞자리를 내줄 이유가 없다.
+const TAIL_LAST = new Set(["기타", "의료기타", "부서무관", UNSET]);
 const tailLast = (rows: JobRegionNode[]): JobRegionNode[] =>
   [...rows].sort((a, b) => Number(TAIL_LAST.has(a.name)) - Number(TAIL_LAST.has(b.name)));
 
@@ -196,10 +216,17 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   if (filters.sido) query = query.eq("sido", filters.sido);
   if (filters.sido && filters.sigungu) query = query.eq("sigungu", filters.sigungu);
   // 세 축은 서로 독립이다 — 진료과 ∧ 기관 종별 ∧ 직종. "의원의 내과 간호조무사"처럼 겹쳐 걸 수 있다.
-  if (filters.specialty) query = query.eq("specialty", filters.specialty);
-  if (filters.facilityType) query = query.eq("facility_type", filters.facilityType);
-  if (filters.jobCategory) query = query.eq("job_category", filters.jobCategory);
-  if (filters.employmentType) query = query.eq("employment_type", filters.employmentType);
+  // UNSET 이면 "그 축이 비어 있는 공고" 를 고른 것이다(미분류 칩) → is null 로 건다.
+  const axis = (col: "specialty" | "facility_type" | "job_category" | "employment_type", v: string | undefined) => {
+    if (!v) return;
+    query = v === UNSET ? query.is(col, null) : query.eq(col, v);
+  };
+  axis("specialty", filters.specialty);
+  axis("facility_type", filters.facilityType);
+  axis("job_category", filters.jobCategory);
+  // 근무형태도 같은 헬퍼를 쓴다. 여기만 .eq() 로 두면 ?et=_none 에서 목록은 0건인데
+  // 칩·지역 드롭다운은 N건이 되어(RPC 는 _none 을 is null 로 읽는다) 화면이 어긋난다.
+  axis("employment_type", filters.employmentType);
 
   const { data, count, error } = await query.returns<JobRow[]>();
   if (error) {

@@ -890,6 +890,7 @@ export type Database = {
       is_admin: { Args: never; Returns: boolean }
       is_community_member: { Args: never; Returns: boolean }
       is_talent_advertiser: { Args: never; Returns: boolean }
+      nurse_axis_match: { Args: { p: string; v: string }; Returns: boolean }
       nurse_job_facet_list: {
         Args: {
           p_category?: string

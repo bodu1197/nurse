@@ -5,7 +5,7 @@ import { SaveIcon } from "@/components/JobDetail";
 import Button from "@/components/Button";
 import JobNearMeButton from "@/components/JobNearMeButton";
 import JobSearchBar from "@/components/JobSearchBar";
-import { getJobs, getSavedJobIds, getJobSidoList, getJobSigunguList, getJobFacets, jobFilterQs, PER_PAGE } from "@/lib/data/jobs";
+import { getJobs, getSavedJobIds, getJobSidoList, getJobSigunguList, getJobFacets, jobFilterQs, PER_PAGE, UNSET } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
 import { EMPLOYMENT_TYPES } from "@/lib/constants";
 import { chipClass as chip } from "@/lib/chip";
@@ -38,12 +38,16 @@ function ChipRow({ label, allHref, active, items }: Readonly<{
           해제는 왼쪽 "{label} 전체" 가 맡는다. */}
       {orphan && (
         <span aria-current="page" className={`${chip(true)} cursor-default`}>
-          {orphan}<span className="ml-1 text-xs text-teal-50">0</span>
+          {/* 내부 센티넬을 그대로 그리면 "_none" 이 화면에 뜬다. */}
+          {orphan === UNSET ? `${label} 미지정` : orphan}
+          <span className="ml-1 text-xs text-teal-50">0</span>
         </span>
       )}
       {items.map((it) => (
         <a key={it.name} href={it.href} aria-current={active === it.name ? "page" : undefined} className={chip(active === it.name)}>
-          {it.name}
+          {/* 값이 없는 몫. 이걸 숨기면 칩 합이 결과 수와 안 맞아 화면이 스스로 모순된다
+              (치과 9건인데 진료과 합이 2였다 — 오너 지적 2026-07-29). */}
+          {it.name === UNSET ? `${label} 미지정` : it.name}
           {/* opacity 로 흐리면 활성 칩에서 대비 2.6:1 로 떨어져 AA(4.5:1) 미달이다 → 고정 색을 쓴다. */}
           {it.cnt != null && (
             <span className={`ml-1 text-xs ${active === it.name ? "text-teal-50" : "text-slate-500"}`}>{it.cnt}</span>
@@ -107,6 +111,8 @@ export default async function JobsPage({
 
   // 검색 조건 유지 URL — 목록 이동(href)·카드→상세(detailHref)가 같은 검색결과를 따라간다. 직렬화는 jobFilterQs 한 곳.
   const base = { q: kw, l: loc, sido: sd, sigungu: sg, spec, fac, cat, et };
+  // URL 센티넬(_none)은 내부 코드다 — 화면에는 절대 그대로 내보내지 않는다.
+  const human = (label: string, v?: string) => (v === UNSET ? `${label} 미지정` : v);
   const href = (toPage?: number) => { const s = jobFilterQs(base, toPage); return "/jobs" + (s ? `?${s}` : ""); };
   const detailHref = (jobId: string) => { const s = jobFilterQs(base, pageNum); return `/jobs/${jobId}` + (s ? `?${s}` : ""); };
   // 칩 href — 네 축(진료과·기관종별·직종·근무형태)은 서로 독립이라 나머지를 유지하고 자기 값만 바꾼다.
@@ -128,17 +134,21 @@ export default async function JobsPage({
         </div>
       </div>
 
-      {/* 네 축 칩 — 서로 독립이라 겹쳐 걸 수 있다("의원의 내과 간호조무사").
-          진료과·기관종별·직종은 **공고가 있는 것만** 많은 순으로 그린다(getJobFacets).
-          고정 목록을 뿌리면 0건인 칩을 누른 사용자가 빈 화면을 만난다. */}
+      {/* 칩 세 줄 — 서로 독립이라 겹쳐 걸 수 있다("의원의 간호조무직 정규직").
+          기관종별·직종은 **공고가 있는 것만** 많은 순으로 그린다(getJobFacets).
+          고정 목록을 뿌리면 0건인 칩을 누른 사용자가 빈 화면을 만난다.
+
+          🔴 진료과 칩은 뺐다(오너 결정 2026-07-29). 워크넷 공고는 진료과가 원래 없는 게
+          정상이라 전체의 83%가 '미지정' 이었고, 칩 26개 중 대부분이 한 자릿수라 줄만 길었다.
+          대신 **검색어가 진료과를 덮는다** — getJobs 의 키워드가 specialty 컬럼도 보므로
+          "내과" 로 검색하면 칩보다 넓게 잡힌다(실측: 칩 19건 vs 검색 24건, 수술실 20 vs 29).
+          specialty 컬럼·필터·등록 폼은 그대로 둔다 — 저장된 링크(?spec=)도 계속 동작한다. */}
       <div className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-[1280px] space-y-2 px-4 py-3">
           {/* 기관 종별을 맨 위에 둔다(오너 지시 2026-07-29) — 요양원·병원·의원 중 어디서 일할지가
               진료과보다 먼저 갈리고, 이걸 고르면 아래 진료과 칩이 그 안에 있는 것만 남는다. */}
           <ChipRow label="기관 종별" allHref={axisHref({ fac: "" })} active={fac}
             items={facets.facilities.map((d) => ({ ...d, href: axisHref({ fac: d.name }) }))} />
-          <ChipRow label="진료과" allHref={axisHref({ spec: "" })} active={spec}
-            items={facets.departments.map((d) => ({ ...d, href: axisHref({ spec: d.name }) }))} />
           <ChipRow label="직종" allHref={axisHref({ cat: "" })} active={cat}
             items={facets.categories.map((d) => ({ ...d, href: axisHref({ cat: d.name }) }))} />
           {/* 근무형태는 고정 목록 그대로 — 값이 4개뿐이고 전부 실제로 쓰인다. */}
@@ -161,7 +171,7 @@ export default async function JobsPage({
             {[
               kw && `"${kw}"`,
               sd && (sg ? `${sd} ${sg}` : sd),
-              fac, spec, cat, et,
+              human("기관 종별", fac), human("진료과", spec), human("직종", cat), et,
             ].filter(Boolean).map((v) => (
               <span key={String(v)} className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-700">{v}</span>
             ))}
@@ -174,7 +184,7 @@ export default async function JobsPage({
 
         <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-slate-500">
-            {spec || fac || kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{total.toLocaleString()}건</span>{sd ? `, ${sg || sd}` : ""} · 정렬: 연관성{totalPages > 1 ? ` · ${pageNum}/${totalPages}p` : ""}
+            {human("진료과", spec) || human("기관 종별", fac) || kw || "간호사"} 채용공고 <span className="font-semibold text-slate-800">{total.toLocaleString()}건</span>{sd ? `, ${sg || sd}` : ""} · 정렬: 연관성{totalPages > 1 ? ` · ${pageNum}/${totalPages}p` : ""}
           </p>
           {profile && (kw || sd) && (
             <form action={saveSearch}>
