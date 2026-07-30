@@ -207,8 +207,7 @@ function PhotoCard({ url }: Readonly<{ url: string | null }>) {
     <section aria-label="이력서 사진" className="rounded-2xl border border-slate-200 bg-white p-5">
       <h2 className="font-bold text-slate-900">사진 <span className="text-sm font-normal text-slate-500">(선택)</span></h2>
       <p className="mt-1 text-xs text-slate-600">
-        넣지 않아도 이력서를 저장할 수 있습니다. 사진은 <b className="text-slate-800">내가 지원한 병원</b>과{" "}
-        <b className="text-slate-800">광고 중인 병원</b>에게만 보입니다.
+        넣지 않아도 이력서를 저장할 수 있습니다. 사진은 <b className="text-slate-800">{RESUME_PUBLIC_SCOPE.advertiserWho}</b>에게만 보입니다.
       </p>
       <div className="mt-4 flex flex-wrap items-start gap-4">
         {url ? (
@@ -277,7 +276,7 @@ function VisibilitySwitch({ isPublic }: Readonly<{ isPublic: boolean }>) {
               <b className="font-semibold text-slate-800">누구나(로그인 안 해도)</b> — {RESUME_PUBLIC_SCOPE.anyone}
             </li>
             <li>
-              <b className="font-semibold text-slate-800">광고 중인 병원만</b> — {RESUME_PUBLIC_SCOPE.advertiser}
+              <b className="font-semibold text-slate-800">{RESUME_PUBLIC_SCOPE.advertiserWho}만</b> — {RESUME_PUBLIC_SCOPE.advertiser}
             </li>
           </ul>
         </div>
@@ -293,7 +292,7 @@ function VisibilitySwitch({ isPublic }: Readonly<{ isPublic: boolean }>) {
               message={`이력서를 공개할까요?
 
 · 누구나(로그인 안 해도) — ${RESUME_PUBLIC_SCOPE.anyone}
-· 광고 중인 병원만 — ${RESUME_PUBLIC_SCOPE.advertiser}
+· ${RESUME_PUBLIC_SCOPE.advertiserWho}만 — ${RESUME_PUBLIC_SCOPE.advertiser}
 
 같은 버튼으로 언제든 즉시 되돌릴 수 있습니다.`}
             >
@@ -406,7 +405,7 @@ export default async function ResumePage({
       {ok === "deleted" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 삭제했습니다.</div>}
       {ok === "photo" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">사진을 저장했습니다.</div>}
       {ok === "photo_deleted" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">사진을 삭제했습니다.</div>}
-      {ok === "public" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 공개했습니다. 연락처를 뺀 내용은 누구나 볼 수 있고, 이름·연락처·사진은 광고 중인 병원만 봅니다.</div>}
+      {ok === "public" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 공개했습니다. 연락처를 뺀 내용은 누구나 볼 수 있고, {RESUME_PUBLIC_SCOPE.advertiser}은 {RESUME_PUBLIC_SCOPE.advertiserWho}만 봅니다.</div>}
       {ok === "private" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">이력서를 비공개로 바꿨습니다. 이제 아무도 볼 수 없습니다 — 위 버튼으로 언제든 다시 공개할 수 있습니다.</div>}
       {messageFor(SAVE_ERRORS, error) && <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{messageFor(SAVE_ERRORS, error)}</div>}
 
@@ -585,7 +584,7 @@ export default async function ResumePage({
                 이력서 공개에 동의합니다
                 <span className="mt-1 block text-xs leading-relaxed text-slate-600">
                   <b className="text-slate-700">누가 봅니까?</b> 인재정보 화면에서 <b className="text-slate-800">로그인하지 않은 방문자를 포함한 누구나</b> — {RESUME_PUBLIC_SCOPE.anyone}.
-                  <b className="text-slate-700"> 연락처는?</b> {RESUME_PUBLIC_SCOPE.advertiser}는 <b className="text-slate-800">널스넷에 광고 중인 병원만</b> 봅니다.
+                  <b className="text-slate-700"> 연락처는?</b> {RESUME_PUBLIC_SCOPE.advertiser}는 <b className="text-slate-800">{RESUME_PUBLIC_SCOPE.advertiserWho}</b>만 봅니다.
                   <b className="text-slate-700"> 왜 봅니까?</b> 채용 제안 · 인재 검색 목적.
                   <b className="text-slate-700"> 언제까지?</b> 저장 뒤에는 이 화면 맨 위 스위치로 언제든 즉시 중단할 수 있습니다.
                 </span>
@@ -604,7 +603,7 @@ export default async function ResumePage({
             이력서와 경력 내용이 모두 지워집니다. 이미 지원한 공고의 기록은 병원에 남습니다.
           </p>
           <form action={deleteResume} className="mt-3">
-            <ConfirmSubmit className="min-h-11" message="이력서를 삭제할까요? 경력 내용까지 모두 지워지며 되돌릴 수 없습니다.">
+            <ConfirmSubmit className="min-h-11" message="이력서를 삭제할까요?&#10;&#10;· 경력 내용까지 모두 지워지며 되돌릴 수 없습니다.&#10;· 이력서가 없으면 리뷰·게시판을 읽을 수도, 쓸 수도, 이미 쓴 글을 고치거나 지울 수도 없습니다(글 자체는 남습니다).&#10;· 내 글·리뷰를 지우려면 이력서를 지우기 **전에** 먼저 정리하세요.&#10;· 공고에 지원하려면 이력서가 다시 필요합니다.">
               이력서 삭제
             </ConfirmSubmit>
           </form>

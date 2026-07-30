@@ -34,12 +34,22 @@ async function PostPanel({ id, uid, loggedIn, error }: Readonly<{ id: string; ui
     <div className="rounded-lg border border-slate-200 bg-white p-6">
       <h2 className="text-xl font-bold text-slate-900">{post.title}</h2>
       <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
-        <p className="text-sm text-slate-500">{authorName(post)} · {fmtDay(post.created_at)}</p>
+        <p className="text-sm text-slate-500">
+          {authorName(post)} · {fmtDay(post.created_at)}
+          {/* 댓글이 달린 뒤 본문을 통째로 갈아치울 수 있으므로, 고쳤다는 사실은 읽는 사람에게도 보여야 한다 */}
+          {post.updated_at > post.created_at && <span className="ml-1 text-slate-400">· 수정됨 {fmtDay(post.updated_at)}</span>}
+        </p>
         {uid !== null && uid === post.author_id && (
-          <form action={deletePost}>
-            <input type="hidden" name="post_id" value={post.id} />
-            <ConfirmSubmit size="sm" message="이 글을 삭제할까요? 댓글도 함께 삭제되며 되돌릴 수 없습니다.">삭제</ConfirmSubmit>
-          </form>
+          <span className="flex items-center gap-1">
+            {/* 수정을 먼저 둔다 — 전에는 삭제뿐이라 오타 하나에 글을 지웠고 댓글이 함께 사라졌다 */}
+            <Link href={`/board/${post.id}/edit`} className="min-h-11 rounded-[12px] px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+              수정
+            </Link>
+            <form action={deletePost}>
+              <input type="hidden" name="post_id" value={post.id} />
+              <ConfirmSubmit size="sm" message="이 글을 삭제할까요? 댓글도 함께 삭제되며 되돌릴 수 없습니다.&#10;오타만 고치려면 '수정'을 쓰세요 — 댓글이 남습니다.">삭제</ConfirmSubmit>
+            </form>
+          </span>
         )}
       </div>
       <p className="mt-4 whitespace-pre-line text-[15px] leading-relaxed text-slate-800">{post.body}</p>
@@ -147,6 +157,7 @@ export default async function BoardPage({
         </div>
 
         {ok === "deleted" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">글을 삭제했습니다.</div>}
+        {ok === "edited" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">글을 수정했습니다.</div>}
 
         {posts.length === 0 ? (
           <p className="py-20 text-center text-slate-500">

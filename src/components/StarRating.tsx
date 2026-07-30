@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 
-export default function StarRating() {
-  const [rating, setRating] = useState(0);
+// value: 수정 화면에서 저장된 별점을 시작값으로 받는다(새 리뷰는 0).
+// 미지정으로 열어두면 수정 화면에서 별점을 다시 고르지 않은 사람이 0점을 저장하게 된다.
+export default function StarRating({ value = 0 }: Readonly<{ value?: number }>) {
+  const [rating, setRating] = useState(value);
   const [hover, setHover] = useState(0);
   return (
     <div className="flex items-center gap-1" role="radiogroup" aria-label="평점 선택">

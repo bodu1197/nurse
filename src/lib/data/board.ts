@@ -6,6 +6,8 @@ export type BoardPost = {
   title: string;
   body: string;
   created_at: string;
+  /** 트리거(board_posts_set_updated_at)가 유지한다. created_at 과 다르면 "수정됨"을 붙인다. */
+  updated_at: string;
   author_id: string | null;
   author: { display_name: string | null } | null;
   legacy_nickname: string | null;
@@ -86,7 +88,7 @@ export async function getBoardPost(id: string): Promise<{ post: BoardPost; comme
   const supabase = await createClient();
   const { data: post, error } = await supabase
     .from("board_posts")
-    .select("id,title,body,created_at,author_id,legacy_nickname,images,author:profiles(display_name)")
+    .select("id,title,body,created_at,updated_at,author_id,legacy_nickname,images,author:profiles(display_name)")
     .eq("id", id)
     .maybeSingle<BoardPost>();
   if (error) console.error("getBoardPost failed:", error.message);

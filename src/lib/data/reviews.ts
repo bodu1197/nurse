@@ -6,10 +6,14 @@ export type ReviewRow = {
   content: string;
   work_period: string | null;
   created_at: string;
+  /** 트리거가 유지한다. created_at 과 다르면 화면에 "수정됨"을 붙인다. */
+  updated_at: string;
+  /** 내 리뷰인지 화면에서 판단해 수정·삭제 버튼을 그린다(비실명 표시라 대조할 것이 id 뿐이다). */
+  author_id: string;
   hospital: { name: string; region: string | null } | null;
 };
 
-const SELECT = "id, rating, content, work_period, created_at, hospital:hospitals(name, region)";
+const SELECT = "id, author_id, rating, content, work_period, created_at, updated_at, hospital:hospitals(name, region)";
 export const REVIEWS_PER_PAGE = 20;
 
 // 전체 리뷰 둘러보기(마스터-디테일 좌측) — 최신순·페이지 나누기. 숨김 제외(RLS), 비실명.

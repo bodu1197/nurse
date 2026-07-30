@@ -61,3 +61,32 @@ export async function deleteComment(formData: FormData) {
   if (id) await supabase.from("board_comments").delete().eq("id", id).eq("author_id", userId);
   redirect(`/board?p=${postId}#comments`);
 }
+
+/**
+ * 게시글 수정.
+ *
+ * 🔴 왜 필요: 수정이 없어서 오타 하나를 고치려면 글을 지우고 다시 써야 했고, 지우는 순간
+ *    달려 있던 댓글이 함께 사라졌다(board_comments 가 post 에 cascade). 남의 댓글을 내 오타
+ *    때문에 없애는 셈이라, 사실상 고치지 말라는 화면이었다.
+ *
+ * 본인 글만 — RLS(board_posts_update)가 최종 판정한다. 반환 행으로 실제 반영을 확인한다
+ * (RLS 에 막히면 0행인데 error 는 null 이라, 안 고쳐놓고 "수정했습니다"가 뜬다).
+ */
+export async function updatePost(formData: FormData) {
+  await requireCommunityMember("/board");
+  const supabase = await createClient();
+  const id = String(formData.get("post_id") ?? "");
+  if (!id) redirect("/board");
+
+  const title = String(formData.get("title") ?? "").trim().slice(0, TITLE_MAX);
+  const body = String(formData.get("body") ?? "").trim().slice(0, BODY_MAX);
+  if (!title || !body) redirect(`/board/${id}/edit?error=empty`);
+
+  const { data, error } = await supabase
+    .from("board_posts").update({ title, body }).eq("id", id).select("id");
+  if (error || !data?.length) {
+    console.error("updatePost failed:", error?.message ?? "no row");
+    redirect(`/board/${id}/edit?error=save`);
+  }
+  redirect(`/board?p=${id}&ok=edited`);
+}

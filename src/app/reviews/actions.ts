@@ -38,3 +38,56 @@ export async function createReview(formData: FormData) {
   }
   redirect("/reviews?ok=1");
 }
+
+/**
+ * 리뷰 수정.
+ *
+ * 🔴 왜 필요: 리뷰는 **병원당 1건**(unique 제약)이다. 수정이 없으면 오타를 고치려 해도
+ *    지우고 다시 쓰는 수밖에 없는데 삭제 경로도 없었다 — 즉 한 번 쓰면 영영 못 고쳤다.
+ *
+ * 병원은 바꿀 수 없다(다른 병원 리뷰가 되면 그건 새 리뷰다 — unique 제약과도 충돌한다).
+ * 별점·내용·근무기간만 고친다. 본인 것만 — RLS(reviews_update_own)가 최종 판정하고,
+ * 그 정책은 '지금도 간호사인 계정'까지 확인한다(평점 오염 방지).
+ */
+export async function updateReview(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const id = String(formData.get("review_id") ?? "");
+  if (!id) redirect("/reviews");
+  const rating = Number(formData.get("rating") ?? 0);
+  const content = String(formData.get("content") ?? "").trim();
+  const workPeriod = String(formData.get("work_period") ?? "").trim() || null;
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5 || content.length < 10) {
+    redirect(`/reviews/${id}/edit?error=invalid`);
+  }
+
+  // 반환 행으로 실제 반영을 확인한다 — RLS 에 막히면 0행인데 error 는 null 이다.
+  const { data, error } = await supabase
+    .from("reviews").update({ rating, content, work_period: workPeriod }).eq("id", id).select("id");
+  if (error || !data?.length) {
+    console.error("updateReview failed:", error?.message ?? "no row");
+    redirect(`/reviews/${id}/edit?error=save`);
+  }
+  redirect("/reviews?ok=edited");
+}
+
+/**
+ * 리뷰 삭제. 본인 것만(RLS reviews_delete_own).
+ * 병원 평점(rating_avg·rating_count)은 트리거(on_review_change)가 알아서 다시 계산한다.
+ */
+export async function deleteReview(formData: FormData) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const id = String(formData.get("review_id") ?? "");
+  if (!id) redirect("/reviews");
+
+  const { data, error } = await supabase.from("reviews").delete().eq("id", id).select("id");
+  if (error || !data?.length) {
+    console.error("deleteReview failed:", error?.message ?? "no row");
+    redirect("/reviews?error=delete");
+  }
+  redirect("/reviews?ok=deleted");
+}

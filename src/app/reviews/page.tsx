@@ -4,6 +4,9 @@ import Button from "@/components/Button";
 import MasterDetail, { ListCard, Pager } from "@/components/MasterDetail";
 import HospitalSearchBox from "@/components/HospitalSearchBox";
 import { getMyProfile } from "@/lib/data/user";
+import { currentUserId } from "@/lib/data/board";
+import ConfirmSubmit from "@/components/ConfirmSubmit";
+import { deleteReview } from "./actions";
 import { getCommunityAccess } from "@/lib/data/community";
 import CommunityGate from "@/components/CommunityGate";
 import {
@@ -21,7 +24,29 @@ function Stars({ rating }: Readonly<{ rating: number }>) {
   );
 }
 
-function ReviewDetail({ r }: Readonly<{ r: ReviewRow }>) {
+/**
+ * 내 리뷰의 수정·삭제 버튼.
+ * 🔴 전체 목록과 병원별 목록 두 곳에서 같은 것을 그린다 — 한쪽에만 붙이면 "내가 쓴 그 병원 리뷰"를
+ *    가장 자연스럽게 찾는 경로(병원 검색)에서 고칠 수단이 안 보인다.
+ */
+function OwnerActions({ id, mine }: Readonly<{ id: string; mine: boolean }>) {
+  if (!mine) return null;
+  return (
+    <span className="flex items-center gap-1">
+      <Link href={`/reviews/${id}/edit`} className="min-h-11 rounded-[12px] px-3 py-2 text-xs font-semibold text-teal-700 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+        수정
+      </Link>
+      <form action={deleteReview}>
+        <input type="hidden" name="review_id" value={id} />
+        <ConfirmSubmit size="sm" message="이 리뷰를 삭제할까요?&#10;병원 평점에서도 즉시 빠집니다. 내용만 고치려면 '수정'을 쓰세요.">삭제</ConfirmSubmit>
+      </form>
+    </span>
+  );
+}
+
+function ReviewDetail({ r, uid }: Readonly<{ r: ReviewRow; uid: string | null }>) {
+  // 내 리뷰일 때만 수정·삭제. 병원당 1건이라 수정이 없으면 한 번 쓴 뒤 영영 못 고친다.
+  const mine = uid !== null && uid === r.author_id;
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -30,21 +55,25 @@ function ReviewDetail({ r }: Readonly<{ r: ReviewRow }>) {
       </div>
       <p className="mt-1 text-sm text-slate-500">
         {r.hospital?.region}{r.work_period ? ` · ${r.work_period} 근무` : ""} · {fmtDay(r.created_at)}
+        {r.updated_at > r.created_at && <span className="ml-1 text-slate-400">· 수정됨 {fmtDay(r.updated_at)}</span>}
       </p>
       <p className="mt-4 whitespace-pre-line text-[15px] leading-relaxed text-slate-800">{r.content}</p>
-      <p className="mt-4 border-t border-slate-100 pt-3 text-xs text-slate-400">간호사 회원 · 비실명 후기</p>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
+        <p className="text-xs text-slate-400">간호사 회원 · 비실명 후기</p>
+        <OwnerActions id={r.id} mine={mine} />
+      </div>
     </article>
   );
 }
 
 export default async function ReviewsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ ok?: string; page?: string; r?: string; hospital?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ ok?: string; error?: string; page?: string; r?: string; hospital?: string }> }>) {
   // 리뷰는 이력서를 등록한 간호사 회원만 볼 수 있다(보기·읽기·작성 전부).
   const access = await getCommunityAccess();
   if (!access.ok) return <CommunityGate reason={access.reason} next="/reviews" />;
 
-  const [{ ok, page, r: selectedId, hospital: hospitalId }, profile] = await Promise.all([searchParams, getMyProfile()]);
+  const [{ ok, error, page, r: selectedId, hospital: hospitalId }, profile, uid] = await Promise.all([searchParams, getMyProfile(), currentUserId()]);
   // 관리자는 리뷰를 열람·모더레이션만 — 작성은 막히므로(평점 오염 방지) 작성 버튼을 숨긴다.
   const canWrite = !!profile && !profile.isAdmin;
 
@@ -60,6 +89,9 @@ export default async function ReviewsPage({
       {/* 병원 이름을 치면 8만 개 병원에서 실시간으로 찾아 그 병원 리뷰로 이동한다. */}
       <div className="mt-4"><HospitalSearchBox initialName={initialName} /></div>
       {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">리뷰가 등록되었습니다. 감사합니다.</div>}
+      {ok === "edited" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">리뷰를 수정했습니다.</div>}
+      {ok === "deleted" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">리뷰를 삭제했습니다. 병원 평점에서도 빠졌습니다.</div>}
+      {error === "delete" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">리뷰를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.</div>}
     </>
   );
 
@@ -107,7 +139,13 @@ export default async function ReviewsPage({
                         <Stars rating={v.rating} />
                       </div>
                       <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed text-slate-800">{v.content}</p>
-                      <p className="mt-2 text-xs text-slate-400">간호사 회원</p>
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs text-slate-400">
+                          간호사 회원
+                          {v.updated_at > v.created_at && <span className="ml-1">· 수정됨 {fmtDay(v.updated_at)}</span>}
+                        </p>
+                        <OwnerActions id={v.id} mine={uid !== null && uid === v.author_id} />
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -162,7 +200,7 @@ export default async function ReviewsPage({
                 <Pager page={pageNum} totalPages={totalPages} href={(n) => href({ page: n })} />
               </>
             }
-            detail={detail && <ReviewDetail r={detail} />}
+            detail={detail && <ReviewDetail uid={uid} r={detail} />}
           />
         )}
       </main>
