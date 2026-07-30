@@ -48,7 +48,7 @@ export default function SiteFooter() {
           <span>© 2026 널스넷 (NurseNet)</span>
           <a href="/privacy" className="hover:text-slate-600">개인정보처리방침</a>
           <a href="/terms" className="hover:text-slate-600">이용약관</a>
-          <a href="/contact" className="hover:text-slate-600">고객센터</a>
+          <a href="/customer" className="hover:text-slate-600">고객센터</a>
         </div>
       </div>
     </footer>

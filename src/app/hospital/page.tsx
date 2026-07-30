@@ -1,6 +1,8 @@
+import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
+import { LINK_CLASS } from "@/lib/constants";
 
 const HOSP_TITLE = "병원 서비스 — 간호사 채용 무료 등록 | 널스넷";
 const HOSP_DESC = "병원 채용담당자를 위한 간호사 채용 서비스. 사업자 인증 후 공고를 무료로 등록하고 79,000여 개 병원 데이터 기반으로 간호사를 만나보세요.";
@@ -62,6 +64,12 @@ export default async function HospitalPage() {
               </div>
             ))}
           </div>
+          {/* 공고 등록은 무료지만 상단 노출은 유료다 — 알아볼 곳으로 가는 길을 여기 둔다.
+              구 널스넷도 /service_information 을 전 화면 메뉴에 달아 뒀고, 그 주소가 이제 /ads 로 온다. */}
+          <p className="mx-auto max-w-4xl px-4 pb-14 text-center text-sm text-slate-600">
+            더 많은 간호사에게 먼저 보이고 싶다면{" "}
+            <Link href="/ads" className={LINK_CLASS}>광고 상품 안내</Link>를 확인해 보세요.
+          </p>
         </section>
       </main>
     </>

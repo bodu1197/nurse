@@ -39,9 +39,9 @@ const nextConfig: NextConfig = {
       { source: "/community", destination: "/board", permanent: false }, // 흔한 이름 — 위와 같은 이유로 307
       to("/information_share", "/board"),
       to("/tos", "/terms"),
-      to("/customer", "/contact"),
-      to("/board_qna", "/contact"),
-      to("/service_information", "/hospital"),
+      // /customer 는 이제 실제 페이지다(고객센터 허브) — 리다이렉트를 걷었다.
+      to("/board_qna", "/faq"),
+      to("/service_information", "/ads"),
       // 상세 — 원본이 없어졌으니 같은 성격의 목록으로 보낸다
       to("/job/job/view/:id", "/jobs"),
       to("/job/person/view/:id", "/talent"),
@@ -50,15 +50,17 @@ const nextConfig: NextConfig = {
       to("/information_share/:id", "/board"),
       to("/pic_board/:id", "/board"),
       to("/video_board/:id", "/board"),
-      to("/board_qna/:id", "/contact"),
-      // 새 사이트에 대응이 없는 것 — 홈으로.
-      // 🔴 이 넷만 permanent:false(307). 흔한 이름이라 나중에 이 앱이 /notice(공지사항) 같은
-      //    페이지를 만들 수 있는데, config redirects 는 파일시스템 라우트보다 **먼저** 돌아
+      to("/board_qna/:id", "/faq"),
+      // 🔴 여기부터 permanent:false(307). 흔한 이름이라 나중에 이 앱이 같은 이름의 페이지를
+      //    만들 수 있는데, config redirects 는 파일시스템 라우트보다 **먼저** 돌아
       //    308 로 굳혀두면 그 페이지가 영원히 안 열린다(브라우저가 308 을 무기한 캐시한다).
+      //    실제로 /notice 가 그렇게 됐다 — 307 로 둔 덕분에 지금 공지사항 페이지를 열 수 있었다.
       { source: "/schedule", destination: "/", permanent: false },
-      { source: "/notice", destination: "/", permanent: false },
-      { source: "/notice/:id", destination: "/", permanent: false },
-      { source: "/event_board/:path*", destination: "/", permanent: false },
+      // 공지·이벤트는 글이 몇 건뿐이라 목록에서 본문까지 보여준다 → 옛 상세 주소는 목록으로.
+      // /notice 자체는 리다이렉트가 없다 — 같은 주소에 실제 페이지가 생겼다.
+      { source: "/notice/:id", destination: "/notice", permanent: false },
+      { source: "/event_board", destination: "/event", permanent: false },
+      { source: "/event_board/:path*", destination: "/event", permanent: false },
     ];
   },
   async headers() {

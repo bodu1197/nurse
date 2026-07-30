@@ -36,7 +36,10 @@ export const FOOTER_NAV: readonly MenuItem[] = [
   { label: "간호사 게시판", href: "/board" },
   { label: "병원 리뷰", href: "/reviews" },
   { label: "병원 서비스", href: "/hospital" },
-  { label: "고객센터", href: "/contact" },
+  // 광고 상품 안내 — 돈이 들어오는 길이라 푸터 어디서든 닿아야 한다(구 널스넷도 전 화면 메뉴에 뒀다)
+  { label: "광고 상품 안내", href: "/ads" },
+  // 고객센터는 허브(/customer)로 보낸다 — 그 아래 자주묻는질문·공지사항·이벤트·1:1문의가 걸려 있다
+  { label: "고객센터", href: "/customer" },
 ];
 
 // 운영주체 — 레거시 널스넷(nursenet.co.kr) 푸터 원문과 같은 값이다(같은 사업자).
@@ -56,10 +59,12 @@ export const COMPANY = {
 // 동시에 말하는 꼴이라 반드시 같이 관리한다.
 //  · /board·/reviews — 이력서 등록한 간호사 회원 전용(noindex)
 //  · /terms·/privacy·/contact — 색인 가치가 없어 noindex
+//  · /ads·/customer·/faq·/notice·/event — 구 널스넷 고객센터·상품안내를 옮긴 것(2026-07-30).
+//    특히 /ads(광고 상품 안내)는 병원이 "간호사 채용광고" 로 찾아 들어오는 길이라 색인한다.
 //  · /talent — **색인한다**(오너 확정 2026-07-30). 구 널스넷이 인재 목록·상세를 이미 색인시켜
 //    왔고(robots 메타 없음 + 사이트맵에 상세 3,544건), 도메인을 이어받으며 그 유입을 버리지 않는다.
 //    이름·연락처·사진은 여전히 광고 중인 병원에만 보인다 — 그 게이트는 그대로다.
-export const PUBLIC_ROUTES = ["/", "/hospital", "/talent"] as const;
+export const PUBLIC_ROUTES = ["/", "/hospital", "/talent", "/ads", "/customer", "/faq", "/notice", "/event"] as const;
 
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://nurse-app-nine.vercel.app";
