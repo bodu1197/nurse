@@ -613,6 +613,7 @@ export type Database = {
           profile_id: string
           residence_region: string | null
           resume_title: string | null
+          search_text: string | null
           shift_types: string[]
           specialties: string[]
           updated_at: string
@@ -647,6 +648,7 @@ export type Database = {
           profile_id: string
           residence_region?: string | null
           resume_title?: string | null
+          search_text?: string | null
           shift_types?: string[]
           specialties?: string[]
           updated_at?: string
@@ -681,6 +683,7 @@ export type Database = {
           profile_id?: string
           residence_region?: string | null
           resume_title?: string | null
+          search_text?: string | null
           shift_types?: string[]
           specialties?: string[]
           updated_at?: string

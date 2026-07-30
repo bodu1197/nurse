@@ -257,10 +257,13 @@ export async function searchPublicTalent(
 
   if (f.specialty) query = query.contains("specialties", [f.specialty]);
   if (f.category) query = query.contains("job_categories", [f.category]);
-  // 키워드 — 이력서 제목과 자기소개에서 찾는다. 이름·연락처는 게이트 뒤라 검색 대상이 아니다
-  // (검색으로 "김OO" 를 넣어 존재 여부를 떠보는 길을 열면 이름을 가린 의미가 없다).
+  // 키워드 — **가려진 사본(search_text)** 에서만 찾는다. 제목·자기소개 원문을 그대로 뒤지면
+  // 안 된다. 카드에는 '김○○' 로 나와도 `?q=김민수` 가 그 사람만 남기면(0건/1건) 그 화면의
+  // 나이·성별·거주지역·학력·경력과 묶여 **실명이 확정된다**. /talent 는 로그인 게이트도 없다.
+  // search_text 는 표시와 같은 규칙(이름·전화·이메일)으로 가린 값이고, DB 트리거가 유지한다
+  // (마이그레이션 20260730200000). 원문은 그대로 남아 있다 — 표시 단계에서 다시 가린다.
   const kw = f.q ? clean(f.q) : "";
-  if (kw) query = query.or(`resume_title.ilike.%${kw}%,intro.ilike.%${kw}%`);
+  if (kw) query = query.ilike("search_text", `%${kw}%`);
   // 희망지역은 "서울 종로구, 경기 성남시" 처럼 여러 개가 한 컬럼에 있어 부분일치로 건다.
   // 시군구는 시도에 종속 — 시도 없이 걸면 '중구'처럼 여러 시도에 있는 이름이 엉뚱한 지역을 긁는다(jobs 와 같은 계약).
   const sido = f.sido ? clean(f.sido) : "";
