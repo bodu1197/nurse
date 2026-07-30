@@ -3,11 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Logo from "@/components/Logo";
-import { HEADER_MENU, menuFor } from "@/lib/constants";
+import { HEADER_MENU } from "@/lib/constants";
 import { signOut } from "@/app/(auth)/actions";
 
-export default function SiteHeader({ user }: Readonly<{ // role 을 필수로 둔다 — optional 이면 넘기는 것을 잊어도 컴파일이 안 잡아, 화면마다 메뉴가 갈린다.
-  user: { displayName: string; role: string | null } | null }>) {
+export default function SiteHeader({ user }: Readonly<{ user: { displayName: string } | null }>) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -40,18 +39,13 @@ export default function SiteHeader({ user }: Readonly<{ // role 을 필수로 �
         </Link>
 
         <nav className="ml-7 hidden items-center gap-5 text-sm font-medium text-slate-600 sm:flex">
-          {/* 데스크톱 상단 네비도 햄버거와 같은 규칙을 쓴다 — 두 곳이 다른 메뉴를 보이면 안 된다 */}
-          {menuFor(HEADER_MENU, user?.role ?? null)
-            .filter((m) => ["/jobs", "/talent", "/reviews", "/board"].includes(m.href))
-            .map(({ href, label }) => (
+          {[["/jobs", "채용공고"], ["/talent", "인재정보"], ["/reviews", "리뷰"], ["/board", "게시판"]].map(([href, label]) => (
             <Link key={href} href={href} className="rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">{label}</Link>
           ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
-          {(!user || user.role !== "nurse") && (
-            <Link href="/hospital" className="hidden items-center px-3 text-sm font-medium text-slate-600 hover:text-teal-700 sm:inline-flex">병원 회원·공고등록</Link>
-          )}
+          <Link href="/hospital" className="hidden items-center px-3 text-sm font-medium text-slate-600 hover:text-teal-700 sm:inline-flex">병원 회원·공고등록</Link>
           {user ? (
             <>
               <Link href="/mypage" className="hidden rounded px-2 text-sm font-medium text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:inline">{user.displayName}님</Link>
@@ -98,10 +92,7 @@ export default function SiteHeader({ user }: Readonly<{ // role 을 필수로 �
             id="site-menu"
             className="absolute right-2 top-[60px] z-30 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg"
           >
-            {(user
-              ? [{ label: "마이페이지", href: "/mypage" }, ...menuFor(HEADER_MENU, user.role ?? null).filter((m) => m.href !== "/signup")]
-              : [...HEADER_MENU]
-            ).map((m, i) => (
+            {(user ? [{ label: "마이페이지", href: "/mypage" }, ...HEADER_MENU.filter((m) => m.href !== "/signup")] : HEADER_MENU).map((m, i) => (
               <Link
                 key={m.href}
                 href={m.href}

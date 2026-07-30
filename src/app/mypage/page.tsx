@@ -160,7 +160,7 @@ function nurseItems(resume: ResumeWithWork | null, counts: { applied: number; sa
 function AdminShell({ displayName, children }: Readonly<{ displayName: string; active: string; children: React.ReactNode }>) {
   return (
     <>
-      <SiteHeader user={{ displayName, role: "admin" }} />
+      <SiteHeader user={{ displayName }} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{children}</main>
     </>
   );

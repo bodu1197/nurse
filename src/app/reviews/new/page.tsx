@@ -38,7 +38,7 @@ export default async function NewReviewPage({
 
   return (
     <>
-      <SiteHeader user={{ displayName: p.displayName, role: p.role }} />
+      <SiteHeader user={{ displayName: p.displayName }} />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <a href="/reviews" className="text-sm text-teal-700 hover:underline">← 병원 리뷰</a>
         <h1 className="mt-3 text-2xl font-bold text-slate-900">병원 리뷰 작성</h1>

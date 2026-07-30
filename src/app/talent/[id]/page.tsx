@@ -37,7 +37,7 @@ export default async function TalentDetailPage({ params }: Readonly<{ params: Pr
 
   return (
     <>
-      <SiteHeader user={p ? { displayName: p.displayName, role: p.role } : null} />
+      <SiteHeader user={p ? { displayName: p.displayName } : null} />
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6">
         <Link href="/talent" className="mb-3 inline-block text-sm text-teal-700 hover:underline">← 인재정보 목록</Link>
 

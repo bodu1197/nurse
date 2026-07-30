@@ -17,7 +17,7 @@ export default async function Home({
 
   return (
     <>
-      <SiteHeader user={profile ? { displayName: profile.displayName, role: profile.role } : null} />
+      <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
       {/* 로그아웃·탈퇴로 도착했으면 이 브라우저에 남은 임시저장 초안을 전부 지운다 */}
       {left && <DraftCleaner />}
 

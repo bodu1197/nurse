@@ -100,7 +100,7 @@ export default async function ReviewsPage({
     const [hospital, reviews] = await Promise.all([getHospital(hospitalId), getHospitalReviews(hospitalId)]);
     return (
       <>
-        <SiteHeader user={profile ? { displayName: profile.displayName, role: profile.role } : null} />
+        <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
         <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
           {renderHeader(hospital?.name ?? "")}
           <Link href="/reviews" className="mt-4 inline-block text-sm text-teal-700 hover:underline">← 전체 리뷰</Link>
@@ -173,7 +173,7 @@ export default async function ReviewsPage({
 
   return (
     <>
-      <SiteHeader user={profile ? { displayName: profile.displayName, role: profile.role } : null} />
+      <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6">
         {renderHeader()}
         {reviews.length === 0 ? (

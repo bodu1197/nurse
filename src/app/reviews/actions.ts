@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { hasResume } from "@/lib/data/community";
+import { hasResume, requireCommunityMember } from "@/lib/data/community";
 
 // 병원 리뷰 작성 (간호사만). RLS로 author_id=본인 강제. 병원당 1리뷰(unique).
 export async function createReview(formData: FormData) {
@@ -78,6 +78,10 @@ export async function updateReview(formData: FormData) {
  * 병원 평점(rating_avg·rating_count)은 트리거(on_review_change)가 알아서 다시 계산한다.
  */
 export async function deleteReview(formData: FormData) {
+  // 🔴 리뷰·게시판은 **이력서를 등록한 간호사 회원**만 쓰고·보고·고치고·지운다(오너 확정).
+  //    수정(updateReview)은 RLS 의 with check 가 막지만 삭제 정책에는 그 조건이 없어 여기서 함께 건다.
+  //    게시판(deletePost)은 이미 같은 게이트를 쓰고 있다 — 두 곳의 규칙을 맞춘다.
+  await requireCommunityMember("/reviews");
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");

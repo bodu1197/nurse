@@ -20,7 +20,7 @@ export default async function HospitalShell({ displayName, active, children }: R
   const upgrade = TIER_UPGRADE[membership.tier];
   return (
     <>
-      <SiteHeader user={{ displayName, role: "hospital" }} />
+      <SiteHeader user={{ displayName }} />
       <div className="mx-auto flex w-full max-w-[1280px] flex-1 flex-col gap-5 px-4 py-6 lg:flex-row lg:gap-6">
         <aside className="hidden lg:block lg:w-56 lg:shrink-0">
           <div className="rounded-2xl border border-slate-200 bg-white p-4">

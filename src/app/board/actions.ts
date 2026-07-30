@@ -57,8 +57,13 @@ export async function deleteComment(formData: FormData) {
   const supabase = await createClient();
   const id = String(formData.get("comment_id") ?? "");
   const postId = String(formData.get("post_id") ?? "");
-  // RLS(board_comments_delete)가 본인 댓글만 지운다. 남의 댓글이면 0행이라 조용히 넘어간다.
-  if (id) await supabase.from("board_comments").delete().eq("id", id).eq("author_id", userId);
+  // RLS(board_comments_delete)가 본인 댓글 + 커뮤니티 회원만 통과시킨다.
+  // 🔴 반환 행을 본다 — 0행인데 그냥 넘어가면 화면은 삭제된 것처럼 되돌아오는데 댓글은 그대로 남는다
+  //    (이력서를 지워 회원 자격을 잃은 경우가 실제로 그렇다).
+  if (id) {
+    const { data } = await supabase.from("board_comments").delete().eq("id", id).eq("author_id", userId).select("id");
+    if (!data?.length) redirect(`/board?p=${postId}&error=delete#comments`);
+  }
   redirect(`/board?p=${postId}#comments`);
 }
 

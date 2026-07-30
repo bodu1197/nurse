@@ -85,7 +85,7 @@ export default async function TalentPage({
 
   return (
     <>
-      <SiteHeader user={p ? { displayName: p.displayName, role: p.role } : null} />
+      <SiteHeader user={p ? { displayName: p.displayName } : null} />
 
       {/* 상단 검색: /jobs 와 같은 pill(지역 + 키워드 + 검색) — 두 화면의 조작법을 통일한다. */}
       <div className="border-b border-slate-200 bg-white">

@@ -33,7 +33,7 @@ export default async function EditPostPage({
 
   return (
     <>
-      <SiteHeader user={{ displayName: p.displayName, role: p.role }} />
+      <SiteHeader user={{ displayName: p.displayName }} />
       <main className="mx-auto w-full max-w-2xl flex-1 px-4 py-8">
         <Link href={`/board?p=${id}`} className="text-sm text-teal-700 hover:underline">← 글로 돌아가기</Link>
         <h1 className="mt-3 text-2xl font-bold text-slate-900">글 수정</h1>

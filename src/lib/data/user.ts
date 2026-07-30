@@ -50,24 +50,23 @@ export const getSessionUser = cache(async () => {
   return user;
 });
 
-export type CurrentUser = { displayName: string; role: Role | null };
+export type CurrentUser = { displayName: string };
 
 // 서버에서 세션 검증(getUser) 후 헤더 표시용 최소 정보 반환. 비로그인=null.
-// 🔴 role 도 함께 준다 — 헤더 메뉴가 역할별로 갈리는데, 이 함수를 쓰는 화면(약관·처리방침·게시판·
-//    커뮤니티 안내)만 role 이 없어 필터가 꺼졌다. 같은 회원이 페이지마다 다른 메뉴를 보면
-//    메뉴가 사라진 것이 정책인지 버그인지 알 수 없다. getMyProfile 은 요청당 캐시되므로
-//    이미 프로필을 읽은 화면에서는 추가 왕복이 없다.
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const user = await getSessionUser();
   if (!user) return null;
   const m = user.user_metadata ?? {};
-  const displayName =
+  const fallback =
     (typeof m.name === "string" && m.name) ||
     (typeof m.full_name === "string" && m.full_name) ||
     user.email?.split("@")[0] ||
     "회원";
+  // 🔴 표시 이름은 profiles.display_name 이 정본이다. auth 메타데이터만 보면, 표시 이름을 바꾼 사람이
+  //    이 함수를 쓰는 화면(게시판·약관·처리방침·커뮤니티 안내)에서만 옛 이름을 계속 본다
+  //    (updateDisplayName 은 profiles 만 갱신한다). getMyProfile 은 요청당 캐시라 왕복이 늘지 않는다.
   const profile = await getMyProfile();
-  return { displayName: profile?.displayName ?? displayName, role: profile?.role ?? null };
+  return { displayName: profile?.displayName ?? fallback };
 }
 
 export type MyProfile = {
