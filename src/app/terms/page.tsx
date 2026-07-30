@@ -15,7 +15,7 @@ export default async function TermsPage() {
       <SiteHeader user={user} />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
         <h1 className="text-2xl font-bold text-slate-900">이용약관</h1>
-        <p className="mt-1 text-sm text-slate-500">시행일: 2026년 6월 26일</p>
+        <p className="mt-1 text-sm text-slate-500">시행일: 2026년 7월 30일</p>
 
         <div className="mt-8 space-y-6 text-sm leading-relaxed text-slate-700">
           <section>
@@ -51,7 +51,23 @@ export default async function TermsPage() {
             <p className="mt-1">회사는 채용 정보를 중개하는 플랫폼으로서, 회원 간 체결되는 근로계약·근무조건·채용 결과에 대해 책임을 지지 않습니다. 회원은 거래 상대방의 정보를 스스로 확인할 책임이 있습니다.</p>
           </section>
           <section>
-            <h2 className="font-bold text-slate-900">제9조 (준거법 및 관할)</h2>
+            <h2 className="font-bold text-slate-900">제9조 (유료 광고)</h2>
+            <p className="mt-1">
+              병원 회원은 등록한 공고를 상단에 노출하는 유료 광고를 구매할 수 있습니다. 광고 금액과 노출 기간은
+              결제 화면에 표시된 내용을 따릅니다.
+            </p>
+            <p className="mt-1">
+              광고는 <b>결제 즉시 노출이 시작되는 상품</b>으로, 결제 후에는 환불되지 않습니다. 채용이 조기에 완료되는 등
+              구매자의 사정으로 광고가 더 이상 필요하지 않게 된 경우에도 남은 기간에 대한 환불이나 다른 공고로의 이월은
+              제공되지 않습니다. 다만 <b>회사의 귀책</b>으로 결제한 기간 동안 광고가 노출되지 않은 경우에는 노출되지 않은
+              기간만큼 노출을 연장하거나 그에 해당하는 금액을 환급합니다.
+            </p>
+            <p className="mt-1">
+              광고 중인 공고를 회원이 직접 삭제하거나 마감한 경우, 남은 노출 기간은 소멸합니다.
+            </p>
+          </section>
+          <section>
+            <h2 className="font-bold text-slate-900">제10조 (준거법 및 관할)</h2>
             <p className="mt-1">본 약관은 대한민국 법령에 따라 해석되며, 서비스 이용과 관련한 분쟁은 민사소송법상의 관할 법원을 제1심 관할로 합니다.</p>
           </section>
           <section>

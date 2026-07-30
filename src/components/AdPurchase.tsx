@@ -70,6 +70,16 @@ export default function AdPurchase({ jobId, initialWeeks = 2, impCode, pg }: Rea
         <div className="flex justify-between border-t border-slate-200 pt-1 font-bold text-slate-900"><dt>결제금액</dt><dd className="text-teal-700">{won(product.amount)}</dd></div>
       </dl>
 
+      {/* 🔴 환불 규정은 **결제 버튼 위에** 있어야 한다(오너 확정 2026-07-30: 환불하지 않는다).
+          어디에도 안 적어두면 "10일 만에 사람을 구했으니 남은 기간 돌려달라"는 문의가 결국 온다.
+          사는 사람이 누르기 전에 알면 그 실랑이 자체가 생기지 않는다 — 이 문구가 그 역할이다. */}
+      <p className="mt-5 rounded-[12px] border border-slate-300 bg-white px-4 py-3 text-xs leading-relaxed text-slate-600">
+        <b className="text-slate-800">환불 안내</b> — 광고는 결제 즉시 노출이 시작되는 상품이라{" "}
+        <b className="text-slate-800">결제 후 환불되지 않습니다.</b> 채용이 일찍 끝나 광고가 필요 없어진 경우에도
+        남은 기간은 환불·이월되지 않습니다. 기간을 짧게 시작해 필요할 때 연장하시는 편이 좋습니다
+        (광고 올리기에서 언제든 기간을 더할 수 있습니다).
+      </p>
+
       {err && <p role="alert" className="mt-3 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{err}</p>}
 
       <Button type="button" onClick={pay} disabled={busy} size="lg" className="mt-4 w-full">

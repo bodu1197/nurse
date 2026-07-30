@@ -3,6 +3,7 @@ import HospitalShell from "@/components/HospitalShell";
 import { getMyProfile } from "@/lib/data/user";
 import { createClient } from "@/lib/supabase/server";
 import { won } from "@/lib/ads";
+import { COMPANY } from "@/lib/constants";
 
 export const metadata = { title: "결제 영수증 — 널스넷", robots: { index: false } };
 
@@ -47,7 +48,7 @@ export default async function ReceiptPage({ params }: Readonly<{ params: Promise
             <div className="flex justify-between"><dt className="text-slate-500">부가세(10%)</dt><dd>{won(o.vat)}</dd></div>
             <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-bold text-slate-900"><dt>결제금액</dt><dd className="text-teal-700">{won(o.amount)}</dd></div>
           </dl>
-          <p className="mt-6 text-center text-xs text-slate-400">정식 세금계산서가 필요하시면 운영팀(howtattoo@howtattoo.co.kr)으로 요청해 주세요.</p>
+          <p className="mt-6 text-center text-xs text-slate-400">광고는 결제 후 환불되지 않습니다(이용약관 제9조). 정식 세금계산서가 필요하시면 {COMPANY.email} 로 요청해 주세요.</p>
         </div>
       </div>
     </HospitalShell>
