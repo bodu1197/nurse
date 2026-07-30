@@ -32,8 +32,12 @@ export type AdPlan = {
   prices: readonly AdPlanPrice[];
 };
 
-/** 레거시 표기 그대로 40% 할인. 판매가는 하드코딩한다 — 정가×0.6 으로 계산하지 않는다(아래 주석). */
-export const AD_PLAN_DISCOUNT = 40;
+/**
+ * 할인율은 **행마다 정가·판매가에서 계산한다**. 상수 40 을 모든 행에 찍으면 안 된다 —
+ * 베스트 60일만 169,000 → 104,400(38%)이라, 40% 배지 옆에 그 숫자가 놓이면 화면이
+ * 스스로를 반증한다(손님이 40%를 근거로 101,400원을 요구할 근거가 우리 화면에 있다).
+ */
+export const discountPct = (list: number, sale: number) => Math.round((1 - sale / list) * 100);
 
 export const AD_PLANS: readonly AdPlan[] = [
   {

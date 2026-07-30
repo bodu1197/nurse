@@ -3,6 +3,7 @@ import Image from "next/image";
 import SiteHeader from "@/components/SiteHeader";
 import { getCurrentUser } from "@/lib/data/user";
 import { EVENTS } from "@/lib/customerContent";
+import { todayKst, nowMs } from "@/lib/date";
 
 export const metadata = {
   title: "이벤트 — 널스넷",
@@ -22,7 +23,10 @@ export const metadata = {
  */
 export default async function EventPage() {
   const user = await getCurrentUser();
-  const today = new Date().toISOString().slice(0, 10);
+  // 🔴 UTC 로 자르면 안 된다. 서버는 UTC 로 돌아서(Vercel 기본, 이 저장소에 TZ 설정 없음)
+  //    한국시간 00:00~08:59 사이에는 날짜가 하루 전으로 나오고, 어제 끝난 이벤트가
+  //    9시간 동안 '진행 중' 으로 남는다. 같은 함정을 막으려고 만들어 둔 헬퍼가 이미 있다.
+  const today = todayKst(nowMs());
 
   return (
     <>
