@@ -8,7 +8,7 @@ export default async function JobsLayout({ children }: Readonly<{ children: Reac
   const profile = await getMyProfile();
   return (
     <>
-      <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
+      <SiteHeader user={profile ? { displayName: profile.displayName, role: profile.role } : null} />
       {children}
     </>
   );

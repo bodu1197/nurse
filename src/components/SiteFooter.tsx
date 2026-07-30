@@ -1,4 +1,5 @@
-import { FOOTER_NAV, COMPANY } from "@/lib/constants";
+import { FOOTER_NAV, COMPANY, menuFor } from "@/lib/constants";
+import { getMyProfile } from "@/lib/data/user";
 
 /**
  * 전 화면 공용 푸터.
@@ -10,7 +11,10 @@ import { FOOTER_NAV, COMPANY } from "@/lib/constants";
  * 사업자 정보는 레거시 널스넷(nursenet.co.kr) 푸터 원문과 같은 값이다 — 같은 사업자이므로
  * 두 사이트가 다른 정보를 말하면 안 된다. 값은 lib/constants.ts(COMPANY) 한 곳에서 온다.
  */
-export default function SiteFooter() {
+export default async function SiteFooter() {
+  // getMyProfile 은 요청당 캐시된다 — 대부분의 화면이 이미 불렀으므로 추가 왕복이 없다.
+  const profile = await getMyProfile();
+  const nav = menuFor(FOOTER_NAV, profile?.role ?? null);
   return (
     // print:hidden — 이력서 인쇄(PrintSheet)가 루트 레이아웃 안에 있어서, 이게 없으면
     // 병원이 뽑는 지원자 이력서 PDF 맨 아래에 사업자 정보와 사이트 메뉴가 딸려 나온다.
@@ -22,7 +26,7 @@ export default function SiteFooter() {
             <p className="mt-2 max-w-xs text-sm text-slate-500">간호사와 병원을 잇는 전문 채용 플랫폼.</p>
           </div>
           <nav className="grid grid-cols-2 gap-x-10 gap-y-2 text-sm sm:grid-cols-1">
-            {FOOTER_NAV.map((l) => (
+            {nav.map((l) => (
               <a key={l.href} href={l.href} className="text-slate-600 hover:text-teal-700">{l.label}</a>
             ))}
           </nav>

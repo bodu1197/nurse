@@ -5,7 +5,10 @@ import HospitalPicker from "@/components/HospitalPicker";
 import { requireProfile } from "@/lib/data/user";
 import { getMyHospital } from "@/lib/data/jobs";
 import { INPUT_CLASS } from "@/lib/constants";
-import { verifyHospitalBusiness } from "../actions";
+import ConfirmSubmit from "@/components/ConfirmSubmit";
+import DraftCleaner from "@/components/DraftCleaner";
+import { LINK_CLASS } from "@/lib/constants";
+import { verifyHospitalBusiness, unlinkHospital } from "../actions";
 
 export const metadata = { title: "병원 사업자 인증 — 널스넷", robots: { index: false } };
 
@@ -22,7 +25,13 @@ const ERR: Record<string, string> = {
   fail: "인증에 실패했습니다. 다시 시도해 주세요.",
   hospital: "선택한 병원을 찾을 수 없습니다.",
   claimed: "이미 다른 계정이 등록·관리 중인 병원입니다. 우리 병원이 맞다면 고객센터(/contact)로 사업자등록증과 함께 알려주세요 — 확인 후 연결을 옮겨드립니다.",
+  hasjobs: "등록한 공고가 있어 연결을 해제할 수 없습니다. 연결을 끊으면 그 공고를 수정·마감·삭제할 수 없게 됩니다. 공고를 모두 삭제한 뒤 다시 시도하시거나, 공고를 유지한 채 옮기려면 고객센터로 알려주세요.",
+  nohospital: "연결된 병원이 없습니다.",
+  unlink: "연결 해제에 실패했습니다. 잠시 후 다시 시도해 주세요.",
 };
+
+/** 병원 연결 해제 쪽 오류 — 인증 폼 위 배너와 자리를 나눠 쓴다 */
+const UNLINK_ERRORS = new Set(["hasjobs", "nohospital", "unlink"]);
 
 export default async function VerifyPage({
   searchParams,
@@ -39,6 +48,43 @@ export default async function VerifyPage({
     <HospitalShell displayName={p.displayName} active="/mypage/verify">
       <div className="max-w-lg">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">병원 사업자 인증</h1>
+        {ok === "unlinked" && (
+          <>
+            {/* 🔴 공고 등록 화면의 병원 초안(HospitalPicker)도 함께 지운다. 안 지우면 방금 해제한
+                병원이 다음 등록에서 그대로 되살아나 다시 점유된다 — 해제가 무효가 된다. */}
+            <DraftCleaner keys={[`nursenet:draft:job-new-hospital:${p.email}`]} />
+            <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">병원 연결을 해제했습니다. 아래에서 올바른 병원을 고르고 다시 인증해 주세요.</div>
+          </>
+        )}
+        {/* 연결 해제 관련 오류만 여기서 — 인증 실패 문구는 아래 폼 위에 이미 있다(두 번 뜨지 않게) */}
+        {UNLINK_ERRORS.has(error ?? "") && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{ERR[error!]}</div>}
+
+        {/* 🔴 연결된 병원을 보여주고 **스스로 바꿀 수 있게** 한다. 전에는 인증 때 한 번 고르면
+            공고 등록 화면이 그 병원을 고정 표시할 뿐, 잘못 골랐어도 되돌릴 방법이 없었다.
+            공고가 있으면 해제를 막는다 — 연결을 끊으면 자기 공고를 수정·마감·삭제할 수 없게 된다. */}
+        {myHosp && (
+          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5">
+            <h2 className="font-bold text-slate-900">연결된 병원</h2>
+            <p className="mt-2 text-sm">
+              <b className="text-slate-800">{myHosp.name}</b>
+              {myHosp.region && <span className="ml-2 text-xs text-slate-500">{myHosp.region}</span>}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">공고를 등록하면 이 병원 이름으로 나갑니다.</p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <form action={unlinkHospital}>
+                <ConfirmSubmit variant="outline" size="sm" className="min-h-11"
+                  message={`'${myHosp.name}' 연결을 해제할까요?
+해제 후 다시 인증하면서 올바른 병원을 고르시면 됩니다.
+등록한 공고가 있으면 해제되지 않습니다.`}>
+                  다른 병원으로 바꾸기
+                </ConfirmSubmit>
+              </form>
+              <span className="text-xs text-slate-500">
+                공고가 있는 채로 옮기려면 <a href="/contact" className={LINK_CLASS}>고객센터</a>로 알려주세요.
+              </span>
+            </div>
+          </section>
+        )}
 
         {verified && reverify !== "1" ? (
           <div className="mt-6 rounded-2xl border border-teal-200 bg-teal-50 p-6 text-center">
@@ -57,7 +103,7 @@ export default async function VerifyPage({
             <p className="mt-2 text-sm text-slate-500">
               국세청 사업자등록 진위확인으로 병원을 인증합니다. 인증된 병원만 공고를 등록할 수 있습니다.
             </p>
-            {error && (
+            {error && !UNLINK_ERRORS.has(error) && (
               <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {ERR[error] ?? ERR.fail}
               </div>

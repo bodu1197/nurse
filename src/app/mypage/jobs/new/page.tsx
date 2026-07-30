@@ -6,7 +6,7 @@ import { todayKst, nowMs } from "@/lib/date";
 import JobFields, { type JobDefaults } from "@/components/JobFields";
 import FormDraft from "@/components/FormDraft";
 import { requireProfile } from "@/lib/data/user";
-import { getMyJob, getMyHospital, getMyLastJob } from "@/lib/data/jobs";
+import { getMyJob, getMyHospital, getMyLastJob, freeSlotTaken } from "@/lib/data/jobs";
 import { AD_PRODUCTS, won } from "@/lib/ads";
 import { createJob } from "../../actions";
 
@@ -28,7 +28,11 @@ export default async function NewJobPage({
   if (!p.businessVerified) redirect("/mypage/verify?from=jobs-new");
   const { error, from } = await searchParams;
   const dup = !!from;
-  const myHosp = await getMyHospital(); // 인증 시 연결된 병원(있으면 자동 사용)
+  const myHosp = await getMyHospital();
+  // 무료 1건 제한을 **누르기 전에** 알린다(서버 판정은 createJob 이 그대로 한다).
+  // 관리자는 createJob 이 전용 테스트 병원을 쓰므로(폼의 병원과 다르다) 화면 판정을 걸지 않는다 —
+  // 걸면 서버와 다른 병원 기준으로 무료 칸이 잠기거나 열린다.
+  const freeTaken = p.isAdmin ? false : await freeSlotTaken();
   // 복제 지정(from)이면 그 공고, 아니면 직전 공고를 템플릿으로 → 전 필드 자동입력. 근무지·접수안내는 없으면 병원 데이터로.
   const template = from ? await getMyJob(from) : await getMyLastJob();
   const d: JobDefaults = template
@@ -72,8 +76,6 @@ export default async function NewJobPage({
           <FormDraft
             storageKey={`nursenet:draft:job-new:${p.email}`}
             ownErrors={["missing", "hospital", "claimed", "save", "freelimit", "deadline"]}
-            // 병원은 hidden 값이라 초안에 담기지 않는다(HospitalPicker) → 복원 배너에서 먼저 알린다.
-            note={myHosp ? undefined : "병원은 다시 선택해 주세요."}
           />
           {myHosp ? (
             <div className="flex flex-col gap-1">
@@ -88,7 +90,10 @@ export default async function NewJobPage({
           ) : (
             <div className="flex flex-col gap-1">
               <span className="text-sm font-medium text-slate-700">병원 선택 <span className="text-red-500">*</span></span>
-              <HospitalPicker initial={template?.hospital ? { id: template.hospital.id, name: template.hospital.name, region: null, address: null } : null} />
+              <HospitalPicker
+                initial={template?.hospital ? { id: template.hospital.id, name: template.hospital.name, region: null, address: null } : null}
+                draftKey={`nursenet:draft:job-new-hospital:${p.email}`}
+              />
             </div>
           )}
           <JobFields d={d} minDeadline={todayKst(nowMs())} />
@@ -96,12 +101,21 @@ export default async function NewJobPage({
           <fieldset className="flex flex-col gap-2">
             <legend className="text-sm font-medium text-slate-700">게시 기간</legend>
             <label className="flex items-center gap-3 rounded-xl border border-slate-300 p-3 has-[:checked]:border-teal-500 has-[:checked]:bg-teal-50">
-              <input type="radio" name="duration" value="free" defaultChecked className="accent-teal-600" />
-              <span className="text-sm text-slate-700"><b>무료 7일</b> <span className="text-slate-400">· 병원당 동시 1건</span></span>
+              {/* 🔴 이미 무료 공고가 나가 있으면 이 칸을 미리 잠근다. 전에는 15개 항목을 다 채우고
+                  등록을 누른 뒤에야 되돌려 보냈다(입력도 함께 날아갔다). 서버 판정은 그대로 둔다. */}
+              <input type="radio" name="duration" value="free" defaultChecked={!freeTaken} disabled={freeTaken} className="accent-teal-600 disabled:opacity-50" />
+              <span className={`text-sm ${freeTaken ? "text-slate-400" : "text-slate-700"}`}>
+                <b>무료 7일</b>{" "}
+                {freeTaken
+                  ? <span>· 이미 무료 공고가 노출 중입니다 — 유료를 고르거나 <a href="/mypage/jobs" className="underline">기존 공고를 마감</a>하세요</span>
+                  : <span className="text-slate-400">· 병원당 동시 1건</span>}
+              </span>
             </label>
             {AD_PRODUCTS.map((p) => (
               <label key={p.weeks} className="flex items-center gap-3 rounded-xl border border-slate-300 p-3 has-[:checked]:border-teal-500 has-[:checked]:bg-teal-50">
-                <input type="radio" name="duration" value={p.weeks} className="accent-teal-600" />
+                {/* 🔴 무료가 잠겼다고 유료를 **미리 골라두지 않는다** — 돈이 드는 선택을 대신 해주는 꼴이다.
+                  대신 required 로 "직접 하나 고르기"를 브라우저가 강제한다(잠긴 무료 라디오는 대상에서 빠진다). */}
+              <input type="radio" name="duration" value={p.weeks} required={freeTaken} className="accent-teal-600" />
                 <span className="text-sm text-slate-700"><b>{p.weeks}주 노출</b> <span className="text-teal-700">· {won(p.amount)}</span> <span className="text-teal-600">(1주 무료 포함)</span></span>
               </label>
             ))}

@@ -1,13 +1,50 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type Hosp = { id: string; name: string; region: string | null; address: string | null };
 
-export default function HospitalPicker({ initial }: { initial?: Hosp | null }) {
+export default function HospitalPicker({
+  initial,
+  draftKey,
+}: {
+  initial?: Hosp | null;
+  /**
+   * 있으면 고른 병원을 이 브라우저에 임시 보관했다가 다음에 되살린다.
+   * 🔴 병원은 hidden 값(hospital_id)이라 FormDraft 가 담지 못한다 — 초안을 복원해도 병원 칸만
+   *    비어 있어서 그대로 제출하면 "병원과 공고 제목은 필수입니다"가 뜨는데, 제목은 분명히
+   *    채워져 있어 원인을 찾을 수 없었다. 선택 상태를 아는 이 컴포넌트가 자기 몫만 직접 챙긴다.
+   */
+  draftKey?: string;
+}) {
   const [q, setQ] = useState(initial?.name ?? "");
   const [results, setResults] = useState<Hosp[]>([]);
   const [selected, setSelected] = useState<Hosp | null>(initial ?? null);
+
+  // 복원: 서버가 준 initial 이 없을 때만(저장된 연결이 있으면 그쪽이 우선이다).
+  //
+  // 🔴 마운트 후 setState 를 부른다 — 규칙이 경고하는 "연쇄 렌더"가 맞지만, 여기서는 그것이 유일한
+  //    올바른 방법이다. localStorage 는 서버에 없으므로 초기값으로 읽으면 서버가 그린 HTML 과
+  //    클라이언트가 그린 것이 달라져 하이드레이션이 깨진다. 렌더는 마운트 시 딱 한 번 더 돈다.
+  useEffect(() => {
+    if (!draftKey || initial) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const h = JSON.parse(raw) as Hosp;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- 위 주석 참고(하이드레이션 안전을 위해 마운트 후 1회)
+      if (h?.id && h?.name) { setSelected(h); setQ(h.name); }
+    } catch { /* 시크릿 모드 등 — 복원은 부가 기능이라 조용히 넘어간다 */ }
+  }, [draftKey, initial]);
+
+  // 보관: 고를 때마다 갱신, 지울 때는 함께 비운다.
+  useEffect(() => {
+    if (!draftKey) return;
+    try {
+      if (selected) localStorage.setItem(draftKey, JSON.stringify(selected));
+      else localStorage.removeItem(draftKey);
+    } catch { /* 위와 같음 */ }
+  }, [draftKey, selected]);
   const [loading, setLoading] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const seq = useRef(0); // 요청 순번 — 느린 이전 응답이 최신 결과를 덮어쓰지 않게

@@ -131,11 +131,10 @@ const NURSE_ITEMS: Item[] = [
   { title: "저장한 검색", desc: "검색 조건을 저장하고 빠르게 다시 찾습니다.", href: "/mypage/alerts" },
   { title: "내 정보 · 계정", desc: "표시 이름 · 비밀번호 변경 · 회원 탈퇴", href: "/mypage/account" },
 ];
-const ADMIN_ITEMS: Item[] = [
-  { title: "회원 관리", desc: "간호사·병원 회원을 관리합니다." },
-  { title: "공고 관리", desc: "전체 채용공고를 관리합니다." },
-  { title: "데이터 수집", desc: "워크넷·공공데이터 연동 상태를 봅니다." },
-];
+// 🔴 없는 기능을 '준비 중' 카드로 세워두지 않는다. 회원 관리·공고 관리·데이터 수집 화면은
+//    존재하지 않고 만들 계획도 잡히지 않았다. 링크도 없는 카드 세 장은 관리자에게 아무것도 주지 않으면서
+//    "곧 생긴다"는 인상만 남긴다. 실제로 쓰는 도구(보기 전환)는 위에 이미 있다.
+const ADMIN_ITEMS: Item[] = [];
 
 // 카드에 실제 숫자를 넣는다 — "지원 내역"이라고만 쓰여 있으면 눌러봐야 비어 있는지 알 수 있다.
 function nurseItems(resume: ResumeWithWork | null, counts: { applied: number; saved: number; searches: number }): Item[] {
@@ -161,7 +160,7 @@ function nurseItems(resume: ResumeWithWork | null, counts: { applied: number; sa
 function AdminShell({ displayName, children }: Readonly<{ displayName: string; active: string; children: React.ReactNode }>) {
   return (
     <>
-      <SiteHeader user={{ displayName }} />
+      <SiteHeader user={{ displayName, role: "admin" }} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{children}</main>
     </>
   );
@@ -231,9 +230,15 @@ export default async function MyPage({
           </div>
         </section>
         <h2 className="mt-8 text-sm font-semibold text-slate-500">{profile.role === "admin" ? "관리자 도구" : "구직 활동"}</h2>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          {items.map((it) => <Card key={it.title} item={it} />)}
-        </div>
+        {items.length === 0 ? (
+          <p className="mt-3 rounded-xl border border-dashed border-slate-300 px-4 py-6 text-sm text-slate-500">
+            별도 관리자 화면은 없습니다. 위 <b className="text-slate-700">보기 전환</b>으로 병원·간호사 화면을 그대로 확인하세요.
+          </p>
+        ) : (
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {items.map((it) => <Card key={it.title} item={it} />)}
+          </div>
+        )}
       </>
     </Shell>
   );

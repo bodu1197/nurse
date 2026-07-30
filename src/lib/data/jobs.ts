@@ -337,7 +337,21 @@ export async function getMyHospital(): Promise<MyHospital | null> {
   const user = await getSessionUser();
   if (!user) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("hospitals").select("id,name,region,address").eq("owner_profile_id", user.id).limit(1);
+  // 🔴 예전에는 정렬 없이 limit(1) 이라, 소유 병원이 둘 이상이면(재인증으로 옛 연결이 남는 경우)
+  //    **어느 병원 이름으로 공고가 나갈지 병원 스스로 통제할 수 없었다**. 두 가지로 못 박는다.
+  //    (1) profiles.claimed_hospital_id 가 있으면 그게 정답이다(인증 때 고른 병원).
+  //    (2) 없으면 가장 먼저 연결한 것 하나로 고정한다(호출마다 답이 바뀌지 않게).
+  const { data: prof } = await supabase.from("profiles").select("claimed_hospital_id").eq("id", user.id).maybeSingle();
+  const claimed = prof?.claimed_hospital_id;
+  if (claimed) {
+    const { data } = await supabase
+      .from("hospitals").select("id,name,region,address")
+      .eq("id", claimed).eq("owner_profile_id", user.id).maybeSingle();
+    if (data) return data;
+  }
+  const { data } = await supabase
+    .from("hospitals").select("id,name,region,address")
+    .eq("owner_profile_id", user.id).order("created_at", { ascending: true }).order("id").limit(1);
   return data?.[0] ?? null;
 }
 
@@ -488,4 +502,30 @@ export async function getSavedJobs(): Promise<JobRow[]> {
     (gone ?? []).forEach((j) => byId.set(j.id, j));
   }
   return ids.map((id) => byId.get(id)).filter((j): j is JobRow => !!j);
+}
+
+/**
+ * 지금 무료 공고를 새로 올릴 수 있는가 — 공고 등록 화면이 **제출 전에** 알려주기 위한 판정.
+ *
+ * 🔴 전에는 이 규칙이 createJob 안에만 있어서, 15개 항목을 다 채우고 등록을 누른 뒤에야
+ *    "무료는 동시 1건" 이라며 되돌려 보냈다. 규칙은 서버가 최종 판정하되(그대로 유지),
+ *    화면도 같은 답을 미리 보여준다.
+ *
+ * 판정 조건은 createJob·repostJob 과 같다: 게시 7일 이내 · open · 광고 아님.
+ */
+export async function freeSlotTaken(): Promise<boolean> {
+  const hosp = await getMyHospital();
+  if (!hosp) return false;
+  const supabase = await createClient();
+  const now = Date.now();
+  const fresh = new Date(now - FREE_LISTING_MS).toISOString();
+  const nowIso = new Date(now).toISOString();
+  const { count } = await supabase
+    .from("jobs")
+    .select("id", { count: "exact", head: true })
+    .eq("hospital_id", hosp.id)
+    .eq("status", "open")
+    .gte("posted_at", fresh)
+    .or(`featured_until.is.null,featured_until.lt.${nowIso}`);
+  return (count ?? 0) >= 1;
 }

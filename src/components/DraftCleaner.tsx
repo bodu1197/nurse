@@ -13,15 +13,21 @@ import { DRAFT_PREFIX } from "@/components/FormDraft";
  *
  * 서버 액션은 localStorage 에 손댈 수 없으므로, 로그아웃·탈퇴가 **도착하는 화면**에서 지운다.
  */
-export default function DraftCleaner() {
+export default function DraftCleaner({ keys }: Readonly<{ keys?: readonly string[] }>) {
+  const only = keys?.join("|") ?? "";
   useEffect(() => {
     try {
+      // keys 를 주면 그것만 — 지원을 마친 뒤 그 공고의 초안 하나만 거두는 식으로 쓴다.
+      if (only) {
+        for (const k of only.split("|")) localStorage.removeItem(k);
+        return;
+      }
       for (const k of Object.keys(localStorage)) {
         if (k.startsWith(DRAFT_PREFIX)) localStorage.removeItem(k);
       }
     } catch {
       // 시크릿 모드 등에서 접근이 막힐 수 있다 — 지울 게 없으므로 조용히 넘어간다.
     }
-  }, []);
+  }, [only]);
   return null;
 }

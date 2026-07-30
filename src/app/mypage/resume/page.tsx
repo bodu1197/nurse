@@ -250,7 +250,7 @@ function PhotoCard({ url }: Readonly<{ url: string | null }>) {
  * 끄기는 확인 없이 한 번에 — 개인정보 제공 동의 철회에 확인을 요구하는 건 다크패턴이다.
  * 켜기는 무엇이 누구에게 가는지 확인을 받는다(동의 행위라서).
  */
-function VisibilitySwitch({ isPublic }: Readonly<{ isPublic: boolean }>) {
+function VisibilitySwitch({ isPublic, hasName }: Readonly<{ isPublic: boolean; hasName: boolean }>) {
   return (
     <section
       aria-label="이력서 공개 설정"
@@ -271,6 +271,15 @@ function VisibilitySwitch({ isPublic }: Readonly<{ isPublic: boolean }>) {
               ? "누구나 볼 수 있는 상태입니다. 이 버튼으로 언제든 즉시 멈출 수 있습니다."
               : "아무도 볼 수 없습니다. 공개하면 아래 범위로 열립니다."}
           </p>
+          {/* 🔴 이름이 비어 있으면 searchPublicTalent 가 목록에서 제외한다(.not("name","is",null)).
+              그런데 화면은 "공개 중"이라고만 해서, 아무리 기다려도 병원 눈에 안 띄는 이유를 알 수 없었다.
+              이관해온 이력서에 실제로 이름 없는 건이 있다. */}
+          {isPublic && !hasName && (
+            <p className="mt-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <b className="font-semibold">이름이 비어 있어 인재 검색에는 나오지 않습니다.</b> 아래 ① 기본 인적사항에
+              이름을 채우고 저장하면 그때부터 노출됩니다.
+            </p>
+          )}
           <ul className="mt-2 space-y-1 text-xs text-slate-600">
             <li>
               <b className="font-semibold text-slate-800">누구나(로그인 안 해도)</b> — {RESUME_PUBLIC_SCOPE.anyone}
@@ -410,7 +419,7 @@ export default async function ResumePage({
       {messageFor(SAVE_ERRORS, error) && <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{messageFor(SAVE_ERRORS, error)}</div>}
 
       {/* 공개 스위치는 이력서보다 먼저 — 회원이 가장 급하게 찾는 것이라 스크롤 없이 보여야 한다. */}
-      {r && <div className="mt-6"><VisibilitySwitch isPublic={r.is_public} /></div>}
+      {r && <div className="mt-6"><VisibilitySwitch isPublic={r.is_public} hasName={!!r.name?.trim()} /></div>}
       <div className="mt-4"><PhotoCard url={photoUrl} /></div>
       {r && <div className="mt-4"><ResumeView r={r} photoUrl={photoUrl} /></div>}
 
@@ -460,6 +469,23 @@ export default async function ResumePage({
             </Field>
             <Field id="residence_region" text="거주 지역" hint="(통근 가능 여부 판단용)">
               <RegionSelect id="residence_region" defaultValue={r?.residence_region ?? null} />
+            </Field>
+            {/* 🔴 성별·나이는 인재 카드에 **누구에게나** 공개되는 값인데(lib/data/talent.ts 의 카드 구성),
+                정작 본인이 입력·수정·삭제할 화면이 없었다. 이관 회원은 값이 있고 새로 가입한 사람은
+                영영 빈칸이었다. 저장 위치는 profiles 이고 이 폼이 함께 갱신한다(saveResume).
+                '선택 안 함' 을 고르면 지워진다 — 넣는 것과 같은 무게로 뺄 수 있어야 한다. */}
+            <Field id="gender" text="성별" hint="(인재 카드에 공개)">
+              <select id="gender" name="gender" defaultValue={p.gender ?? ""} className={INPUT_CLASS}>
+                {/* 🔴 value 는 DB 에 실제로 들어 있는 값이어야 한다 — 이관 회원 11,407명이 '여성'/'남성' 으로
+                    저장돼 있다(실측). '여'/'남' 으로 두면 그분들 화면에는 '선택 안 함' 으로 보이고,
+                    이력서를 한 번만 저장해도 공개 카드의 성별이 조용히 지워진다. 표기도 카드와 같아진다. */}
+                <option value="">선택 안 함</option>
+                <option value="여성">여성</option>
+                <option value="남성">남성</option>
+              </select>
+            </Field>
+            <Field id="birthday" text="생년월일" hint="(카드에는 나이만 표시)">
+              <input id="birthday" name="birthday" type="date" defaultValue={p.birthday ?? ""} className={INPUT_CLASS} />
             </Field>
           </div>
         </Section>
@@ -603,7 +629,7 @@ export default async function ResumePage({
             이력서와 경력 내용이 모두 지워집니다. 이미 지원한 공고의 기록은 병원에 남습니다.
           </p>
           <form action={deleteResume} className="mt-3">
-            <ConfirmSubmit className="min-h-11" message="이력서를 삭제할까요?&#10;&#10;· 경력 내용까지 모두 지워지며 되돌릴 수 없습니다.&#10;· 이력서가 없으면 리뷰·게시판을 읽을 수도, 쓸 수도, 이미 쓴 글을 고치거나 지울 수도 없습니다(글 자체는 남습니다).&#10;· 내 글·리뷰를 지우려면 이력서를 지우기 **전에** 먼저 정리하세요.&#10;· 공고에 지원하려면 이력서가 다시 필요합니다.">
+            <ConfirmSubmit className="min-h-11" message="이력서를 삭제할까요?&#10;&#10;· 경력과 증명사진까지 모두 지워지며 되돌릴 수 없습니다.&#10;· 이력서가 없으면 리뷰·게시판을 읽을 수도, 쓸 수도, 이미 쓴 글을 고치거나 지울 수도 없습니다(글 자체는 남습니다).&#10;· 내 글·리뷰를 지우려면 이력서를 지우기 **전에** 먼저 정리하세요.&#10;· 공고에 지원하려면 이력서가 다시 필요합니다.">
               이력서 삭제
             </ConfirmSubmit>
           </form>

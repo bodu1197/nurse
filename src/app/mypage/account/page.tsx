@@ -127,7 +127,7 @@ export default async function AccountPage({
   if (p.role === "nurse") return <NurseShell displayName={p.displayName} active="/mypage/account">{body}</NurseShell>;
   return (
     <>
-      <SiteHeader user={{ displayName: p.displayName }} />
+      <SiteHeader user={{ displayName: p.displayName, role: p.role }} />
       <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{body}</main>
     </>
   );

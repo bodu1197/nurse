@@ -15,24 +15,44 @@ export const POPULAR_SEARCHES = [
 ] as const;
 
 // 헤더 햄버거 메뉴 — 준비중 스텁(급여/회사소개)은 구현 전까지 제외(새는 링크 방지)
-export const HEADER_MENU = [
+// role: 이 메뉴를 볼 사람. 없으면 누구나.
+// 🔴 전에는 전원에게 같은 메뉴를 보여줘서, 병원 회원이 '리뷰'·'게시판'을 누르면 "간호사 회원 전용입니다"
+//    벽에 부딪혔고, 간호사에게는 쓸 일 없는 '병원 공고등록'이 계속 보였다. 못 쓰는 메뉴를 눌러야만
+//    못 쓴다는 걸 아는 구조였다.
+export type MenuItem = { label: string; href: string; role?: "nurse" | "hospital" };
+
+export const HEADER_MENU: readonly MenuItem[] = [
   { label: "채용공고", href: "/jobs" },
   { label: "인재정보", href: "/talent" },
-  { label: "리뷰", href: "/reviews" },
-  { label: "게시판", href: "/board" },
+  { label: "리뷰", href: "/reviews", role: "nurse" },
+  { label: "게시판", href: "/board", role: "nurse" },
   { label: "회원가입", href: "/signup" },
-  { label: "병원 공고등록", href: "/hospital" },
-] as const;
+  { label: "병원 공고등록", href: "/hospital", role: "hospital" },
+];
+
+/**
+ * 이 사람에게 보여줄 메뉴만 남긴다.
+ * 비로그인은 전부 보여준다 — 무엇이 있는 사이트인지 먼저 알아야 가입 여부를 정한다.
+ * 관리자는 전부 본다(양쪽 화면을 확인해야 한다).
+ */
+export function menuFor(items: readonly MenuItem[], role: string | null): MenuItem[] {
+  if (!role || role === "admin") return [...items];
+  return items.filter((m) => !m.role || m.role === role);
+}
 
 // 푸터 네비게이션
-export const FOOTER_NAV = [
+// 헤더와 **같은 규칙**으로 거른다 — 한 화면에서 위는 "그 메뉴 없음", 아래는 "여기 있음" 이라고
+// 말하면 안 된다(병원 회원이 푸터의 '간호사 게시판' 을 눌러 다시 벽에 부딪히던 것).
+// 🔴 '병원 서비스'(/hospital)는 role 을 걸지 않는다 — 헤더에서 간호사에게 감췄으므로,
+//    간호사가 병원 서비스를 알아볼 경로가 사이트에 하나는 남아 있어야 한다.
+export const FOOTER_NAV: readonly MenuItem[] = [
   { label: "채용공고 찾아보기", href: "/jobs" },
   { label: "인재정보", href: "/talent" },
-  { label: "간호사 게시판", href: "/board" },
-  { label: "병원 리뷰", href: "/reviews" },
+  { label: "간호사 게시판", href: "/board", role: "nurse" },
+  { label: "병원 리뷰", href: "/reviews", role: "nurse" },
   { label: "병원 서비스", href: "/hospital" },
   { label: "고객센터", href: "/contact" },
-] as const;
+];
 
 // 운영주체 — 레거시 널스넷(nursenet.co.kr) 푸터 원문과 같은 값이다(같은 사업자).
 // 푸터·고객센터·영수증이 전부 여기서 읽는다. 세 곳에 복붙하면 반드시 한 곳만 낡는다.

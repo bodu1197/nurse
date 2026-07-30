@@ -4,6 +4,8 @@ import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { toggleSaveJob, applyToJob } from "@/app/jobs/actions";
 import { withdrawApplication } from "@/app/mypage/actions";
 import { CANCELABLE, type JobApplicationState } from "@/lib/data/applications";
+import FormDraft from "@/components/FormDraft";
+import DraftCleaner from "@/components/DraftCleaner";
 import { listingEnd, fmtDate } from "@/lib/date";
 import type { JobRow } from "@/lib/data/jobs";
 import type { Role } from "@/lib/data/role";
@@ -30,6 +32,12 @@ function Stars({ rating }: Readonly<{ rating: number }>) {
     </span>
   );
 }
+
+/**
+ * 지원 폼의 실패 코드 — jobs/actions.ts 의 fail() 이 ?apply= 로 실어 보낸다(?error= 가 아니다).
+ * 이력서를 채우러 갔다 오는 need_resume·need_contact 가 바로 초안이 살아 있어야 하는 경우다.
+ */
+const APPLY_ERROR_CODES = ["need_resume", "need_contact", "dup", "closed", "nurse_only", "admin_test", "error"] as const;
 
 function Notice({ danger, children }: Readonly<{ danger?: boolean; children: ReactNode }>) {
   return (
@@ -120,7 +128,7 @@ function ExternalApply({
 
 type Props = Readonly<{
   job: JobRow;
-  profile: { displayName: string; role: Role } | null;
+  profile: { displayName: string; role: Role; email: string } | null;
   /** 이 공고에 넣어둔 내 지원(없으면 null). 취소를 여기서 바로 하려고 id·상태까지 받는다. */
   application: JobApplicationState | null;
   saved: boolean;
@@ -154,6 +162,9 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
   const showError = applyError === "nurse_only" && roleNoticeShown ? null : applyError;
   // 외부 공고 링크는 수집 데이터라 스킴을 신뢰하지 않는다(javascript: 등 차단).
   const externalHref = job.external_url && /^https?:\/\//i.test(job.external_url) ? job.external_url : null;
+  // 🔴 초안 키에 **계정**을 넣는다. 공고 id 만 쓰면 같은 PC 에서 다음 사람이 같은 공고를 열었을 때
+  //    앞사람이 쓰던 지원 메시지가 그 사람 칸에 복원된다(다른 초안은 전부 이메일을 넣고 있다).
+  const applyDraftKey = profile ? `nursenet:draft:apply:${profile.email}:${job.id}` : "";
 
   return (
     <>
@@ -211,6 +222,9 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
                   // 취소를 여기서 바로 하게 둔다. 전에는 지원 내역으로 가는 링크뿐이라, 마음이 바뀐
                   // 사람이 취소하려면 화면을 옮겨야 했다(구 널스넷에서 이게 이탈 원인 — 오너 확인).
                   <div className="flex flex-col gap-2 rounded-[12px] border border-teal-200 bg-teal-50 px-4 py-3">
+                    {/* 지원이 접수됐으면 그 공고의 메시지 초안은 역할이 끝났다 — 개인정보를 더 두지 않는다.
+                        (지원 성공은 /mypage/applications 로 나가므로 그 화면에서는 지울 기회가 없다) */}
+                    {applyDraftKey && <DraftCleaner keys={[applyDraftKey]} />}
                     <p className="text-sm font-semibold text-teal-800">✓ 지원 완료</p>
                     <div className="flex flex-wrap items-center gap-2">
                       <a href="/mypage/applications" className="text-sm font-semibold text-teal-700 hover:underline">지원 내역 보기 →</a>
@@ -236,6 +250,9 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
                     )}
                     <input type="hidden" name="job_id" value={job.id} />
                     <input type="hidden" name="next" value={selfHref} />
+                    {/* 지원 메시지도 임시 보관한다 — 세션이 끊기거나 이력서를 채우러 다녀오면
+                        쓰던 글이 통째로 사라졌다(공고별로 따로 담는다). */}
+                    <FormDraft storageKey={applyDraftKey} ownErrors={APPLY_ERROR_CODES} errorParam="apply" />
                     <textarea name="message" rows={2} maxLength={500} placeholder="지원 메시지 (선택)" className="w-full resize-none rounded-[12px] border border-slate-300 p-3 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
                     <Button type="submit" size="md">간편지원</Button>
                   </form>

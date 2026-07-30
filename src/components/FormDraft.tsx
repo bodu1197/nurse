@@ -70,6 +70,10 @@ function apply(form: HTMLFormElement, draft: Draft) {
   }
   for (const node of form.querySelectorAll<HTMLInputElement>('input[type="checkbox"], input[type="radio"]')) {
     if (!node.name) continue;
+    // 🔴 잠긴 칸은 건드리지 않는다. 예: 무료 공고 라디오는 이미 무료 공고가 있으면 disabled 인데,
+    //    초안이 그걸 다시 체크하면 화면은 선택된 것처럼 보이지만 disabled 라 값이 제출되지 않는다
+    //    → 서버가 다시 "무료는 1건" 이라며 되돌려 보내는 무한 반복이 된다.
+    if (node.disabled) continue;
     node.checked = checked.has(node.name + SEP + node.value);
   }
   // 접혀 있는 아코디언(희망 근무지) 안에서 복원된 선택은 보이지 않는다 → 그 칸만 펼친다.
@@ -83,6 +87,7 @@ export default function FormDraft({
   rowName,
   addRowLabel,
   ownErrors = [],
+  errorParam = "error",
   note,
 }: Readonly<{
   /** 계정별로 갈라야 한다 — 같은 PC 의 다른 사람이 내 이력서를 보면 안 된다. */
@@ -93,6 +98,8 @@ export default function FormDraft({
   addRowLabel?: string;
   /** 이 폼의 서버 검증 오류 코드들. 다른 폼의 오류로 초안을 되살리지 않기 위해 쓴다. */
   ownErrors?: readonly string[];
+  /** 실패 코드가 실려 오는 쿼리 이름. 지원 폼은 ?apply= 를 쓴다(기본은 ?error=). */
+  errorParam?: string;
   /** 복원 배너에 덧붙일 한 줄 (예: "병원은 다시 선택해 주세요.") */
   note?: string;
 }>) {
@@ -134,7 +141,7 @@ export default function FormDraft({
       // 🔴 error 가 **이 폼의 것**일 때만 초안을 살린다. 같은 화면에 사진 업로드·공개 스위치 폼이
       //    함께 있어(?error=photo_size, ?error=visibility …) 아무 error 나 인정하면, 이미 저장에
       //    성공해 버려야 할 초안이 최신 이력서 위에 되살아난다.
-      const err = params.get("error");
+      const err = params.get(errorParam);
       const own = ownErrorsKey ? ownErrorsKey.split(",") : [];
       const mine = !!err && (own.length === 0 || own.includes(err));
       if (draft.submitted && !mine) {
@@ -168,6 +175,14 @@ export default function FormDraft({
           const start = form.querySelector<HTMLInputElement>(`[name="w_start_ym_${i}"]`);
           if (start) start.value = "";
         }
+      }
+      // 🔴 되살렸으면 '제출함' 표시를 뗀다. 안 그러면 다음에 이 화면으로 돌아왔을 때(예: 지원 폼에서
+      //    이력서를 채우러 갔다가 next 로 복귀 — 그 주소에는 실패 코드가 없다) '저장 성공한 초안' 으로
+      //    읽혀 삭제된다. 정작 이 기능이 필요한 경로에서만 내용을 잃게 된다.
+      if (draft.submitted) {
+        try {
+          localStorage.setItem(storageKey, JSON.stringify({ ...draft, submitted: false }));
+        } catch { /* 저장 실패는 부가 기능이라 넘어간다 */ }
       }
       setRestored(true);
       setSavedAt(draft.at);
@@ -206,7 +221,7 @@ export default function FormDraft({
       form.removeEventListener("submit", onSubmit);
     };
     // ownErrors 는 인라인 배열로 넘어와 렌더마다 새 참조다 → 내용으로 비교해야 효과가 반복 실행되지 않는다.
-  }, [storageKey, rowName, addRowLabel, ownErrorsKey]);
+  }, [storageKey, rowName, addRowLabel, ownErrorsKey, errorParam]);
 
   function discard() {
     localStorage.removeItem(storageKey);

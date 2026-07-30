@@ -445,6 +445,26 @@ export async function saveResume(formData: FormData) {
     redirect("/mypage/resume?error=save");
   }
 
+  // 🔴 성별·생년월일은 resumes 가 아니라 profiles 에 있다(인재 카드가 거기서 읽는다).
+  //    개인정보는 이력서 화면에서 받는다는 원칙(오너 확정)에 따라 이 폼이 함께 갱신한다.
+  //    빈 값이면 null 로 지운다 — '선택 안 함' 이 실제로 지워져야 한다.
+  //    아는 값만 통과시킨다(조작된 POST 로 임의 문자열이 남의 화면 카드에 뜨는 것을 막는다).
+  //    값은 DB 에 실제로 있는 '여성'/'남성' 이다(이관 11,407명). 화면 option 과 같은 집합이어야 한다.
+  const genderIn = String(formData.get("gender") ?? "").trim();
+  // 🔴 "빈 값 = 지우기" 와 "모르는 값 = 손대지 않기" 를 구분한다. 예전 값이 목록에 없다는 이유로
+  //    사용자가 건드린 적 없는 공개 항목을 null 로 덮어쓰면 안 된다.
+  const knownGender = genderIn === "여성" || genderIn === "남성";
+  const birthdayIn = String(formData.get("birthday") ?? "").trim();
+  // 형식만 맞고 실재하지 않는 날짜(2026-02-31)는 date 컬럼이 거부해 **문장 전체**가 실패한다
+  // → 성별 변경까지 함께 유실된다. 되짚어 비교해 실재 날짜만 통과시킨다.
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(birthdayIn)
+    && new Date(`${birthdayIn}T00:00:00Z`).toISOString().slice(0, 10) === birthdayIn;
+  const bits: { gender?: string | null; birthday?: string | null } = { birthday: validDate ? birthdayIn : null };
+  if (knownGender || genderIn === "") bits.gender = knownGender ? genderIn : null;
+  const { error: profErr } = await supabase.from("profiles").update(bits).eq("id", user.id);
+  // 이력서 본문은 이미 저장됐다 — 여기서 되돌리지 않고 알리기만 한다(다시 저장하면 복구된다).
+  if (profErr) console.error("saveResume(profile bits) failed:", profErr.message);
+
   // 경력은 통째로 바꿔 쓴다(줄 삭제·순서 변경을 따로 추적하지 않기 위해).
   // 삭제가 실패했는데 그냥 넣으면 같은 경력이 두 벌로 쌓인다 → 반드시 결과를 본다.
   const { error: del } = await supabase.from("work_experiences").delete().eq("resume_id", user.id);
@@ -606,6 +626,22 @@ export async function deleteResume() {
   if (error) {
     console.error("deleteResume failed:", error.message);
     redirect("/mypage/resume?error=delete");
+  }
+
+  // 🔴 증명사진은 profiles.avatar_url + 스토리지 오브젝트라 이력서와 함께 지워지지 않는다.
+  //    이력서를 지웠는데 사진 카드에 얼굴이 그대로 남아 있으면 "다 지운 게 맞나" 싶어진다.
+  //    이력서를 지운다 = 병원에 보이던 내 정보를 거둔다 → 사진도 같이 거둔다.
+  //    (네이버 프로필 같은 외부 URL 은 우리 것이 아니라 지울 게 없다.)
+  const admin = createAdminClient();
+  const { data: prof } = await admin.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle();
+  const old = (prof?.avatar_url ?? "").trim();
+  if (old && !old.startsWith("http")) {
+    const { error: clr } = await admin.from("profiles").update({ avatar_url: null }).eq("id", user.id);
+    if (clr) console.error("deleteResume(avatar clear) failed:", clr.message);
+    else {
+      const { error: rm } = await admin.storage.from(AVATAR_BUCKET).remove([old]);
+      if (rm) console.error("deleteResume(avatar remove) failed:", rm.message, old);
+    }
   }
   redirect("/mypage/resume?ok=deleted");
 }
@@ -1008,4 +1044,60 @@ export async function iamportWebhook(impUid: string, merchantUid: string): Promi
   // 없는 거래(위조 웹훅 포함)·미결제·금액 불일치는 재시도해도 그대로다
   if (pay === "notfound" || pay.merchant_uid !== merchantUid || pay.status !== "paid" || pay.amount !== order.amount) return "ignored";
   return (await activateAdOrder(admin, order.id, order.job_id, order.days, order.tier, impUid)) ? "ok" : "retry";
+}
+
+/**
+ * 병원 연결 해제 — 잘못 고른 병원을 스스로 되돌린다.
+ *
+ * 🔴 왜: 인증할 때 병원을 한 번 고르면 hospitals.owner_profile_id 가 박히고, 그 뒤로는 공고 등록
+ *    화면이 그 병원을 고정 표시할 뿐 바꿀 방법이 없었다. 실수로 옆 병원을 고른 사람은
+ *    영영 그 이름으로 공고를 내야 했다.
+ *
+ * 🔴 공고가 하나라도 있으면 막는다. 연결을 끊으면 그 공고들의 소유자 판정(ownedJobHospital)이
+ *    깨져 **자기 공고를 수정·마감·삭제할 수 없게 된다**. 되돌릴 수 없는 상태를 만들지 않는다.
+ *    공고가 있는 채로 옮겨야 하면 운영이 처리한다(화면에서 고객센터로 안내).
+ */
+export async function unlinkHospital() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+  const admin = createAdminClient();
+  const { data: prof } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+  if (!prof || (await viewAsRole(prof.role)) !== "hospital") redirect("/mypage");
+
+  const { data: mine, error: hErr } = await admin.from("hospitals").select("id").eq("owner_profile_id", user.id);
+  if (hErr) {
+    console.error("unlinkHospital(read) failed:", hErr.message);
+    redirect("/mypage/verify?error=unlink");
+  }
+  const ids = (mine ?? []).map((h) => h.id);
+  if (ids.length === 0) redirect("/mypage/verify?error=nohospital");
+
+  // 공고가 남아 있으면 해제하지 않는다(마감된 공고도 포함 — 지원자 기록이 그 공고에 달려 있다).
+  const { count, error: cErr } = await admin
+    .from("jobs").select("id", { count: "exact", head: true }).in("hospital_id", ids);
+  if (cErr) {
+    console.error("unlinkHospital(count jobs) failed:", cErr.message);
+    redirect("/mypage/verify?error=unlink");
+  }
+  if ((count ?? 0) > 0) redirect("/mypage/verify?error=hasjobs");
+
+  const { error } = await admin
+    .from("hospitals").update({ owner_profile_id: null, is_claimed: false }).in("id", ids);
+  if (error) {
+    console.error("unlinkHospital failed:", error.message);
+    redirect("/mypage/verify?error=unlink");
+  }
+
+  // 🔴 세는 것과 지우는 것 사이에 다른 탭이 공고를 올렸을 수 있다. 그러면 공고는 있는데 주인이
+  //    없어져 **아무도 그 공고를 수정·마감·삭제할 수 없다**(ownedJobHospital 이 null 을 준다).
+  //    해제 뒤 한 번 더 세고, 생겼으면 소유권을 돌려놓는다(보상).
+  const { count: after } = await admin
+    .from("jobs").select("id", { count: "exact", head: true }).in("hospital_id", ids);
+  if ((after ?? 0) > 0) {
+    await admin.from("hospitals").update({ owner_profile_id: user.id, is_claimed: true }).in("id", ids);
+    redirect("/mypage/verify?error=hasjobs");
+  }
+  await admin.from("profiles").update({ claimed_hospital_id: null }).eq("id", user.id);
+  redirect("/mypage/verify?ok=unlinked&reverify=1");
 }

@@ -50,9 +50,13 @@ export const getSessionUser = cache(async () => {
   return user;
 });
 
-export type CurrentUser = { displayName: string };
+export type CurrentUser = { displayName: string; role: Role | null };
 
 // 서버에서 세션 검증(getUser) 후 헤더 표시용 최소 정보 반환. 비로그인=null.
+// 🔴 role 도 함께 준다 — 헤더 메뉴가 역할별로 갈리는데, 이 함수를 쓰는 화면(약관·처리방침·게시판·
+//    커뮤니티 안내)만 role 이 없어 필터가 꺼졌다. 같은 회원이 페이지마다 다른 메뉴를 보면
+//    메뉴가 사라진 것이 정책인지 버그인지 알 수 없다. getMyProfile 은 요청당 캐시되므로
+//    이미 프로필을 읽은 화면에서는 추가 왕복이 없다.
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const user = await getSessionUser();
   if (!user) return null;
@@ -62,7 +66,8 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     (typeof m.full_name === "string" && m.full_name) ||
     user.email?.split("@")[0] ||
     "회원";
-  return { displayName };
+  const profile = await getMyProfile();
+  return { displayName: profile?.displayName ?? displayName, role: profile?.role ?? null };
 }
 
 export type MyProfile = {
@@ -74,6 +79,9 @@ export type MyProfile = {
   businessNo: string | null; // 이관·인증으로 저장된 사업자번호(인증 폼 프리필용)
   businessVerified: boolean;
   businessVerifiedAt: string | null;
+  /** 인재 카드에 공개되는 값 — 본인이 이력서 화면에서 고친다(saveResume 이 함께 갱신). */
+  gender: string | null;
+  birthday: string | null;
 };
 
 // 마이페이지용 — 본인 프로필 전체(RLS: 본인 select 허용). 비로그인=null.
@@ -84,7 +92,7 @@ export const getMyProfile = cache(async (): Promise<MyProfile | null> => {
   const supabase = await createClient();
   const { data } = await supabase
     .from("profiles")
-    .select("username, display_name, email, role, business_no, business_verified, business_verified_at")
+    .select("username, display_name, email, role, business_no, business_verified, business_verified_at, gender, birthday")
     .eq("id", user.id)
     .maybeSingle();
   if (!data) return null;
@@ -100,6 +108,8 @@ export const getMyProfile = cache(async (): Promise<MyProfile | null> => {
     // 관리자는 사업자 인증 통과로 취급(테스트용) — 실제 병원 회원은 인증해야 공고 등록 가능.
     businessVerified: isAdmin || (data.business_verified ?? false),
     businessVerifiedAt: data.business_verified_at ?? null,
+    gender: data.gender ?? null,
+    birthday: data.birthday ?? null,
   };
 });
 

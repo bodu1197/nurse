@@ -141,7 +141,7 @@ export default async function JobPage({
         <div className="lg:col-start-2 lg:row-start-1 lg:max-w-3xl">
           <JobDetail
             job={job}
-            profile={profile}
+            profile={profile ? { displayName: profile.displayName, role: profile.role, email: profile.email } : null}
             application={application}
             saved={savedIds.has(job.id)}
             selfHref={`/jobs/${job.id}`}

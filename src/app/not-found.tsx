@@ -9,7 +9,7 @@ export default async function NotFound() {
   const profile = await getMyProfile();
   return (
     <>
-      <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
+      <SiteHeader user={profile ? { displayName: profile.displayName, role: profile.role } : null} />
       <main className="mx-auto w-full max-w-xl flex-1 px-4 py-16 text-center">
         <h1 className="text-xl font-bold text-slate-900">페이지를 찾을 수 없습니다</h1>
         <p className="mt-2 text-sm text-slate-500">주소가 바뀌었거나 삭제된 페이지입니다.</p>

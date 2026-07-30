@@ -111,6 +111,8 @@ export default function ResumeSheet({
         <Row k="나이트 전담" v={yesNo(resume.night_available)} />
         <Row k="희망 근무지" v={resume.desired_location} />
         <Row k="희망 진료과" v={list(resume.specialties)} />
+        {/* 골라놓고 서식·병원 화면 어디에도 안 나오던 항목 — 입력하게 했으면 보여줘야 한다 */}
+        <Row k="희망 직종" v={list(resume.job_categories)} />
         <Row k="희망 기관종별" v={list(resume.desired_hospital_types)} />
         <Row k="희망 고용형태" v={resume.desired_employment_type} />
         <Row k="희망 급여" v={resume.desired_salary} />

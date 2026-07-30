@@ -24,7 +24,7 @@ export default async function HospitalPage() {
 
   return (
     <>
-      <SiteHeader user={p ? { displayName: p.displayName } : null} />
+      <SiteHeader user={p ? { displayName: p.displayName, role: p.role } : null} />
       <main className="flex-1">
         <section className="mx-auto max-w-3xl px-4 py-16 text-center sm:py-20">
           <p className="text-sm font-semibold text-teal-700">병원 채용담당자님께</p>
