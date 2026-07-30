@@ -5,7 +5,7 @@ import TalentSearchBar from "@/components/TalentSearchBar";
 import { redirect } from "next/navigation";
 import { getMyProfile } from "@/lib/data/user";
 import {
-  searchPublicTalent, revealContacts, canRevealContacts, TALENT_PER_PAGE,
+  searchPublicTalent, revealContacts, canRevealContacts, TALENT_PER_PAGE, talentFilterQs,
   getTalentSidoList, getTalentSigunguList, getTalentFacets, type RevealedContact,
 } from "@/lib/data/talent";
 import { chipClass as chip } from "@/lib/chip";
@@ -33,7 +33,14 @@ export default async function TalentPage({
   const [{ q, dept, cat, spec, sido, sigungu, loc, years, page, t: selectedId }, p] =
     await Promise.all([searchParams, getMyProfile()]);
   // 예전 마스터-디테일의 ?t= 링크(공유 주소)는 단독 상세로 넘긴다(/jobs의 ?j= 처리와 동일).
-  if (selectedId) redirect(`/talent/${encodeURIComponent(selectedId)}`);
+  if (selectedId) {
+    // 조건도 함께 넘긴다 — 안 그러면 이 경로로 들어온 사람만 상세에서 필터를 잃는다.
+    const keep = talentFilterQs(
+      { q: (q ?? "").trim(), dept: (dept ?? spec ?? "").trim(), cat, sido: (sido ?? loc ?? "").trim(), sigungu, years: Number(years) || 0 },
+      Math.max(1, Number(page) || 1),
+    );
+    redirect(`/talent/${encodeURIComponent(selectedId)}${keep ? `?${keep}` : ""}`);
+  }
   const pageNum = Math.max(1, Number(page) || 1);
   const minYears = Number(years) || 0;
   const kw = (q ?? "").trim();
@@ -64,21 +71,25 @@ export default async function TalentPage({
     ? await revealContacts(rows.map((r) => r.profile_id))
     : new Map<string, RevealedContact>();
 
+  // 카드 → 상세로 들고 갈 조건(현재 페이지 포함). 상세의 왼쪽 목록이 이 조건으로 다시 검색한다.
+  const detailQs = talentFilterQs({ q: kw, dept: department, cat, sido: sd, sigungu: sgg, years: minYears }, pageNum);
+
   // 검색 조건 유지 URL. 한 곳에서 직렬화해 목록 이동·칩 전환이 같은 조건을 따라간다.
+  // 🔴 직렬화는 talentFilterQs 한 곳만 쓴다. 빌더가 두 벌이면 같은 조건인데 URL 문자열이 달라져
+  //    '되돌아가기' 가 실제로 타고 온 주소와 어긋난다(히스토리·캐시가 둘로 갈린다).
   const qs = (o: { dept?: string; cat?: string; years?: number; page?: number }) => {
-    const s = new URLSearchParams();
-    if (kw) s.set("q", kw);
-    if (sd) s.set("sido", sd);
-    if (sgg) s.set("sigungu", sgg);
-    const d = o.dept !== undefined ? o.dept : department;
-    const c = o.cat !== undefined ? o.cat : cat;
-    const y = o.years !== undefined ? o.years : minYears;
-    if (d) s.set("dept", d);
-    if (c) s.set("cat", c);
-    if (y) s.set("years", String(y));
-    if (o.page && o.page > 1) s.set("page", String(o.page));
-    const out = s.toString();
-    return out ? `/talent?${out}` : "/talent";
+    const s = talentFilterQs(
+      {
+        q: kw,
+        dept: o.dept !== undefined ? o.dept : department,
+        cat: o.cat !== undefined ? o.cat : cat,
+        sido: sd,
+        sigungu: sgg,
+        years: o.years !== undefined ? o.years : minYears,
+      },
+      o.page,
+    );
+    return "/talent" + (s ? `?${s}` : "");
   };
 
   const filtered = !!(kw || department || cat || sd || minYears);
@@ -144,7 +155,9 @@ export default async function TalentPage({
                       카드 전체가 링크라 aria-label 이 없으면 스크린리더가 제목·자기소개·메타를 통째로 낭독한다
                       → 링크 이름을 "이름 · 제목" 으로 줄여 목록을 링크 단위로 훑을 수 있게 한다. */}
                   <a
-                    href={`/talent/${t.profile_id}`}
+                    // 🔴 조건을 함께 넘긴다. 이게 없어서 상세로 들어가는 순간 필터가 사라지고,
+                    //    왼쪽 목록이 조건과 무관한 '같은 시도 8명' 으로 바뀌었다.
+                    href={`/talent/${t.profile_id}${detailQs ? `?${detailQs}` : ""}`}
                     aria-label={`${contacts.get(t.profile_id)?.name ?? "간호사 회원"} · ${t.resume_title ?? "간호사 인재"}`}
                     className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:p-4"
                   >

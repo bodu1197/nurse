@@ -118,6 +118,28 @@ export async function canRevealContacts(p: { role: Role; isAdmin?: boolean } | n
   return p.role === "hospital" && (await isAdvertiser());
 }
 
+/**
+ * 인재 검색 조건 → 쿼리스트링. 목록·카드→상세·사이드바 페이지네이션이 **같은 직렬화**를 쓴다.
+ *
+ * 🔴 이게 없어서 목록 카드가 `/talent/{id}` 로만 링크했고, 상세는 조건을 받지도 않았다.
+ *    그래서 "서울 종로구 산부인과" 로 좁혀 들어가도 상세 왼쪽에는 조건과 무관한
+ *    '같은 시도 인재 8명' 이 고정으로 떴다(공고 쪽은 jobFilterQs 로 이미 이어져 있었다).
+ */
+export function talentFilterQs(
+  f: { q?: string; dept?: string; cat?: string; sido?: string; sigungu?: string; years?: number },
+  page?: number,
+): string {
+  const p = new URLSearchParams();
+  if (f.q) p.set("q", f.q);
+  if (f.dept) p.set("dept", f.dept);
+  if (f.cat) p.set("cat", f.cat);
+  if (f.sido) p.set("sido", f.sido);
+  if (f.sido && f.sigungu) p.set("sigungu", f.sigungu); // 시군구는 시도에 종속(검색 계약과 동일)
+  if (f.years && f.years > 0) p.set("years", String(f.years));
+  if (page && page > 1) p.set("page", String(page));
+  return p.toString();
+}
+
 export type TalentFilters = {
   q?: string; specialty?: string; category?: string; sido?: string; sigungu?: string; minYears?: number;
 };
@@ -204,18 +226,6 @@ export async function searchPublicTalent(f: TalentFilters, page = 1, withCount =
 }
 
 // 인재 상세 좌측 사이드바 — 관련 인재(같은 희망 근무지 우선, 없으면 최근)로 왼쪽이 절대 비지 않게 한다.
-// sameRegion=false면 제목에 지역명을 쓰지 않는다. searchPublicTalent 재사용(COUNT 생략).
-export async function getRelatedTalent(profileId: string, desiredLocation: string | null, limit = 8): Promise<{ rows: PublicTalent[]; sameRegion: boolean }> {
-  const region = (desiredLocation ?? "").split(",")[0].trim().split(/\s+/)[0] ?? "";
-  if (region) {
-    const { rows } = await searchPublicTalent({ sido: region }, 1, false);
-    const same = rows.filter((r) => r.profile_id !== profileId);
-    if (same.length > 0) return { rows: same.slice(0, limit), sameRegion: true };
-  }
-  const { rows } = await searchPublicTalent({}, 1, false);
-  return { rows: rows.filter((r) => r.profile_id !== profileId).slice(0, limit), sameRegion: false };
-}
-
 export type RevealedContact = { name: string | null; phone: string | null; email: string | null; avatarUrl: string | null };
 
 /**

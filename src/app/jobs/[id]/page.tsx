@@ -136,7 +136,7 @@ export default async function JobPage({
       </div>
 
       {/* 사이드바에 보일 게 있을 때만 2열. 없으면 상세만 읽기 좋은 폭으로. */}
-      <div className={nearby.length > 0 ? "lg:grid lg:grid-cols-[minmax(0,320px)_1fr] lg:items-start lg:gap-6" : "mx-auto max-w-3xl"}>
+      <div className={fromSearch || nearby.length > 0 ? "lg:grid lg:grid-cols-[minmax(0,320px)_1fr] lg:items-start lg:gap-6" : "mx-auto max-w-3xl"}>
         {/* 상세 — 모바일에선 먼저, 데스크톱에선 오른쪽(넓은 화면서 본문폭 과대 방지) */}
         <div className="lg:col-start-2 lg:row-start-1 lg:max-w-3xl">
           <JobDetail
@@ -154,12 +154,19 @@ export default async function JobPage({
         </div>
 
         {/* 같은 지역 공고 — 모바일에선 상세 아래, 데스크톱에선 왼쪽 사이드바 */}
-        {nearby.length > 0 && (
+        {/* 결과 개수로 사이드바 전체를 가리지 않는다 — 마지막 페이지에 이 공고 하나만 남으면
+            제목·건수·페이저까지 사라져 이전 페이지로 돌아갈 길이 없어진다(인재 상세와 같은 규칙). */}
+        {(fromSearch || nearby.length > 0) && (
           <aside aria-label={sidebarTitle} className="mt-10 lg:col-start-1 lg:row-start-1 lg:mt-0">
             <h2 className="mb-3 text-sm font-bold text-slate-900">
               {sidebarTitle} <span className="font-normal text-slate-400">({sidebarCount})</span>
               {fromSearch && totalPages > 1 && <span className="ml-1 font-normal text-slate-400">· {pageNum}/{totalPages}p</span>}
             </h2>
+            {nearby.length === 0 && (
+              <p className="rounded-xl border border-dashed border-slate-300 px-3 py-6 text-center text-xs text-slate-500">
+                이 페이지에 표시할 다른 공고가 없습니다.
+              </p>
+            )}
             <ul className="space-y-2">
               {nearby.map((n) => (
                 <li key={n.id}>
