@@ -6,18 +6,38 @@ import TalentDetail from "@/components/TalentDetail";
 import TalentCard from "@/components/TalentCard";
 import { Pager } from "@/components/MasterDetail";
 import { getMyProfile } from "@/lib/data/user";
+import { careerSummary } from "@/lib/resumeOptions";
 import {
   getPublicTalent, revealContacts, canRevealContacts,
   searchPublicTalent, talentFilterQs, TALENT_PER_PAGE, type RevealedContact,
 } from "@/lib/data/talent";
 
-// 개인 이력서 상세 — 색인 제외. 이름은 광고 병원만 보므로 제목엔 넣지 않는다(PII 누출 방지).
-// follow:false 까지 준다 — 이 화면의 사이드바가 다른 이력서로 이어지므로,
-// 링크만 따라가게 두면 크롤러가 인재 목록 전체를 훑는 통로가 된다.
-export const metadata: Metadata = {
-  title: "간호사 인재 상세 — 널스넷",
-  robots: { index: false, follow: false },
-};
+/**
+ * 개인 이력서 상세 — **색인한다**(오너 확정 2026-07-30, 근거는 /talent 목록 주석 참고:
+ * 구 널스넷이 `/job/person/view/{id}` 3,544건을 사이트맵에 싣고 robots 메타 없이 운영해 왔다).
+ *
+ * 제목에는 이름을 넣지 않는다 — 이름은 광고 중인 병원에만 보이는 값이라, 제목·OG 로 새어 나가면
+ * 그 게이트가 무의미해진다(색인 허용과 별개로 이 규칙은 그대로다).
+ * canonical 은 쿼리스트링 없는 주소로 못 박는다 — 검색조건이 붙은 URL 이 따로 색인되면
+ * 같은 이력서가 조합 수만큼 중복 색인된다.
+ */
+export async function generateMetadata({ params }: Readonly<{ params: Promise<{ id: string }> }>): Promise<Metadata> {
+  const { id } = await params;
+  const t = await getPublicTalent(id);
+  if (!t) return { title: "간호사 인재 상세 — 널스넷", robots: { index: false } };
+  const title = `${t.resume_title ?? "간호사 인재"} — 널스넷 인재정보`;
+  const desc = [
+    careerSummary(t.career_level, t.experience_years),
+    t.specialties.length > 0 ? t.specialties.join(", ") : null,
+    t.desired_location,
+  ].filter(Boolean).join(" · ");
+  return {
+    title,
+    description: desc || "이력서를 공개한 간호사 인재 정보입니다.",
+    alternates: { canonical: `/talent/${id}` },
+    openGraph: { type: "profile", locale: "ko_KR", siteName: "널스넷", url: `/talent/${id}`, title, description: desc },
+  };
+}
 
 export default async function TalentDetailPage({
   params,

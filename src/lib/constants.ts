@@ -55,12 +55,11 @@ export const COMPANY = {
 // sitemap 용 — 실제 색인(index) 대상만. noindex 페이지를 여기 넣으면 "색인해달라"와 "하지 마라"를
 // 동시에 말하는 꼴이라 반드시 같이 관리한다.
 //  · /board·/reviews — 이력서 등록한 간호사 회원 전용(noindex)
-//  · /talent — 목록·상세 URL 은 noindex 다.
-//    ⚠️ 단, 홈(/)의 '구직 현황' 섹션에 같은 카드가 실리고 홈은 색인된다(오너 지시 2026-07-30).
-//    즉 noindex 가 막는 것은 **그 URL** 이지 카드 내용 자체가 아니다.
-//    가장 강한 식별자인 자기소개만 홈 카드에서 뺀다(TalentCard hideIntro).
 //  · /terms·/privacy·/contact — 색인 가치가 없어 noindex
-export const PUBLIC_ROUTES = ["/", "/hospital"] as const;
+//  · /talent — **색인한다**(오너 확정 2026-07-30). 구 널스넷이 인재 목록·상세를 이미 색인시켜
+//    왔고(robots 메타 없음 + 사이트맵에 상세 3,544건), 도메인을 이어받으며 그 유입을 버리지 않는다.
+//    이름·연락처·사진은 여전히 광고 중인 병원에만 보인다 — 그 게이트는 그대로다.
+export const PUBLIC_ROUTES = ["/", "/hospital", "/talent"] as const;
 
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://nurse-app-nine.vercel.app";

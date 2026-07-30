@@ -145,10 +145,9 @@ export default async function Home({
 
         <div className="mx-auto max-w-[1280px] px-4">
           {/* ── 구직 현황 ─────────────────────
-              🔴 이 섹션은 **색인된다**(홈은 canonical "/" · sitemap priority 1). /talent 는 noindex 지만
-                 여기 실리는 카드 내용은 검색엔진에 그대로 들어간다. 그래서 자기소개(자유서술)만
-                 hideIntro 로 뺐다 — 나머지(제목·경력·희망조건·성별·나이)는 그대로 나간다.
-                 자기소개까지 노출하려면 hideIntro 를 지우면 된다. */}
+              인재정보는 색인 대상이다(오너 확정 2026-07-30) — 홈에 카드가 실리는 것과
+              /talent 가 색인되는 것이 이제 같은 방침이라 여기서 따로 가릴 것이 없다.
+              이름·연락처·사진은 홈에서도 /talent 와 같은 게이트(광고 중인 병원)로 막힌다. */}
           <section className="mt-12 pb-16">
             <div className="flex items-end justify-between">
               <h2 className="text-xl font-bold text-slate-900">구직 현황</h2>
@@ -177,7 +176,6 @@ export default async function Home({
                           t={r}
                           contactName={contacts.get(r.profile_id)?.name}
                           contactAvatar={contacts.get(r.profile_id)?.avatarUrl}
-                          hideIntro
                         />
                       </div>
                     </Link>

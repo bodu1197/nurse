@@ -18,7 +18,7 @@ import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { totalYears } from "@/lib/data/resume";
-import { CAREER_EXPERIENCED, DEPARTMENTS, JOB_CATEGORIES } from "@/lib/resumeOptions";
+import { CAREER_EXPERIENCED, DEPARTMENTS, JOB_CATEGORIES, RESUME_INTRO_MIN, RESUME_INTRO_MAX as INTRO_MAX } from "@/lib/resumeOptions";
 import { JOB_DEPARTMENTS, FACILITY_TYPES } from "@/lib/jobTaxonomy";
 import { SIDO_LIST, SIDO_SIGUNGU, LEGACY_REGIONS } from "@/lib/koreaRegions";
 
@@ -391,6 +391,12 @@ export async function saveResume(formData: FormData) {
   const departments = onlyKnown(many("specialties"), new Set(DEPARTMENTS));
   const jobCategories = onlyKnown(many("job_categories"), new Set(JOB_CATEGORIES));
   const careerLevel = s("career_level");
+  // 제목·자기소개는 필수다(오너 확정 2026-07-30). 화면의 required·minLength 는 편의일 뿐이라
+  // 서버가 같은 규칙을 다시 건다 — 조작된 POST 는 그 속성을 그냥 무시한다.
+  // 목록 카드의 머리말이 제목이고, 자기소개가 비면 병원이 판단할 근거가 카드에 남지 않는다.
+  if (!s("resume_title")) redirect("/mypage/resume?error=title");
+  // 공백만 채워 넘기는 것을 막으려고 trim 후 길이를 센다(s() 가 이미 trim 한다).
+  if ((s("intro", INTRO_MAX) ?? "").length < RESUME_INTRO_MIN) redirect("/mypage/resume?error=intro");
   if (shiftTypes.length === 0) redirect("/mypage/resume?error=shift");
   if (regions.length === 0) redirect("/mypage/resume?error=region");
   // 병원명만 적고 입사연월을 비우면 그 줄이 조용히 버려져 경력이 사라진다 → 되돌려 알린다.
@@ -430,7 +436,10 @@ export async function saveResume(formData: FormData) {
     desired_salary: s("desired_salary"),
     available_from: s("available_from"),
     needs_dormitory: bool("needs_dormitory"),
-    intro: s("intro"),
+    // 🔴 상한을 따로 준다. 기본값 300 을 쓰면 저장할 때마다 조용히 잘렸다 —
+    //    이관된 회원 701명이 300자를 넘고(최장 3,627자) 그 사람들이 이력서를 한 번 저장하는
+    //    순간 자기소개 뒷부분이 사라진다. 화면 textarea 의 maxLength 도 같은 값이다.
+    intro: s("intro", INTRO_MAX),
     // 🔴 공개 여부는 **이력서가 아직 없을 때만** 이 폼이 정한다(첫 저장의 동의 체크박스).
     //    이미 있는 이력서는 화면 맨 위 스위치(setResumePublic)가 유일한 주인이다.
     //    둘 다 쓰면: 스위치로 비공개로 바꾼 뒤 열어둔 다른 탭이나 뒤로가기로 되돌아온 낡은

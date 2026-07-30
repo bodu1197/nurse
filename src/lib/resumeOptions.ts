@@ -91,3 +91,8 @@ export const RESUME_PUBLIC_SCOPE = {
   /** 위 항목을 보는 사람의 범위 — 문장에 그대로 끼워 쓴다 */
   advertiserWho: "널스넷에 광고 중인 병원과 내가 지원한 병원",
 } as const;
+
+/** 자기소개 글자 수 — 화면(minLength·maxLength)과 서버(saveResume)가 같은 값을 쓴다. */
+export const RESUME_INTRO_MIN = 30;
+/** 이관된 회원 중 최장이 3,627자라 그 위로 잡는다(그 아래면 저장할 때 뒷부분이 잘린다). */
+export const RESUME_INTRO_MAX = 4000;

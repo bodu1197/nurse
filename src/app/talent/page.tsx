@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import SiteHeader from "@/components/SiteHeader";
 import { Pager } from "@/components/MasterDetail";
 import TalentCard from "@/components/TalentCard";
@@ -10,23 +11,37 @@ import {
 } from "@/lib/data/talent";
 import { chipClass as chip } from "@/lib/chip";
 
-// 인재정보는 개인정보다 — 이 URL 은 검색엔진에 올리지 않는다(오너 확정).
-// ⚠️ 2026-07-30 부터 홈(/)의 '구직 현황' 에 같은 카드 10장이 실리고 홈은 색인된다(오너 지시).
-//    자기소개만 거기서 빼둔다(hideIntro). 이 페이지의 noindex 는 여전히 유효하지만,
-//    '카드 내용은 어디에도 색인되지 않는다' 는 이제 사실이 아니다.
-// 카드가 이름을 가려도 경력·자격·희망지역이 모이면 개인 식별로 이어지고, 한 번 색인되면
-// 캐시·스크래핑으로 우리 손을 떠난다. 상세(/talent/[id])는 이미 noindex 이고 목록도 같이 막는다.
-// sitemap 에서도 뺀다(lib/constants.ts PUBLIC_ROUTES) — sitemap 등재 + noindex 는 서로 모순이다.
-//
-// 두 가지는 일부러 **안 한다**. 둘 다 noindex 를 무력화하기 때문이다:
-//  · robots.txt Disallow — 크롤러가 못 들어오면 이 noindex 태그를 읽지 못해 URL만 색인된 채 남는다.
-//  · follow:false — noindex 는 크롤러가 페이지를 가져와야 작동한다. 링크 통로를 막으면
-//    이미 색인된 하위 페이지(/talent/[id])를 다시 방문해 빼낼 길이 없어진다.
-export const metadata = {
-  title: "간호사 인재정보 — 널스넷",
-  description: "이력서를 공개한 간호사 인재를 지역·근무부서·직종·경력으로 검색하세요.",
-  robots: { index: false },
-};
+/**
+ * 🔴 인재정보를 **색인한다**(오너 확정 2026-07-30).
+ *
+ * 근거: 구 널스넷이 이미 그렇게 운영해 왔다 — robots.txt 전면 allow, `/job/person/list` 와
+ *   `/job/person/view/{id}` 둘 다 robots 메타가 없고(= 색인 허용) canonical 이 걸려 있으며,
+ *   사이트맵에 인재 상세 3,544건이 실려 있다(실측, docs/legacy-urls.txt).
+ *   도메인을 이어받으면서 새 사이트만 닫으면 그동안 쌓인 유입을 통째로 버린다.
+ *
+ * 이름·휴대폰·이메일·증명사진은 **여전히 광고 중인 병원에만** 보인다(revealContacts) —
+ * 색인되는 것은 카드에 원래 공개돼 있던 항목(제목·성별·나이·거주지역·학력·경력·희망조건·자기소개)뿐이고,
+ * 그 게이트는 이 변경으로 손대지 않았다.
+ *
+ * 검색결과(?q=·칩·?page=)는 /jobs 와 같은 이유로 noindex 다 — 조합마다 색인되면 얇은 페이지가 쌓인다.
+ * 그 판정은 아래 generateMetadata 가 한다.
+ */
+const TALENT_TITLE = "간호사 인재정보 — 널스넷";
+const TALENT_DESC = "이력서를 공개한 간호사 인재를 지역·근무부서·직종·경력으로 검색하세요.";
+
+export async function generateMetadata({
+  searchParams,
+}: Readonly<{ searchParams: Promise<Record<string, string | undefined>> }>): Promise<Metadata> {
+  const sp = await searchParams;
+  const filtered = !!(sp.q || sp.dept || sp.spec || sp.cat || sp.sido || sp.loc || sp.sigungu || sp.years || sp.page);
+  return {
+    title: TALENT_TITLE,
+    description: TALENT_DESC,
+    alternates: { canonical: "/talent" },
+    openGraph: { type: "website", locale: "ko_KR", siteName: "널스넷", url: "/talent", title: TALENT_TITLE, description: TALENT_DESC },
+    ...(filtered ? { robots: { index: false } } : {}),
+  };
+}
 
 const YEARS = [1, 3, 5, 10] as const;
 

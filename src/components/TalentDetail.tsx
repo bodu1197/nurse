@@ -31,36 +31,42 @@ export default function TalentDetail({
   const Heading = asH1 ? "h1" : "h2";
   return (
     <article className="rounded-lg border border-slate-200 bg-white p-6">
-      <div className="flex gap-4">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <Heading className="text-2xl font-bold text-slate-900">{contact?.name ?? "간호사 회원"}</Heading>
-            {t.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{t.license_type}</span>}
-            <span className="text-slate-600">{careerSummary(t.career_level, t.experience_years)}</span>
-            {t.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트 전담 가능</span>}
-          </div>
-          {t.resume_title && <p className="mt-1 font-medium text-slate-700">{t.resume_title}</p>}
-          <p className="mt-1 text-xs text-slate-400">{fmtDay(t.updated_at)} 갱신</p>
+      {/* 🔴 머리말에는 **가려야 할 것을 두지 않는다.** 예전에는 이름이 제목 자리에, 사진이 그 옆에
+          따로 있어서 가리는 곳이 세 군데(이름·사진·연락처)로 흩어졌다 — 한 곳만 놓치면 새는 구조다.
+          이름·사진·전화·이메일은 전부 아래 '연락' 한 블록으로 모아 **한 번에** 잠근다.
+          머리말은 이력서 제목(무엇을 하는 사람인가)이 대신한다 — 병원이 목록에서 찾는 것도 그쪽이다. */}
+      <div className="min-w-0">
+        <Heading className="text-2xl font-bold leading-snug text-slate-900">{t.resume_title ?? "간호사 인재"}</Heading>
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+          {t.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{t.license_type}</span>}
+          <span className="text-slate-600">{careerSummary(t.career_level, t.experience_years)}</span>
+          {t.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트 전담 가능</span>}
         </div>
-        {/* 이름 바로 옆이라 alt 는 비운다. 한 명짜리 화면이라 사진이 없으면 자리도 두지 않는다. */}
-        <IdPhoto src={contact?.avatarUrl ?? null} />
+        <p className="mt-1 text-xs text-slate-400">{fmtDay(t.updated_at)} 갱신</p>
       </div>
 
-      {/* 연락 — 광고 병원만 이름·전화, 그 외엔 잠금 + 광고 안내 */}
+      {/* 연락 — 이름·사진·전화·이메일을 한 블록에. 광고 병원만 보이고, 그 외엔 통째로 잠긴다. */}
       <div className="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-sm">
         <p className="font-semibold text-slate-700">연락</p>
         {contact ? (
-          // 전화·이메일 둘 다 보여준다 — 전화를 안 적었거나 안 받는 사람에게 닿는 유일한 수단이 이메일이다.
-          contact.phone || contact.email ? (
-            <div className="mt-1 flex flex-col gap-1">
-              {contact.phone && (
-                <a href={`tel:${contact.phone}`} className="inline-flex min-h-11 items-center gap-1.5 text-lg font-bold text-teal-700 hover:underline">📞 {contact.phone}</a>
-              )}
-              {contact.email && (
-                <a href={`mailto:${contact.email}`} className="inline-flex min-h-11 items-center gap-1.5 break-all font-semibold text-teal-700 hover:underline">✉️ {contact.email}</a>
-              )}
+          <div className="mt-2 flex items-start gap-4">
+            {/* 사진도 이 블록 안이다 — 얼굴은 이름보다 강한 식별자라 같은 게이트를 태운다 */}
+            <IdPhoto src={contact.avatarUrl ?? null} />
+            <div className="min-w-0 flex-1">
+              <p className="text-xl font-bold text-slate-900">{contact.name ?? "간호사 회원"}</p>
+              {/* 전화·이메일 둘 다 — 전화를 안 적었거나 안 받는 사람에게 닿는 유일한 수단이 이메일이다. */}
+              {contact.phone || contact.email ? (
+                <div className="mt-1 flex flex-col gap-1">
+                  {contact.phone && (
+                    <a href={`tel:${contact.phone}`} className="inline-flex min-h-11 items-center gap-1.5 text-lg font-bold text-teal-700 hover:underline">📞 {contact.phone}</a>
+                  )}
+                  {contact.email && (
+                    <a href={`mailto:${contact.email}`} className="inline-flex min-h-11 items-center gap-1.5 break-all font-semibold text-teal-700 hover:underline">✉️ {contact.email}</a>
+                  )}
+                </div>
+              ) : <p className="mt-1 text-slate-500">연락처 미입력</p>}
             </div>
-          ) : <p className="mt-1 text-slate-500">연락처 미입력</p>
+          </div>
         ) : (
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
             <span className="text-slate-500">🔒 이름·연락처·사진은 광고 중인 병원만 볼 수 있습니다.</span>

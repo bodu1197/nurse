@@ -10,7 +10,7 @@ import { INPUT_CLASS, LINK_CLASS, messageFor } from "@/lib/constants";
 import {
   SHIFT_TYPES, CERTIFICATIONS, APN_FIELDS, LICENSE_TYPES, EDUCATION_LEVELS, GRADUATION_STATUS,
   CAREER_LEVELS, HOSPITAL_TYPES, AVAILABLE_FROM, EMPLOYMENT_TYPES, DEPARTMENTS, JOB_CATEGORIES,
-  RESUME_PUBLIC_SCOPE,
+  RESUME_PUBLIC_SCOPE, RESUME_INTRO_MIN, RESUME_INTRO_MAX,
 } from "@/lib/resumeOptions";
 import { SIDO_LIST, SIDO_SIGUNGU } from "@/lib/koreaRegions";
 import { safeNext } from "@/lib/url";
@@ -40,6 +40,8 @@ const SAVE_ERRORS: Record<string, string> = {
   work: "경력을 추가하셨다면 병원명과 입사 연월을 모두 채워주세요.",
   work_required: "경력을 선택하셨다면 경력을 1건 이상 입력해 주세요.",
   work_lost: "이력서는 저장됐지만 경력 저장에 실패했습니다. 경력을 다시 확인해 저장해 주세요.",
+  title: "이력서 제목을 입력해 주세요.",
+  intro: `자기소개를 ${RESUME_INTRO_MIN}자 이상 적어주세요.`,
 };
 
 function Section({ title, hint, children }: Readonly<{ title: string; hint?: string; children: React.ReactNode }>) {
@@ -449,13 +451,15 @@ export default async function ResumePage({
           addRowLabel="+ 경력 추가"
           // 이 폼의 서버 검증 코드만 인정한다 — 같은 화면의 사진·공개 스위치 오류(?error=photo_size 등)로
           // 이미 저장에 성공한 초안이 되살아나면 최신 이력서를 옛 값으로 덮어쓴다.
-          ownErrors={["shift", "region", "work", "work_required", "work_lost", "save"]}
+          ownErrors={["title", "intro", "shift", "region", "work", "work_required", "work_lost", "save"]}
         />
         <input type="hidden" name="next" value={backTo} />
 
         <Section title="① 기본" hint="이름과 휴대폰이 없으면 병원이 연락할 방법이 없어 지원이 막힙니다.">
-          <Field id="resume_title" text="이력서 제목" hint="(선택)">
-            <input id="resume_title" name="resume_title" defaultValue={r?.resume_title ?? ""} placeholder="예: NICU 4년, 나이트 가능 간호사" className={INPUT_CLASS} />
+          {/* 제목·자기소개는 필수다(오너 확정 2026-07-30). 목록 카드의 머리말이 제목이고,
+              자기소개가 비면 병원이 그 사람을 판단할 근거가 카드에 남지 않는다. */}
+          <Field id="resume_title" text={<>이력서 제목 {req}</>}>
+            <input id="resume_title" name="resume_title" required maxLength={300} defaultValue={r?.resume_title ?? ""} placeholder="예: NICU 4년, 나이트 가능 간호사" className={INPUT_CLASS} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field id="name" text={<>이름 {req}</>}>
@@ -581,13 +585,13 @@ export default async function ResumePage({
 
         <Section title="⑥ 소개 · 공개 설정">
           <div className="flex flex-col gap-1">
-            <label htmlFor="intro" className={label}>자기소개</label>
+            <label htmlFor="intro" className={label}>자기소개 {req} <span className="text-slate-500">({RESUME_INTRO_MIN}자 이상)</span></label>
             {/* 민감정보는 별도 동의 없이 처리할 수 없다(개인정보보호법 제23조) */}
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
               건강상태 · 병력 · 임신 여부 · 종교 · 정당 가입 여부는 적지 마세요. 법으로 수집이 제한된 정보입니다.
             </p>
-            <textarea id="intro" name="intro" rows={6} defaultValue={r?.intro ?? ""}
-              placeholder="경력에서 다루지 못한 강점, 지원 동기 등을 자유롭게 적어주세요."
+            <textarea id="intro" name="intro" rows={6} required minLength={RESUME_INTRO_MIN} maxLength={RESUME_INTRO_MAX} defaultValue={r?.intro ?? ""}
+              placeholder={`경력에서 다루지 못한 강점, 지원 동기 등을 자유롭게 적어주세요. (${RESUME_INTRO_MIN}자 이상)`}
               className="w-full rounded-xl border border-slate-300 p-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
           </div>
           {/* 🔴 공개 동의는 **첫 저장 때만** 여기서 받는다. 이력서가 이미 있으면 이 자리는 안내만 두고,
