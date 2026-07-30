@@ -123,11 +123,36 @@ async function PostPanel({ id, uid, loggedIn, error }: Readonly<{ id: string; ui
 export default async function BoardPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ page?: string; ok?: string; p?: string; error?: string }> }>) {
-  // 게시판은 이력서를 등록한 간호사 회원만 볼 수 있다(보기·읽기·작성 전부).
-  const access = await getCommunityAccess();
-  if (!access.ok) return <CommunityGate reason={access.reason} next="/board" />;
+  // 게시판 **글**은 이력서를 등록한 간호사 회원만 읽는다. 제목·"글쓰기" 버튼은 누구에게나 보여준다.
+  const [access, { page, ok, p: selectedId, error }, user, uid] = await Promise.all([
+    getCommunityAccess(), searchParams, getCurrentUser(), currentUserId(),
+  ]);
 
-  const [{ page, ok, p: selectedId, error }, user, uid] = await Promise.all([searchParams, getCurrentUser(), currentUserId()]);
+  const header = (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">간호사 게시판</h1>
+        <p className="mt-1 text-sm text-slate-600">현직·예비 간호사끼리 정보와 고민을 나누는 공간입니다.</p>
+      </div>
+      <Button href="/board/new" size="md">글쓰기</Button>
+    </div>
+  );
+
+  // 🔴 회원이 아니면 **글만** 가린다(오너 확정 2026-07-31 — 리뷰와 같은 규칙).
+  //    전에는 페이지 전체를 게이트로 갈아끼워서, 비회원은 "여기가 간호사 게시판"이라는 사실조차
+  //    볼 수 없었다. 글·댓글 조회는 여기서 끝나므로 아래로 한 줄도 내려가지 않는다.
+  if (!access.ok) {
+    return (
+      <>
+        <SiteHeader user={user} />
+        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
+          {header}
+          <CommunityGate reason={access.reason} next="/board" inline />
+        </main>
+      </>
+    );
+  }
+
   const pageNum = Math.max(1, Number(page) || 1);
   const { posts, total } = await getBoardPosts(pageNum);
   const totalPages = Math.max(1, Math.ceil(total / BOARD_PER_PAGE));
@@ -148,13 +173,7 @@ export default async function BoardPage({
     <>
       <SiteHeader user={user} />
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">간호사 게시판</h1>
-            <p className="mt-1 text-sm text-slate-600">현직·예비 간호사끼리 정보와 고민을 나누는 공간입니다.</p>
-          </div>
-          <Button href="/board/new" size="md">글쓰기</Button>
-        </div>
+        {header}
 
         {ok === "deleted" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">글을 삭제했습니다.</div>}
         {ok === "edited" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">글을 수정했습니다.</div>}

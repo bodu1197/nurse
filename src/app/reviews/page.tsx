@@ -59,7 +59,9 @@ function ReviewDetail({ r, uid }: Readonly<{ r: ReviewRow; uid: string | null }>
       </p>
       <p className="mt-4 whitespace-pre-line text-[15px] leading-relaxed text-slate-800">{r.content}</p>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
-        <p className="text-xs text-slate-400">간호사 회원 · 비실명 후기</p>
+        {/* 🔴 "간호사 회원"이라고 못 박지 않는다 — 관리자도 리뷰를 쓸 수 있게 된 뒤로는(2026-07-31)
+            작성자 역할을 조회하지 않는 한 거짓 표기가 될 수 있다. 확실한 사실(비실명)만 적는다. */}
+        <p className="text-xs text-slate-400">비실명 후기</p>
         <OwnerActions id={r.id} mine={mine} />
       </div>
     </article>
@@ -69,13 +71,15 @@ function ReviewDetail({ r, uid }: Readonly<{ r: ReviewRow; uid: string | null }>
 export default async function ReviewsPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ ok?: string; error?: string; page?: string; r?: string; hospital?: string }> }>) {
-  // 리뷰는 이력서를 등록한 간호사 회원만 볼 수 있다(보기·읽기·작성 전부).
-  const access = await getCommunityAccess();
-  if (!access.ok) return <CommunityGate reason={access.reason} next="/reviews" />;
-
-  const [{ ok, error, page, r: selectedId, hospital: hospitalId }, profile, uid] = await Promise.all([searchParams, getMyProfile(), currentUserId()]);
-  // 관리자는 리뷰를 열람·모더레이션만 — 작성은 막히므로(평점 오염 방지) 작성 버튼을 숨긴다.
-  const canWrite = !!profile && !profile.isAdmin;
+  // 리뷰 **글**은 이력서를 등록한 간호사 회원만 읽는다. 다만 화면 껍데기(제목·작성 버튼·병원 검색)는
+  // 누구에게나 보여준다 — 아래 access 분기 참고.
+  const [access, { ok, error, page, r: selectedId, hospital: hospitalId }, profile, uid] = await Promise.all([
+    getCommunityAccess(), searchParams, getMyProfile(), currentUserId(),
+  ]);
+  // 🔴 "리뷰 작성" 버튼은 **누구에게나 그린다**(오너 확정 2026-07-31).
+  //    전에는 관리자에게만 숨겼는데, 숨긴 이유를 화면에 한 글자도 안 알려줘서
+  //    "버튼이 사라진 버그"로만 보였다. 자격 판정은 /reviews/new 와 RLS 가 한다 —
+  //    버튼은 "여기가 리뷰 쓰는 곳"이라는 안내 역할이므로 조건을 걸지 않는다.
 
   const renderHeader = (initialName = "") => (
     <>
@@ -84,7 +88,7 @@ export default async function ReviewsPage({
           <h1 className="text-2xl font-bold text-slate-900">병원 리뷰</h1>
           <p className="mt-1 text-sm text-slate-500">간호사들이 직접 남긴 병원 근무 후기입니다. (비실명)</p>
         </div>
-        {canWrite && <Button href={hospitalId ? `/reviews/new?hospital=${hospitalId}` : "/reviews/new"} size="md">리뷰 작성</Button>}
+        <Button href={hospitalId ? `/reviews/new?hospital=${hospitalId}` : "/reviews/new"} size="md">리뷰 작성</Button>
       </div>
       {/* 병원 이름을 치면 8만 개 병원에서 실시간으로 찾아 그 병원 리뷰로 이동한다. */}
       <div className="mt-4"><HospitalSearchBox initialName={initialName} /></div>
@@ -94,6 +98,28 @@ export default async function ReviewsPage({
       {error === "delete" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">리뷰를 삭제하지 못했습니다. 잠시 후 다시 시도해 주세요.</div>}
     </>
   );
+
+  // ── 모드 0: 회원이 아니면 **글만** 가린다 ──
+  // 🔴 전에는 페이지 전체를 게이트로 갈아끼웠다. 그래서 비회원은 "여기가 병원 리뷰를 쓰는 곳"이라는
+  //    사실 자체를 못 봤고, 가입할 이유도 안 보였다. 제목·"리뷰 작성" 버튼·병원 검색은 남기고
+  //    리뷰 본문만 안내 카드로 대체한다(오너 확정 2026-07-31). 리뷰 데이터는 아래로 못 내려간다.
+  if (!access.ok) {
+    // 🔴 고른 병원 이름을 검색창에 되돌려 놓는다. 안 그러면 병원을 골라 화면이 바뀌었는데 검색창은
+    //    비어 있고 내용도 그대로라, 클릭이 안 먹은 줄 알고 두세 번 더 누르게 된다.
+    //    병원 명부는 원래 공개 테이블(hospitals_select_all = using(true))이라 새로 새는 정보가 없다.
+    const picked = hospitalId ? await getHospital(hospitalId) : null;
+    return (
+      <>
+        <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
+        <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
+          {renderHeader(picked?.name ?? "")}
+          {/* 로그인 후에는 **고른 병원으로** 돌아와야 한다 — /reviews 로만 보내면 다시 검색해야 한다. */}
+          <CommunityGate reason={access.reason} inline
+            next={hospitalId ? `/reviews?hospital=${hospitalId}` : "/reviews"} />
+        </main>
+      </>
+    );
+  }
 
   // ── 모드 1: 특정 병원을 고른 경우 → 그 병원 정보 + 리뷰(없으면 첫 리뷰 유도) ──
   if (hospitalId) {
@@ -126,9 +152,7 @@ export default async function ReviewsPage({
               {reviews.length === 0 ? (
                 <div className="mt-6 rounded-xl border border-dashed border-slate-300 py-16 text-center">
                   <p className="text-slate-500">아직 이 병원 리뷰가 없습니다.</p>
-                  {canWrite
-                    ? <Button href={`/reviews/new?hospital=${hospital.id}`} size="md" className="mt-3">첫 리뷰 작성하기</Button>
-                    : <p className="mt-2 text-sm text-slate-500"><Link href="/login" className="font-semibold text-teal-700 hover:underline">로그인</Link> 후 첫 리뷰를 남겨보세요.</p>}
+                  <Button href={`/reviews/new?hospital=${hospital.id}`} size="md" className="mt-3">첫 리뷰 작성하기</Button>
                 </div>
               ) : (
                 <ul className="mt-6 space-y-3">
@@ -141,7 +165,7 @@ export default async function ReviewsPage({
                       <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed text-slate-800">{v.content}</p>
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                         <p className="text-xs text-slate-400">
-                          간호사 회원
+                          비실명 후기
                           {v.updated_at > v.created_at && <span className="ml-1">· 수정됨 {fmtDay(v.updated_at)}</span>}
                         </p>
                         <OwnerActions id={v.id} mine={uid !== null && uid === v.author_id} />

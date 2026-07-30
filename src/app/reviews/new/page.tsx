@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import SiteHeader from "@/components/SiteHeader";
 import SubmitButton from "@/components/SubmitButton";
 import HospitalPicker from "@/components/HospitalPicker";
@@ -25,13 +24,11 @@ const label = "text-sm font-medium text-slate-700";
 export default async function NewReviewPage({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ error?: string; hospital?: string }> }>) {
-  // 리뷰 작성은 이력서를 등록한 간호사 회원만.
+  // 리뷰 작성은 이력서를 등록한 간호사 회원 + 관리자. 최종 판정은 createReview 와 RLS 가 한다.
   const access = await getCommunityAccess();
   if (!access.ok) return <CommunityGate reason={access.reason} next="/reviews/new" />;
   const p = await getMyProfile();
   if (!p) return <CommunityGate reason="guest" next="/reviews/new" />;
-  // 관리자는 리뷰 열람·모더레이션만 가능(작성 불가) — 작성 폼 대신 목록으로 돌린다.
-  if (p.isAdmin) redirect("/reviews");
   const { error, hospital } = await searchParams;
   // 리뷰 목록에서 "이 병원 리뷰 작성"으로 넘어오면 병원이 미리 선택돼 있다.
   const initialHospital = hospital ? await getHospital(hospital) : null;

@@ -6,9 +6,10 @@ import { getMembership } from "@/lib/data/membership";
 // 전에는 여기와 talent.ts 의 isAdvertiser 가 같은 개념을 따로 판정해, 병원 쪽엔 사유 안내가 없었다.
 export { hasResume } from "@/lib/data/membership";
 
-// 리뷰·게시판은 "이력서를 등록한 간호사 회원"만 이용한다 — 보기·읽기·작성·수정 전부.
-// 판정: (보기 전환 반영) 역할이 간호사 + resumes에 본인 이력서가 존재.
-// 병원 회원·비로그인·이력서 미등록 간호사는 모두 막힌다.
+// 리뷰·게시판의 **글**은 "이력서를 등록한 간호사 회원"(+관리자)만 읽고·쓰고·고친다.
+// 판정: (보기 전환 반영) 역할이 간호사 + resumes에 본인 이력서가 존재. 관리자는 membership.ts 에서 통과.
+// 병원 회원·비로그인·이력서 미등록 간호사는 모두 막힌다 —
+// 다만 목록 화면의 제목·작성 버튼·병원 검색은 막힌 사람에게도 보인다(CommunityGate 의 inline 참고).
 export type CommunityDenied = "guest" | "not_nurse" | "no_resume";
 export type CommunityAccess = { ok: true; userId: string } | { ok: false; reason: CommunityDenied };
 

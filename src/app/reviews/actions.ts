@@ -4,21 +4,25 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { hasResume, requireCommunityMember } from "@/lib/data/community";
 
-// 병원 리뷰 작성 (간호사만). RLS로 author_id=본인 강제. 병원당 1리뷰(unique).
+// 병원 리뷰 작성 (간호사 회원 + 관리자). RLS로 author_id=본인 강제. 병원당 1리뷰(unique).
 export async function createReview(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
   // 병원 계정이 자기 병원에 리뷰를 달아 평점을 올리는 것을 차단(rating_avg는 공개 노출).
-  // DB(reviews_insert_own 정책)에서도 간호사만 허용 — anon key가 공개라 앱 게이트만으론 우회된다.
-  // 여기만 보기 전환(viewAsRole)을 쓰지 않는다 — 관리자의 테스트 리뷰가 실제 병원 평점에 집계되면 안 되므로
-  // DB상 실제 간호사만 통과시킨다.
-  // getCommunityAccess(보기전환 role)를 쓰지 않는다 — 관리자의 view_as 리뷰가 실제 평점에 집계되면 안 되므로
-  // 여기선 DB상 실제 역할만 본다(평점 오염 방지). 이력서 요건만 공용 hasResume로 재사용.
+  // DB(reviews_insert_own 정책)에서도 같은 판정 — anon key가 공개라 앱 게이트만으론 우회된다.
+  //
+  // getCommunityAccess(보기전환 role)를 쓰지 않는다 — 보기 전환 중인 계정이 실제 평점을 매기면 안 되므로
+  // 여기선 DB상 실제 역할만 본다. 이력서 요건만 공용 hasResume로 재사용.
+  //
+  // 🔴 관리자도 작성한다(오너 확정 2026-07-31). 전에는 평점 오염을 걱정해 막았는데,
+  //    막힌 이유가 화면에 안 나와 오너 본인이 "버튼이 없다"고 막혔다. 관리자에겐 이력서를 묻지 않는다
+  //    (관리자는 이력서를 쓰는 계정이 아니다 — 물으면 영영 통과 못 한다).
   const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (prof?.role !== "nurse") redirect("/reviews/new?error=nurse_only");
-  if (!(await hasResume(user.id))) redirect("/reviews/new?error=no_resume");
+  const role = prof?.role;
+  if (role !== "nurse" && role !== "admin") redirect("/reviews/new?error=nurse_only");
+  if (role === "nurse" && !(await hasResume(user.id))) redirect("/reviews/new?error=no_resume");
 
   const hospitalId = String(formData.get("hospital_id") ?? "");
   const rating = Number(formData.get("rating") ?? 0);
@@ -47,7 +51,7 @@ export async function createReview(formData: FormData) {
  *
  * 병원은 바꿀 수 없다(다른 병원 리뷰가 되면 그건 새 리뷰다 — unique 제약과도 충돌한다).
  * 별점·내용·근무기간만 고친다. 본인 것만 — RLS(reviews_update_own)가 최종 판정하고,
- * 그 정책은 '지금도 간호사인 계정'까지 확인한다(평점 오염 방지).
+ * 그 정책은 '지금도 회원(또는 관리자)인 계정'까지 확인한다.
  */
 export async function updateReview(formData: FormData) {
   const supabase = await createClient();
@@ -78,7 +82,7 @@ export async function updateReview(formData: FormData) {
  * 병원 평점(rating_avg·rating_count)은 트리거(on_review_change)가 알아서 다시 계산한다.
  */
 export async function deleteReview(formData: FormData) {
-  // 🔴 리뷰·게시판은 **이력서를 등록한 간호사 회원**만 쓰고·보고·고치고·지운다(오너 확정).
+  // 🔴 리뷰·게시판은 **이력서를 등록한 간호사 회원**(+관리자)만 쓰고·보고·고치고·지운다.
   //    수정(updateReview)은 RLS 의 with check 가 막지만 삭제 정책에는 그 조건이 없어 여기서 함께 건다.
   //    게시판(deletePost)은 이미 같은 게이트를 쓰고 있다 — 두 곳의 규칙을 맞춘다.
   await requireCommunityMember("/reviews");

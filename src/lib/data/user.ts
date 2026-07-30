@@ -36,7 +36,8 @@ export async function applySignupRole(userId: string, requested: string | null):
 // ponytail: 관리자 테스트용 역할 전환(쿠키 view_as). 판정은 pickRole(순수·테스트 있음).
 // 전환해도 보이는 데이터는 본인 것뿐 — RLS가 전부 auth.uid() 기준이라 남의 데이터는 안 열린다.
 // 역할을 읽는 곳(페이지=getMyProfile, 서버액션=사업자인증·공고등록·이력서·지원)이 이 함수를 거쳐야
-// 화면과 저장이 같이 동작한다. 리뷰 작성만 예외 — 거기선 DB상 실제 간호사만 허용한다(평점 오염 방지).
+// 화면과 저장이 같이 동작한다. 리뷰 작성만 예외 — 거기선 보기 전환을 무시하고 DB상 실제 역할을 본다
+// (간호사 또는 관리자. 2026-07-31 부터 관리자도 리뷰를 쓴다).
 export async function viewAsRole(dbRole: Role): Promise<Role> {
   return pickRole(dbRole, (await cookies()).get("view_as")?.value);
 }
