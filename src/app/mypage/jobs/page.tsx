@@ -28,6 +28,9 @@ export default async function MyJobsPage({
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
         {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
         {error === "freelimit" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">무료 공고는 동시 1건까지입니다. 기존 공고가 만료되거나 광고로 전환하면 새 공고를 올릴 수 있습니다.</div>}
+        {/* 마감일이 지난 공고는 다시 게시해도 아무 데도 안 나온다 — 예전에는 "처리되었습니다"만 뜨고
+            실제로는 비노출인 채였다(침묵하는 실패). 무엇을 해야 하는지 짚어 준다. */}
+        {error === "deadline" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">마감일이 이미 지난 공고입니다. 다시 게시하려면 먼저 공고를 수정해 마감일을 오늘 이후로 바꿔주세요.</div>}
 
         {jobs.length === 0 ? (
           <p className="py-20 text-center text-slate-500">등록한 공고가 없습니다. <a href="/mypage/jobs/new" className="font-semibold text-teal-700 hover:underline">첫 공고를 등록</a>해 보세요.</p>

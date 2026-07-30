@@ -299,8 +299,16 @@ export async function repostJob(formData: FormData) {
   //    형제 액션 setJobStatus 는 draft 를 막아두는데 여기만 빠져 있어서, 유료 2~4주를 골라
   //    draft 로 만들어진 공고를 **결제 없이 open 으로 올릴 수 있었다**(조작된 POST 한 번).
   //    화면에는 pending 분기에 이 버튼이 없지만, 서버 액션은 화면을 신뢰하지 않는다.
-  const { data: job } = await admin.from("jobs").select("status, featured_until").eq("id", jobId).maybeSingle();
+  const { data: job } = await admin.from("jobs").select("status, featured_until, deadline").eq("id", jobId).maybeSingle();
   if (!job || !isSettableJobStatus(job.status)) redirect("/mypage/jobs?error=1");
+
+  // 🔴 마감일이 지난 공고는 status 를 open 으로 되돌려도 **아무 데도 안 나온다**
+  //    (jobState 가 deadline 으로 expired 를 판정하고 isOpenToSeekers 도 false).
+  //    그런데 화면은 이 공고에 '다시 게시' 버튼을 그리고, 여기서는 status 가 이미 open 이라
+  //    update 가 행을 돌려줘 "처리되었습니다"까지 떴다 — 침묵하는 실패다.
+  //    마감일부터 고치게 돌려보낸다. 여기서 deadline 을 임의로 비우지 않는 이유는,
+  //    병원이 정한 마감일을 서버가 말없이 지우는 쪽이 더 나쁘기 때문이다.
+  if (job.deadline && job.deadline < todayKst(nowMs())) redirect("/mypage/jobs?error=deadline");
 
   // 광고가 아직 살아 있는 공고는 **유료 자리**다 — 무료 동시 1건 규칙의 대상이 아니다.
   // 이 구분이 없으면 돈을 낸 공고를 다시 게시하려다 무료 제한에 막힌다.
@@ -569,9 +577,12 @@ export async function deleteAccount(formData: FormData) {
   //    email identity 가 붙는다 → 그 표식으로만 예외를 둔다.
   // 🔴 표식은 app_metadata 를 본다. user_metadata 는 세션 소유자가 브라우저에서
   //    updateUser({ data: … }) 로 직접 쓸 수 있어 **서버 판정의 근거가 될 수 없다**.
-  //    (이관·기존 계정을 위해 user_metadata 도 함께 보되, 새로 만드는 계정은 app_metadata 를 쓴다.)
-  const isNaverAccount =
-    au.app_metadata?.provider === "naver" || au.user_metadata?.provider === "naver";
+  //    🔴 한때 "이관 계정을 위해"라며 user_metadata 도 OR 로 함께 봤는데, 그게 바로 위 문장을
+  //    스스로 어기는 것이었다. 로그인된 브라우저 앞의 제3자가 콘솔에서
+  //    updateUser({ data: { provider: "naver" } }) 한 번이면 비밀번호 없이 계정을 지울 수 있었다
+  //    (탈퇴 폼의 비밀번호 칸에는 required 가 없다). 이 가드의 존재 이유가 통째로 무력화된다.
+  //    제거해도 잠기는 사람이 없음을 확인했다 — 네이버 계정 0건(2026-07-30 실측).
+  const isNaverAccount = au.app_metadata?.provider === "naver";
   const requiresPassword = (au.identities ?? []).some((i) => i.provider === "email") && !isNaverAccount;
 
   // 넣어서 왔으면 provider 와 무관하게 **항상** 검증한다 — 틀린 비밀번호가 통과하는 경로를 두지 않는다.

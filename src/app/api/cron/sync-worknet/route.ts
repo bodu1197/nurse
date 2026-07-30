@@ -149,8 +149,18 @@ export async function GET(request: Request) {
       .select("id");
     if (closeErr) return NextResponse.json({ error: `jobs close: ${closeErr.message}`, upserted }, { status: 500 });
 
+    // 🔴 끝난 광고의 표식을 지운다. 목록 정렬이 featured_until 내림차순인데(lib/data/jobs.ts)
+    //    **과거 시각도 null 보다 앞선다** — 광고가 끝난 공고가 돈을 낸 적 없는 공고와 워크넷 공고
+    //    전부보다 위에 계속 붙어 있었다. 특히 광고 종료 직전에 '마감하기 → 다시 게시'를 하면
+    //    repostJob 의 유료 분기가 featured_until 을 남긴 채 posted_at 만 새로 찍어, 남은 무료
+    //    7일 내내 상단을 차지한다(돈 안 낸 기간의 상단 노출).
+    //    새 크론을 만들지 않고 여기 얹는다 — 하루 4회면 잔여 노출이 최대 6시간이다.
+    const { data: expiredAds } = await admin
+      .from("jobs").update({ featured_until: null, ad_tier: null })
+      .lt("featured_until", new Date().toISOString()).select("id");
+
     const enrichedRemaining = jobs.filter((j) => !stored.get(j.authNo)?.detail_fetched_at && !details.has(j.authNo)).length;
-    return NextResponse.json({ ok: true, fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, detailsFetched: details.size, enrichRemaining: enrichedRemaining });
+    return NextResponse.json({ ok: true, fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, adsExpired: expiredAds?.length ?? 0, detailsFetched: details.size, enrichRemaining: enrichedRemaining });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "sync failed" }, { status: 502 });
   }
