@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import JobDetail from "@/components/JobDetail";
 import { getPublicJob, getSavedJobIds, getNearbyJobs, getJobs, jobFilterQs, regionOf, PER_PAGE, type JobRow } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
+import { getCommunityAccess } from "@/lib/data/community";
 import { myApplication } from "@/lib/data/applications";
 import { daysAgo, nowMs, listingEnd } from "@/lib/date";
 import { isOpenToSeekers } from "@/lib/jobState";
@@ -76,7 +77,10 @@ export default async function JobPage({
   const pageHref = (toPage: number) => { const s = qsFor(toPage); return `/jobs/${id}` + (s ? `?${s}` : ""); };
 
   // 서로 의존하지 않는 조회는 함께 보낸다(직렬로 두면 상세 화면이 왕복 한 번만큼 늦어진다).
-  const [application, savedIds, side] = await Promise.all([
+  // 외부 수집 공고는 **이력서를 등록한 간호사 회원**만 원본 사이트로 나갈 수 있다(오너 확정 2026-07-30).
+  // 그 판정에만 필요하므로 해당 조건에서만 조회한다(직접등록 공고에는 헛왕복을 만들지 않는다).
+  const needsResumeCheck = job.source !== "direct" && profile?.role === "nurse";
+  const [application, savedIds, side, resumeOwned] = await Promise.all([
     profile?.role === "nurse" ? myApplication(job.id) : Promise.resolve(null),
     profile ? getSavedJobIds([job.id]) : Promise.resolve(new Set<string>()),
     // 필터로 들어왔으면 같은 검색결과(전체 개수 포함)를, 아니면 같은 지역(없으면 최근) 공고를 좌측 사이드바로.
@@ -84,6 +88,7 @@ export default async function JobPage({
       ? getJobs(q ?? "", l ?? "", { sido, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et }, pageNum, true)
           .then((r) => ({ jobs: r.jobs.filter((x) => x.id !== id), sameRegion: false, total: r.total }))
       : getNearbyJobs(job.location, job.id).then((r) => ({ ...r, total: 0 })),
+    needsResumeCheck ? getCommunityAccess().then((a) => a.ok) : Promise.resolve(false),
   ]);
   const nearby = side.jobs;
   const totalPages = Math.max(1, Math.ceil(side.total / PER_PAGE));
@@ -142,6 +147,7 @@ export default async function JobPage({
             selfHref={`/jobs/${job.id}`}
             applyError={apply}
             cancelled={ok === "cancel"}
+            hasResume={resumeOwned}
             asH1
             now={now}
           />

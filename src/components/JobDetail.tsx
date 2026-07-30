@@ -59,6 +59,65 @@ function ApplyError({ code, resumeHref }: Readonly<{ code: string; resumeHref: s
   return <Notice danger>지원 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.</Notice>;
 }
 
+/**
+ * 외부 수집 공고의 '원본 사이트에서 지원'.
+ * 우리는 접수하지 않는다 — 나가는 문만 열어준다. 조건: 간호사 회원 + 이력서 등록.
+ */
+function ExternalApply({
+  href, profile, hasResume, loginHref, resumeHref, hasContact,
+}: Readonly<{
+  href: string | null;
+  profile: { role: Role } | null;
+  hasResume: boolean;
+  loginHref: string;
+  resumeHref: string;
+  hasContact: boolean;
+}>) {
+  // 링크가 없으면 나갈 곳 자체가 없다. 연락처가 있을 때만 그걸 가리킨다
+  // (전에는 연락처가 없어도 "아래 채용 문의로 연락하세요"라고 해서 없는 곳을 가리켰다).
+  if (!href) {
+    return (
+      <p className="text-sm text-slate-500 sm:max-w-md">
+        {hasContact
+          ? "원본 공고 링크가 확인되지 않았습니다. 아래 채용 문의로 연락해 주세요."
+          : "원본 공고 링크가 확인되지 않았습니다. 이 공고는 지금 지원 경로를 안내할 수 없습니다."}
+      </p>
+    );
+  }
+  if (!profile) {
+    return (
+      <div className="flex flex-col gap-2 sm:max-w-md">
+        <p className="text-sm text-slate-500">이 공고는 원본 사이트에서 지원합니다. 널스넷 회원(간호사)만 이동할 수 있습니다.</p>
+        <Button href={loginHref} size="md">로그인</Button>
+      </div>
+    );
+  }
+  if (profile.role !== "nurse") {
+    return <p className="text-sm text-slate-500 sm:max-w-md">외부 공고 지원은 간호사 회원만 이용할 수 있습니다.</p>;
+  }
+  if (!hasResume) {
+    return (
+      <div className="flex flex-col gap-2 sm:max-w-md">
+        <p className="text-sm text-slate-500">이력서를 등록하면 원본 사이트로 이동해 지원할 수 있습니다.</p>
+        <Button href={resumeHref} size="md">이력서 작성하기</Button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-2 sm:max-w-md">
+      <Button href={href} target="_blank" rel="noopener noreferrer" size="md" className="self-start">
+        원본 사이트에서 지원
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M7 17L17 7M7 7h10v10" /></svg>
+      </Button>
+      {/* 약속하지 않는다 — 이 지원은 널스넷을 거치지 않는다는 사실을 그대로 적는다 */}
+      <p className="text-xs text-slate-500">
+        새 창에서 원본 사이트(워크넷 등)로 이동합니다. <b className="text-slate-600">널스넷을 거치지 않으므로
+        지원 내역에는 남지 않습니다.</b> 접수 여부는 원본 사이트에서 확인해 주세요.
+      </p>
+    </div>
+  );
+}
+
 type Props = Readonly<{
   job: JobRow;
   profile: { displayName: string; role: Role } | null;
@@ -69,6 +128,11 @@ type Props = Readonly<{
   selfHref: string;
   /** 모바일에서 목록으로 돌아가는 링크. 단독 상세 페이지에서는 생략 */
   backHref?: string;
+  /**
+   * 이 사람이 이력서를 등록했는가(간호사일 때만 의미 있음).
+   * 외부 수집 공고(워크넷)는 **이력서를 등록한 간호사 회원만** 원본 사이트로 나갈 수 있다(오너 확정 2026-07-30).
+   */
+  hasResume?: boolean;
   /** 방금 이 화면에서 지원을 취소했는가(?ok=cancel) */
   cancelled?: boolean;
   /** ?apply= 로 넘어온 지원 실패 사유 */
@@ -78,7 +142,7 @@ type Props = Readonly<{
   now: number;
 }>;
 
-export default function JobDetail({ job, profile, application, saved, selfHref, backHref, applyError, cancelled, asH1, now }: Props) {
+export default function JobDetail({ job, profile, application, saved, selfHref, backHref, applyError, cancelled, hasResume, asH1, now }: Props) {
   const loginHref = `/login?notice=apply&next=${encodeURIComponent(selfHref)}`;
   const resumeHref = `/mypage/resume?next=${encodeURIComponent(selfHref)}`;
   const Title = asH1 ? "h1" : "h2";
@@ -202,18 +266,22 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
                 </div>
               )}
             </div>
-          ) : !profile ? (
-            <div className="flex flex-col gap-2 sm:max-w-md">
-              <p className="text-sm text-slate-500">지원하려면 로그인이 필요합니다.</p>
-              <Button href={loginHref} size="md">로그인하고 지원</Button>
-            </div>
-          ) : externalHref ? (
-            <Button href={externalHref} target="_blank" rel="noopener noreferrer" size="md">
-              원본 사이트에서 지원
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M7 17L17 7M7 7h10v10" /></svg>
-            </Button>
           ) : (
-            <p className="text-sm text-slate-500 sm:max-w-md">원본 공고 링크가 없습니다. 아래 채용 문의로 연락해 주세요.</p>
+            /* ── 외부 수집 공고(워크넷 등) ─────────────────────────────
+               🔴 오너 확정 2026-07-30: 이 지원에 우리는 **아무것도 관여하지 않는다.**
+                  접수도 기록도 중개도 하지 않는다 — 원본 사이트로 보내는 것이 전부다.
+                  다만 **이력서를 등록한 간호사 회원**만 나갈 수 있게 한다. 그것이 유일한 관여다.
+               그래서 문구도 약속하지 않는다: 지원 내역에 남지 않는다는 사실을 먼저 밝힌다
+               (전에는 "로그인하고 지원"이라 해놓고 로그인해도 외부 링크뿐이라,
+                "지원했는데 내역이 비었다"를 겪게 했다). */
+            <ExternalApply
+              href={externalHref}
+              profile={profile}
+              hasResume={!!hasResume}
+              loginHref={loginHref}
+              resumeHref={resumeHref}
+              hasContact={!!(job.manager_name || job.manager_phone)}
+            />
           )}
         </div>
 
