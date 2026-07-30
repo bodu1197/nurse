@@ -18,13 +18,15 @@ export const metadata = { alternates: { canonical: "/" } };
 export default async function Home({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ left?: string }> }>) {
-  const [profile, { jobs }, { left }, talent] = await Promise.all([
+  const [profile, { jobs, total: jobTotal }, { left }, talent] = await Promise.all([
     getMyProfile(),
-    getJobs("", ""),
+    getJobs("", ""), // total 은 원래 세고 있었다(withCount 기본값 true) — 버리지 않고 제목 옆에 쓴다
     searchParams,
     // 구직 현황 — 최신 공개 이력서. 목록(/talent)과 같은 함수·같은 정렬(updated_at desc)이라
-    // 홈에서 본 카드가 목록 첫 페이지와 어긋나지 않는다. 총계는 안 쓰므로 count 를 끈다.
-    searchPublicTalent({}, 1, false, HOME_TALENT),
+    // 홈에서 본 카드가 목록 첫 페이지와 어긋나지 않는다.
+    // withCount=true — 제목 옆 건수를 여기서 받는다(오너 지시 2026-07-30). 카드는 10장만 받고
+    // 개수는 전체를 센다. /talent 목록이 보여주는 총계와 같은 함수·같은 조건이라 숫자가 어긋나지 않는다.
+    searchPublicTalent({}, 1, true, HOME_TALENT),
   ]);
   const latest = jobs.slice(0, 6);
   const seekers = talent.rows;
@@ -97,7 +99,11 @@ export default async function Home({
           {/* ── 최신 채용공고 ───────────────── */}
           <section className="mt-12 pb-16">
             <div className="flex items-end justify-between">
-              <h2 className="text-xl font-bold text-slate-900">최신 채용공고</h2>
+              {/* 건수는 제목 옆에 붙인다 — 사람이 먼저 보는 곳이 제목이라, 얼마나 있는 사이트인지
+                  스크롤 전에 알 수 있다. 숫자는 전체 건수(목록 전체 보기와 같은 수)다. */}
+              <h2 className="text-xl font-bold text-slate-900">
+                최신 채용공고 <span className="text-base font-normal text-slate-400">총 {jobTotal.toLocaleString()}건</span>
+              </h2>
               <Link href="/jobs" className="text-sm font-semibold text-teal-700 hover:underline">전체 보기 →</Link>
             </div>
             {latest.length === 0 ? (
@@ -150,7 +156,9 @@ export default async function Home({
               이름·연락처·사진은 홈에서도 /talent 와 같은 게이트(광고 중인 병원)로 막힌다. */}
           <section className="mt-12 pb-16">
             <div className="flex items-end justify-between">
-              <h2 className="text-xl font-bold text-slate-900">구직 현황</h2>
+              <h2 className="text-xl font-bold text-slate-900">
+                구직 현황 <span className="text-base font-normal text-slate-400">총 {talent.total.toLocaleString()}건</span>
+              </h2>
               <Link href="/talent" className="text-sm font-semibold text-teal-700 hover:underline">전체 보기 →</Link>
             </div>
             {seekers.length === 0 ? (
