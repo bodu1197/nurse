@@ -15,7 +15,20 @@ export default function TalentCard({
   contactName,
   contactAvatar,
   compact = false,
-}: Readonly<{ t: PublicTalent; contactName?: string | null; contactAvatar?: string | null; compact?: boolean }>) {
+  hideIntro = false,
+}: Readonly<{
+  t: PublicTalent;
+  contactName?: string | null;
+  contactAvatar?: string | null;
+  compact?: boolean;
+  /**
+   * 자기소개를 빼고 그린다.
+   * 🔴 홈(/)은 검색엔진에 색인되는 페이지다. line-clamp 는 CSS 로 한 줄만 보이게 할 뿐
+   *    문자열 전체가 HTML 에 실려 색인된다 — 자기소개는 본인이 쓴 자유서술이라 가장 강한 식별자다.
+   *    /talent 는 noindex 라 그대로 두고, 홈에서만 뺀다.
+   */
+  hideIntro?: boolean;
+}>) {
   // compact: 인재 상세의 좁은 사이드바(약 320px)용. 자기소개·경과시간을 빼고 메타도 둘만 남긴다.
   const meta: { label: string; value: string }[] = (
     compact
@@ -68,7 +81,7 @@ export default function TalentCard({
         <p className="line-clamp-1 font-bold leading-snug text-slate-900 sm:text-base">
           {t.resume_title ?? "간호사 인재"}
         </p>
-        {t.intro && (
+        {!hideIntro && t.intro && (
           <p className="mt-1 line-clamp-1 text-sm text-slate-600">{t.intro}</p>
         )}
 

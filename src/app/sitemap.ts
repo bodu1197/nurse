@@ -13,7 +13,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: route === "/" ? 1 : 0.7,
   }));
 
-  // 인재정보(/talent)는 개인정보라 여기 넣지 않는다 — PUBLIC_ROUTES 주석 참조.
+  // 인재정보(/talent) URL 은 여기 넣지 않는다(noindex 와 모순되지 않게).
+// ⚠️ 다만 홈(/)의 '구직 현황' 에 같은 카드가 실려 색인된다(오너 지시 2026-07-30).
   const jobs = await getSitemapJobs();
   return [
     ...statics,

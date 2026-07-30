@@ -1,10 +1,16 @@
 import Link from "next/link";
+import Image from "next/image";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import DraftCleaner from "@/components/DraftCleaner";
 import { getMyProfile } from "@/lib/data/user";
 import { getJobs } from "@/lib/data/jobs";
+import { searchPublicTalent, revealContacts, canRevealContacts, type RevealedContact } from "@/lib/data/talent";
+import TalentCard from "@/components/TalentCard";
 import { daysAgo } from "@/lib/date";
+
+// 홈에 띄우는 구직 카드 수 — 한 줄에 2개씩 5줄.
+const HOME_TALENT = 10;
 
 // 홈만 자기 자신을 정본으로 선언한다(루트 레이아웃에서 canonical을 걷어냈다).
 export const metadata = { alternates: { canonical: "/" } };
@@ -12,8 +18,21 @@ export const metadata = { alternates: { canonical: "/" } };
 export default async function Home({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ left?: string }> }>) {
-  const [profile, { jobs }, { left }] = await Promise.all([getMyProfile(), getJobs("", ""), searchParams]);
+  const [profile, { jobs }, { left }, talent] = await Promise.all([
+    getMyProfile(),
+    getJobs("", ""),
+    searchParams,
+    // 구직 현황 — 최신 공개 이력서. 목록(/talent)과 같은 함수·같은 정렬(updated_at desc)이라
+    // 홈에서 본 카드가 목록 첫 페이지와 어긋나지 않는다. 총계는 안 쓰므로 count 를 끈다.
+    searchPublicTalent({}, 1, false, HOME_TALENT),
+  ]);
   const latest = jobs.slice(0, 6);
+  const seekers = talent.rows;
+  // 이름·사진은 광고 중인 병원에게만 — /talent 와 **같은 게이트**를 쓴다(홈이라고 더 열지 않는다).
+  const canSeeContacts = await canRevealContacts(profile);
+  const contacts = canSeeContacts
+    ? await revealContacts(seekers.map((r) => r.profile_id))
+    : new Map<string, RevealedContact>();
 
   return (
     <>
@@ -107,6 +126,66 @@ export default async function Home({
               </ul>
             )}
             <p className="mt-4 text-center text-xs text-slate-400">일부 공고는 고용노동부 워크넷 및 공공데이터포털에서 제공받아 표시됩니다.</p>
+          </section>
+        </div>
+
+        {/* ── 구인 ↔ 구직 사이 띠 배너 ─────────────
+            구 널스넷에서 쓰던 그림 그대로(1170×110). 장식이라 alt 는 문구를 그대로 옮겨 적는다.
+            priority 를 주지 않는다 — 첫 화면 밖이라 미리 받을 이유가 없다. */}
+        <div className="mx-auto max-w-[1280px] px-4">
+          <Image
+            src="/img/banner-strip.png"
+            alt="구인, 구직신청은 널스넷에서!"
+            width={1170}
+            height={110}
+            sizes="(max-width: 1280px) 100vw, 1170px"
+            className="h-auto w-full rounded-2xl"
+          />
+        </div>
+
+        <div className="mx-auto max-w-[1280px] px-4">
+          {/* ── 구직 현황 ─────────────────────
+              🔴 이 섹션은 **색인된다**(홈은 canonical "/" · sitemap priority 1). /talent 는 noindex 지만
+                 여기 실리는 카드 내용은 검색엔진에 그대로 들어간다. 그래서 자기소개(자유서술)만
+                 hideIntro 로 뺐다 — 나머지(제목·경력·희망조건·성별·나이)는 그대로 나간다.
+                 자기소개까지 노출하려면 hideIntro 를 지우면 된다. */}
+          <section className="mt-12 pb-16">
+            <div className="flex items-end justify-between">
+              <h2 className="text-xl font-bold text-slate-900">구직 현황</h2>
+              <Link href="/talent" className="text-sm font-semibold text-teal-700 hover:underline">전체 보기 →</Link>
+            </div>
+            {seekers.length === 0 ? (
+              <p className="mt-6 rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-400">등록된 이력서가 곧 올라옵니다.</p>
+            ) : (
+              <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                {seekers.map((r) => (
+                  <li key={r.profile_id}>
+                    {/* relative + overflow-hidden — 리본이 카드 모서리를 벗어나지 않게 */}
+                    <Link
+                      href={`/talent/${r.profile_id}`}
+                      prefetch={false}
+                      className="relative block h-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md"
+                    >
+                      {/* 구직중 리본 — 오른쪽 위 모서리를 45도로 가로지른다.
+                          띠를 카드 밖으로 충분히 빼야(-right-12) 글자가 모서리에 끼이지 않고
+                          띠 한가운데에 온다. 부모의 overflow-hidden 이 삐져나온 부분을 잘라 준다. */}
+                      <span className="pointer-events-none absolute -right-12 top-5 w-40 rotate-45 bg-teal-600 py-1 text-center text-xs font-bold tracking-wide text-white shadow-sm">
+                        구직중
+                      </span>
+                      <div className="pr-10">
+                        <TalentCard
+                          t={r}
+                          contactName={contacts.get(r.profile_id)?.name}
+                          contactAvatar={contacts.get(r.profile_id)?.avatarUrl}
+                          hideIntro
+                        />
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-4 text-center text-xs text-slate-400">이력서를 공개한 간호사 회원입니다. 이름·연락처는 광고 중인 병원에만 표시됩니다.</p>
           </section>
         </div>
       </main>

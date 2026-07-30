@@ -192,9 +192,16 @@ const clean = (s: string) => s.replace(/[%,()]/g, "").trim();
 // 공개 인재 목록 — 이름·전화 없이 누구나 본다.
 // admin 클라이언트로 조회하되 select에서 이름·전화를 아예 빼서, 공개 화면 payload에 PII가 실리지 않는다.
 // (resumes_select_advertiser RLS는 행 전체를 광고 병원에게만 여는데, 그러면 목록이 비어 마켓이 죽는다.)
-export async function searchPublicTalent(f: TalentFilters, page = 1, withCount = true): Promise<{ rows: PublicTalent[]; total: number }> {
+export async function searchPublicTalent(
+  f: TalentFilters,
+  page = 1,
+  withCount = true,
+  // 홈의 '구직 현황' 처럼 목록보다 적게 쓰는 화면용. 기본은 목록 크기(20).
+  // 없으면 20건을 받아 10건만 쓰는 낭비가 생긴다.
+  perPage = TALENT_PER_PAGE,
+): Promise<{ rows: PublicTalent[]; total: number }> {
   const admin = createAdminClient();
-  const from = (Math.max(1, page) - 1) * TALENT_PER_PAGE;
+  const from = (Math.max(1, page) - 1) * perPage;
   let query = admin
     .from("resumes")
     .select(PUBLIC_COLS, withCount ? { count: "exact" } : undefined)
@@ -202,7 +209,11 @@ export async function searchPublicTalent(f: TalentFilters, page = 1, withCount =
     // 이름이 없는 이력서는 카드에 보여줄 게 부실하고 연락도 안 되므로 목록에서 제외한다.
     .not("name", "is", null)
     .order("updated_at", { ascending: false })
-    .range(from, from + TALENT_PER_PAGE - 1);
+    // 🔴 2차 키 — 이관분 7,224건이 같은 배치 시각이라 updated_at 만으로는 순서가 보장되지 않는다.
+    //    동률이 흔들리면 홈 10장과 목록 1페이지가 어긋나고, 페이지 경계에서 같은 사람이
+    //    두 페이지에 나오거나 어느 페이지에도 안 나온다.
+    .order("profile_id", { ascending: false })
+    .range(from, from + perPage - 1);
 
   if (f.specialty) query = query.contains("specialties", [f.specialty]);
   if (f.category) query = query.contains("job_categories", [f.category]);
