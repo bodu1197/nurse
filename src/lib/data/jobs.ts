@@ -47,7 +47,7 @@ export const PER_PAGE = 20;
 // 검색 필터를 URL 쿼리스트링으로 — 목록(/jobs)과 상세(/jobs/[id])가 같은 규칙으로 직렬화해야
 // 카드→상세→사이드바로 넘어가도 필터가 안 끊긴다. 필터 키가 늘면 여기 한 곳만 고치면 된다.
 export function jobFilterQs(
-  f: { q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; fac?: string; cat?: string; et?: string },
+  f: { q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; fac?: string; cat?: string; et?: string; lat?: string; lng?: string; r?: string },
   page?: number,
 ): string {
   const p = new URLSearchParams();
@@ -59,6 +59,12 @@ export function jobFilterQs(
   if (f.fac) p.set("fac", f.fac);
   if (f.cat) p.set("cat", f.cat);
   if (f.et) p.set("et", f.et);
+  // 내 주변 필터 — 켜져 있는 동안은 칩·페이지 이동에도 따라붙는다(꺼짐은 JobNearMeButton의 "해제"만).
+  if (f.lat && f.lng) {
+    p.set("lat", f.lat);
+    p.set("lng", f.lng);
+    if (f.r) p.set("r", f.r); // 반경은 좌표 있을 때만 의미가 있다
+  }
   if (page && page > 1) p.set("page", String(page));
   return p.toString();
 }
@@ -87,6 +93,7 @@ export const UNSET = "_none";
 
 export type JobFilters = {
   sido?: string; sigungu?: string; specialty?: string; facilityType?: string; jobCategory?: string; employmentType?: string;
+  near?: { lat: number; lng: number; radiusM: number };
 };
 
 // 🗂 지역 계단 노드(도/시군구 + 건수) — nurse_job_sido_list / nurse_job_sigungu_list RPC 반환형.
@@ -227,6 +234,19 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   // 근무형태도 같은 헬퍼를 쓴다. 여기만 .eq() 로 두면 ?et=_none 에서 목록은 0건인데
   // 칩·지역 드롭다운은 N건이 되어(RPC 는 _none 을 is null 로 읽는다) 화면이 어긋난다.
   axis("employment_type", filters.employmentType);
+  // 📍 내 주변 — talent(applyJobFilters)와 동일한 bounding-box(정사각형 근사). 원(하버사인) 대신
+  // box 는 .gte/.lte 로 인덱스(jobs_geo_idx) 범위 스캔이 가능하고, region 텍스트 일치의 시(市)
+  // 모호성(서울/부산 중구 혼재)도 없다. 거리순 정렬은 하지 않는다 — 반경 안이냐만 거른다.
+  if (filters.near) {
+    const KM_PER_DEG_LAT = 111.32; // 위도 1도 ~ 111.32km(경도는 위도에 따라 cos 보정)
+    const radiusKm = filters.near.radiusM / 1000;
+    const dLat = radiusKm / KM_PER_DEG_LAT;
+    const cosLat = Math.max(0.01, Math.cos((filters.near.lat * Math.PI) / 180));
+    const dLng = radiusKm / (KM_PER_DEG_LAT * cosLat);
+    query = query
+      .gte("lat", filters.near.lat - dLat).lte("lat", filters.near.lat + dLat)
+      .gte("lng", filters.near.lng - dLng).lte("lng", filters.near.lng + dLng);
+  }
 
   const { data, count, error } = await query.returns<JobRow[]>();
   if (error) {

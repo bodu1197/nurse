@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchNurseJobs, fetchDetails } from "@/lib/worknet";
+import { fetchNurseJobs, fetchDetails, inBatches } from "@/lib/worknet";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText, stillValid } from "@/lib/jobTaxonomy";
+import { geocodeAddress } from "@/lib/kakao";
 
 // 워크넷(고용24) 채용정보 "간호" 키워드 수집 → jobs upsert.
 // 워크넷 공고는 "구인 광고"다 — 병원 명부(hospitals, 심사평가원)와 다른 것이라 명부에 레코드를 만들지 않는다.
@@ -43,12 +44,12 @@ export async function GET(request: Request) {
     //    보강 완료는 전용 마커 detail_fetched_at으로 판별(성공 파싱마다 세팅). 접수정보 없는 공고도 1회로 종료 → starvation 방지.
     //    미보강분만 실행당 상한(?detail=, 기본 1500)으로 증분. 초기 백필은 여러 번 실행하거나 ?detail 상향(로컬).
     const detailMax = Math.min(Math.max(0, Number(new URL(request.url).searchParams.get("detail") ?? 1500) || 1500), 15000);
-    type Stored = { title: string; specialty: string | null; facility_type: string | null; job_category: string | null; description: string | null; recruit_count: number | null; manager_phone: string | null; manager_name: string | null; shift_type: string | null; benefits: string[]; apply_detail: string | null; deadline: string | null; detail_fetched_at: string | null };
+    type Stored = { title: string; specialty: string | null; facility_type: string | null; job_category: string | null; description: string | null; recruit_count: number | null; manager_phone: string | null; manager_name: string | null; shift_type: string | null; benefits: string[]; apply_detail: string | null; deadline: string | null; detail_fetched_at: string | null; lat: number | null; lng: number | null; geocoded_at: string | null };
     const stored = new Map<string, Stored>();
     for (let from = 0; ; from += 1000) {
       const { data: page, error } = await admin
         .from("jobs")
-        .select("external_id,title,specialty,facility_type,job_category,description,recruit_count,manager_phone,manager_name,shift_type,benefits,apply_detail,deadline,detail_fetched_at")
+        .select("external_id,title,specialty,facility_type,job_category,description,recruit_count,manager_phone,manager_name,shift_type,benefits,apply_detail,deadline,detail_fetched_at,lat,lng,geocoded_at")
         .eq("source", "worknet").range(from, from + 999);
       if (error) return NextResponse.json({ error: `jobs select: ${error.message}` }, { status: 500 });
       for (const r of page ?? []) if (r.external_id) stored.set(r.external_id, r as Stored);
@@ -57,6 +58,14 @@ export async function GET(request: Request) {
     // 아직 상세 미보강(detail_fetched_at null) 공고만 호출. 신규 공고는 stored에 없으므로 자동 포함.
     const need = jobs.filter((j) => !stored.get(j.authNo)?.detail_fetched_at).slice(0, detailMax).map((j) => ({ authNo: j.authNo, infoSvc: j.infoSvc }));
     const details = await fetchDetails(need);
+
+    // 📍 좌표 지오코딩 — geocoded_at 마커로 미시도만 골라낸다(주소 검색 실패도 "시도했음"으로 기록해야
+    //    매 6시간 같은 실패 주소를 영원히 재시도하지 않는다 — talent(geocodePendingJobs)와 동일 계약).
+    const needCoords = jobs.filter((j) => !stored.get(j.authNo)?.geocoded_at && j.addr);
+    const coords = new Map(
+      await inBatches(needCoords, 8, async (j) => [j.authNo, await geocodeAddress(j.addr)] as const),
+    );
+    const attempted = new Set(needCoords.map((j) => j.authNo));
 
     // 리스트 기본 직무설명(상세 미보강 공고용 임시).
     const listDesc = (j: (typeof jobs)[number]) =>
@@ -108,6 +117,9 @@ export async function GET(request: Request) {
         location: j.region || null,
         sido: region.sido,
         sigungu: region.sigungu,
+        lat: coords.get(j.authNo)?.lat ?? s?.lat ?? null,
+        lng: coords.get(j.authNo)?.lng ?? s?.lng ?? null,
+        geocoded_at: attempted.has(j.authNo) ? syncStart : (s?.geocoded_at ?? null),
         salary_text: [j.salTpNm, j.sal].filter(Boolean).join(" ") || null,
         description: finalDesc,
         recruit_count: d?.recruitCount ?? s?.recruit_count ?? null,
@@ -160,7 +172,8 @@ export async function GET(request: Request) {
       .lt("featured_until", new Date().toISOString()).select("id");
 
     const enrichedRemaining = jobs.filter((j) => !stored.get(j.authNo)?.detail_fetched_at && !details.has(j.authNo)).length;
-    return NextResponse.json({ ok: true, fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, adsExpired: expiredAds?.length ?? 0, detailsFetched: details.size, enrichRemaining: enrichedRemaining });
+    const geocoded = [...coords.values()].filter(Boolean).length;
+    return NextResponse.json({ ok: true, fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, adsExpired: expiredAds?.length ?? 0, detailsFetched: details.size, enrichRemaining: enrichedRemaining, coordsGeocoded: geocoded, coordsAttempted: needCoords.length });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "sync failed" }, { status: 502 });
   }

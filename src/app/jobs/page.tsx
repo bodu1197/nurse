@@ -7,6 +7,7 @@ import JobNearMeButton from "@/components/JobNearMeButton";
 import JobSearchBar from "@/components/JobSearchBar";
 import { getJobs, getSavedJobIds, getJobSidoList, getJobSigunguList, getJobFacets, jobFilterQs, PER_PAGE, UNSET } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
+import { parseRadius, JOB_NEAR_RADIUS } from "@/lib/location/radius";
 import { EMPLOYMENT_TYPES } from "@/lib/constants";
 import { chipClass as chip } from "@/lib/chip";
 import { saveSearch, toggleSaveJob } from "./actions";
@@ -83,8 +84,8 @@ export async function generateMetadata({
 
 export default async function JobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; sido?: string; sigungu?: string; j?: string; saved?: string; spec?: string; fac?: string; cat?: string; et?: string; page?: string }> }>) {
-  const { q, l, sido, sigungu, j, saved, spec, fac, cat, et, page } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; sido?: string; sigungu?: string; j?: string; saved?: string; spec?: string; fac?: string; cat?: string; et?: string; page?: string; lat?: string; lng?: string; r?: string }> }>) {
+  const { q, l, sido, sigungu, j, saved, spec, fac, cat, et, page, lat, lng, r } = await searchParams;
   // 예전 마스터-디테일의 ?j= 링크(저장·지원 내역 등)는 단독 상세로 넘긴다.
   if (j) redirect(`/jobs/${encodeURIComponent(j)}`);
 
@@ -94,9 +95,16 @@ export default async function JobsPage({
   // 시군구는 시도에 종속 — 시도 없으면 무시(서버 필터와 같은 계약).
   const sg = sd ? (sigungu ?? "").trim() : "";
   const pageNum = Math.max(1, Number(page) || 1);
+  // 📍 내 주변 — JobNearMeButton 이 브라우저 GPS로 실어 보낸 좌표. 유효(지구 범위 안 유한값)할 때만 켠다
+  // — 장난 딥링크가 bounding-box 를 오염시키는 것 방지(talent parseNear 와 동일 계약).
+  const latN = Number(lat);
+  const lngN = Number(lng);
+  const nearby = !!lat && !!lng && Number.isFinite(latN) && Number.isFinite(lngN) && Math.abs(latN) <= 90 && Math.abs(lngN) <= 180;
+  const radiusM = parseRadius(r, JOB_NEAR_RADIUS);
 
+  const filters = { sido: sd, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et, near: nearby ? { lat: latN, lng: lngN, radiusM } : undefined };
   const [{ jobs, total }, sidos, sigungus, facets, profile] = await Promise.all([
-    getJobs(kw, loc, { sido: sd, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et }, pageNum),
+    getJobs(kw, loc, filters, pageNum),
     // 지역도 칩과 같은 조건으로 센다 — 한 화면에서 기준이 갈리면 안 된다.
     getJobSidoList({ specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et, keyword: kw, location: loc }),
     getJobSigunguList(sd, { specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et, keyword: kw, location: loc }), // 시도 미선택이면 즉시 [](비용 0)
@@ -110,7 +118,8 @@ export default async function JobsPage({
   const savedSet = profile ? await getSavedJobIds(jobs.map((x) => x.id)) : new Set<string>();
 
   // 검색 조건 유지 URL — 목록 이동(href)·카드→상세(detailHref)가 같은 검색결과를 따라간다. 직렬화는 jobFilterQs 한 곳.
-  const base = { q: kw, l: loc, sido: sd, sigungu: sg, spec, fac, cat, et };
+  // 내 주변(lat/lng)도 켜져 있는 동안은 같이 실어 보낸다 — 안 그러면 칩을 누르는 순간 반경 필터가 풀린다.
+  const base = { q: kw, l: loc, sido: sd, sigungu: sg, spec, fac, cat, et, lat: nearby ? lat : undefined, lng: nearby ? lng : undefined, r: nearby ? r : undefined };
   // URL 센티넬(_none)은 내부 코드다 — 화면에는 절대 그대로 내보내지 않는다.
   const human = (label: string, v?: string) => (v === UNSET ? `${label} 미지정` : v);
   const href = (toPage?: number) => { const s = jobFilterQs(base, toPage); return "/jobs" + (s ? `?${s}` : ""); };

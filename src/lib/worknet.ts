@@ -123,7 +123,7 @@ async function fetchPage(occupation: string, startPage: number): Promise<{ jobs:
 }
 
 // 동시성 제한 배치 실행.
-async function inBatches<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
+export async function inBatches<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
   const out: R[] = [];
   for (let i = 0; i < items.length; i += size) {
     out.push(...await Promise.all(items.slice(i, i + size).map(fn)));

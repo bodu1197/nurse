@@ -362,10 +362,13 @@ export type Database = {
           external_url: string | null
           facility_type: string | null
           featured_until: string | null
+          geocoded_at: string | null
           hospital_id: string | null
           id: string
           is_featured: boolean
           job_category: string | null
+          lat: number | null
+          lng: number | null
           location: string | null
           manager_name: string | null
           manager_phone: string | null
@@ -398,10 +401,13 @@ export type Database = {
           external_url?: string | null
           facility_type?: string | null
           featured_until?: string | null
+          geocoded_at?: string | null
           hospital_id?: string | null
           id?: string
           is_featured?: boolean
           job_category?: string | null
+          lat?: number | null
+          lng?: number | null
           location?: string | null
           manager_name?: string | null
           manager_phone?: string | null
@@ -434,10 +440,13 @@ export type Database = {
           external_url?: string | null
           facility_type?: string | null
           featured_until?: string | null
+          geocoded_at?: string | null
           hospital_id?: string | null
           id?: string
           is_featured?: boolean
           job_category?: string | null
+          lat?: number | null
+          lng?: number | null
           location?: string | null
           manager_name?: string | null
           manager_phone?: string | null

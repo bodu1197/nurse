@@ -17,6 +17,7 @@ import { DAY_MS, FREE_LISTING_MS, todayKst, nowMs } from "@/lib/date";
 import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
 import { regionOfLocation } from "@/lib/jobRegion";
+import { geocodeAddress } from "@/lib/kakao";
 import { totalYears } from "@/lib/data/resume";
 import { CAREER_EXPERIENCED, DEPARTMENTS, JOB_CATEGORIES, RESUME_INTRO_MIN, RESUME_INTRO_MAX as INTRO_MAX } from "@/lib/resumeOptions";
 import { JOB_DEPARTMENTS, FACILITY_TYPES } from "@/lib/jobTaxonomy";
@@ -199,6 +200,7 @@ export async function createJob(formData: FormData) {
   const methods = am.length ? am : ["platform"];
   const location = s("location") || hosp.address || hosp.region || null;
   const region = regionOfLocation(location); // 지역 드롭다운·필터용 정규화(ingest 시점 확정)
+  const coords = location ? await geocodeAddress(location) : null; // 내 주변 필터용 좌표(실패해도 등록은 막지 않는다)
   const { data: created, error } = await admin.from("jobs").insert({
     hospital_id: hospitalId,
     title,
@@ -206,6 +208,9 @@ export async function createJob(formData: FormData) {
     location,
     sido: region.sido,
     sigungu: region.sigungu,
+    lat: coords?.lat ?? null,
+    lng: coords?.lng ?? null,
+    geocoded_at: location ? new Date().toISOString() : null,
     employment_type: s("employment_type") || null,
     salary_text: s("salary_text") || null,
     description: s("description") || null,
@@ -258,12 +263,16 @@ export async function updateJob(formData: FormData) {
   const methods = am.length ? am : ["platform"];
   const location = s("location") || hosp.region || null;
   const region = regionOfLocation(location);
+  const coords = location ? await geocodeAddress(location) : null;
   const { error } = await admin.from("jobs").update({
     title,
     ...jobAxes(s),
     location,
     sido: region.sido,
     sigungu: region.sigungu,
+    lat: coords?.lat ?? null,
+    lng: coords?.lng ?? null,
+    geocoded_at: location ? new Date().toISOString() : null,
     employment_type: s("employment_type") || null,
     salary_text: s("salary_text") || null,
     description: s("description") || null,
