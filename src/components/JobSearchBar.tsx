@@ -20,6 +20,10 @@ export default function JobSearchBar({
   const sido = sp.get("sido") ?? "";
   // 시군구는 시도에 종속(시도 없이 시군구만 있으면 무시) — 서버 필터와 같은 계약.
   const sigungu = sido ? (sp.get("sigungu") ?? "") : "";
+  // 📍 내 주변(GPS)과 지역 드롭다운은 "어디"를 정하는 상호배타 수단이다(talent JobSearchBar 동일).
+  // 컨트롤이 같이 남아 있으면 (1) 지금 뭘로 보는지 흐리고 (2) 반경 슬라이더까지 한 줄에 들어가
+  // 키워드 입력칸이 폭 0 이 된다. 내 주변이 켜져 있으면 지역(과 구분선)을 감추고 키워드칸만 남긴다.
+  const nearActive = !!(sp.get("lat") && sp.get("lng"));
 
   // "무엇"(키워드)과 "어디"(지역)를 함께 실어 이동 — 지금 걸린 다른 필터(spec/et/days)는 유지한다.
   function go(keyword: string, nextSido: string, nextSigungu: string) {
@@ -32,6 +36,12 @@ export default function JobSearchBar({
     else p.delete("sido");
     if (nextSigungu) p.set("sigungu", nextSigungu);
     else p.delete("sigungu");
+    if (nextSido || nextSigungu) {
+      // 지역을 고르는 건 "어디"를 지역으로 바꾸는 것 → 내 주변 해제(상호배타).
+      p.delete("lat");
+      p.delete("lng");
+      p.delete("r");
+    }
     const s = p.toString();
     startTransition(() => router.push("/jobs" + (s ? `?${s}` : "")));
   }
@@ -47,22 +57,27 @@ export default function JobSearchBar({
       role="search"
       className="flex w-full flex-col gap-1 rounded-[20px] border border-slate-300 bg-white p-1.5 shadow-md transition hover:border-teal-500 focus-within:border-teal-500 focus-within:shadow-lg lg:min-w-0 lg:flex-1 lg:flex-row lg:items-center lg:pl-2"
     >
-      {/* 지역 선택 — 고르면 즉시 조회. 타이핑 중인 키워드는 함께 실어 유실 방지. */}
-      <RegionPicker
-        steps={[
-          { key: "sido", label: "도·광역시", value: sido, options: sidos },
-          { key: "sigungu", label: "시·군·구", value: sigungu, options: sigungus },
-        ]}
-        loading={pending}
-        onPick={(level, value) => {
-          // 시도를 바꾸면 하위 시군구는 무효 → 함께 비운다(캐스케이드).
-          if (level === "sido") go(q, value, "");
-          else go(q, sido, value);
-        }}
-      />
+      {/* 지역 선택 — 고르면 즉시 조회. 타이핑 중인 키워드는 함께 실어 유실 방지.
+          내 주변이 켜져 있으면 감춘다(위 nearActive 주석 — 이미 거리로 거르는 중이라 지역 선택은 불필요). */}
+      {!nearActive && (
+        <RegionPicker
+          steps={[
+            { key: "sido", label: "도·광역시", value: sido, options: sidos },
+            { key: "sigungu", label: "시·군·구", value: sigungu, options: sigungus },
+          ]}
+          loading={pending}
+          onPick={(level, value) => {
+            // 시도를 바꾸면 하위 시군구는 무효 → 함께 비운다(캐스케이드).
+            if (level === "sido") go(q, value, "");
+            else go(q, sido, value);
+          }}
+        />
+      )}
 
-      {/* 구분선: 좁은 화면 가로선 / ≥lg 세로선. */}
-      <span className="mx-2 h-px shrink-0 bg-slate-200 lg:mx-0 lg:h-7 lg:w-px" aria-hidden="true" />
+      {/* 구분선: 좁은 화면 가로선 / ≥lg 세로선. 지역이 숨겨지면 구분선만 남지 않도록 같은 조건으로 묶는다. */}
+      {!nearActive && (
+        <span className="mx-2 h-px shrink-0 bg-slate-200 lg:mx-0 lg:h-7 lg:w-px" aria-hidden="true" />
+      )}
 
       {/* 키워드(+모바일 검색). */}
       <div className="flex items-center gap-2 lg:flex-1">
