@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useEffect, useState } from "react";
 
 /**
  * 카카오·네이버 시작 버튼.
@@ -20,7 +19,14 @@ export default function LoginButtons({
   next,
 }: Readonly<{ role?: "nurse" | "hospital"; next?: string }>) {
   const [loading, setLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+
+  // 카카오·네이버 동의 화면에서 뒤로가기를 누르면 bfcache 로 이 화면이 그대로 복원된다 —
+  // loading 상태도 같이 복원돼 버튼이 영영 "이동 중…"에 눌린 채로 굳는다.
+  useEffect(() => {
+    const reset = () => setLoading(null);
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, []);
 
   function carryQs(): string {
     const checked = document.querySelector<HTMLInputElement>('input[name="role"]:checked')?.value;
@@ -31,26 +37,15 @@ export default function LoginButtons({
     return s ? `?${s}` : "";
   }
 
-  async function kakao() {
-    setError(null);
+  // 링크가 아니라 버튼인 이유: 주소를 누르는 시점에 만들어야 폼에서 고른 회원유형이 실린다.
+  // 카카오·네이버 둘 다 Supabase 내장 프로바이더가 아니라 커스텀 라우트로 시작한다 —
+  // 카카오는 이 앱(REST API 키)의 클라이언트 시크릿이 꺼져있어 Supabase 프로바이더가 요구하는
+  // 시크릿을 줄 수 없다(라이믹스 때부터 시크릿 없이 돌던 앱, 도메인 이전과 무관).
+  function kakao() {
     setLoading("kakao");
-    try {
-      const supabase = createClient();
-      const { error: oauthError } = await supabase.auth.signInWithOAuth({
-        provider: "kakao",
-        options: { redirectTo: `${location.origin}/auth/callback${carryQs()}` },
-      });
-      if (oauthError) {
-        setLoading(null);
-        setError("카카오 로그인을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.");
-      }
-    } catch {
-      setLoading(null);
-      setError("카카오 로그인을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.");
-    }
+    location.href = `/auth/kakao/start${carryQs()}`;
   }
 
-  // 링크가 아니라 버튼인 이유: 주소를 누르는 시점에 만들어야 폼에서 고른 회원유형이 실린다.
   function naver() {
     setLoading("naver");
     location.href = `/auth/naver/start${carryQs()}`;
@@ -58,12 +53,6 @@ export default function LoginButtons({
 
   return (
     <div className="flex flex-col gap-3">
-      {error && (
-        <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
       <button
         type="button"
         onClick={kakao}
@@ -71,7 +60,7 @@ export default function LoginButtons({
         className="flex h-12 items-center justify-center gap-2 rounded-[12px] bg-[#FEE500] font-semibold text-[#191600] transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
       >
         <span aria-hidden>💬</span>
-        {loading === "kakao" ? "로그인 중…" : "카카오로 시작하기"}
+        {loading === "kakao" ? "이동 중…" : "카카오로 시작하기"}
       </button>
 
       <button

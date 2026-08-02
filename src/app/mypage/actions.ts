@@ -573,8 +573,8 @@ export async function deleteAccount(formData: FormData) {
   }
 
   // 비밀번호 로그인이 붙은 계정인가 = email identity 가 있는가.
-  // 🔴 단, 네이버는 우리가 admin.createUser({ email }) 로 만들기 때문에 **비밀번호가 없는데도**
-  //    email identity 가 붙는다 → 그 표식으로만 예외를 둔다.
+  // 🔴 단, 네이버·카카오는 우리가 admin.createUser({ email }) 로 만들기 때문에
+  //    **비밀번호가 없는데도** email identity 가 붙는다 → 그 표식으로만 예외를 둔다.
   // 🔴 표식은 app_metadata 를 본다. user_metadata 는 세션 소유자가 브라우저에서
   //    updateUser({ data: … }) 로 직접 쓸 수 있어 **서버 판정의 근거가 될 수 없다**.
   //    🔴 한때 "이관 계정을 위해"라며 user_metadata 도 OR 로 함께 봤는데, 그게 바로 위 문장을
@@ -582,8 +582,8 @@ export async function deleteAccount(formData: FormData) {
   //    updateUser({ data: { provider: "naver" } }) 한 번이면 비밀번호 없이 계정을 지울 수 있었다
   //    (탈퇴 폼의 비밀번호 칸에는 required 가 없다). 이 가드의 존재 이유가 통째로 무력화된다.
   //    제거해도 잠기는 사람이 없음을 확인했다 — 네이버 계정 0건(2026-07-30 실측).
-  const isNaverAccount = au.app_metadata?.provider === "naver";
-  const requiresPassword = (au.identities ?? []).some((i) => i.provider === "email") && !isNaverAccount;
+  const isSocialAccount = ["naver", "kakao"].includes(au.app_metadata?.provider ?? "");
+  const requiresPassword = (au.identities ?? []).some((i) => i.provider === "email") && !isSocialAccount;
 
   // 넣어서 왔으면 provider 와 무관하게 **항상** 검증한다 — 틀린 비밀번호가 통과하는 경로를 두지 않는다.
   const password = String(formData.get("password") ?? "");

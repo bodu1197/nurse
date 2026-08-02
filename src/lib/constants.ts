@@ -121,7 +121,6 @@ export const AUTH_ERROR_MESSAGES = {
   link_expired: "재설정 링크가 만료되었거나 이미 사용되었습니다. 다시 받아 주세요.",
   save: "비밀번호 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.",
   // SNS
-  oauth: "카카오 로그인에 실패했습니다. 다시 시도해 주세요.",
   naver_state: "보안 검증에 실패했습니다. 다시 시도해 주세요.",
   naver_config: "네이버 로그인 설정 오류입니다. 잠시 후 다시 시도해 주세요.",
   naver_token: "네이버 인증에 실패했습니다. 다시 시도해 주세요.",
@@ -129,6 +128,13 @@ export const AUTH_ERROR_MESSAGES = {
   naver_email: "네이버 계정의 이메일 제공에 동의해 주세요.",
   naver_session: "세션 생성에 실패했습니다. 다시 시도해 주세요.",
   naver_verify: "로그인 처리에 실패했습니다. 다시 시도해 주세요.",
+  kakao_state: "보안 검증에 실패했습니다. 다시 시도해 주세요.",
+  kakao_config: "카카오 로그인 설정 오류입니다. 잠시 후 다시 시도해 주세요.",
+  kakao_token: "카카오 인증에 실패했습니다. 다시 시도해 주세요.",
+  kakao_profile: "카카오 프로필을 불러오지 못했습니다.",
+  kakao_email: "카카오 계정의 이메일 제공에 동의해 주세요.",
+  kakao_session: "세션 생성에 실패했습니다. 다시 시도해 주세요.",
+  kakao_verify: "로그인 처리에 실패했습니다. 다시 시도해 주세요.",
 } satisfies Record<string, string>;
 
 /** 실제로 존재하는 에러 코드만. 오타를 컴파일에서 잡으려고 쓴다. */

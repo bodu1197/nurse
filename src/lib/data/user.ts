@@ -2,36 +2,9 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { pickRole, type Role } from "./role";
 
 export type { Role };
-
-/** 이 시간 안에 만들어진 계정만 "방금 가입"으로 본다. OAuth 왕복(네이버 동의화면 포함) 여유. */
-const NEW_ACCOUNT_MS = 10 * 60 * 1000;
-
-/**
- * 소셜 가입에서 고른 회원유형을 프로필에 적용한다.
- *
- * 🔴 왜 필요한가: 회원가입 화면은 '간호사 / 병원 채용담당자'를 먼저 고르게 하는데, 그 아래
- *    카카오·네이버 버튼은 그 값을 실을 방법이 없었다(supabase-js 의 signInWithOAuth 에는
- *    signUp 의 `options.data` 에 해당하는 것이 없다). 그래서 트리거 기본값대로 **무조건
- *    간호사 계정**이 만들어졌고, 병원 담당자는 공고를 등록할 수 없는 계정을 받고도
- *    화면 어디에서도 역할을 바꿀 수 없었다. 로그인 직후 한 번만 바로잡는다.
- *
- * 🔴 **방금 만들어진 계정에만** 적용한다. 이미 쓰던 간호사가 (가입 화면에서) 소셜 버튼을 누른 것뿐인데
- *    역할이 병원으로 바뀌면, 쓰던 이력서·지원 내역에 접근하지 못하게 된다.
- */
-export async function applySignupRole(userId: string, requested: string | null): Promise<void> {
-  if (requested !== "hospital") return; // 기본값이 nurse 라 간호사는 손댈 게 없다
-  const admin = createAdminClient();
-  const { data: authUser } = await admin.auth.admin.getUserById(userId);
-  const createdAt = authUser?.user?.created_at;
-  if (!createdAt || Date.now() - new Date(createdAt).getTime() > NEW_ACCOUNT_MS) return;
-  // 기본값(nurse)일 때만 바꾼다 — 관리자 계정을 강등시키지 않는다.
-  const { error } = await admin.from("profiles").update({ role: "hospital" }).eq("id", userId).eq("role", "nurse");
-  if (error) console.error("applySignupRole failed:", error.message);
-}
 
 // ponytail: 관리자 테스트용 역할 전환(쿠키 view_as). 판정은 pickRole(순수·테스트 있음).
 // 전환해도 보이는 데이터는 본인 것뿐 — RLS가 전부 auth.uid() 기준이라 남의 데이터는 안 열린다.
