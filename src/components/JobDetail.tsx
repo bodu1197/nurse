@@ -371,7 +371,7 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
               <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{job.apply_detail}</p>
             ) : (
               <div className="mt-2 flex flex-col items-start gap-2 rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-sm text-slate-500">간호회원만 볼 수 있습니다 — 이력서를 등록하면 간호회원입니다.</p>
+                <p className="text-sm text-slate-500">간호회원만 볼 수 있습니다.</p>
                 {!profile
                   ? <Button href={loginHref} size="md">로그인하고 지원</Button>
                   : profile.role === "nurse" && <Button href={resumeHref} size="md">이력서 작성하기</Button>}
