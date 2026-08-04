@@ -4,6 +4,7 @@ import Image from "next/image";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import DraftCleaner from "@/components/DraftCleaner";
+import { ApplyBadge } from "@/components/JobCard";
 import { getMyProfile } from "@/lib/data/user";
 import { getJobs } from "@/lib/data/jobs";
 import { searchPublicTalent, revealContacts, canRevealContacts, type RevealedContact } from "@/lib/data/talent";
@@ -118,11 +119,12 @@ export default async function Home({
                     <Link href={`/jobs/${job.id}`} prefetch={false} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="font-bold leading-snug text-slate-900">{job.title}</h3>
-                        {/* /jobs 목록과 같은 판정(lib/applyGate) — 두 화면이 갈라지면 같은 공고가
-                            홈에서는 배지가 없고 목록에서는 있는 상태가 된다. */}
+                        {/* 판정(lib/applyGate)도 배지 모양(components/JobCard 의 ApplyBadge)도 목록·자동매치와
+                            같은 것을 쓴다 — 갈라지면 같은 공고가 홈에서는 배지가 없고 목록에서는 있는 상태가 된다.
+                            홈 카드는 레이아웃이 달라(병원명·지역 한 줄, 마감일 없음) 카드 자체는 공유하지 않는다. */}
                         {acceptsPlatformApply(job) && (
-                          <span className="shrink-0 rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-700">
-                            간편지원
+                          <span className="shrink-0">
+                            <ApplyBadge />
                           </span>
                         )}
                       </div>

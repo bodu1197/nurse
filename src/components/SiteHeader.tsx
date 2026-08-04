@@ -53,31 +53,27 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
           <Logo />
         </Link>
 
-        {/* 🔴 다섯 번째 항목(AI 자동매치)은 lg(1024px) 부터만 그린다.
-            실측 2026-08-05: 이 항목은 77px 를 먹는데, 640px 화면에서는 비로그인 상태만으로도
-            문서 폭이 698px 가 되어 헤더가 가로로 넘쳤다. 로그인 상태 헤더(마이페이지+이름+로그아웃)는
-            **이 항목이 없어도** 768px 에서 이미 넘치는 기존 문제가 있어(883px), 거기에 얹지 않는다.
-            그 아래 폭에서는 오른쪽 햄버거 메뉴(HEADER_MENU)에 같은 항목이 있어 갈 길이 막히지 않는다. */}
-        <nav className="ml-7 hidden items-center gap-5 text-sm font-medium text-slate-600 sm:flex">
-          {[
-            { href: "/jobs", label: "채용공고" },
-            { href: "/match", label: "AI 자동매치", cls: "hidden lg:inline-block" },
-            { href: "/talent", label: "인재정보" },
-            { href: "/reviews", label: "리뷰" },
-            { href: "/board", label: "게시판" },
-          ].map(({ href, label, cls }) => (
-            <Link key={href} href={href} className={`rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${cls ?? ""}`}>{label}</Link>
+        {/* 🔴 상단 메뉴는 **lg(1024px)부터** 그린다 — 그 아래는 하단 탭이 내비게이션을 맡는다.
+            종전에는 sm(640px)부터 폈는데, 로그인 상태(마이페이지+이름+로그아웃)에서 헤더가
+            **가로로 넘쳤다**(실측 2026-08-05: 768px 화면에서 문서 폭 883px). 메뉴가 4개일 때부터
+            이미 넘쳤으므로 항목 하나를 숨기는 식의 땜질로는 안 되고, "자리가 확실한 폭에서만 편다"
+            로 규칙을 바꾼다. 그 아래에서는 하단 탭(홈·채용공고·인재정보·리뷰·마이페이지)과
+            햄버거 메뉴(HEADER_MENU, AI 자동매치 포함)가 같은 곳을 전부 담는다. */}
+        <nav className="ml-7 hidden items-center gap-5 text-sm font-medium text-slate-600 lg:flex">
+          {[["/jobs", "채용공고"], ["/match", "AI 자동매치"], ["/talent", "인재정보"], ["/reviews", "리뷰"], ["/board", "게시판"]].map(([href, label]) => (
+            <Link key={href} href={href} className="rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">{label}</Link>
           ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
-          <Link href="/hospital" className="hidden items-center px-3 text-sm font-medium text-slate-600 hover:text-teal-700 sm:inline-flex">병원 회원·공고등록</Link>
+          {/* 상단 메뉴와 같은 폭 규칙(lg~) — 그 아래에서는 햄버거 메뉴·푸터에 같은 링크가 있다. */}
+          <Link href="/hospital" className="hidden items-center px-3 text-sm font-medium text-slate-600 hover:text-teal-700 lg:inline-flex">병원 회원·공고등록</Link>
           {user ? (
             <>
               {/* 🔴 전에는 "홍길동님" 만 적혀 있었다. 이 글자가 마이페이지 링크인 줄 알 방법이 없어
                   회원 정보 근처를 전부 눌러봐야 했다(오너 지적 2026-08-04).
                   갈 곳의 이름을 그대로 적는다 — 이름은 그 옆에 작게 둔다. */}
-              <Link href="/mypage" className="hidden items-center gap-1.5 rounded px-2 text-sm font-semibold text-slate-800 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:inline-flex">
+              <Link href="/mypage" className="hidden items-center gap-1.5 rounded px-2 text-sm font-semibold text-slate-800 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 lg:inline-flex">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
                 </svg>
@@ -145,8 +141,11 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
       {/* 🔴 모바일 하단 탭(오너 지시 2026-08-04). 휴대폰에서는 화면 맨 위 구석까지 엄지가 안 닿는다 —
           가장 많이 쓰는 두 가지를 손가락이 닿는 곳에 둔다.
           로그인 전에는 「로그인」, 로그인 후에는 「마이페이지」. 같은 자리에서 뜻만 바뀐다.
-          메뉴는 위 햄버거와 **같은 상태**를 쓴다 — 따로 만들면 하나를 열어둔 채 다른 하나를 열 수 있다. */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
+          메뉴는 위 햄버거와 **같은 상태**를 쓴다 — 따로 만들면 하나를 열어둔 채 다른 하나를 열 수 있다.
+          🔴 숨김 기준이 sm(640)에서 **lg(1024)로 넓어졌다** — 상단 메뉴가 lg 부터만 펴지므로,
+             640~1023 구간에 하단 탭까지 없으면 그 폭에서 갈 길이 햄버거 하나만 남는다.
+             body 의 pb-14 도 같은 기준이어야 한다(app/layout.tsx). */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
         {BOTTOM_TABS.map(({ href, label, icon }) => (
           <Link key={href} href={href} className={TAB_CLASS}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>{icon}</svg>

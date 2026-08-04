@@ -289,8 +289,8 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
  * 🔒 카드 표시에 필요한 것을 빼면 화면이 조용히 빈칸이 된다 — MatchCard(app/match/page.tsx)와 함께 볼 것.
  */
 const MATCH_FIELDS = [
-  // 카드 표시
-  "id", "title", "location", "salary_text", "company_name", "posted_at", "source", "deadline", "featured_until",
+  // 카드 표시(components/JobCard 가 읽는 값 — apply_methods 는 '간편지원' 배지 판정에 쓴다)
+  "id", "title", "location", "salary_text", "company_name", "posted_at", "source", "deadline", "featured_until", "apply_methods",
   // 매칭 판정(lib/match 의 JobFacts)
   "sido", "sigungu", "specialty", "job_category", "employment_type",
 ] as const satisfies readonly (keyof JobsRow)[];

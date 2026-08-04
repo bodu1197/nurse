@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import TalentCard from "@/components/TalentCard";
+import JobCard from "@/components/JobCard";
 import MatchAxisNotice from "@/components/MatchAxisNotice";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
@@ -9,7 +10,6 @@ import { getMyResume, type ResumeWithWork } from "@/lib/data/resume";
 import { getMatchCandidates, getMyAdConditions, type MatchJob } from "@/lib/data/jobs";
 import { searchPublicTalent, revealContacts, canRevealContacts } from "@/lib/data/talent";
 import { canMatch, candidateSidos, evaluateMatch, shortSidos, talentSpecialtyFilter } from "@/lib/match";
-import { daysAgo, nowMs, listingEnd, fmtDate } from "@/lib/date";
 
 /**
  * 🤖 AI 자동매치 — dolpagu(https://dolpagu.com/match) 이식.
@@ -142,7 +142,6 @@ async function SeekerMatches({
   const totalPages = Math.max(1, Math.ceil(graded.length / PER_PAGE));
   const current = Math.min(pageNum, totalPages); // 범위 밖 딥링크는 마지막 쪽으로 접는다
   const slice = graded.slice((current - 1) * PER_PAGE, current * PER_PAGE);
-  const now = nowMs();
 
   return (
     <Section title="내 조건에 맞는 공고" count={graded.length} unit="건">
@@ -167,7 +166,7 @@ async function SeekerMatches({
           <ul className="mt-4 grid gap-3 sm:grid-cols-2">
             {slice.map((m) => (
               <li key={m.job.id}>
-                <MatchCard job={m.job} matched={m.matched} total={m.total} mismatches={m.mismatches} now={now} />
+                <MatchCard job={m.job} matched={m.matched} total={m.total} mismatches={m.mismatches} />
               </li>
             ))}
           </ul>
@@ -179,53 +178,36 @@ async function SeekerMatches({
 }
 
 /**
- * 공고 카드 — 목록(/jobs)과 같은 정보 순서에 **매칭 뱃지 한 줄**을 더한 것.
- * 어긋난 축은 "무엇이 달라서 여기 있는지"를 말해 준다. 이게 이 화면이 목록과 다른 유일한 점이다.
- *
- * ponytail: 마크업이 /jobs 목록 카드(app/jobs/page.tsx)와 겹친다. 지금 공용 컴포넌트로 빼지 않은 이유는
- *   두 카드의 다른 부분이 서로 성격이 달라서다 — 목록은 '간편지원' 배지 + 저장(북마크) form, 여기는
- *   매칭 배지 + 어긋난 조건 줄. 합치려면 슬롯 두 개짜리 JobCard 가 되고, 그 리팩터는 이미 손본 목록
- *   화면을 다시 건드린다. **세 번째 화면이 같은 카드를 그리게 되면** 그때 components/JobCard 로 뺀다.
+ * 매칭 결과 한 장 — 카드 자체는 목록(/jobs)과 **같은 컴포넌트**(components/JobCard)를 쓰고,
+ * 이 화면만의 두 가지를 슬롯으로 얹는다: 일치 개수 배지와 어긋난 조건 줄.
+ * 어긋난 축은 "무엇이 달라서 여기 있는지"를 말해 준다 — 이게 이 화면이 목록과 다른 유일한 점이다.
  */
 function MatchCard({
   job,
   matched,
   total,
   mismatches,
-  now,
-}: Readonly<{ job: MatchJob; matched: number; total: number; mismatches: readonly string[]; now: number }>) {
+}: Readonly<{ job: MatchJob; matched: number; total: number; mismatches: readonly string[] }>) {
   const perfect = mismatches.length === 0;
   return (
-    <a
+    <JobCard
+      job={job}
       href={`/jobs/${job.id}`}
-      className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
-    >
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="font-bold leading-snug text-slate-900">{job.title}</h3>
+      badge={
         <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+          className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
             perfect ? "border border-teal-200 bg-teal-50 text-teal-700" : "border border-slate-200 bg-slate-50 text-slate-600"
           }`}
         >
           {total}개 중 {matched}개 일치
         </span>
-      </div>
-      <p className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? job.company_name ?? "병원 미상"}</p>
-      <p className="text-sm text-slate-500">{job.location}</p>
-      {mismatches.length > 0 && (
-        <p className="mt-1.5 text-xs text-amber-700">다른 조건: {mismatches.join(" · ")}</p>
-      )}
-      <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-3 text-xs">
-        <span className="font-bold text-teal-700">{job.salary_text ?? "급여 협의"}</span>
-        <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
-        {/* 노출 마감일 — 목록 카드와 같은 규칙(우리 공고는 게시 기간, 수집분은 공고 마감일). */}
-        {job.source === "direct" ? (
-          <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job, now)).slice(5)} 마감</span>
-        ) : (
-          job.deadline && <span className="font-medium text-rose-600">~{job.deadline.slice(5).replace("-", ".")} 마감</span>
-        )}
-      </div>
-    </a>
+      }
+      note={
+        mismatches.length > 0 ? (
+          <p className="mt-1.5 text-xs text-amber-700">다른 조건: {mismatches.join(" · ")}</p>
+        ) : undefined
+      }
+    />
   );
 }
 
