@@ -57,7 +57,13 @@ export const boardImageUrl = (v: string, width = 900): string =>
 
 export const BOARD_PER_PAGE = 20;
 
-// 게시판 목록 — 최신순, 페이지 나누기. 댓글 수는 join count 로 한 번에.
+/**
+ * 게시판 목록 — 최신순, 페이지 나누기. 댓글 수는 join count 로 한 번에.
+ *
+ * 🔴 숨김 제외를 RLS 에만 맡기지 않고 여기서도 건다. RLS(board_posts_read)는 관리자에게 숨긴 글을
+ *    보여준다 — 모더레이션 화면이 그래야 하기 때문이다. 그 예외가 공개 목록에도 걸리면
+ *    관리자가 글을 숨긴 뒤 /board 에서 그대로 보고 "안 먹었나" 하게 된다. 숨긴 것은 /admin/board 에서 본다.
+ */
 export async function getBoardPosts(page = 1): Promise<{ posts: BoardListItem[]; total: number }> {
   const supabase = await createClient();
   const from = (Math.max(1, page) - 1) * BOARD_PER_PAGE;
@@ -70,6 +76,8 @@ export async function getBoardPosts(page = 1): Promise<{ posts: BoardListItem[];
   const { data, count, error } = await supabase
     .from("board_posts")
     .select("id,title,created_at,legacy_nickname,author:profiles(display_name),comments:board_comments(count)", { count: "exact" })
+    .eq("is_hidden", false)
+    .eq("comments.is_hidden", false) // 숨긴 댓글은 개수에서도 빠진다 — 눌러보면 없는 댓글을 세어 보이지 않게
     .order("created_at", { ascending: false })
     .range(from, from + BOARD_PER_PAGE - 1)
     .returns<Raw[]>();
@@ -90,6 +98,7 @@ export async function getBoardPost(id: string): Promise<{ post: BoardPost; comme
     .from("board_posts")
     .select("id,title,body,created_at,updated_at,author_id,legacy_nickname,images,author:profiles(display_name)")
     .eq("id", id)
+    .eq("is_hidden", false) // 숨긴 글은 관리자에게도 공개 상세에서 안 보인다(getBoardPosts 주석 참조)
     .maybeSingle<BoardPost>();
   if (error) console.error("getBoardPost failed:", error.message);
   if (!post) return null;
@@ -97,6 +106,7 @@ export async function getBoardPost(id: string): Promise<{ post: BoardPost; comme
     .from("board_comments")
     .select("id,body,created_at,author_id,legacy_nickname,author:profiles(display_name)")
     .eq("post_id", id)
+    .eq("is_hidden", false)
     .order("created_at", { ascending: true })
     .returns<BoardComment[]>();
   return { post, comments: comments ?? [] };

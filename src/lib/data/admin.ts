@@ -135,3 +135,90 @@ export async function getAdminCounts(): Promise<AdminCounts> {
 
   return { members, hospitals, openJobs, liveAds, publicResumes, posts, comments, reviews, applications, paid, stalePrepare, failed, abandoned };
 }
+
+// ── 모더레이션 ────────────────────────────────────────────────
+
+/**
+ * 숨길 수 있는 대상. DB 함수 admin_set_hidden 의 화이트리스트와 **같은 목록이어야 한다.**
+ * 여기만 늘리면 DB 함수가 '숨길 수 없는 대상입니다' 로 거절한다 — 조용히 어긋나지는 않는다.
+ */
+export const HIDEABLE = ["reviews", "board_posts", "board_comments"] as const;
+export type Hideable = (typeof HIDEABLE)[number];
+
+/** 화면·서버 액션 양쪽에서 쓰는 런타임 검사. `as Hideable` 캐스팅을 한 곳으로 모은다. */
+export function isHideable(v: string | undefined | null): v is Hideable {
+  return HIDEABLE.includes(v as Hideable);
+}
+
+export const MODERATION_PER_PAGE = 30;
+
+export type ModRow = {
+  id: string;
+  is_hidden: boolean;
+  created_at: string;
+  /** 화면에 보여줄 본문 요약 — 리뷰는 content, 글은 제목+본문, 댓글은 body */
+  text: string;
+  /** 리뷰면 병원 이름, 게시판이면 작성자 이름 */
+  who: string;
+};
+
+const clip = (s: string, n = 200) => (s.length > n ? `${s.slice(0, n)}…` : s);
+
+/**
+ * 모더레이션 목록. `hidden` 으로 숨김만/보이는 것만 나눠 본다.
+ *
+ * 🔴 세 표를 한 함수로 받는 이유: 화면이 하는 일이 똑같다(목록 → 사유 적고 숨김).
+ *    표마다 함수를 따로 두면 화면도 세 벌이 된다. 대신 표 이름은 HIDEABLE 로 좁혀 받는다.
+ */
+export async function getModerationRows(
+  kind: Hideable,
+  { hidden = false, page = 1 }: { hidden?: boolean; page?: number } = {},
+): Promise<{ rows: ModRow[]; total: number }> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const from = (Math.max(1, page) - 1) * MODERATION_PER_PAGE;
+  const to = from + MODERATION_PER_PAGE - 1;
+
+  if (kind === "reviews") {
+    type Raw = { id: string; is_hidden: boolean; created_at: string; rating: number; content: string; hospital: { name: string } | null };
+    const { data, count, error } = await supabase
+      .from("reviews").select("id,is_hidden,created_at,rating,content,hospital:hospitals(name)", { count: "exact" })
+      .eq("is_hidden", hidden).order("created_at", { ascending: false }).range(from, to).returns<Raw[]>();
+    if (error) console.error("getModerationRows(reviews):", error.message);
+    return {
+      rows: (data ?? []).map((r) => ({
+        id: r.id, is_hidden: r.is_hidden, created_at: r.created_at,
+        text: clip(r.content), who: `${r.hospital?.name ?? "(병원 없음)"} · 별점 ${r.rating}`,
+      })),
+      total: count ?? 0,
+    };
+  }
+
+  if (kind === "board_posts") {
+    type Raw = { id: string; is_hidden: boolean; created_at: string; title: string; body: string; legacy_nickname: string | null; author: { display_name: string | null } | null };
+    const { data, count, error } = await supabase
+      .from("board_posts").select("id,is_hidden,created_at,title,body,legacy_nickname,author:profiles(display_name)", { count: "exact" })
+      .eq("is_hidden", hidden).order("created_at", { ascending: false }).range(from, to).returns<Raw[]>();
+    if (error) console.error("getModerationRows(board_posts):", error.message);
+    return {
+      rows: (data ?? []).map((p) => ({
+        id: p.id, is_hidden: p.is_hidden, created_at: p.created_at,
+        text: clip(`${p.title} — ${p.body}`), who: p.author?.display_name ?? p.legacy_nickname ?? "탈퇴한 회원",
+      })),
+      total: count ?? 0,
+    };
+  }
+
+  type Raw = { id: string; is_hidden: boolean; created_at: string; body: string; legacy_nickname: string | null; author: { display_name: string | null } | null };
+  const { data, count, error } = await supabase
+    .from("board_comments").select("id,is_hidden,created_at,body,legacy_nickname,author:profiles(display_name)", { count: "exact" })
+    .eq("is_hidden", hidden).order("created_at", { ascending: false }).range(from, to).returns<Raw[]>();
+  if (error) console.error("getModerationRows(board_comments):", error.message);
+  return {
+    rows: (data ?? []).map((c) => ({
+      id: c.id, is_hidden: c.is_hidden, created_at: c.created_at,
+      text: clip(c.body), who: c.author?.display_name ?? c.legacy_nickname ?? "탈퇴한 회원",
+    })),
+    total: count ?? 0,
+  };
+}

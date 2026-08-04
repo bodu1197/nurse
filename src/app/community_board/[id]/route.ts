@@ -24,8 +24,11 @@ export async function GET(request: Request, ctx: { params: Promise<{ id: string 
   const srl = /^\d+$/.test(id) ? Number(id) : null;
   if (srl === null) return NextResponse.redirect(`${origin}/board`, 308);
 
+  // 🔴 숨긴 글은 없는 것으로 친다. 서버 권한 조회라 RLS 를 타지 않으므로 여기서 직접 건다 —
+  //    빼면 관리자가 숨긴 글로 **308(영구)** 리다이렉트가 나가 브라우저·CDN 에 죽은 링크가 굳고,
+  //    "그 글이 존재한다" 는 사실까지 알려준다.
   const { data, error } = await createAdminClient()
-    .from("board_posts").select("id").eq("legacy_srl", srl).maybeSingle();
+    .from("board_posts").select("id").eq("legacy_srl", srl).eq("is_hidden", false).maybeSingle();
   // 조회 실패는 일시 장애일 수 있다 → 영구(308)로 굳히지 않고 목록으로 임시 이동시킨다.
   if (error) {
     console.error("legacy board redirect failed:", error.message, srl);

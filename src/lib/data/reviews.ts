@@ -16,13 +16,19 @@ export type ReviewRow = {
 const SELECT = "id, author_id, rating, content, work_period, created_at, updated_at, hospital:hospitals(name, region)";
 export const REVIEWS_PER_PAGE = 20;
 
-// 전체 리뷰 둘러보기(마스터-디테일 좌측) — 최신순·페이지 나누기. 숨김 제외(RLS), 비실명.
+// 전체 리뷰 둘러보기(마스터-디테일 좌측) — 최신순·페이지 나누기. 비실명.
+//
+// 🔴 숨김 제외를 RLS 에만 맡기지 않고 여기서도 건다. RLS(reviews_select)는 관리자에게 숨긴 리뷰를
+//    보여준다 — 모더레이션 화면이 그래야 하기 때문이다. 그런데 그 예외가 공개 목록에도 그대로 적용되면
+//    관리자가 리뷰를 숨긴 뒤 /reviews 에서 그대로 보고 "안 먹었나" 하게 된다.
+//    숨긴 것은 /admin/reviews 에서 본다.
 // 특정 병원 검색은 getHospitalReviews(아래) — 병원을 골라 그 병원 리뷰를 본다.
 export async function getReviews(page = 1): Promise<{ reviews: ReviewRow[]; total: number }> {
   const supabase = await createClient();
   const from = (Math.max(1, page) - 1) * REVIEWS_PER_PAGE;
   const { data, count, error } = await supabase
     .from("reviews").select(SELECT, { count: "exact" })
+    .eq("is_hidden", false)
     .order("created_at", { ascending: false })
     .range(from, from + REVIEWS_PER_PAGE - 1)
     .returns<ReviewRow[]>();
@@ -36,7 +42,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 export async function getReview(id: string): Promise<ReviewRow | null> {
   if (!UUID_RE.test(id)) return null;
   const supabase = await createClient();
-  const { data } = await supabase.from("reviews").select(SELECT).eq("id", id).maybeSingle<ReviewRow>();
+  const { data } = await supabase.from("reviews").select(SELECT).eq("id", id).eq("is_hidden", false).maybeSingle<ReviewRow>();
   return data ?? null;
 }
 
@@ -52,12 +58,12 @@ export async function getHospital(id: string): Promise<HospitalInfo | null> {
   return data ?? null;
 }
 
-// 특정 병원의 리뷰 전체(숨김 제외 — RLS).
+// 특정 병원의 리뷰 전체(숨김 제외 — 관리자에게도. getReviews 주석 참조).
 export async function getHospitalReviews(hospitalId: string): Promise<ReviewRow[]> {
   if (!UUID_RE.test(hospitalId)) return [];
   const supabase = await createClient();
   const { data } = await supabase.from("reviews").select(SELECT)
-    .eq("hospital_id", hospitalId).order("created_at", { ascending: false })
+    .eq("hospital_id", hospitalId).eq("is_hidden", false).order("created_at", { ascending: false })
     .returns<ReviewRow[]>();
   return data ?? [];
 }

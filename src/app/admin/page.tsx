@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getAdminCounts } from "@/lib/data/admin";
 
 export const metadata = { title: "관리자 — 널스넷" };
@@ -7,14 +8,18 @@ export const dynamic = "force-dynamic";
 export default async function AdminDashboard() {
   const c = await getAdminCounts(); // 내부에서 requireAdmin() — 관리자가 아니면 404
 
-  const cards: { label: string; n: number | null; sub?: string }[] = [
+  // href 는 **그 화면이 실제로 있을 때만** 단다 — 없는 곳으로 가는 링크는 404 다.
+  const cards: { label: string; n: number | null; sub?: string; href?: string }[] = [
     { label: "회원", n: c.members },
     { label: "병원 명부", n: c.hospitals },
     { label: "공고 게시중", n: c.openJobs },
     { label: "광고 게재중", n: c.liveAds },
     { label: "공개 이력서", n: c.publicResumes },
-    { label: "게시글", n: c.posts, sub: c.comments === null ? "댓글 —" : `댓글 ${c.comments.toLocaleString()}` },
-    { label: "리뷰", n: c.reviews },
+    {
+      label: "게시글", n: c.posts, href: "/admin/moderation?kind=board_posts",
+      sub: c.comments === null ? "댓글 —" : `댓글 ${c.comments.toLocaleString()}`,
+    },
+    { label: "리뷰", n: c.reviews, href: "/admin/moderation?kind=reviews" },
     { label: "지원", n: c.applications },
   ];
 
@@ -24,13 +29,23 @@ export default async function AdminDashboard() {
 
       {/* 모바일에서도 2열 — /mypage 의 숫자 위젯과 같은 규칙이다. 1열이면 카드 12장이 세로로 너무 길다. */}
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {cards.map((c2) => (
-          <div key={c2.label} className="rounded-2xl border border-slate-200 bg-white p-5">
-            <p className="text-sm text-slate-500">{c2.label}</p>
-            <Num n={c2.n} />
-            {c2.sub && <p className="mt-0.5 text-xs text-slate-400">{c2.sub}</p>}
-          </div>
-        ))}
+        {cards.map((card) => {
+          const body = (
+            <>
+              <p className="text-sm text-slate-500">{card.label}</p>
+              <Num n={card.n} />
+              {card.sub && <p className="mt-0.5 text-xs text-slate-400">{card.sub}</p>}
+            </>
+          );
+          return card.href ? (
+            <Link key={card.label} href={card.href}
+              className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-teal-400 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+              {body}
+            </Link>
+          ) : (
+            <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-5">{body}</div>
+          );
+        })}
       </div>
 
       <h2 className="mt-8 text-sm font-semibold text-slate-500">결제</h2>
@@ -47,8 +62,6 @@ export default async function AdminDashboard() {
         Supabase 에서 <code className="mx-1 rounded bg-slate-100 px-1">ad_orders</code>의 note 열을 확인하세요.
       </p>
 
-      {/* ponytail: 각 숫자에서 목록으로 가는 링크를 아직 안 단다 — 그 목록 화면이 없다.
-          없는 곳으로 가는 링크는 404 다. 화면이 생길 때 같이 단다. */}
     </>
   );
 }

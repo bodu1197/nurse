@@ -20,7 +20,12 @@ export default function ConfirmSubmit({
       value={value}
       disabled={pending}
       className={buttonClass(variant, size, className)}
-      onClick={(e) => { if (!confirm(message)) e.preventDefault(); }}
+      // 🔴 브라우저 입력 검증을 **먼저** 통과시킨 뒤에 묻는다. 순서가 반대면 필수 칸을 비운 채로
+      //    "정말 하시겠습니까" 가 먼저 뜨고, 확인을 누르면 그제야 "입력하세요" 가 뜬다.
+      onClick={(e) => {
+        if (e.currentTarget.form?.checkValidity() === false) return; // 브라우저가 안내를 띄운다
+        if (!confirm(message)) e.preventDefault();
+      }}
     >
       {children}
     </button>

@@ -243,6 +243,7 @@ export type Database = {
           body: string
           created_at: string
           id: string
+          is_hidden: boolean
           legacy_nickname: string | null
           legacy_srl: number | null
           post_id: string
@@ -252,6 +253,7 @@ export type Database = {
           body: string
           created_at?: string
           id?: string
+          is_hidden?: boolean
           legacy_nickname?: string | null
           legacy_srl?: number | null
           post_id: string
@@ -261,6 +263,7 @@ export type Database = {
           body?: string
           created_at?: string
           id?: string
+          is_hidden?: boolean
           legacy_nickname?: string | null
           legacy_srl?: number | null
           post_id?: string
@@ -289,6 +292,7 @@ export type Database = {
           created_at: string
           id: string
           images: string[]
+          is_hidden: boolean
           legacy_nickname: string | null
           legacy_srl: number | null
           title: string
@@ -300,6 +304,7 @@ export type Database = {
           created_at?: string
           id?: string
           images?: string[]
+          is_hidden?: boolean
           legacy_nickname?: string | null
           legacy_srl?: number | null
           title: string
@@ -311,6 +316,7 @@ export type Database = {
           created_at?: string
           id?: string
           images?: string[]
+          is_hidden?: boolean
           legacy_nickname?: string | null
           legacy_srl?: number | null
           title?: string
@@ -943,6 +949,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_set_hidden: {
+        Args: { hide: boolean; target_id: string; target_table: string }
+        Returns: undefined
+      }
       is_admin: { Args: never; Returns: boolean }
       is_community_member: { Args: never; Returns: boolean }
       is_talent_advertiser: { Args: never; Returns: boolean }
