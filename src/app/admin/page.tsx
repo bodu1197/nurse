@@ -69,8 +69,8 @@ export default async function AdminDashboard() {
       <Section title="우리 공고 · 지원">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="오늘 등록 공고" value={d.jobs.today}
-            sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()}`} tone="good" />
-          <Stat label="게시중 공고" value={d.jobs.open} sub="병원이 직접 올린 것만" />
+            sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()}`} tone="good" href="/admin/ads?scope=today" />
+          <Stat label="게시중 공고" value={d.jobs.open} sub="병원이 직접 올린 것만" href="/admin/ads?scope=all" />
           <Stat label="3일 내 마감" value={d.jobs.closing3} />
           <Stat label="오늘 지원" value={d.applications.today} sub={`어제 ${d.applications.yesterday.toLocaleString()} · 최근 7일 ${d.applications.d7.toLocaleString()} · 누적 ${d.applications.total.toLocaleString()}`} />
         </div>

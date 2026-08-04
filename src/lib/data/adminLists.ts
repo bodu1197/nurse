@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/data/admin";
-import { nowMs } from "@/lib/date";
+import { nowMs, kstDayStartIso } from "@/lib/date";
 import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
 
 export const PER_PAGE = 30;
@@ -184,9 +184,9 @@ export async function getResumeList(
  * **돈을 안 낸 광고는 인재를 열람할 자격이 없다**(is_talent_advertiser).
  * 그래서 화면에는 결제금액과 '인재 열람' 칸을 두고, 탭은 노출 상태로만 나눈다.
  */
-export const AD_SCOPES = ["live", "ended", "all"] as const;
+export const AD_SCOPES = ["today", "live", "ended", "all"] as const;
 export type AdScope = (typeof AD_SCOPES)[number];
-export const AD_SCOPE_LABEL: Record<AdScope, string> = { live: "노출중", ended: "노출 마감", all: "전체 공고" };
+export const AD_SCOPE_LABEL: Record<AdScope, string> = { today: "오늘 등록", live: "노출중", ended: "노출 마감", all: "전체 공고" };
 export const isAdScope = (v: string | undefined | null): v is AdScope => AD_SCOPES.includes(v as AdScope);
 
 export type AdRow = {
@@ -226,6 +226,10 @@ export async function getAdList(
   //    실측 당시: 광고 있는 게시중 43건은 보이고, 광고 없는 게시중 2건 + 종료 1,401건은 안 보였다.
   if (scope === "live") query = query.not("featured_until", "is", null).gt("featured_until", nowIso);
   if (scope === "ended") query = query.not("featured_until", "is", null).lte("featured_until", nowIso);
+  // 🔴 '오늘 등록' 은 created_at 이 아니라 **posted_at** 으로 본다.
+  //    created_at 은 행이 우리 DB 에 만들어진 시각이라, 레거시 이관분 1,401건이 전부 오늘로 찍혀 있다.
+  //    posted_at 은 그 공고가 실제로 게시된 시각이고 이관 때 원본 날짜를 그대로 넣었다.
+  if (scope === "today") query = query.gte("posted_at", kstDayStartIso(nowMs()));
 
   if (q.trim()) {
     const safe = likeSafe(q);
@@ -234,7 +238,7 @@ export async function getAdList(
 
   // '전체' 는 광고가 없는 공고까지 섞이므로 featured_until 로 줄을 세우면 빈 값이 앞을 덮는다
   //  (Postgres 에서 DESC 는 NULLS FIRST 다) — 최근에 올린 공고가 위로 오게 posted_at 을 쓴다.
-  const { data, count, error } = await (scope === "all"
+  const { data, count, error } = await (scope === "all" || scope === "today"
     ? query.order("posted_at", { ascending: false })
     : query.order("featured_until", { ascending: false })
   ).range(from, to);

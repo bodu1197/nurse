@@ -59,3 +59,7 @@ export const fmtDay = (iso: string) => fmtDate(new Date(iso).getTime());
 
 // KST 기준 오늘 "2026-07-23". date 컬럼(jobs.deadline)과 비교할 때 쓴다.
 export const todayKst = (now: number) => new Date(now + KST_MS).toISOString().slice(0, 10);
+
+/** 오늘(한국시간) 0시를 UTC ISO 로. DB 질의에 "오늘부터" 조건을 걸 때 쓴다. */
+export const kstDayStartIso = (now: number) =>
+  new Date(new Date(now + KST_MS).setUTCHours(0, 0, 0, 0) - KST_MS).toISOString();
