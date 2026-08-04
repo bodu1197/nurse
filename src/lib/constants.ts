@@ -22,6 +22,7 @@ type MenuItem = { label: string; href: string };
 //    감추면 그런 게 있는 줄도 모른다. 누가 쓸 수 있는지는 들어간 화면에서 안내한다(CommunityGate).
 export const HEADER_MENU: readonly MenuItem[] = [
   { label: "채용공고", href: "/jobs" },
+  { label: "AI 자동매치", href: "/match" },
   { label: "인재정보", href: "/talent" },
   { label: "리뷰", href: "/reviews" },
   { label: "게시판", href: "/board" },
@@ -64,7 +65,7 @@ export const COMPANY = {
 //  · /talent — **색인한다**(오너 확정 2026-07-30). 구 널스넷이 인재 목록·상세를 이미 색인시켜
 //    왔고(robots 메타 없음 + 사이트맵에 상세 3,544건), 도메인을 이어받으며 그 유입을 버리지 않는다.
 //    이름·연락처·사진은 여전히 광고 중인 병원에만 보인다 — 그 게이트는 그대로다.
-export const PUBLIC_ROUTES = ["/", "/hospital", "/talent", "/ads", "/customer", "/faq", "/notice", "/event"] as const;
+export const PUBLIC_ROUTES = ["/", "/hospital", "/talent", "/match", "/ads", "/customer", "/faq", "/notice", "/event"] as const;
 
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://nurse-app-nine.vercel.app";

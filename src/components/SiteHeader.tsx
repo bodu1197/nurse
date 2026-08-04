@@ -53,9 +53,20 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
           <Logo />
         </Link>
 
+        {/* 🔴 다섯 번째 항목(AI 자동매치)은 lg(1024px) 부터만 그린다.
+            실측 2026-08-05: 이 항목은 77px 를 먹는데, 640px 화면에서는 비로그인 상태만으로도
+            문서 폭이 698px 가 되어 헤더가 가로로 넘쳤다. 로그인 상태 헤더(마이페이지+이름+로그아웃)는
+            **이 항목이 없어도** 768px 에서 이미 넘치는 기존 문제가 있어(883px), 거기에 얹지 않는다.
+            그 아래 폭에서는 오른쪽 햄버거 메뉴(HEADER_MENU)에 같은 항목이 있어 갈 길이 막히지 않는다. */}
         <nav className="ml-7 hidden items-center gap-5 text-sm font-medium text-slate-600 sm:flex">
-          {[["/jobs", "채용공고"], ["/talent", "인재정보"], ["/reviews", "리뷰"], ["/board", "게시판"]].map(([href, label]) => (
-            <Link key={href} href={href} className="rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">{label}</Link>
+          {[
+            { href: "/jobs", label: "채용공고" },
+            { href: "/match", label: "AI 자동매치", cls: "hidden lg:inline-block" },
+            { href: "/talent", label: "인재정보" },
+            { href: "/reviews", label: "리뷰" },
+            { href: "/board", label: "게시판" },
+          ].map(({ href, label, cls }) => (
+            <Link key={href} href={href} className={`rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${cls ?? ""}`}>{label}</Link>
           ))}
         </nav>
 

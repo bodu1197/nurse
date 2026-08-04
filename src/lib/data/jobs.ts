@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/data/user";
 import { LIST_LIMIT } from "@/lib/data/applications";
 import { FREE_LISTING_MS, todayKst } from "@/lib/date";
 import type { JobStatus } from "@/lib/jobState";
+import { DEPT_ANY } from "@/lib/resumeOptions";
 import type { Database } from "@/types/database";
 
 export type JobSource = "direct" | "worknet" | "public_data" | "partner" | "crawl";
@@ -182,9 +183,32 @@ export async function getJobFacets(f: JobFilters & { keyword?: string; location?
  * 진료과를 좁히러 온 사람에게 맨 앞에 있으면 방해만 된다(이력서 쪽에는 이 값이 칩으로 안 뜬다).
  */
 // 미지정도 맨 뒤로 — 고르러 온 사람에게 앞자리를 내줄 이유가 없다.
-const TAIL_LAST = new Set(["기타", "의료기타", "부서무관", UNSET]);
+const TAIL_LAST = new Set<string>(["기타", "의료기타", DEPT_ANY, UNSET]);
 const tailLast = (rows: JobRegionNode[]): JobRegionNode[] =>
   [...rows].sort((a, b) => Number(TAIL_LAST.has(a.name)) - Number(TAIL_LAST.has(b.name)));
+
+/**
+ * 🗂 **노출 중 공고 술어** — 목록·사이트맵·AI 자동매치가 전부 이 한 곳을 쓴다.
+ *
+ * 우리 공고(direct·partner) 노출 조건: (게시 7일 이내 무료) 또는 (광고 featured_until 유효).
+ * 워크넷 수집분만 항상 노출한다 — 우리가 파는 자리가 아니라 배경 데이터다.
+ * 마감일 도래 공고는 뺀다: 상시(null) 또는 마감일(당일 포함)이 아직 안 지난 것만.
+ * deadline 은 date 라 KST 오늘로 비교한다.
+ *
+ * 🔴 예전에는 `source.neq.direct` 라 **구 널스넷 이관분(partner)이 규칙 밖에 있었다.**
+ *    그래서 광고가 끝나도 목록에 남고, featured_until 값이 남아 있으니 정렬에서 워크넷보다 위였다 —
+ *    **돈 낸 광고가 끝났는데 계속 1페이지 상단을 차지**했다(실측 43건).
+ * 🔴 이 규칙을 복사해 쓰면 안 된다. 한쪽만 고치는 순간 사이트맵·자동매치가 **없는 페이지를 가리키고**
+ *    (상세는 노출 종료 공고를 404 로 응답한다), 그건 조용히 일어난다.
+ * 무료 기간은 lib/date 의 상수를 그대로 쓴다 — 화면(listingEnd)과 어긋나면 "보이는데 지원은 안 되는" 공고가 생긴다.
+ */
+function applyListingWindow<T extends { or(filter: string): T }>(query: T, now: number): T {
+  const fresh = new Date(now - FREE_LISTING_MS).toISOString();
+  const nowIso = new Date(now).toISOString();
+  return query
+    .or(`source.eq.worknet,posted_at.gte.${fresh},featured_until.gte.${nowIso}`)
+    .or(`deadline.is.null,deadline.gte.${todayKst(now)}`);
+}
 
 // 관리자 테스트 공고(hospitals.is_test)를 여기서 걸러내지 않는 것은 의도된 결정이다.
 // 숨기면 등록→광고→지원까지 실제 화면에서 확인할 방법이 없어 테스트 기능이 무용지물이 된다.
@@ -207,20 +231,7 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
     .order("posted_at", { ascending: false })
     .range(from, from + PER_PAGE - 1);
 
-  // 우리 공고(direct·partner) 노출 조건: (게시 7일 이내 무료) 또는 (광고 featured_until 유효).
-  // 워크넷 수집분만 항상 노출한다 — 우리가 파는 자리가 아니라 배경 데이터다.
-  //
-  // 🔴 예전에는 `source.neq.direct` 라 **구 널스넷 이관분(partner)이 규칙 밖에 있었다.**
-  //    그래서 광고가 끝나도 목록에 남고, featured_until 값이 남아 있으니 정렬(featured_until desc)에서
-  //    워크넷(null)보다 위였다 — **돈 낸 광고가 끝났는데 계속 1페이지 상단을 차지**했다.
-  //    실측: 8/19 시점에 만료 광고 43건이 그대로 상단에 남는다.
-  // 무료 기간은 lib/date의 상수를 그대로 쓴다 — 화면(listingEnd)과 어긋나면 "보이는데 지원은 안 되는" 공고가 생긴다.
-  const now = Date.now();
-  const fresh = new Date(now - FREE_LISTING_MS).toISOString();
-  const nowIso = new Date(now).toISOString();
-  query = query.or(`source.eq.worknet,posted_at.gte.${fresh},featured_until.gte.${nowIso}`);
-  // 마감일 도래 공고 비노출: 상시(null) 또는 마감일(당일 포함)이 아직 안 지난 것만. deadline은 date라 KST 오늘로 비교.
-  query = query.or(`deadline.is.null,deadline.gte.${todayKst(now)}`);
+  query = applyListingWindow(query, Date.now());
 
   const kw = clean(keyword);
   // 🔴 기관 종별·직종도 함께 본다. 진료과 어휘가 바뀌면서 '요양병원'이 specialty 에서 facility_type
@@ -270,6 +281,111 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
 }
 
 /**
+ * 자동매치 후보가 쓰는 컬럼 — **목록용 SELECT 와 따로 둔다.**
+ *
+ * 🔴 `${SELECT}` 를 그대로 쓰면 description·benefits·apply_detail·manager_phone 같은 장문 컬럼까지
+ *    후보 전건(최악 1,344행)을 매 요청마다 끌어온다. 이 화면의 카드가 실제로 읽는 것은 아래 12개뿐이고,
+ *    나머지 4개(sido·sigungu·specialty·job_category)는 매칭 판정에만 쓴다.
+ * 🔒 카드 표시에 필요한 것을 빼면 화면이 조용히 빈칸이 된다 — MatchCard(app/match/page.tsx)와 함께 볼 것.
+ */
+const MATCH_FIELDS = [
+  // 카드 표시
+  "id", "title", "location", "salary_text", "company_name", "posted_at", "source", "deadline", "featured_until",
+  // 매칭 판정(lib/match 의 JobFacts)
+  "sido", "sigungu", "specialty", "job_category", "employment_type",
+] as const satisfies readonly (keyof JobsRow)[];
+
+const MATCH_SELECT = `${MATCH_FIELDS.join(",")},hospital:hospitals(name)`;
+
+/** 자동매치 후보 한 건. 목록용 JobRow 와 달리 이 화면이 쓰는 것만 담는다. */
+export type MatchJob = Pick<JobsRow, (typeof MATCH_FIELDS)[number]> & {
+  source: JobSource;
+  hospital: { name: string } | null;
+};
+
+/**
+ * 🤖 AI 자동매치 후보 — **시도만 SQL 로 좁히고** 나머지 축은 앱(lib/match)이 판정한다.
+ *
+ * 🔴 진료과·직종까지 SQL 로 걸면 안 된다. 공고 1,344건 중 진료과가 있는 건 288건(21%)뿐이라
+ *    (워크넷 공고는 진료과 개념이 원래 없다 — jobTaxonomy 참고) 후보가 통째로 사라진다.
+ *    넓게 가져와 **일치 개수로 줄을 세운다**(등급으로 자르지 않는다 — 오너 확정 2026-08-05).
+ * 🔴 급여는 자유 텍스트라 SQL 로 비교할 수 없다. 이것도 앱에서 판정한다.
+ * 🔒 노출 규칙은 목록과 **같은 applyListingWindow** — 어긋나면 매치를 눌렀을 때 404 가 된다.
+ */
+export async function getMatchCandidates(sidoIn: readonly string[]): Promise<MatchJob[]> {
+  if (sidoIn.length === 0) return []; // 지역이 없으면 전국이 나온다 — "내 조건"이 거짓말이 된다
+  const supabase = await createClient();
+  const now = Date.now();
+  // 🔴 PostgREST 는 max_rows(1000)에서 **조용히 자른다**(.limit() 으로 못 넘는다 — 사이트맵과 같은 함정).
+  //    지금은 전국 공고가 1,344건이라 한두 쪽이면 끝나지만, 늘어나도 안 잘리도록 이어 받는다.
+  const PAGE = 1000;
+  const MAX = 5000; // 한 요청이 수만 행을 메모리로 끌어와 페이지가 죽는 것만 막는 상한
+  const out: MatchJob[] = [];
+  for (let from = 0; from < MAX; from += PAGE) {
+    const { data, error } = await applyListingWindow(
+      supabase
+        .from("jobs_listed")
+        .select(MATCH_SELECT)
+        .eq("status", "open")
+        .in("sido", [...sidoIn]),
+      now,
+    )
+      .order("ad_live", { ascending: false })
+      .order("posted_at", { ascending: false })
+      // 🔴 유일 키를 마지막 정렬 키로 둔다. 페이지마다 별개 쿼리라 동률(워크넷 일괄수집분은
+      //    posted_at 이 같은 행이 수백 건이다)이 있으면 1000행 경계에서 **행이 중복되거나 누락된다**
+      //    — 중복되면 화면의 key 도 깨진다. getSitemapTalent 가 같은 이유로 2차 키를 갖고 있다.
+      .order("id", { ascending: false })
+      .range(from, from + PAGE - 1)
+      .returns<MatchJob[]>();
+    if (error) {
+      console.error("getMatchCandidates failed:", error.message);
+      break;
+    }
+    out.push(...(data ?? []));
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
+}
+
+export type AdConditions = { specialties: string[]; sidos: string[]; count: number };
+
+/**
+ * 🤖 자동매치(병원 쪽) — **내 병원의 노출 중인 공고**에서 인재를 고를 조건을 뽑는다.
+ *
+ * 🔒 여기서 유료 여부를 다시 따지지 않는다. **볼 자격이 있는가**는 getMembership().canViewTalent
+ *    (= RLS 의 is_talent_advertiser())가 이미 판정했고, 이 함수는 그 다음 질문인 **무슨 조건으로
+ *    고를까**에만 답한다. 결제 판정을 여기에 한 벌 더 쓰면 둘이 갈라져, 한쪽만 고쳤을 때
+ *    "화면은 열리는데 목록은 비는" 상태가 된다(membership.ts 가 같은 이유로 RPC 를 재사용한다).
+ * 🔴 "노출 중" 판정은 **목록과 같은 applyListingWindow** 다. 전에는 여기만 `featured_until > now` 를
+ *    손으로 적었는데, 그러면 (가) 무료 기간(게시 7일) 중인 공고의 조건이 통째로 빠지고
+ *    (나) 마감일이 지난 광고 공고의 조건은 남아, 화면이 말하는 "노출 중인 공고 N건" 과 어긋났다.
+ * 🔴 노출 중인 공고 **전건**의 조건을 겹쳐 쓴다 — 첫 건만 보면 나머지 공고에 맞는 인재가 조용히 사라진다.
+ */
+export async function getMyAdConditions(): Promise<AdConditions> {
+  const empty: AdConditions = { specialties: [], sidos: [], count: 0 };
+  const ids = await getMyHospitalIds();
+  if (ids.length === 0) return empty;
+  const supabase = await createClient();
+  const { data, error } = await applyListingWindow(
+    supabase.from("jobs").select("specialty,sido").in("hospital_id", ids).eq("status", "open"),
+    Date.now(),
+  ).returns<{ specialty: string | null; sido: string | null }[]>();
+  if (error) {
+    // 🔴 삼키면 돈 낸 병원이 아무 설명 없이 "조건 없음" 화면을 본다.
+    console.error("getMyAdConditions failed:", error.message);
+    return empty;
+  }
+  const rows = data ?? [];
+  const uniq = (v: (string | null)[]) => [...new Set(v.filter((x): x is string => !!x))];
+  return {
+    specialties: uniq(rows.map((r) => r.specialty)),
+    sidos: uniq(rows.map((r) => r.sido)),
+    count: rows.length,
+  };
+}
+
+/**
  * sitemap 에 실을 공고 목록. **getJobs 와 똑같은 노출 규칙**을 쓴다 —
  * 어긋나면 사이트맵에 올린 URL 이 404 로 응답해(상세는 노출 종료 공고를 notFound 처리한다)
  * 검색엔진에 "없는 페이지를 색인하라"고 시키는 꼴이 된다.
@@ -288,9 +404,6 @@ export async function getSitemapJobs(): Promise<{ id: string; updated_at: string
   const supabase = createAnonClient<Database>(url, anon, { auth: { persistSession: false } });
 
   const now = Date.now();
-  const fresh = new Date(now - FREE_LISTING_MS).toISOString();
-  const nowIso = new Date(now).toISOString();
-  const today = todayKst(now);
 
   // 🔴 PostgREST 는 supabase/config.toml 의 max_rows(1000)를 **하드 상한**으로 건다.
   //    .limit(50000) 을 줘도 에러 없이 1000행에서 조용히 잘린다(같은 함정이 지역 RPC 주석에도 있다).
@@ -298,14 +411,15 @@ export async function getSitemapJobs(): Promise<{ id: string; updated_at: string
   const PAGE = 1000;
   const out: { id: string; updated_at: string }[] = [];
   for (let from = 0; from < 50_000; from += PAGE) {
-    const { data, error } = await supabase
-      .from("jobs")
-      .select("id, updated_at")
-      .eq("status", "open")
-      // 목록(getJobs)·판정(isOpenToSeekers)과 같은 규칙 — 어긋나면 사이트맵이 없는 페이지를 광고한다.
-      .or(`source.eq.worknet,posted_at.gte.${fresh},featured_until.gte.${nowIso}`)
-      .or(`deadline.is.null,deadline.gte.${today}`)
+    // 목록(getJobs)·판정(isOpenToSeekers)과 같은 규칙 — 어긋나면 사이트맵이 없는 페이지를 광고한다.
+    const { data, error } = await applyListingWindow(
+      supabase.from("jobs").select("id, updated_at").eq("status", "open"),
+      now,
+    )
       .order("posted_at", { ascending: false })
+      // 🔴 유일 키 2차 정렬 — 워크넷 일괄수집분은 posted_at 동률이 수백 건이라, 없으면 1000행
+      //    경계에서 URL 이 중복·누락된다(getSitemapTalent 가 같은 이유로 profile_id 를 쓴다).
+      .order("id", { ascending: false })
       .range(from, from + PAGE - 1);
 
     if (error) {

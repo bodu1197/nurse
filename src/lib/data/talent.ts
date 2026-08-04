@@ -182,6 +182,13 @@ export function talentFilterQs(
 
 export type TalentFilters = {
   q?: string; specialty?: string; category?: string; sido?: string; sigungu?: string; minYears?: number;
+  // 🤖 AI 자동매치(병원 쪽) 전용 — 게재 중인 공고가 여러 건이라 조건이 **여러 개**다.
+  //    위 단수 필드는 화면 필터(한 번에 하나)라 그대로 두고, 겹치는 것을 찾는 축만 배열로 더한다.
+  //    specialtiesAny 는 근무부서 배열끼리 겹치는지(overlaps), sidosAny 는 희망근무지 텍스트
+  //    부분일치를 or 로 묶는다. 🔴 sidosAny 는 **이력서 표기**('서울')여야 한다 —
+  //    공고 canonical('서울특별시')을 그대로 넣으면 한 건도 안 걸린다(lib/match 의 shortSidos 로 바꿔서 넘길 것).
+  specialtiesAny?: readonly string[];
+  sidosAny?: readonly string[];
 };
 
 // 🗂 지역 계단 노드(도/시군구 + 인재 수) — nurse_talent_sido_list / nurse_talent_sigungu_list RPC 반환형.
@@ -274,6 +281,11 @@ export async function searchPublicTalent(
   const sigungu = sido && f.sigungu ? clean(f.sigungu) : "";
   if (sido) query = query.ilike("desired_location", `%${sigungu ? `${sido} ${sigungu}` : sido}%`);
   if (f.minYears && f.minYears > 0) query = query.gte("experience_years", f.minYears);
+  // 자동매치용 다중 조건. 축끼리는 AND, 축 안에서는 OR — 공고 A 의 지역이든 공고 B 의 지역이든 맞으면 후보다.
+  if (f.specialtiesAny?.length) query = query.overlaps("specialties", [...f.specialtiesAny]);
+  if (f.sidosAny?.length) {
+    query = query.or(f.sidosAny.map((s) => `desired_location.ilike.%${clean(s)}%`).join(","));
+  }
 
   const { data, count, error } = await query.returns<(PublicTalent & { name: string | null; profile: ProfileBits | null })[]>();
   if (error) {

@@ -4,6 +4,7 @@ import SubmitButton from "@/components/SubmitButton";
 import Button, { buttonClass } from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import WorkExperienceFields from "@/components/WorkExperienceFields";
+import MatchAxisNotice from "@/components/MatchAxisNotice";
 import { requireProfile } from "@/lib/data/user";
 import { getMyResume, completeness, type ResumeWithWork } from "@/lib/data/resume";
 import { INPUT_CLASS, LINK_CLASS, messageFor } from "@/lib/constants";
@@ -546,6 +547,9 @@ export default async function ResumePage({
         </Section>
 
         <Section title="⑤ 희망 근무조건" hint="병원이 가장 먼저 보는 항목입니다. 근무형태가 안 맞으면 다른 조건은 보지 않습니다.">
+          {/* 🤖 AI 자동매치가 보는 항목이 바로 이 묶음이다 — 무엇이 비어 있는지 여기서 짚어준다
+              (오너 지시 2026-08-05). 판정은 저장된 값 기준이라, 지금 고치는 중이면 저장 후에 갱신된다. */}
+          <MatchAxisNotice seeker={r} />
           <fieldset>
             <legend className={label}>가능한 근무형태 {req} <span className="text-slate-500">(복수 선택)</span></legend>
             <div className="mt-1"><CheckGroup name="shift_types" options={shiftOptions} checked={r?.shift_types ?? []} /></div>
