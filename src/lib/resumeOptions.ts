@@ -17,8 +17,11 @@ export const LICENSE_TYPES = ["간호사", "조산사", "간호조무사"] as co
 // 🔴 라벨에 "졸업" 을 넣지 않는다. 옆 칸(GRADUATION_STATUS)이 졸업 여부를 따로 묻는데
 //    "4년제 졸업" 을 고르게 하면 같은 걸 두 번 묻는 꼴이고, 실제로 모순 데이터가 생겼다
 //    ("4년제 졸업" + "졸업예정" 1건). 여기는 **학위 수준**만 말한다(오너 지적 2026-08-04).
-export const EDUCATION_LEVELS = ["3년제", "4년제", "석사", "박사"] as const;
-export const GRADUATION_STATUS = ["졸업", "졸업예정", "재학중"] as const;
+// 간호조무사도 등록하는 사이트라 고졸 이하가 실제로 있다. 없는 칸을 만들면 그 사람은
+// 자기 학력을 못 적고 그냥 나간다(오너 지적 2026-08-04).
+export const EDUCATION_LEVELS = ["국졸", "중졸", "고졸", "3년제", "4년제", "석사", "박사"] as const;
+// 중퇴가 빠져 있었다 — 중퇴한 사람은 졸업도 재학중도 아니라서 고를 게 없었다.
+export const GRADUATION_STATUS = ["졸업", "졸업예정", "재학중", "중퇴"] as const;
 export const CAREER_LEVELS = ["신규(경력 없음)", "경력"] as const;
 export const CAREER_NEW = CAREER_LEVELS[0];
 export const CAREER_EXPERIENCED = CAREER_LEVELS[1];
