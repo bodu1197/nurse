@@ -30,8 +30,12 @@ export async function signInWithId(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) redirect(authErrorPath("/login", "invalid_credentials", next));
 
-  // 로그인 후 원래 보던 곳으로 복귀(내부 경로만 허용 — 오픈 리다이렉트 방지)
-  redirect(safeNext(next));
+  // 로그인 후 원래 보던 곳으로 복귀(내부 경로만 허용 — 오픈 리다이렉트 방지).
+  // 🔴 돌아갈 곳이 없으면 **마이페이지**다(오너 지시 2026-08-04). 홈은 방금 로그인한 사람에게
+  //    아무 일도 시켜주지 않는다 — 이력서·공고·지원 내역이 전부 마이페이지에 있다.
+  //    next 는 그대로 지킨다. 공고 상세에서 간편지원하려고 로그인한 사람을 마이페이지로 보내면
+  //    그 사람은 다시 그 공고를 찾아가야 한다.
+  redirect(safeNext(next, "/mypage"));
 }
 
 export async function signOut() {
@@ -128,5 +132,9 @@ export async function signUpWithEmail(formData: FormData) {
     redirect(`${authErrorPath("/signup", code)}${keep}`);
   }
 
-  redirect("/signup?sent=1");
+  // 🔴 "확인 메일을 보냈습니다" 화면으로 보내지 않는다. 가입 확인 메일을 끈 뒤로(2026-08-04)
+  //    signUp 이 곧바로 세션을 준다 — 이미 로그인된 사람에게 메일함을 열라고 하는 꼴이 된다.
+  //    메일 확인을 껐던 이유: 내장 메일이 시간당 2통이라 세 번째 가입자부터 아예 가입이 막혔다.
+  //    가입하면 무조건 마이페이지로 보낸다(오너 지시 2026-08-04). 홈에 떨어뜨리면 그냥 나간다.
+  redirect("/mypage");
 }

@@ -2,7 +2,6 @@ import Link from "next/link";
 import LoginButtons from "@/components/LoginButtons";
 import DismissibleError from "@/components/DismissibleError";
 import SubmitButton from "@/components/SubmitButton";
-import Button from "@/components/Button";
 import { authErrorMessage, INPUT_CLASS, LINK_CLASS, SUBTLE_LINK_CLASS, MIN_PASSWORD } from "@/lib/constants";
 import { signUpWithEmail } from "../actions";
 
@@ -15,23 +14,13 @@ const roleClass = "flex h-12 cursor-pointer items-center justify-center rounded-
 
 export default async function SignupPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ error?: string; sent?: string; role?: string }> }>) {
-  const { error, sent, role } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ error?: string; role?: string }> }>) {
+  // 🔴 "확인 이메일을 보냈습니다" 화면은 없앴다(2026-08-04). 가입 확인 메일을 끈 뒤로
+  //    가입하는 순간 로그인되어 마이페이지로 간다 — 이미 들어온 사람에게 메일함을 열라고 할 이유가 없다.
+  //    메일 확인을 껐던 이유: 내장 메일이 시간당 2통이라 세 번째 가입자부터 가입이 아예 막혔다.
+  const { error, role } = await searchParams;
   const isHospital = role === "hospital";
   const message = error ? (authErrorMessage(error) ?? "회원가입에 실패했습니다.") : null;
-
-  if (sent) {
-    return (
-      <div className="text-center">
-        <h1 className="mt-8 text-xl font-bold text-slate-900">확인 이메일을 보냈습니다</h1>
-        <p className="mt-3 text-sm leading-relaxed text-slate-500">
-          메일의 링크를 눌러 가입을 완료한 뒤 로그인해 주세요.
-          <br />5분이 지나도 오지 않으면 스팸함을 확인해 주세요.
-        </p>
-        <Button href="/login" size="md" className="mt-8">로그인으로 →</Button>
-      </div>
-    );
-  }
 
   return (
     <>
