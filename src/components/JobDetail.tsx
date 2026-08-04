@@ -69,8 +69,11 @@ function ApplyError({ code, resumeHref }: Readonly<{ code: string; resumeHref: s
 }
 
 /**
- * 외부 수집 공고의 '원본 사이트에서 지원'.
- * 우리는 접수하지 않는다 — 나가는 문만 열어준다. 조건: 간호사 회원 + 이력서 등록.
+ * 워크넷 수집 공고 — 원본 공고에서 지원.
+ *
+ * 🔴 조건은 그대로 둔다(로그인 → 이력서 → 지원). 오너 지시 2026-08-04 는 **설명 문구를 없애고
+ *    버튼 글자로 말하라**는 것이다. 긴 안내문 대신 버튼이 다음에 할 일을 그대로 적는다:
+ *    로그인 전 "로그인 후 보기" · 이력서 없으면 "이력서 작성하기" · 다 되면 "원본에서 지원하기".
  */
 function ExternalApply({
   href, profile, hasResume, loginHref, resumeHref, hasContact,
@@ -93,37 +96,15 @@ function ExternalApply({
       </p>
     );
   }
-  if (!profile) {
-    return (
-      <div className="flex flex-col gap-2 sm:max-w-md">
-        <p className="text-sm text-slate-500">이 공고는 원본 사이트에서 지원합니다. 널스넷 회원(간호사)만 이동할 수 있습니다.</p>
-        <Button href={loginHref} size="md">로그인</Button>
-      </div>
-    );
-  }
-  if (profile.role !== "nurse") {
-    return <p className="text-sm text-slate-500 sm:max-w-md">외부 공고 지원은 간호사 회원만 이용할 수 있습니다.</p>;
-  }
-  if (!hasResume) {
-    return (
-      <div className="flex flex-col gap-2 sm:max-w-md">
-        <p className="text-sm text-slate-500">이력서를 등록하면 원본 사이트로 이동해 지원할 수 있습니다.</p>
-        <Button href={resumeHref} size="md">이력서 작성하기</Button>
-      </div>
-    );
-  }
+  if (!profile) return <Button href={loginHref} size="md" className="self-start">로그인 후 보기</Button>;
+  if (profile.role !== "nurse")
+    return <p className="text-sm text-slate-500 sm:max-w-md">간호사 회원 전용입니다.</p>;
+  if (!hasResume) return <Button href={resumeHref} size="md" className="self-start">이력서 작성하기</Button>;
   return (
-    <div className="flex flex-col gap-2 sm:max-w-md">
-      <Button href={href} target="_blank" rel="noopener noreferrer" size="md" className="self-start">
-        원본 사이트에서 지원
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M7 17L17 7M7 7h10v10" /></svg>
-      </Button>
-      {/* 약속하지 않는다 — 이 지원은 널스넷을 거치지 않는다는 사실을 그대로 적는다 */}
-      <p className="text-xs text-slate-500">
-        새 창에서 원본 사이트(워크넷 등)로 이동합니다. <b className="text-slate-600">널스넷을 거치지 않으므로
-        지원 내역에는 남지 않습니다.</b> 접수 여부는 원본 사이트에서 확인해 주세요.
-      </p>
-    </div>
+    <Button href={href} target="_blank" rel="noopener noreferrer" size="md" className="self-start">
+      원본에서 지원하기
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M7 17L17 7M7 7h10v10" /></svg>
+    </Button>
   );
 }
 
@@ -286,13 +267,10 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
               )}
             </div>
           ) : (
-            /* ── 외부 수집 공고(워크넷 등) ─────────────────────────────
-               🔴 오너 확정 2026-07-30: 이 지원에 우리는 **아무것도 관여하지 않는다.**
-                  접수도 기록도 중개도 하지 않는다 — 원본 사이트로 보내는 것이 전부다.
-                  다만 **이력서를 등록한 간호사 회원**만 나갈 수 있게 한다. 그것이 유일한 관여다.
-               그래서 문구도 약속하지 않는다: 지원 내역에 남지 않는다는 사실을 먼저 밝힌다
-               (전에는 "로그인하고 지원"이라 해놓고 로그인해도 외부 링크뿐이라,
-                "지원했는데 내역이 비었다"를 겪게 했다). */
+            /* ── 워크넷 수집 공고 ──────────────────────────────────────
+               오너 확정 2026-07-30: 접수는 우리가 하지 않는다. 원본으로 보내는 것이 전부이고,
+               이력서를 등록한 간호사 회원만 나갈 수 있다.
+               🔴 2026-08-04: 설명 문구는 전부 뺐다. 버튼 글자가 다음에 할 일을 그대로 말한다. */
             <ExternalApply
               href={externalHref}
               profile={profile}
