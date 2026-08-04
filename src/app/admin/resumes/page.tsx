@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Pager } from "@/components/MasterDetail";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { fmtDay } from "@/lib/date";
@@ -58,7 +59,17 @@ export default async function AdminResumesPage({
                   {r.name ?? "-"}
                   <span className="block text-xs text-slate-400">{r.email ?? ""}</span>
                 </TD>
-                <TD>{r.resume_title ?? "(제목 없음)"}</TD>
+                <TD>
+                  {/* 공개 이력서는 실제 인재 화면으로 — 관리자가 무엇을 내리는지 보고 판단해야 한다.
+                      비공개는 그 화면이 404 라(getPublicTalent 가 is_public 만 본다) 링크를 걸지 않는다. */}
+                  {r.is_public && r.name ? (
+                    <Link href={`/talent/${r.profile_id}`} className="font-medium text-teal-700 hover:underline">
+                      {r.resume_title ?? "(제목 없음)"}
+                    </Link>
+                  ) : (
+                    <span>{r.resume_title ?? "(제목 없음)"}</span>
+                  )}
+                </TD>
                 <TD className="whitespace-nowrap">{r.career_level ?? "-"}{r.experience_years != null ? ` ${r.experience_years}년` : ""}</TD>
                 <TD className="whitespace-nowrap">{r.residence_region ?? "-"}</TD>
                 <TD>

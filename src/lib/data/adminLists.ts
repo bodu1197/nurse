@@ -1,7 +1,8 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/data/admin";
-import { nowMs, FREE_LISTING_MS } from "@/lib/date";
+import { nowMs } from "@/lib/date";
+import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
 
 export const PER_PAGE = 30;
 
@@ -212,7 +213,6 @@ export async function getAdList(
   const supabase = await createClient();
   const { from, to } = range(page);
   const nowIso = new Date(nowMs()).toISOString();
-  const freshIso = new Date(nowMs() - FREE_LISTING_MS).toISOString();
 
   let query = supabase
     .from("jobs")
@@ -228,12 +228,15 @@ export async function getAdList(
   } else if (kind === "ended") {
     query = query.not("featured_until", "is", null).lte("featured_until", nowIso);
   } else {
-    // 무료 게시 — 광고가 없거나 끝났고, 등록 7일 이내로 아직 보이는 공고.
-    // freeSlotTaken(lib/data/jobs.ts)이 쓰는 판정과 같은 조건이라 화면과 규칙이 어긋나지 않는다.
+    // 무료 게시 — 광고를 사지 않은 게시중 공고 전부.
+    //
+    // 🔴 "등록 7일 이내" 로 좁히지 않는다(오너 지시 2026-08-04). 그 조건을 걸면 이관된 43건처럼
+    //    등록일이 오래된 공고가 **어느 탭에도 안 나와** 관리자가 존재 자체를 모른다.
+    //    7일은 공개 화면의 노출 규칙이고, 여기는 관리 화면이다 — 노출이 끝났는지는
+    //    '남은 기간' 칸이 말해준다(이미 지났으면 "N일 전 종료").
     query = query
       .or(`featured_until.is.null,featured_until.lt.${nowIso}`)
-      .eq("status", "open")
-      .gte("posted_at", freshIso);
+      .eq("status", "open");
   }
 
   if (q.trim()) {
@@ -433,4 +436,23 @@ export async function getInquiries(
     return failed();
   }
   return { rows: (data ?? []) as InquiryRow[], total: count ?? 0 };
+}
+
+// ── 이력서 상세(관리자) ────────────────────────────────────
+
+/**
+ * 비공개 이력서도 본다 — 공개 화면(/talent/[id])은 is_public 인 것만 보여주므로,
+ * 관리자가 신고받은 비공개 이력서를 확인할 길이 없다. RLS(resumes_select_admin)가 통과시킨다.
+ */
+export async function getResumeForAdmin(profileId: string) {
+  await requireAdmin();
+  const supabase = await createClient();
+  const [{ data, error }, { data: work }] = await Promise.all([
+    supabase.from("resumes").select(`${SHEET_COLS},is_public,updated_at`).eq("profile_id", profileId).maybeSingle(),
+    supabase.from("work_experiences").select(WORK_COLS).eq("resume_id", profileId).order("sort_order"),
+  ]);
+  if (error) console.error("getResumeForAdmin:", error.message);
+  if (!data) return null;
+  return { resume: data as unknown as ResumeSheetFields & { is_public: boolean; updated_at: string },
+           work: (work ?? []) as unknown as WorkExperience[] };
 }

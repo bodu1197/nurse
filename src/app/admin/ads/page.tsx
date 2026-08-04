@@ -21,7 +21,7 @@ const MESSAGES: Record<string, string> = {
 const KIND_DESC: Record<AdKind, string> = {
   paid: "병원이 돈을 내고 산 광고입니다. 결제 금액과 남은 기간을 확인하세요.",
   granted: "관리자가 결제 없이 켜준 광고입니다(0원). 매출에 잡히지 않습니다.",
-  free: "광고를 사지 않은 공고입니다. 등록 후 7일 동안 그냥 보입니다(병원당 동시 1건).",
+  free: "광고를 사지 않은 게시중 공고입니다. 등록 후 7일 동안 구직자에게 보이고, 그 뒤에는 목록에서 내려갑니다(공고 자체는 남습니다).",
   ended: "광고 기간이 끝난 공고입니다.",
 };
 
@@ -121,6 +121,7 @@ export default async function AdminAdsPage({
                     <span className={r.ended ? "text-slate-500" : r.urgent ? "font-semibold text-red-700" : "font-semibold text-teal-700"}>
                       {r.text}
                     </span>
+                    {isFree && r.ended && <span className="block text-xs text-slate-400">노출 끝 · 공고는 남음</span>}
                   </TD>
                   <TD>
                     <div className="flex flex-col gap-2">
