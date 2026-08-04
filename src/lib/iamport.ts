@@ -21,7 +21,9 @@ async function getToken(): Promise<string | null> {
   return j?.response?.access_token ?? null;
 }
 
-export type IamportPayment = { imp_uid: string; merchant_uid: string; amount: number; status: string };
+// 🔴 cancel_amount 를 같이 받는다. **부분취소는 status 가 'paid' 그대로**라서
+//    status 만 보면 환불이 일어난 것을 영영 알 수 없다(전액취소만 'cancelled' 이 된다).
+export type IamportPayment = { imp_uid: string; merchant_uid: string; amount: number; status: string; cancel_amount: number };
 
 // imp_uid로 결제 단건 조회(서버-투-서버) — 금액/상태 위변조 검증용.
 // 반환값 3종: 결제정보 | "notfound"(그런 거래 없음=다시 물어봐도 같음) | null(토큰·네트워크 등 일시 실패).
@@ -38,5 +40,9 @@ export async function getPayment(impUid: string): Promise<IamportPayment | "notf
   if (!res.ok) return res.status >= 500 || res.status === 429 ? null : "notfound"; // 4xx = 없는 거래
   const r = (await res.json().catch(() => null))?.response;
   if (!r) return "notfound";
-  return { imp_uid: r.imp_uid, merchant_uid: r.merchant_uid, amount: r.amount, status: r.status };
+  // cancel_amount 는 취소 이력이 없으면 0 이거나 아예 안 올 수 있다 — 없으면 0 으로 읽는다.
+  return {
+    imp_uid: r.imp_uid, merchant_uid: r.merchant_uid, amount: r.amount, status: r.status,
+    cancel_amount: Number(r.cancel_amount ?? 0) || 0,
+  };
 }

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import { AD_PRODUCTS, won } from "@/lib/ads";
-import { prepareAdOrder, verifyAdPayment } from "@/app/mypage/actions";
+import { prepareAdOrder, verifyAdPayment, abandonAdOrder } from "@/app/mypage/actions";
 
 type ImpResponse = { success: boolean; imp_uid: string; merchant_uid: string; error_msg?: string };
 type Imp = {
@@ -21,7 +21,8 @@ export default function AdPurchase({ jobId, initialWeeks = 2, impCode, pg }: Rea
   const [weeks, setWeeks] = useState(initialWeeks);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const product = AD_PRODUCTS.find((p) => p.weeks === weeks)!;
+  // non-null 단언 대신 기본값 — initialWeeks 가 상품에 없는 값으로 들어와도 화면이 죽지 않는다.
+  const product = AD_PRODUCTS.find((p) => p.weeks === weeks) ?? AD_PRODUCTS[0];
 
   async function pay() {
     setErr(null);
@@ -37,7 +38,17 @@ export default function AdPurchase({ jobId, initialWeeks = 2, impCode, pg }: Rea
     window.IMP.request_pay(
       { pg, pay_method: "card", merchant_uid: prep.merchant_uid, name: prep.name, amount: prep.amount },
       async (rsp) => {
-        if (!rsp.success) { setBusy(false); setErr("결제가 취소되었거나 실패했습니다."); return; }
+        if (!rsp.success) {
+          setBusy(false);
+          setErr("결제가 취소되었거나 실패했습니다.");
+          // 🔴 결제가 **일어나지 않은** 주문을 정리하는 것이다(광고 취소가 아니다 — 그런 기능은 없다).
+          //    안 알리면 이 주문이 PREPARE 로 영구히 남아, 나중에 관리자가 "그냥 창을 닫은 건" 과
+          //    "돈은 나갔는데 광고가 안 나간 건" 을 구분할 수 없다.
+          //    실패해도 손님 화면은 그대로 둔다 — 손님이 할 수 있는 일이 없다.
+          //    .catch 는 필수다 — 없으면 unhandled rejection 이 되고, 정리에 실패한 사실조차 안 남는다.
+          abandonAdOrder(prep.merchant_uid).catch((e) => console.error("abandonAdOrder failed:", e));
+          return;
+        }
         const v = await verifyAdPayment(rsp.imp_uid, rsp.merchant_uid);
         setBusy(false);
         if (v.ok) router.push(`/mypage/jobs/ad/receipt/${v.orderId}`);

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyBusiness } from "@/lib/data/nts";
 import { adProduct } from "@/lib/ads";
+import { decidePayment } from "@/lib/paymentFlow";
 import { getPayment, iamportReady } from "@/lib/iamport";
 import { viewAsRole } from "@/lib/data/user";
 import { safeNext } from "@/lib/url";
@@ -14,6 +15,7 @@ import { AVATAR_BUCKET } from "@/lib/data/avatar";
 import { AVATAR_MAX_BYTES, AVATAR_MIME } from "@/lib/avatarLimits";
 import { CANCELABLE, isHospitalStatus, STATUS_LABEL, type AppStatus } from "@/lib/data/applications";
 import { DAY_MS, FREE_LISTING_MS, todayKst, nowMs } from "@/lib/date";
+import { logAdmin } from "@/lib/data/admin";
 import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
 import { regionOfLocation } from "@/lib/jobRegion";
@@ -129,6 +131,10 @@ export async function verifyHospitalBusiness(formData: FormData) {
 }
 
 const ADMIN_TEST_HOSPITAL = "[테스트] 관리자 전용 병원";
+
+// ad_orders.note 는 제약 없는 text 지만 관리자가 화면에서 훑어야 하는 칸이다.
+// 취소 통보가 반복돼 무한히 길어지지 않도록 여기서 자른다(사고 한 건당 한 줄 ≈ 60자, 열 줄이면 충분).
+const NOTE_MAX = 600;
 
 // 관리자 전용 테스트 병원 id(없으면 생성). 실제 병원을 claim해 실회원이 못 가져가는 사태 방지.
 // maybeSingle 대신 limit(1): 동시 요청으로 행이 2개 생겨도 에러 없이 항상 같은 1건을 재사용한다
@@ -989,6 +995,8 @@ async function activateAdOrder(admin: ReturnType<typeof createAdminClient>, orde
   // 클라 콜백과 웹훅이 동시에 들어와도 연장은 정확히 1회. (먼저 연장하고 나중에 PAID로 올리면 재시도 때 2배 연장됨)
   const { data: claimed, error: claimErr } = await admin
     .from("ad_orders")
+    // 🔴 note 는 지우지 않는다. 전에 실패했던 사유(금액 불일치 등)는 나중에 복구 활성화가
+    //    성공해도 그때 무슨 일이 있었는지 알아야 할 기록이다.
     .update({ status: "PAID", imp_uid: impUid, paid_at: new Date().toISOString() })
     .eq("id", orderId)
     .neq("status", "PAID")
@@ -1023,11 +1031,47 @@ export async function verifyAdPayment(impUid: string, merchantUid: string): Prom
   const admin = createAdminClient();
   const { data: order } = await admin.from("ad_orders").select("id, buyer_id, job_id, days, tier, amount, status").eq("merchant_uid", merchantUid).maybeSingle();
   if (!order || order.buyer_id !== user.id || !order.job_id) return { ok: false, error: "order" };
-  if (order.status === "PAID") return { ok: true, orderId: order.id };
+  // 🔴 여기서 `status === 'PAID'` 로 단축하지 않는다 — 그 단축이 웹훅 쪽에서 취소 통보를 삼키던 원인이고,
+  //    두 경로가 서로 다른 단축 규칙을 갖는 순간 다음 사고가 준비된다. 판정은 decidePayment 한 곳에서만.
   const pay = await getPayment(impUid);
-  if (!pay || pay === "notfound" || pay.merchant_uid !== merchantUid) return { ok: false, error: "verify" };
-  if (pay.status !== "paid") { await admin.from("ad_orders").update({ status: "FAILED" }).eq("id", order.id); return { ok: false, error: "notpaid" }; }
-  if (pay.amount !== order.amount) return { ok: false, error: "amount" };
+  if (!pay || pay === "notfound" || pay.merchant_uid !== merchantUid) {
+    // 🔴 이미 활성화된 주문이면 포트원 조회 실패로 "검증 실패" 를 띄우지 않는다. PAID 단축을 없앤 대가로
+    //    포트원이 잠깐 죽었을 때 **이미 산 사람에게** 실패 화면을 보이게 됐다 — 여기서 그것만 되돌린다.
+    if (order.status === "PAID") return { ok: true, orderId: order.id };
+    return { ok: false, error: "verify" };
+  }
+  // 판단은 순수 함수가 한다(lib/paymentFlow.ts). 여기서는 그 결정을 DB 에 반영만 한다.
+  const decision = decidePayment(
+    { status: pay.status, amount: pay.amount, cancelAmount: pay.cancel_amount },
+    order.amount,
+    order.status,
+  );
+  if (decision.do === "done") return { ok: true, orderId: order.id };
+  if (decision.do === "record_cancel") {
+    // 여기서 실패해도 손님에게 시킬 일이 없다 — 웹훅이 같은 취소를 다시 들고 와 기록한다.
+    if ((await appendOrderNote(admin, order.id, decision.note)) === "retry") {
+      console.error("appendOrderNote 실패 — 웹훅 재시도에 기댄다:", order.id);
+    }
+    return { ok: false, error: "canceled" };
+  }
+  if (decision.do === "nothing") return { ok: false, error: "notpaid" };
+  if (decision.do === "fail") {
+    // 🔴 전에는 금액 불일치에서 그냥 반환했다 — 주문은 PREPARE 로 남고 **돈은 나갔는데 흔적이 없었다.**
+    //    imp_uid 를 반드시 같이 적는다. 거래번호가 없으면 관리자가 포트원에서 그 결제를 찾지 못해
+    //    대조도 이의제기도 못 한다(고객센터가 받는 문의가 정확히 이 상황이다).
+    // 🔴 .neq("status","PAID") — 조회와 이 쓰기 사이에 웹훅이 활성화했을 수 있다.
+    //    가드가 없으면 **나가는 중인 광고를 실패로 찍고** 매출에서도 사라진다.
+    await admin.from("ad_orders")
+      .update({ status: "FAILED", imp_uid: impUid, note: decision.note })
+      .eq("id", order.id).neq("status", "PAID");
+    return { ok: false, error: "amount" };
+  }
+  // 🔴 여기까지 왔으면 activate 뿐이다. 나중에 decidePayment 에 분기가 하나 늘었는데 위에서 처리를
+  //    빠뜨리면, 조용히 이 아래로 흘러 **광고가 켜진다.** 그 사고를 여기서 막는다.
+  if (decision.do !== "activate") {
+    console.error("verifyAdPayment: 처리되지 않은 결정", decision);
+    return { ok: false, error: "verify" };
+  }
   // 활성화 실패 시 주문은 PREPARE로 남는다 → 웹훅이 재시도해 복구.
   if (!(await activateAdOrder(admin, order.id, order.job_id, order.days, order.tier, impUid))) return { ok: false, error: "activate" };
   return { ok: true, orderId: order.id };
@@ -1056,22 +1100,131 @@ export async function activateAdFree(formData: FormData) {
   }).select("id").single();
   // 실패는 공고 관리 화면으로 — 광고 페이지에는 에러 배너가 없어 실패가 조용히 묻힌다.
   if (!order) redirect("/mypage/jobs?error=1");
+  // 관리자가 결제 없이 광고를 켜는 일이다. 남기지 않으면 매출 0원짜리 광고가 누구 손에서 나왔는지 알 수 없다.
+  // 실패하면 throw 되어 활성화까지 가지 않는다 — 기록 없는 조치를 만들지 않는다(lib/data/admin.ts).
+  await logAdmin({
+    action: "ad.free_activate",
+    targetTable: "ad_orders",
+    targetId: order.id,
+    reason: `관리자 테스트 광고 ${product.weeks}주 활성 (공고 ${jobId})`,
+  });
   if (!(await activateAdOrder(admin, order.id, jobId, product.days, "admin_test", null))) redirect("/mypage/jobs?error=1");
   redirect(`/mypage/jobs/ad/receipt/${order.id}`);
 }
 
-// 포트원 웹훅(서버-투-서버) — 클라 콜백 실패 대비. imp_uid로 재검증 후 활성화.
+/**
+ * 결제창을 손님이 그냥 닫았을 때 — **결제가 일어나지 않은** 주문을 정리한다.
+ *
+ * 🔴 이것은 "광고 취소" 가 아니다. 돈이 나가지 않았고 광고도 켜진 적이 없다.
+ *    산 광고를 무르는 기능은 없고 만들지 않는다(오너 확정 2026-08-04).
+ *
+ * 🔴 전에는 클라이언트가 문구만 띄우고 **서버에 아무것도 안 알렸다.** 그래서 결제창을 열었다
+ *    닫은 사람마다 PREPARE 주문이 하나씩 영구히 쌓였고, 나중에 그 목록을 보는 사람은
+ *    "돈이 나갔는데 광고가 안 나간 건" 과 "그냥 창을 닫은 건" 을 구분할 수 없었다.
+ *
+ * 🔴 status='PREPARE' 조건이 핵심이다. 웹훅이 먼저 도착해 이미 PAID 가 된 주문을
+ *    뒤늦은 통보가 덮어쓰면, 돈은 받았는데 결제 안 한 것으로 기록되는 꼴이 된다.
+ */
+export async function abandonAdOrder(merchantUid: string): Promise<void> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const admin = createAdminClient();
+  await admin
+    .from("ad_orders")
+    // 🔴 문구는 고정이다. 전에는 클라이언트가 준 문자열(rsp.error_msg)을 그대로 넣었는데,
+    //    이 액션은 브라우저에서 직접 부를 수 있으므로 **운영자가 읽는 칸에 시스템 문구를 위장 주입**할 수 있었다
+    //    ("🔴 포트원에서 결제가 취소됨…" 같은 줄을 손님이 심을 수 있다는 뜻이다).
+    //    문구도 단정하지 않는다 — 승인은 났는데 콜백만 실패했을 수 있다(그 경우 웹훅이 PAID 로 올린다).
+    .update({ status: "CANCELED", note: "결제창이 닫혀 결제 완료를 확인하지 못함" })
+    .eq("merchant_uid", merchantUid)
+    .eq("buyer_id", user.id)   // 남의 주문을 건드리지 못하게
+    .eq("status", "PREPARE");
+}
+
+/**
+ * 주문 메모에 한 줄 **덧붙인다**(덮어쓰지 않는다).
+ *
+ * 🔴 취소·부분취소 기록에 쓴다. 광고는 건드리지 않는다 (오너 확정 2026-08-04: 한번 구입하면 취소 없다).
+ *    취소 통보에 광고를 자동으로 내리면, 광고를 올리고 10분 만에 사람을 구한 병원이
+ *    카드사에 전화해 승인취소를 걸어 **노출은 받고 돈은 안 내는** 길이 열린다.
+ *    약관 제9조가 환불하지 않는다고 이미 못박았으므로, 취소 통보는 자동 처리 대상이 아니라
+ *    사람이 대응할 **사건**이다. 상태도 그대로 둔다 — 광고가 나가는 중인데 CANCELED 로 내리면
+ *    화면이 사실과 어긋난다.
+ *
+ * 🔴 상태로 거르지 않는다. 전에는 `.eq("status","PAID")` + `.is("note", null)` 이 걸려 있어서
+ *    ① PAID 가 아닌 주문의 취소 ② 메모가 이미 있는 주문의 2차 취소(부분취소 뒤 전액취소)가
+ *    **조용히 사라졌다.** 이 함수가 막으려던 게 정확히 그거다. 모르는 것이 제일 나쁘다.
+ *
+ * 같은 문구가 이미 있으면 다시 붙이지 않는다 — 중복 웹훅에 같은 줄이 쌓이지 않게.
+ *
+ * ponytail: 읽고-쓰기라 원자적이지 않다. 같은 취소 웹훅 둘이 정확히 동시에 오면 같은 줄이 두 번 붙는다.
+ *   취소는 드물고 결과도 "메모에 중복 줄" 이라 무해해서 락을 걸지 않았다. 정확성이 필요해지면
+ *   note 를 별도 표(ad_order_events)로 옮기고 append 를 insert 로 바꾼다.
+ */
+async function appendOrderNote(
+  admin: ReturnType<typeof createAdminClient>,
+  orderId: string,
+  line: string,
+): Promise<"ok" | "retry"> {
+  const { data: cur, error: readErr } = await admin
+    .from("ad_orders").select("note").eq("id", orderId).maybeSingle();
+  if (readErr) return "retry";
+  const prev = cur?.note ?? "";
+  if (prev.includes(line)) return "ok"; // 중복 통보
+  const { error } = await admin
+    .from("ad_orders")
+    // 🔴 slice(-NOTE_MAX) — **뒤에서** 자른다. 앞에서 자르면 길이가 한계에 닿는 순간
+    //    방금 붙인 최신 사고가 잘려나가고, 그러고도 "ok" 를 돌려줘 조용히 사라진다.
+    .update({ note: `${prev ? `${prev}\n` : ""}🔴 ${line}`.slice(-NOTE_MAX) })
+    .eq("id", orderId);
+  return error ? "retry" : "ok";
+}
+
+// 포트원 웹훅(서버-투-서버) — 클라 콜백 실패 대비. imp_uid로 재검증 후 활성화·취소.
 // 반환값이 재시도 여부를 가른다: "retry"만 5xx로 응답해 포트원이 다시 보내게 하고,
 // 다시 보내도 결과가 같은 경우("ok"/"ignored")는 200으로 끊는다 — 안 그러면 영원히 재시도한다.
 export async function iamportWebhook(impUid: string, merchantUid: string): Promise<"ok" | "ignored" | "retry"> {
   const admin = createAdminClient();
   const { data: order } = await admin.from("ad_orders").select("id, job_id, days, tier, amount, status").eq("merchant_uid", merchantUid).maybeSingle();
-  if (!order || !order.job_id) return "ignored"; // 우리 주문이 아님 / 공고 없음
-  if (order.status === "PAID") return "ok";
+  if (!order) return "ignored"; // 우리 주문이 아님
+
+  // 🔴 여기서 `order.status === 'PAID'` 로 먼저 끊으면 안 된다 — 취소 웹훅이 바로 그 경우로 온다.
+  //    그 한 줄 때문에 카드사 승인취소가 나도 우리 쪽에 흔적이 하나도 안 남았다.
+  //    (광고를 내리려는 게 아니다 — 광고는 유지한다. 취소가 일어났다는 **사실을 아는 것**이 목적이다.)
   const pay = await getPayment(impUid);
   if (!pay) return "retry"; // 포트원 조회 자체가 실패 — 일시 장애일 수 있으니 재시도
-  // 없는 거래(위조 웹훅 포함)·미결제·금액 불일치는 재시도해도 그대로다
-  if (pay === "notfound" || pay.merchant_uid !== merchantUid || pay.status !== "paid" || pay.amount !== order.amount) return "ignored";
+  if (pay === "notfound" || pay.merchant_uid !== merchantUid) return "ignored"; // 없는 거래·위조 웹훅
+
+  const decision = decidePayment(
+    { status: pay.status, amount: pay.amount, cancelAmount: pay.cancel_amount },
+    order.amount,
+    order.status,
+  );
+  if (decision.do === "done") return "ok";
+  if (decision.do === "nothing") return "ignored";
+  if (decision.do === "record_cancel") return appendOrderNote(admin, order.id, decision.note);
+  if (decision.do === "fail") {
+    // 재시도해도 결과는 같다("ignored"). 다만 조용히 버리지 않고 사람이 볼 수 있게 남긴다.
+    // .neq("status","PAID") — 조회와 이 쓰기 사이에 클라 콜백이 활성화했을 수 있다.
+    await admin.from("ad_orders")
+      .update({ status: "FAILED", imp_uid: impUid, note: decision.note })
+      .eq("id", order.id).neq("status", "PAID");
+    return "ignored";
+  }
+  // 🔴 여기까지 왔으면 activate 뿐이다. decidePayment 에 분기가 늘었는데 위에서 처리를 빠뜨리면
+  //    조용히 이 아래로 흘러 **광고가 켜진다.** 그 사고를 여기서 막는다.
+  if (decision.do !== "activate") {
+    console.error("iamportWebhook: 처리되지 않은 결정", decision);
+    return "ignored";
+  }
+  // 🔴 공고가 사라진 주문(job_id null — 공고 삭제 시 set null)이라도 **돈은 들어왔다.**
+  //    전에는 맨 위에서 "ignored" 로 끊어 광고도 기록도 없이 결제만 남았다.
+  //    기록 실패는 반드시 "retry" 로 올린다 — 200 으로 끊으면 포트원이 다시 안 보내고 결제가 영영 미기록이다.
+  if (!order.job_id) {
+    const r = await appendOrderNote(admin, order.id, `결제됐으나 대상 공고가 이미 삭제됨(${pay.amount.toLocaleString("ko-KR")}원)`);
+    return r === "retry" ? "retry" : "ignored";
+  }
   return (await activateAdOrder(admin, order.id, order.job_id, order.days, order.tier, impUid)) ? "ok" : "retry";
 }
 

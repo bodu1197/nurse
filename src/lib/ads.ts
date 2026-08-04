@@ -26,3 +26,6 @@ export function adProduct(weeks: number): AdProduct | null {
 }
 
 export const won = (n: number) => n.toLocaleString("ko-KR") + "원";
+
+// ponytail: 광고 기간을 되돌리는 계산은 만들지 않는다 — 한번 구입하면 취소가 없다(오너 확정 2026-08-04).
+// 관리자가 예외적으로 회수해야 할 일이 생기면 그때 화면과 함께 만든다.

@@ -50,6 +50,7 @@ export type Database = {
           imp_uid: string | null
           job_id: string | null
           merchant_uid: string
+          note: string | null
           paid_at: string | null
           status: string
           supply_amount: number
@@ -66,6 +67,7 @@ export type Database = {
           imp_uid?: string | null
           job_id?: string | null
           merchant_uid: string
+          note?: string | null
           paid_at?: string | null
           status?: string
           supply_amount: number
@@ -82,6 +84,7 @@ export type Database = {
           imp_uid?: string | null
           job_id?: string | null
           merchant_uid?: string
+          note?: string | null
           paid_at?: string | null
           status?: string
           supply_amount?: number
@@ -108,6 +111,47 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_actions: {
+        Row: {
+          action: string
+          actor_email: string
+          actor_id: string | null
+          created_at: string
+          id: string
+          reason: string
+          target_id: string
+          target_table: string
+        }
+        Insert: {
+          action: string
+          actor_email?: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          reason: string
+          target_id: string
+          target_table: string
+        }
+        Update: {
+          action?: string
+          actor_email?: string
+          actor_id?: string | null
+          created_at?: string
+          id?: string
+          reason?: string
+          target_id?: string
+          target_table?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_actions_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -972,6 +1016,10 @@ export type Database = {
         }[]
       }
       recompute_hospital_rating: { Args: { h: string }; Returns: undefined }
+      resume_masked_text: {
+        Args: { p_name: string; p_text: string }
+        Returns: string
+      }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
     }

@@ -1,6 +1,7 @@
 import { cache } from "react";
 
 export const DAY_MS = 86_400_000;
+export const HOUR_MS = 3_600_000;
 const KST_MS = 9 * 3600 * 1000;
 
 /** 직접등록 공고의 무료 노출 기간(7일). 화면·쿼리·서버검증이 같은 값을 쓴다. */
