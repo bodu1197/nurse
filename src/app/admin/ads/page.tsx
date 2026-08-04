@@ -45,6 +45,11 @@ export default async function AdminAdsPage({
   const { rows, total, failed } = await getAdList({ scope, q, page });
   const qs = (over: Record<string, string> = {}) =>
     new URLSearchParams({ scope, ...(q ? { q } : {}), ...over }).toString();
+  // 🔴 탭 링크에는 검색어를 싣지 않는다. 전에는 qs() 를 그대로 써서 한 번 검색하면
+  //    **어느 탭을 눌러도 그 검색어가 따라붙어** 1건만 나왔다(오너 지적 2026-08-04:
+  //    "어떤 버튼을 눌러도 목록 한 개 나온다" — 주소가 ?scope=free&q=해온마취통증의학과 였다).
+  //    탭은 "무엇을 볼지" 를 바꾸는 것이고, 검색은 그 안에서 좁히는 것이다. 탭을 누르면 검색은 풀린다.
+  const tabHref = (s: AdScope) => `/admin/ads?scope=${s}&page=1`;
   const here = `/admin/ads?${qs({ page: String(page) })}`;
 
   return (
@@ -59,17 +64,17 @@ export default async function AdminAdsPage({
           「노출중」 안에서만 유료·무료로 다시 나눈다. 끝난 공고가 유료였는지는 결제 내역에서 볼 일이다.
           한 줄에 여섯 개를 늘어놓으면 무엇이 무엇의 하위인지 알 수 없다. */}
       <Tabs items={[
-        { href: `/admin/ads?${qs({ scope: "live", page: "1" })}`, label: "노출중", active: scope !== "ended" },
-        { href: `/admin/ads?${qs({ scope: "ended", page: "1" })}`, label: "노출 마감", active: scope === "ended" },
+        { href: tabHref("live"), label: "노출중", active: scope !== "ended" },
+        { href: tabHref("ended"), label: "노출 마감", active: scope === "ended" },
       ]} />
 
       {scope !== "ended" && (
         <div className="-mt-2 mb-4 flex items-center gap-2 pl-4">
           <span aria-hidden className="text-slate-300">└</span>
           <Tabs items={[
-            { href: `/admin/ads?${qs({ scope: "live", page: "1" })}`, label: "전체", active: scope === "live" },
-            { href: `/admin/ads?${qs({ scope: "paid", page: "1" })}`, label: "유료", active: scope === "paid" },
-            { href: `/admin/ads?${qs({ scope: "free", page: "1" })}`, label: "무료", active: scope === "free" },
+            { href: tabHref("live"), label: "전체", active: scope === "live" },
+            { href: tabHref("paid"), label: "유료", active: scope === "paid" },
+            { href: tabHref("free"), label: "무료", active: scope === "free" },
           ]} />
         </div>
       )}

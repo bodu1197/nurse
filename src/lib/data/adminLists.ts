@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/data/admin";
-import { nowMs, FREE_LISTING_MS } from "@/lib/date";
+import { nowMs } from "@/lib/date";
 import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
 
 export const PER_PAGE = 30;
@@ -235,29 +235,26 @@ export async function getAdList(
   //    노출 규칙은 구직자 목록(getJobs)과 **같아야 한다** — 광고가 살아 있거나, 게시 7일 이내면 노출.
   //    그래야 오늘 올린 무료 게시 공고가 「오늘 등록」과 「노출중」에 **둘 다** 나온다
   //    (탭은 서로 배타적인 분류가 아니라 보는 각도다).
-  const freshIso = new Date(nowMs() - FREE_LISTING_MS).toISOString();
   // 🔴 status 도 본다. 전에는 기간만 보고 갈라서 **closed·draft 공고가 「노출중」에 섞였다**
   //    (오너 지적 2026-08-04, 화면 확인). 닫힌 공고는 구직자에게 안 보인다 — 노출중일 수 없다.
-  if (scope === "live") {
-    query = query.eq("status", "open").or(`posted_at.gte.${freshIso},featured_until.gt.${nowIso}`);
-  }
-  // 「노출 마감」은 「노출중」의 정확한 여집합이다: 열려 있지 않거나, 기간이 지났거나.
+  // 🔴 or() 를 겹쳐 쓰지 않는다. 노출 조건 or + 등급 or + 검색어 or 가 한 요청에 세 개 붙으면서
+  //    서로 덮여 엉뚱한 목록이 나왔다(오너 지적 2026-08-04: 무료 탭에 끝난 공고가 섞였다).
+  //    이제 모든 공고가 등록 즉시 featured_until 을 갖는다(첫 1주 0원, createJob + 20260804350000).
+  //    그래서 노출중 = 열려 있고 + 기간이 남았다 — 조건 두 개면 끝이고 인덱스도 그대로 탄다.
+  if (scope !== "ended") query = query.eq("status", "open").gt("featured_until", nowIso);
+  // 「노출 마감」은 그 여집합이다: 닫혔거나, 기간이 없거나, 지났거나.
   if (scope === "ended") {
-    query = query.or(
-      `status.neq.open,and(posted_at.lt.${freshIso},or(featured_until.is.null,featured_until.lte.${nowIso}))`,
-    );
+    query = query.or(`status.neq.open,featured_until.is.null,featured_until.lte.${nowIso}`);
   }
   // 🔴 유료·무료도 **탭**이다. 배지만 달아 두면 8만 건 중에서 유료를 눈으로 찾아야 한다(오너 지시).
   //    판정은 ad_tier 로 한다 — 매 페이지마다 ad_orders 를 조인하면 결제 테이블을 통째로 훑는다.
   //    그 값이 사실과 어긋나 있던 것은 20260804360000 에서 바로잡았다(결제 없으면 free).
   //    🔴 **노출중인 것 안에서만** 나눈다(오너 지시 2026-08-04): "마감된 공고의 유료·무료는
   //       볼 필요도 없다." 끝난 광고가 유료였는지는 결제 내역에서 볼 일이다.
-  if (scope === "paid" || scope === "free") {
-    query = query.eq("status", "open").or(`posted_at.gte.${freshIso},featured_until.gt.${nowIso}`);
-    query = scope === "paid"
-      ? query.eq("ad_tier", "standard")
-      : query.or("ad_tier.is.null,ad_tier.neq.standard");
-  }
+  //       (노출 조건은 위에서 이미 걸렸다 — 여기서는 등급만 더한다.)
+  //       ad_tier 는 not null 이라(20260804370000) `<> 'standard'` 만으로 무료가 정확히 걸린다.
+  if (scope === "paid") query = query.eq("ad_tier", "standard");
+  if (scope === "free") query = query.neq("ad_tier", "standard");
 
   if (q.trim()) {
     const safe = likeSafe(q);

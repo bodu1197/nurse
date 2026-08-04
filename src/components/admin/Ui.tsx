@@ -133,12 +133,23 @@ export function SearchBox({ action, name = "q", value, placeholder, hidden = {} 
       {Object.entries(hidden).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
       <label className="min-w-0 flex-1">
         <span className="sr-only">{placeholder}</span>
-        <input name={name} defaultValue={value} placeholder={placeholder}
+        {/* 🔴 key 를 준다. defaultValue 는 처음 그려질 때만 쓰이는데, 앱 라우터는 화면을 갈아끼울 때
+            이 input 을 그대로 재사용한다 — 그래서 주소에는 ?q=해온마취통증의학과 가 붙어 있는데
+            검색창은 비어 보였다. **결과는 걸러져 있는데 왜 걸러졌는지 화면에 없었다**
+            (오너 지적 2026-08-04: "검색도 안 되고"). key 가 바뀌면 새로 그려져 값이 맞는다. */}
+        <input key={value ?? ""} name={name} defaultValue={value} placeholder={placeholder}
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus-visible:ring-2 focus-visible:ring-teal-600" />
       </label>
       <button type="submit" className="inline-flex min-h-11 items-center rounded-lg bg-slate-800 px-4 text-sm font-semibold text-white hover:bg-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
         검색
       </button>
+      {/* 검색을 건 상태에서 빠져나올 길을 준다 — 없으면 주소를 직접 고치는 수밖에 없다. */}
+      {value?.trim() && (
+        <a href={`${action}${Object.keys(hidden).length ? `?${new URLSearchParams(hidden)}` : ""}`}
+          className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+          검색 해제
+        </a>
+      )}
     </form>
   );
 }
