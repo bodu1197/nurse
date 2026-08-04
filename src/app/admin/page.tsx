@@ -69,8 +69,8 @@ export default async function AdminDashboard() {
       <Section title="우리 공고 · 지원">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="오늘 등록 공고" value={d.jobs.today}
-            sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()}`} tone="good" href="/admin/ads?scope=today" />
-          <Stat label="게시중 공고" value={d.jobs.open} sub="병원이 직접 올린 것만" href="/admin/ads?scope=all" />
+            sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()}`} tone="good" href="/admin/ads?scope=live" />
+          <Stat label="게시중 공고" value={d.jobs.open} sub="병원이 직접 올린 것만" href="/admin/ads?scope=live" />
           <Stat label="3일 내 마감" value={d.jobs.closing3} />
           <Stat label="오늘 지원" value={d.applications.today} sub={`어제 ${d.applications.yesterday.toLocaleString()} · 최근 7일 ${d.applications.d7.toLocaleString()} · 누적 ${d.applications.total.toLocaleString()}`} />
         </div>
@@ -85,7 +85,7 @@ export default async function AdminDashboard() {
 
       <Section title="광고 · 매출">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="유료 광고 게재중" value={d.ads.live} sub={`7일 내 종료 ${d.ads.ending7.toLocaleString()}건 · 무료 부여 ${d.ads.granted.toLocaleString()}건`} href="/admin/ads?kind=paid" />
+          <Stat label="유료 광고 게재중" value={d.ads.live} sub={`7일 내 종료 ${d.ads.ending7.toLocaleString()}건 · 무료 부여 ${d.ads.granted.toLocaleString()}건`} href="/admin/ads?scope=paid" />
           <Stat label="오늘 매출" value={won(d.revenue.today)} tone="good" href="/admin/orders?status=PAID" />
           <Stat label="최근 30일 매출" value={won(d.revenue.d30)} sub={`${d.revenue.count30.toLocaleString()}건`} href="/admin/orders?status=PAID" />
           {/* 링크를 걸지 않는다 — 결제 내역 목록은 관리자 테스트 주문(0원)까지 포함해서

@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/data/admin";
-import { nowMs, kstDayStartIso, FREE_LISTING_MS } from "@/lib/date";
+import { nowMs, FREE_LISTING_MS } from "@/lib/date";
 import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
 
 export const PER_PAGE = 30;
@@ -184,12 +184,13 @@ export async function getResumeList(
  * 다른 것은 딱 하나 — **돈을 안 낸 공고는 인재를 열람할 자격이 없다**(is_talent_advertiser).
  *
  * 유료·무료는 **탭으로** 거른다. 배지만 달아 두면 8만 건 중에서 눈으로 찾아야 한다(오너 지시).
- * 탭은 배타적 분류가 아니라 보는 각도다 — 오늘 올린 무료 공고는 「오늘 등록」·「노출중」·「무료」에 다 나온다.
+ * 탭은 배타적 분류가 아니라 보는 각도다 — 오늘 올린 무료 공고는 「노출중」과 「무료」에 둘 다 나온다.
+ * 「전체 공고」 탭은 두지 않는다 — 노출중 + 노출 마감이라 같은 것을 세 번 보여주는 셈이다(오너 지시).
  */
-export const AD_SCOPES = ["today", "live", "ended", "paid", "free", "all"] as const;
+export const AD_SCOPES = ["live", "paid", "free", "ended"] as const;
 export type AdScope = (typeof AD_SCOPES)[number];
 export const AD_SCOPE_LABEL: Record<AdScope, string> = {
-  today: "오늘 등록", live: "노출중", ended: "노출 마감", paid: "유료", free: "무료", all: "전체 공고",
+  live: "노출중", paid: "유료", free: "무료", ended: "노출 마감",
 };
 export const isAdScope = (v: string | undefined | null): v is AdScope => AD_SCOPES.includes(v as AdScope);
 
@@ -246,10 +247,6 @@ export async function getAdList(
       `status.neq.open,and(posted_at.lt.${freshIso},or(featured_until.is.null,featured_until.lte.${nowIso}))`,
     );
   }
-  // 🔴 '오늘 등록' 은 created_at 이 아니라 **posted_at** 으로 본다.
-  //    created_at 은 행이 우리 DB 에 만들어진 시각이라, 레거시 이관분 1,401건이 전부 오늘로 찍혀 있다.
-  //    posted_at 은 그 공고가 실제로 게시된 시각이고 이관 때 원본 날짜를 그대로 넣었다.
-  if (scope === "today") query = query.gte("posted_at", kstDayStartIso(nowMs()));
   // 🔴 유료·무료도 **탭**이다. 배지만 달아 두면 8만 건 중에서 유료를 눈으로 찾아야 한다(오너 지시).
   //    판정은 ad_tier 로 한다 — 매 페이지마다 ad_orders 를 조인하면 결제 테이블을 통째로 훑는다.
   //    그 값이 사실과 어긋나 있던 것은 20260804360000 에서 바로잡았다(결제 없으면 free).

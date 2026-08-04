@@ -89,8 +89,14 @@ export default async function AdminAdsPage({
                   <TD className="font-medium">{a.hospital?.name ?? a.company_name ?? "-"}</TD>
                   <TD>
                     <Link href={`/jobs/${a.id}`} className="text-teal-700 hover:underline">{a.title}</Link>
+                    {/* 🔴 status 를 그대로 적으면 안 된다. 기간이 지난 공고도 status 는 'open' 이라
+                        「노출 마감」 탭에서 "게시중" 이라고 적혀 있었다(오너 지적 2026-08-04).
+                        구직자에게 실제로 보이는지를 적는다. */}
                     <span className="block text-xs text-slate-400">
-                      {a.status === "open" ? "게시중" : a.status === "hidden" ? "숨김" : a.status}
+                      {a.status === "hidden" ? "숨김"
+                        : a.status === "draft" ? "결제 전"
+                        : a.status === "closed" ? "종료"
+                        : r.ended ? "노출 종료" : "게시중"}
                       {a.source !== "direct" && ` · ${a.source}`}
                     </span>
                   </TD>
