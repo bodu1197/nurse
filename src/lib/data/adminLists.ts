@@ -235,11 +235,16 @@ export async function getAdList(
   //    그래야 오늘 올린 무료 게시 공고가 「오늘 등록」과 「노출중」에 **둘 다** 나온다
   //    (탭은 서로 배타적인 분류가 아니라 보는 각도다).
   const freshIso = new Date(nowMs() - FREE_LISTING_MS).toISOString();
-  if (scope === "live") query = query.or(`posted_at.gte.${freshIso},featured_until.gt.${nowIso}`);
+  // 🔴 status 도 본다. 전에는 기간만 보고 갈라서 **closed·draft 공고가 「노출중」에 섞였다**
+  //    (오너 지적 2026-08-04, 화면 확인). 닫힌 공고는 구직자에게 안 보인다 — 노출중일 수 없다.
+  if (scope === "live") {
+    query = query.eq("status", "open").or(`posted_at.gte.${freshIso},featured_until.gt.${nowIso}`);
+  }
+  // 「노출 마감」은 「노출중」의 정확한 여집합이다: 열려 있지 않거나, 기간이 지났거나.
   if (scope === "ended") {
-    query = query
-      .lt("posted_at", freshIso)
-      .or(`featured_until.is.null,featured_until.lte.${nowIso}`);
+    query = query.or(
+      `status.neq.open,and(posted_at.lt.${freshIso},or(featured_until.is.null,featured_until.lte.${nowIso}))`,
+    );
   }
   // 🔴 '오늘 등록' 은 created_at 이 아니라 **posted_at** 으로 본다.
   //    created_at 은 행이 우리 DB 에 만들어진 시각이라, 레거시 이관분 1,401건이 전부 오늘로 찍혀 있다.
