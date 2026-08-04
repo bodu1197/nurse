@@ -1,96 +1,85 @@
-import Link from "next/link";
-import { getAdminCounts } from "@/lib/data/admin";
+import { getDashboard } from "@/lib/data/adminLists";
+import { PageTitle, Stat, Section, Empty } from "@/components/admin/Ui";
+import { won } from "@/lib/ads";
 
-export const metadata = { title: "관리자 — 널스넷" };
+export const metadata = { title: "대시보드 — 관리자" };
 // 숫자는 볼 때마다 지금 값이어야 한다. 캐시하면 "미결 주문 0" 을 보고 안심한 뒤 실제로는 3건인 상태가 된다.
 export const dynamic = "force-dynamic";
 
+/**
+ * 🔴 총계만 늘어놓지 않는다. 회원 수·공고 수는 공개 화면에도 있어 관리자에게 새 정보가 아니다.
+ *    이 화면이 답해야 하는 것은 둘이다 — **지금 늘고 있나(기간별 증감)**, **내가 해야 할 일이 있나**.
+ */
 export default async function AdminDashboard() {
-  const c = await getAdminCounts(); // 내부에서 requireAdmin() — 관리자가 아니면 404
+  const d = await getDashboard(); // 내부에서 requireAdmin() — 관리자가 아니면 404
+  if (!d) return <Empty>집계를 불러오지 못했습니다. 서버 로그(admin_dashboard)를 확인하세요.</Empty>;
 
-  // href 는 **그 화면이 실제로 있을 때만** 단다 — 없는 곳으로 가는 링크는 404 다.
-  const cards: { label: string; n: number | null; sub?: string; href?: string }[] = [
-    { label: "회원", n: c.members },
-    { label: "병원 명부", n: c.hospitals },
-    { label: "공고 게시중", n: c.openJobs },
-    { label: "광고 게재중", n: c.liveAds },
-    { label: "공개 이력서", n: c.publicResumes },
-    {
-      label: "게시글", n: c.posts, href: "/admin/moderation?kind=board_posts",
-      sub: c.comments === null ? "댓글 —" : `댓글 ${c.comments.toLocaleString()}`,
-    },
-    { label: "리뷰", n: c.reviews, href: "/admin/moderation?kind=reviews" },
-    { label: "지원", n: c.applications },
-  ];
+  const todo = d.todo;
+  const todoTotal = todo.inquiries + todo.tax + todo.stale_orders + todo.failed_orders;
 
   return (
     <>
-      <h1 className="text-2xl font-bold text-slate-900">관리자</h1>
+      <PageTitle title="대시보드" desc="오늘 무엇이 늘었고, 무엇을 처리해야 하는지." />
 
-      {/* 모바일에서도 2열 — /mypage 의 숫자 위젯과 같은 규칙이다. 1열이면 카드 12장이 세로로 너무 길다. */}
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {cards.map((card) => {
-          const body = (
-            <>
-              <p className="text-sm text-slate-500">{card.label}</p>
-              <Num n={card.n} />
-              {card.sub && <p className="mt-0.5 text-xs text-slate-400">{card.sub}</p>}
-            </>
-          );
-          return card.href ? (
-            <Link key={card.label} href={card.href}
-              className="rounded-2xl border border-slate-200 bg-white p-5 hover:border-teal-400 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
-              {body}
-            </Link>
-          ) : (
-            <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-5">{body}</div>
-          );
-        })}
-      </div>
+      <Section title="처리할 일">
+        {todoTotal === 0 ? (
+          <Empty>지금 처리할 것이 없습니다.</Empty>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Stat label="미처리 문의" value={todo.inquiries} tone="warn" href="/admin/inquiries?status=open" />
+            <Stat label="세금계산서 미발행" value={todo.tax} tone="warn" href="/admin/invoices" />
+            <Stat label="미결 주문(1시간 초과)" value={todo.stale_orders} tone="warn" href="/admin/orders?status=PREPARE" />
+            <Stat label="결제 실패" value={todo.failed_orders} tone="warn" href="/admin/orders?status=FAILED" />
+          </div>
+        )}
+      </Section>
 
-      <h2 className="mt-8 text-sm font-semibold text-slate-500">결제</h2>
-      <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <OrderStat label="결제완료" n={c.paid} />
-        {/* 아래 셋이 0 이 아니면 사람이 봐야 한다 — 돈은 움직였는데 광고가 안 나갔을 수 있다 */}
-        <OrderStat label="미결(1시간 초과)" n={c.stalePrepare} warn />
-        <OrderStat label="실패" n={c.failed} warn />
-        {/* CANCELED + 거래번호 있음 = 결제는 승인됐는데 취소로 닫힌 건. 산 광고를 무르는 기능은 없다. */}
-        <OrderStat label="승인 후 취소됨" n={c.abandoned} warn />
-      </div>
-      <p className="mt-3 text-xs text-slate-400">
-        미결·실패·승인 후 취소 주문을 화면에서 처리하는 기능은 아직 없습니다 — 숫자가 0이 아니면
-        Supabase 에서 <code className="mx-1 rounded bg-slate-100 px-1">ad_orders</code>의 note 열을 확인하세요.
-      </p>
+      <Section title="숨김 처리한 것">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="숨긴 리뷰" value={todo.hidden_reviews} href="/admin/moderation?kind=reviews&hidden=1" />
+          <Stat label="숨긴 게시글" value={todo.hidden_posts} href="/admin/moderation?kind=board_posts&hidden=1" />
+        </div>
+      </Section>
 
+      <Section title="가입 · 이력서">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="오늘 가입" value={d.members.today} sub={`7일 ${d.members.d7.toLocaleString()} · 30일 ${d.members.d30.toLocaleString()}`} tone="good" href="/admin/users" />
+          <Stat label="전체 회원" value={d.members.total} sub={`간호사 ${d.members.nurse.toLocaleString()} · 병원 ${d.members.hospital.toLocaleString()}`} href="/admin/users" />
+          <Stat label="오늘 등록 이력서" value={d.resumes.today} sub={`7일 ${d.resumes.d7.toLocaleString()} · 30일 ${d.resumes.d30.toLocaleString()}`} tone="good" href="/admin/resumes" />
+          <Stat label="공개 이력서" value={d.resumes.public} sub={`전체 ${d.resumes.total.toLocaleString()} · 비공개 ${(d.resumes.total - d.resumes.public).toLocaleString()}`} href="/admin/resumes" />
+        </div>
+      </Section>
+
+      <Section title="공고 · 지원">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="오늘 등록 공고" value={d.jobs.today} sub={`7일 ${d.jobs.d7.toLocaleString()}`} tone="good" />
+          <Stat label="게시중 공고" value={d.jobs.open} sub={`직접 ${d.jobs.direct.toLocaleString()} · 워크넷 ${d.jobs.worknet.toLocaleString()}`} />
+          <Stat label="3일 내 마감" value={d.jobs.closing3} />
+          <Stat label="오늘 지원" value={d.applications.today} sub={`7일 ${d.applications.d7.toLocaleString()} · 누적 ${d.applications.total.toLocaleString()}`} />
+        </div>
+      </Section>
+
+      <Section title="광고 · 매출">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="게재중 광고" value={d.ads.live} sub={`7일 내 종료 ${d.ads.ending7.toLocaleString()}건`} href="/admin/ads" />
+          <Stat label="오늘 매출" value={won(d.revenue.today)} tone="good" href="/admin/orders?status=PAID" />
+          <Stat label="30일 매출" value={won(d.revenue.d30)} sub={`${d.revenue.count30.toLocaleString()}건`} href="/admin/orders?status=PAID" />
+          {/* 링크를 걸지 않는다 — 결제 내역 목록은 관리자 테스트 주문(0원)까지 포함해서
+              여기 숫자와 합이 안 맞는다. 맞지 않는 곳으로 보내면 숫자를 못 믿게 된다. */}
+          <Stat label="누적 매출" value={won(d.revenue.total)} sub="관리자 테스트 제외" />
+        </div>
+      </Section>
+
+      <Section title="접속자">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Stat label="오늘 조회" value={d.traffic.today} href="/admin/stats" />
+          <Stat label="7일 조회" value={d.traffic.d7} href="/admin/stats" />
+          <Stat label="30일 조회" value={d.traffic.d30} href="/admin/stats" />
+        </div>
+        {d.traffic.d30 === 0 && (
+          <p className="mt-2 text-xs text-slate-400">아직 기록이 없습니다. 방문 기록은 배포된 뒤부터 쌓입니다.</p>
+        )}
+      </Section>
     </>
-  );
-}
-
-/** 못 센 값은 "—". 왜 비었는지 화면에서 알 수 있어야 데이터가 0인 것과 구분된다. */
-function Num({ n, className = "text-slate-900" }: Readonly<{ n: number | null; className?: string }>) {
-  if (n === null) {
-    return (
-      <p className="mt-1 text-2xl font-bold text-slate-400">
-        <span title="집계 실패 — 서버 로그(getAdminCounts)를 확인하세요">—</span>
-        <span className="sr-only">집계 실패</span>
-      </p>
-    );
-  }
-  return <p className={`mt-1 text-2xl font-bold ${className}`}>{n.toLocaleString()}</p>;
-}
-
-function OrderStat({ label, n, warn }: Readonly<{ label: string; n: number | null; warn?: boolean }>) {
-  const bad = warn && n !== null && n > 0;
-  return (
-    <div className={`rounded-2xl border p-5 ${bad ? "border-red-300 bg-red-50" : "border-slate-200 bg-white"}`}>
-      <p className={`text-sm ${bad ? "text-red-700" : "text-slate-500"}`}>{label}</p>
-      <Num n={n} className={bad ? "text-red-700" : "text-slate-900"} />
-      {/* 🔴 색만으로 경고하지 않는다(WCAG 1.4.1) — 배지 텍스트를 같이 낸다. */}
-      {bad && (
-        <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-          <span aria-hidden>⚠</span> 확인 필요
-        </p>
-      )}
-    </div>
   );
 }

@@ -54,6 +54,12 @@ export type Database = {
           paid_at: string | null
           status: string
           supply_amount: number
+          tax_biz_name: string | null
+          tax_biz_no: string | null
+          tax_ceo: string | null
+          tax_email: string | null
+          tax_invoice_no: string | null
+          tax_issued_at: string | null
           tier: string
           vat: number
         }
@@ -71,6 +77,12 @@ export type Database = {
           paid_at?: string | null
           status?: string
           supply_amount: number
+          tax_biz_name?: string | null
+          tax_biz_no?: string | null
+          tax_ceo?: string | null
+          tax_email?: string | null
+          tax_invoice_no?: string | null
+          tax_issued_at?: string | null
           tier: string
           vat: number
         }
@@ -88,6 +100,12 @@ export type Database = {
           paid_at?: string | null
           status?: string
           supply_amount?: number
+          tax_biz_name?: string | null
+          tax_biz_no?: string | null
+          tax_ceo?: string | null
+          tax_email?: string | null
+          tax_invoice_no?: string | null
+          tax_issued_at?: string | null
           tier?: string
           vat?: number
         }
@@ -394,6 +412,59 @@ export type Database = {
           },
         ]
       }
+      inquiries: {
+        Row: {
+          admin_memo: string | null
+          answered_at: string | null
+          author_id: string | null
+          body: string
+          created_at: string
+          email: string
+          id: string
+          kind: string
+          name: string
+          phone: string | null
+          status: string
+          subject: string
+        }
+        Insert: {
+          admin_memo?: string | null
+          answered_at?: string | null
+          author_id?: string | null
+          body: string
+          created_at?: string
+          email: string
+          id?: string
+          kind: string
+          name: string
+          phone?: string | null
+          status?: string
+          subject: string
+        }
+        Update: {
+          admin_memo?: string | null
+          answered_at?: string | null
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          email?: string
+          id?: string
+          kind?: string
+          name?: string
+          phone?: string | null
+          status?: string
+          subject?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inquiries_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           ad_tier: string | null
@@ -569,6 +640,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      page_views: {
+        Row: {
+          day: string
+          path: string
+          views: number
+        }
+        Insert: {
+          day: string
+          path: string
+          views?: number
+        }
+        Update: {
+          day?: string
+          path?: string
+          views?: number
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -885,6 +974,39 @@ export type Database = {
           },
         ]
       }
+      site_posts: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          kind: string
+          published_at: string | null
+          sort: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          kind: string
+          published_at?: string | null
+          sort?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          kind?: string
+          published_at?: string | null
+          sort?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       work_experiences: {
         Row: {
           bed_range: string | null
@@ -949,10 +1071,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_dashboard: { Args: never; Returns: Json }
       admin_set_hidden: {
-        Args: { hide: boolean; target_id: string; target_table: string }
+        Args: {
+          hide: boolean
+          reason: string
+          target_id: string
+          target_table: string
+        }
         Returns: undefined
       }
+      admin_traffic: { Args: { days?: number }; Returns: Json }
       is_admin: { Args: never; Returns: boolean }
       is_community_member: { Args: never; Returns: boolean }
       is_talent_advertiser: { Args: never; Returns: boolean }
@@ -1032,6 +1161,7 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      track_page_view: { Args: { p_path: string }; Returns: undefined }
     }
     Enums: {
       user_role: "nurse" | "hospital" | "admin"

@@ -1,8 +1,13 @@
-import { type NextRequest } from "next/server";
+import { type NextRequest, type NextFetchEvent } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
+import { trackPageView } from "@/lib/track";
 
-// Next.js 16 proxy (구 middleware) — 매 요청 Supabase 세션 갱신.
-export async function proxy(request: NextRequest) {
+// Next.js 16 proxy (구 middleware) — 매 요청 Supabase 세션 갱신 + 접속 기록.
+export async function proxy(request: NextRequest, event: NextFetchEvent) {
+  // 🔴 응답을 기다리지 않되 **버리지도 않는다.** 그냥 매달아 두면 응답 반환 시 엣지 인스턴스가
+  //    얼어붙어 기록이 유실된다. waitUntil 로 넘겨 응답은 즉시 나가고 기록은 끝까지 간다.
+  const tracking = trackPageView(request);
+  if (tracking) event.waitUntil(tracking);
   return await updateSession(request);
 }
 
