@@ -258,7 +258,19 @@ export async function getAdList(
 
   if (q.trim()) {
     const safe = likeSafe(q);
-    query = query.or(`title.ilike.%${safe}%,company_name.ilike.%${safe}%`);
+    // 🔴 병원 이름으로도 찾아야 한다. 검색창 안내가 "공고 제목 · 병원명" 인데 실제로는 제목과
+    //    company_name 만 뒤졌다 — 명부에 연결된 공고(hospital_id 가 있는 것)는 병원 이름이
+    //    jobs 에 없어서 "우리요양병원" 을 쳐도 안 나왔다(오너 지적 2026-08-04).
+    //    company_name 은 명부에 없는 수집 공고가 갖는 텍스트라 둘 다 봐야 한다.
+    //    PostgREST 로는 조인한 표의 값으로 부모를 거를 수 없으니 병원 id 를 먼저 찾아 넣는다.
+    const parts = [`title.ilike.%${safe}%`, `company_name.ilike.%${safe}%`];
+    const { data: hs } = await supabase
+      .from("hospitals").select("id").ilike("name", `%${safe}%`).limit(300);
+    const ids = (hs ?? []).map((h) => h.id);
+    // 300개를 넘으면 뒤쪽 병원은 못 찾는다. 조용히 자르면 "왜 안 나오지" 가 반복되므로 로그를 남긴다.
+    if (ids.length === 300) console.warn("getAdList: 병원명 검색 300건 상한에 걸림 —", safe);
+    if (ids.length) parts.push(`hospital_id.in.(${ids.join(",")})`);
+    query = query.or(parts.join(","));
   }
 
   // 정렬은 전부 posted_at 이다. featured_until 로 세우면 광고를 안 낸 공고(빈 값)가 앞을 덮는다
