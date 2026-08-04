@@ -38,16 +38,22 @@ const failed = <T,>(): Page<T> => ({ rows: [], total: 0, failed: true });
 /** 날짜 경계는 전부 **한국시간** 이다(마이그레이션 20260804220000). 서버가 UTC 라 그대로 두면
  *  한국시간 00:00~08:59 에 일어난 일이 "어제" 로 잡힌다. */
 export type Dashboard = {
-  members: { total: number; nurse: number; hospital: number; today: number; yesterday: number; d7: number; d30: number };
-  resumes: { total: number; public: number; today: number; yesterday: number; d7: number; d30: number; edited_today: number; edited_d7: number };
+  /**
+   * 🔴 today/yesterday/d7/d30 은 **레거시 이관분을 뺀 실제 가입**이다(20260804310000).
+   *    이관 계정의 created_at 은 내가 이관을 돌린 시각이라 "오늘 941명 가입" 처럼 보인다 —
+   *    실제로는 19명이었다. 이관 규모는 legacy 칸에서 따로 본다.
+   */
+  members: { total: number; nurse: number; hospital: number; legacy: number; real: number; today: number; yesterday: number; d7: number; d30: number };
+  /** real/today/... 은 실제 회원 것만. saved_* 는 이관 회원도 센다 — 저장은 사람이 한 행위다. */
+  resumes: { total: number; public: number; real: number; real_public: number; today: number; yesterday: number; d7: number; d30: number; edited_today: number; edited_d7: number; saved_today: number; saved_yesterday: number };
   /** 병원이 우리 사이트에 직접 올린 공고. **워크넷 수집분은 빠져 있다**(오너 지시). */
-  jobs: { open: number; today: number; yesterday: number; d7: number; edited_today: number; closing3: number };
+  jobs: { open: number; today: number; yesterday: number; d7: number; closing3: number };
   /** 워크넷(고용24)에서 자동 수집한 구인정보 — 우리 공고가 아니라 수집 상태다. */
   collected: { open: number; today: number; last_sync: string | null };
   applications: { total: number; today: number; yesterday: number; d7: number };
   ads: { live: number; granted: number; ending7: number };
   revenue: { today: number; yesterday: number; d30: number; total: number; count30: number };
-  todo: { inquiries: number; tax: number; stale_orders: number; failed_orders: number; hidden_reviews: number; hidden_posts: number; nameless_resumes: number };
+  todo: { inquiries: number; tax: number; stale_orders: number; failed_orders: number; hidden_reviews: number; hidden_posts: number; nameless_resumes: number; private_resumes_7d: number };
   traffic: { today: number; yesterday: number; d7: number; d30: number };
 };
 
@@ -139,7 +145,8 @@ export type ResumeRow = {
   career_level: string | null;
   experience_years: number | null;
   residence_region: string | null;
-  updated_at: string;
+  /** 사람이 마지막으로 저장한 시각. updated_at 은 이관·보정 배치가 밀어놔서 못 쓴다. */
+  last_edited_at: string | null;
   /** 이력서에 적힌 본인 정보 — profiles 조인이 아니라 resumes 자체 컬럼이다. */
   name: string | null;
   email: string | null;
@@ -153,7 +160,7 @@ export async function getResumeList(
   const { from, to } = range(page);
   let query = supabase
     .from("resumes")
-    .select("profile_id,resume_title,is_public,career_level,experience_years,residence_region,updated_at,name,email", { count: "exact" });
+    .select("profile_id,resume_title,is_public,career_level,experience_years,residence_region,last_edited_at,name,email", { count: "exact" });
   if (visibility === "public") query = query.eq("is_public", true);
   if (visibility === "private") query = query.eq("is_public", false);
   if (q.trim()) {
@@ -161,7 +168,7 @@ export async function getResumeList(
     const safe = likeSafe(q);
     query = query.or(`resume_title.ilike.%${safe}%,name.ilike.%${safe}%,residence_region.ilike.%${safe}%`);
   }
-  const { data, count, error } = await query.order("updated_at", { ascending: false }).range(from, to);
+  const { data, count, error } = await query.order("last_edited_at", { ascending: false, nullsFirst: false }).range(from, to);
   if (error) {
     console.error("getResumeList:", error.message);
     return failed();

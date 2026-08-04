@@ -50,7 +50,7 @@ export default async function AdminResumesPage({
       ) : (
         <TableWrap>
           <thead>
-            <tr><TH>작성자</TH><TH>제목</TH><TH>경력</TH><TH>지역</TH><TH>상태</TH><TH>수정일</TH><TH>조치</TH></tr>
+            <tr><TH>작성자</TH><TH>제목</TH><TH>경력</TH><TH>지역</TH><TH>상태</TH><TH>최종 저장</TH><TH>조치</TH></tr>
           </thead>
           <tbody>
             {rows.map((r) => (
@@ -73,7 +73,7 @@ export default async function AdminResumesPage({
                     {r.is_public ? "공개" : "비공개"}
                   </span>
                 </TD>
-                <TD className="whitespace-nowrap">{fmtDay(r.updated_at)}</TD>
+                <TD className="whitespace-nowrap">{r.last_edited_at ? fmtDay(r.last_edited_at) : "-"}</TD>
                 <TD>
                   <form action={setResumeVisibility} className="flex flex-col gap-1.5 sm:flex-row sm:items-center">
                     <input type="hidden" name="id" value={r.profile_id} />
