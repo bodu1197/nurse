@@ -137,6 +137,11 @@ type Props = Readonly<{
 export default function JobDetail({ job, profile, application, saved, selfHref, backHref, applyError, cancelled, hasResume, isMyJob, asH1, now }: Props) {
   const loginHref = `/login?notice=apply&next=${encodeURIComponent(selfHref)}`;
   const resumeHref = `/mypage/resume?next=${encodeURIComponent(selfHref)}`;
+  // 🔴 이 사이트에서 '간호회원' 은 **이력서를 등록한 간호사** 다(오너 정의 2026-08-04).
+  //    로그인만 한 사람은 아직 간호회원이 아니다 — 리뷰·게시판도 같은 기준을 쓴다(getCommunityAccess).
+  const isNurseMember = !!profile && profile.role === "nurse" && !!hasResume;
+  // 전형·접수 원문에는 담당자 이메일·전화가 들어 있어 연락처와 같은 등급으로 가린다. 내 공고는 예외.
+  const canSeeApplyDetail = !!isMyJob || isNurseMember;
   const Title = asH1 ? "h1" : "h2";
   // 아래 지원 영역에 "간호사 회원만 가능합니다"가 이미 떠 있을 때만 위 안내를 생략한다.
   // 그 안내는 direct + 간편지원 공고에서만 그려지므로, 조건을 그대로 맞춰야
@@ -358,7 +363,20 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
         {job.source !== "direct" && job.apply_detail && (
           <>
             <h3 className="mt-5 font-bold text-slate-900">전형·접수</h3>
-            <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{job.apply_detail}</p>
+            {/* 🔴 이 안에 담당자 이메일·전화가 그대로 들어 있다(수집 원문 그대로다):
+                "접수방법: 자사채용사이트(isearching@daum.net),기타(전화필수)".
+                로그인 없이 누구나 볼 수 있었다 — 연락처를 가려놓고 같은 값을 여기서 흘리고 있었다.
+                간호회원(=이력서를 등록한 간호사)에게만 보인다(오너 지시 2026-08-04). 내 공고는 예외. */}
+            {canSeeApplyDetail ? (
+              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{job.apply_detail}</p>
+            ) : (
+              <div className="mt-2 flex flex-col items-start gap-2 rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-sm text-slate-500">간호회원만 볼 수 있습니다 — 이력서를 등록하면 간호회원입니다.</p>
+                {!profile
+                  ? <Button href={loginHref} size="md">로그인하고 지원</Button>
+                  : profile.role === "nurse" && <Button href={resumeHref} size="md">이력서 작성하기</Button>}
+              </div>
+            )}
           </>
         )}
       </article>
