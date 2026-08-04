@@ -39,11 +39,9 @@ const failed = <T,>(): Page<T> => ({ rows: [], total: 0, failed: true });
  *  한국시간 00:00~08:59 에 일어난 일이 "어제" 로 잡힌다. */
 export type Dashboard = {
   /**
-   * 🔴 today/yesterday/d7/d30 은 **이관 회원을 뺀 신규 가입**이다(20260804310000).
-   *    이관 계정의 created_at 은 내가 이관을 돌린 시각이라 "오늘 941명 가입" 처럼 보인다 —
-   *    실제로는 18명이었다.
-   *    real 은 '신규 가입 수' 이지 '진짜 회원 수' 가 아니다. 이관 회원 17,193명도 비밀번호까지
-   *    살아 있는 진짜 회원이고 지금도 로그인해서 이력서를 고친다 — 화면에서 그렇게 부르지 말 것.
+   * today/yesterday/d7/d30 은 **전체 가입**이다. 이관 회원의 created_at 도 구 널스넷에 기록된
+   * 진짜 가입일이라(20260804330000) 따로 뺄 필요가 없다.
+   * legacy/real 은 '어디서 온 회원인가' 일 뿐 '진짜/가짜' 가 아니다 — 화면에서 그렇게 부르지 말 것.
    */
   members: { total: number; nurse: number; hospital: number; legacy: number; real: number; today: number; yesterday: number; d7: number; d30: number };
   /** real/today/... 은 실제 회원 것만. saved_* 는 이관 회원도 센다 — 저장은 사람이 한 행위다. */

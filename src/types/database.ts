@@ -692,6 +692,7 @@ export type Database = {
           phone_number: string | null
           role: Database["public"]["Enums"]["user_role"]
           signup_provider: string | null
+          last_login_provider: string | null
           updated_at: string
           username: string | null
         }
@@ -713,6 +714,7 @@ export type Database = {
           phone_number?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           signup_provider?: string | null
+          last_login_provider?: string | null
           updated_at?: string
           username?: string | null
         }
@@ -734,6 +736,7 @@ export type Database = {
           phone_number?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           signup_provider?: string | null
+          last_login_provider?: string | null
           updated_at?: string
           username?: string | null
         }

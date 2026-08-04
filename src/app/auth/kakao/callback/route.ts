@@ -117,5 +117,15 @@ export async function GET(request: Request) {
   });
   if (otpErr) return fail("kakao_verify");
 
+  // 🔴 카카오로 들어와도 이메일이 이관 계정과 맞으면 **그 계정에 붙는다**(createUser 는 조용히 실패한다).
+  //    그러면 어디로 들어왔는지 흔적이 전혀 남지 않아 "오늘 카카오로 들어온 사람"을 셀 수가 없었다.
+  //    signup_provider(가입 경로)는 건드리지 않는다 — 그건 계정이 만들어진 경로이고 바뀌면 안 된다.
+  //    실패해도 로그인은 막지 않는다. 통계 한 칸 때문에 사람을 되돌려보낼 이유가 없다.
+  if (link.user?.id) {
+    const { error: markErr } = await admin
+      .from("profiles").update({ last_login_provider: "kakao" }).eq("id", link.user.id);
+    if (markErr) console.error("kakao last_login_provider:", markErr.message);
+  }
+
   return res;
 }
