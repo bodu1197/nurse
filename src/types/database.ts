@@ -131,6 +131,13 @@ export type Database = {
             referencedRelation: "jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "ad_orders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs_listed"
+            referencedColumns: ["id"]
+          },
         ]
       }
       admin_actions: {
@@ -251,6 +258,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs_listed"
             referencedColumns: ["id"]
           },
         ]
@@ -931,6 +945,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "saved_jobs_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs_listed"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "saved_jobs_profile_id_fkey"
             columns: ["profile_id"]
             isOneToOne: false
@@ -1071,7 +1092,137 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      jobs_listed: {
+        Row: {
+          ad_live: boolean | null
+          ad_tier: string | null
+          apply_detail: string | null
+          apply_email: string | null
+          apply_method: string | null
+          apply_methods: string[] | null
+          benefits: string[] | null
+          company_name: string | null
+          created_at: string | null
+          deadline: string | null
+          description: string | null
+          detail_fetched_at: string | null
+          employment_type: string | null
+          external_id: string | null
+          external_url: string | null
+          facility_type: string | null
+          featured_until: string | null
+          geocoded_at: string | null
+          hospital_id: string | null
+          id: string | null
+          is_featured: boolean | null
+          job_category: string | null
+          lat: number | null
+          lng: number | null
+          location: string | null
+          manager_name: string | null
+          manager_phone: string | null
+          posted_at: string | null
+          recruit_count: number | null
+          salary_text: string | null
+          shift_type: string | null
+          sido: string | null
+          sigungu: string | null
+          source: string | null
+          specialty: string | null
+          status: string | null
+          title: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          ad_live?: never
+          ad_tier?: string | null
+          apply_detail?: string | null
+          apply_email?: string | null
+          apply_method?: string | null
+          apply_methods?: string[] | null
+          benefits?: string[] | null
+          company_name?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          detail_fetched_at?: string | null
+          employment_type?: string | null
+          external_id?: string | null
+          external_url?: string | null
+          facility_type?: string | null
+          featured_until?: string | null
+          geocoded_at?: string | null
+          hospital_id?: string | null
+          id?: string | null
+          is_featured?: boolean | null
+          job_category?: string | null
+          lat?: number | null
+          lng?: number | null
+          location?: string | null
+          manager_name?: string | null
+          manager_phone?: string | null
+          posted_at?: string | null
+          recruit_count?: number | null
+          salary_text?: string | null
+          shift_type?: string | null
+          sido?: string | null
+          sigungu?: string | null
+          source?: string | null
+          specialty?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          ad_live?: never
+          ad_tier?: string | null
+          apply_detail?: string | null
+          apply_email?: string | null
+          apply_method?: string | null
+          apply_methods?: string[] | null
+          benefits?: string[] | null
+          company_name?: string | null
+          created_at?: string | null
+          deadline?: string | null
+          description?: string | null
+          detail_fetched_at?: string | null
+          employment_type?: string | null
+          external_id?: string | null
+          external_url?: string | null
+          facility_type?: string | null
+          featured_until?: string | null
+          geocoded_at?: string | null
+          hospital_id?: string | null
+          id?: string | null
+          is_featured?: boolean | null
+          job_category?: string | null
+          lat?: number | null
+          lng?: number | null
+          location?: string | null
+          manager_name?: string | null
+          manager_phone?: string | null
+          posted_at?: string | null
+          recruit_count?: number | null
+          salary_text?: string | null
+          shift_type?: string | null
+          sido?: string | null
+          sigungu?: string | null
+          source?: string | null
+          specialty?: string | null
+          status?: string | null
+          title?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       admin_dashboard: { Args: never; Returns: Json }

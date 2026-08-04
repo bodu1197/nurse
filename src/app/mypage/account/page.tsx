@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { NAME_HELP } from "@/lib/personName";
 import NurseShell from "@/components/NurseShell";
 import HospitalShell from "@/components/HospitalShell";
 import SiteHeader from "@/components/SiteHeader";
@@ -13,7 +12,7 @@ export const metadata = { title: "내 정보 · 계정 — 널스넷", robots: {
 
 const MESSAGES = {
   name: "표시 이름을 입력해 주세요.",
-  nameshape: NAME_HELP,
+
   weak: `새 비밀번호는 ${MIN_PASSWORD}자 이상이어야 합니다.`,
   mismatch: "새 비밀번호와 확인이 서로 다릅니다.",
   wrong_password: "현재 비밀번호가 올바르지 않습니다.",

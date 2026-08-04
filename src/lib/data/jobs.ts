@@ -192,11 +192,16 @@ const tailLast = (rows: JobRegionNode[]): JobRegionNode[] =>
 export async function getJobs(keyword: string, location: string, filters: JobFilters = {}, page = 1, withCount = true): Promise<{ jobs: JobRow[]; total: number }> {
   const supabase = await createClient();
   const from = (Math.max(1, page) - 1) * PER_PAGE;
+  // 🔴 jobs 가 아니라 jobs_listed 뷰다. 정렬 키를 두 질문으로 나누기 위한 것 —
+  //    ① 광고인가(ad_live) ② 광고끼리는 무슨 순서인가(posted_at).
+  //    전에는 featured_until 하나로 둘 다 하려다 보니 **종료일이 먼 쪽이 항상 1등**이었다:
+  //    4주를 산 병원이 4주 내내 최상단이고, 뒤에 1주를 산 병원은 방금 결제해도 계속 2등.
+  //    posted_at 은 activateAdOrder 가 광고를 켤 때 갱신하므로 곧 "광고를 켠 시각"이다.
   let query = supabase
-    .from("jobs")
+    .from("jobs_listed")
     .select(SELECT, withCount ? { count: "exact" } : undefined)
     .eq("status", "open")
-    .order("featured_until", { ascending: false, nullsFirst: false })
+    .order("ad_live", { ascending: false })
     .order("posted_at", { ascending: false })
     .range(from, from + PER_PAGE - 1);
 
