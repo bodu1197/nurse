@@ -186,7 +186,7 @@ export async function getResumeList(
  */
 export const AD_SCOPES = ["live", "ended", "all"] as const;
 export type AdScope = (typeof AD_SCOPES)[number];
-export const AD_SCOPE_LABEL: Record<AdScope, string> = { live: "노출중", ended: "노출 마감", all: "전체" };
+export const AD_SCOPE_LABEL: Record<AdScope, string> = { live: "노출중", ended: "노출 마감", all: "전체 공고" };
 export const isAdScope = (v: string | undefined | null): v is AdScope => AD_SCOPES.includes(v as AdScope);
 
 export type AdRow = {
@@ -217,18 +217,27 @@ export async function getAdList(
     .from("jobs")
     .select("id,title,company_name,ad_tier,featured_until,posted_at,status,source,hospital:hospitals(id,name)", { count: "exact" })
     // 🔴 워크넷 공고는 우리가 파는 광고가 아니라 고용24에서 **수집한** 구인정보다(오너 지시 2026-08-04).
-    .neq("source", "worknet")
-    .not("featured_until", "is", null);
+    .neq("source", "worknet");
 
-  if (scope === "live") query = query.gt("featured_until", nowIso);
-  if (scope === "ended") query = query.lte("featured_until", nowIso);
+  // 🔴 '전체' 는 featured_until 이 비어 있는 공고도 포함한다.
+  //    전에는 세 탭 모두 `.not("featured_until","is",null)` 을 걸어서, 광고를 안 낸 공고는
+  //    **어느 탭에서도 볼 수 없었다.** 대시보드는 "게시중 공고"로 세는데 목록에는 없으니
+  //    "숫자는 있는데 찾을 수가 없다"가 됐다(오너 지적 2026-08-04, 우리요양병원 건).
+  //    실측 당시: 광고 있는 게시중 43건은 보이고, 광고 없는 게시중 2건 + 종료 1,401건은 안 보였다.
+  if (scope === "live") query = query.not("featured_until", "is", null).gt("featured_until", nowIso);
+  if (scope === "ended") query = query.not("featured_until", "is", null).lte("featured_until", nowIso);
 
   if (q.trim()) {
     const safe = likeSafe(q);
     query = query.or(`title.ilike.%${safe}%,company_name.ilike.%${safe}%`);
   }
 
-  const { data, count, error } = await query.order("featured_until", { ascending: false }).range(from, to);
+  // '전체' 는 광고가 없는 공고까지 섞이므로 featured_until 로 줄을 세우면 빈 값이 앞을 덮는다
+  //  (Postgres 에서 DESC 는 NULLS FIRST 다) — 최근에 올린 공고가 위로 오게 posted_at 을 쓴다.
+  const { data, count, error } = await (scope === "all"
+    ? query.order("posted_at", { ascending: false })
+    : query.order("featured_until", { ascending: false })
+  ).range(from, to);
   if (error) {
     console.error("getAdList:", error.message);
     return failed();

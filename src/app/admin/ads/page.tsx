@@ -43,20 +43,21 @@ export default async function AdminAdsPage({
   return (
     <>
       <PageTitle
-        title="광고 관리"
-        desc="어느 병원이 어느 공고에 언제부터 언제까지 광고를 내는지. 워크넷에서 수집한 공고는 우리 광고가 아니라 목록에 넣지 않습니다."
+        title="공고 관리"
+        desc="우리 공고는 돈을 냈든 안 냈든 전부 여기 있습니다. 돈을 냈는지는 「결제」 칸에서 봅니다. 워크넷에서 수집한 공고는 우리 것이 아니라 넣지 않습니다."
       />
       <Notice ok={sp.ok} error={sp.error} messages={MESSAGES} />
 
-      {/* 🔴 유료·무료로 나누지 않는다(오너 확정 2026-08-04) — 공고를 낸 것은 돈을 냈든 안 냈든 같은 광고다.
-          다른 것은 딱 하나, **인재 열람 자격**뿐이라 그건 표에 칸으로 둔다. */}
+      {/* 🔴 개념(오너 확정 2026-08-04): **공고가 본체다.** 유료든 무료든 공고는 공고다.
+          돈을 냈는지는 그 공고의 **결제 구분**일 뿐이라 목록을 나누지 않고 칸으로 보여준다.
+          그 구분이 실제로 바꾸는 것은 딱 하나 — 인재 열람 자격이다. */}
       <Tabs items={AD_SCOPES.map((s) => ({
         href: `/admin/ads?${qs({ scope: s, page: "1" })}`, label: AD_SCOPE_LABEL[s], active: s === scope,
       }))} />
 
       <p className="mb-4 text-sm text-slate-500">
-        <b className="text-slate-700">{total.toLocaleString()}건</b> · 결제금액이 <b className="text-slate-700">0원</b>인
-        광고는 노출은 되지만 <b className="text-slate-700">인재정보를 열람할 수 없습니다.</b>
+        <b className="text-slate-700">{total.toLocaleString()}건</b> · 돈을 내지 않은 공고는 노출은 되지만{" "}
+        <b className="text-slate-700">인재정보를 열람할 수 없습니다.</b>
       </p>
 
       <SearchBox action="/admin/ads" value={q} placeholder="공고 제목 · 병원명" hidden={{ scope }} />
@@ -67,7 +68,7 @@ export default async function AdminAdsPage({
         <TableWrap>
           <thead>
             <tr>
-              <TH>병원</TH><TH>공고</TH><TH className="text-right">결제금액</TH><TH>인재 열람</TH>
+              <TH>병원</TH><TH>공고</TH><TH className="text-right">결제</TH><TH>인재 열람</TH>
               <TH>시작</TH><TH>종료</TH><TH>남은 기간</TH><TH>조치</TH>
             </tr>
           </thead>
@@ -91,8 +92,11 @@ export default async function AdminAdsPage({
                         <b className="text-slate-900">{won(a.paidAmount)}</b>
                         {a.orderCount > 1 && <span className="block text-xs text-slate-400">{a.orderCount}건 결제</span>}
                       </>
+                    ) : a.featured_until ? (
+                      <span className="text-slate-400">0원 (무료 광고)</span>
                     ) : (
-                      <span className="text-slate-400">0원 (무료)</span>
+                      // 광고를 아예 안 낸 공고. 무료 게시 기간으로만 노출된다.
+                      <span className="text-slate-400">광고 없음</span>
                     )}
                   </TD>
                   <TD>
@@ -126,7 +130,7 @@ export default async function AdminAdsPage({
                             className="w-28 rounded-lg border border-slate-300 px-2 py-1.5 text-xs outline-none focus:border-teal-500" />
                         </label>
                         <ConfirmSubmit variant="outline" message="광고 기간을 연장합니다. 사유가 기록됩니다.">
-                          {r.ended ? "다시 켜기" : "연장"}
+                          {!a.featured_until ? "광고 부여" : r.ended ? "다시 켜기" : "연장"}
                         </ConfirmSubmit>
                       </form>
                       {!r.ended && (
