@@ -173,7 +173,12 @@ export default async function Home({
             ) : (
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                 {seekers.map((r) => (
-                  <li key={r.profile_id}>
+                  // 🔴 min-w-0 — 격자 칸의 기본 최소폭은 **내용 크기**다(min-width:auto).
+                  //    자기소개에 "요양원요양병원근무경력있어서" 처럼 띄어쓰기 없는 긴 한글이 들어오면
+                  //    그 길이만큼 칸이 벌어져 카드가 화면 밖으로 나간다.
+                  //    실측(2026-08-04, 폭 375px): 카드가 512px, 문서 전체가 528px 로 넘쳤다.
+                  //    안쪽에 min-w-0 이 있어도 이 칸에 없으면 소용없다 — 여기서 사슬이 끊긴다.
+                  <li key={r.profile_id} className="min-w-0">
                     {/* relative + overflow-hidden — 리본이 카드 모서리를 벗어나지 않게 */}
                     <Link
                       href={`/talent/${r.profile_id}`}
