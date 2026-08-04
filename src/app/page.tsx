@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { acceptsPlatformApply } from "@/lib/applyGate";
 import Image from "next/image";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
@@ -117,7 +118,13 @@ export default async function Home({
                     <Link href={`/jobs/${job.id}`} prefetch={false} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md">
                       <div className="flex items-start justify-between gap-2">
                         <h3 className="font-bold leading-snug text-slate-900">{job.title}</h3>
-                        {job.is_featured && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">추천</span>}
+                        {/* /jobs 목록과 같은 판정(lib/applyGate) — 두 화면이 갈라지면 같은 공고가
+                            홈에서는 배지가 없고 목록에서는 있는 상태가 된다. */}
+                        {acceptsPlatformApply(job) && (
+                          <span className="shrink-0 rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-700">
+                            간편지원
+                          </span>
+                        )}
                       </div>
                       <p className="mt-1.5 text-sm text-slate-500">
                         {job.hospital?.name ?? job.company_name ?? "병원 미상"}{job.location ? ` · ${job.location}` : ""}

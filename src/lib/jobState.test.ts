@@ -83,3 +83,28 @@ test("구직자에게 보일 공고 — 목록 필터와 같은 규칙", () => {
   assert.equal(isOpenToSeekers({ ...worknet, deadline: "2026-07-23" }, NOW), true); // 마감 당일은 아직 유효
   assert.equal(isOpenToSeekers({ ...worknet, deadline: "2026-07-22" }, NOW), false);
 });
+
+/**
+ * 🔴 이 시험이 있는 이유: 규칙이 `source === "direct"` 였을 때 구 널스넷 이관분(partner)이
+ *    노출 규칙 **밖**에 있었다. 그래서 광고가 끝나도 목록에 남았고, featured_until 값이 남은 탓에
+ *    정렬(featured_until desc, null 뒤로)에서 워크넷보다 위였다 —
+ *    **돈 낸 광고가 끝났는데 계속 1페이지 상단을 차지했다**(실측: 8/19 시점 43건).
+ */
+test("구 널스넷 이관 공고도 노출 기간 규칙을 받는다", () => {
+  const partner = { status: "open", source: "partner", deadline: null } as const;
+
+  // 광고 중이면 보인다
+  assert.equal(isOpenToSeekers({ ...partner, posted_at: ago(400), featured_until: later(3) }, NOW), true);
+  // 광고가 끝나면 목록에서 내려간다 — 예전에는 여기가 true 라 상단에 계속 남았다
+  assert.equal(isOpenToSeekers({ ...partner, posted_at: ago(400), featured_until: ago(1) }, NOW), false);
+  // 광고를 산 적 없는 옛 공고도 마찬가지
+  assert.equal(isOpenToSeekers({ ...partner, posted_at: ago(400), featured_until: null }, NOW), false);
+  // 방금 올린 것은 7일 무료로 보인다
+  assert.equal(isOpenToSeekers({ ...partner, posted_at: ago(1), featured_until: null }, NOW), true);
+
+  // 워크넷만 이 규칙을 안 받는다 — 우리가 파는 자리가 아니라 배경 데이터다
+  assert.equal(
+    isOpenToSeekers({ status: "open", source: "worknet", posted_at: ago(400), featured_until: null, deadline: null }, NOW),
+    true,
+  );
+});

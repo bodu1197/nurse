@@ -23,7 +23,7 @@ const PUBLIC_FIELDS = [
   "certifications", "apn_field", "education_level", "education", "graduation_status",
   "career_level", "experience_years", "has_integrated_care", "can_charge",
   "shift_types", "night_available", "desired_location", "specialties", "desired_hospital_types",
-  "desired_employment_type", "desired_salary", "available_from", "needs_dormitory", "intro", "updated_at",
+  "desired_employment_type", "desired_salary", "available_from", "needs_dormitory", "intro", "created_at",
 ] as const satisfies readonly (keyof ResumeRow)[];
 
 /**
@@ -248,8 +248,14 @@ export async function searchPublicTalent(
     .eq("is_public", true)
     // 이름이 없는 이력서는 카드에 보여줄 게 부실하고 연락도 안 되므로 목록에서 제외한다.
     .not("name", "is", null)
-    .order("updated_at", { ascending: false })
-    // 🔴 2차 키 — 이관분 7,224건이 같은 배치 시각이라 updated_at 만으로는 순서가 보장되지 않는다.
+    // 🔴 updated_at 이 아니라 created_at 으로 정렬한다(오너 지시 2026-08-04).
+    //    이관분 8,070건은 원래 작성일(2024~2025)을 그대로 갖고 있지만 updated_at 은 이관·보정 때마다
+    //    지금으로 밀린다. updated_at 으로 줄을 세우면 **2024년에 쓴 이력서가 오늘 쓴 것보다 앞에**
+    //    오고, 실제로 어제 가입해 이력서를 쓴 사람이 8,000건 뒤로 밀린다.
+    //    (실측: 이관·이름정리를 돌린 날 1페이지가 통째로 2024~2025년 이력서로 덮였다.)
+    //    작성일 순이면 새로 쓴 이력서가 앞에 오고, 옛 이력서를 손봐도 순서가 안 뒤집힌다.
+    .order("created_at", { ascending: false })
+    // 🔴 2차 키 — 이관분은 작성일이 날짜 단위(00:00:00)라 같은 날 동률이 많다.
     //    동률이 흔들리면 홈 10장과 목록 1페이지가 어긋나고, 페이지 경계에서 같은 사람이
     //    두 페이지에 나오거나 어느 페이지에도 안 나온다.
     .order("profile_id", { ascending: false })

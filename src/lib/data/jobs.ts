@@ -200,12 +200,18 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
     .order("posted_at", { ascending: false })
     .range(from, from + PER_PAGE - 1);
 
-  // direct(병원 직접) 공고 노출 조건: (게시 7일 이내 무료) 또는 (유료 광고 featured_until 유효). 외부 수집 공고는 항상.
+  // 우리 공고(direct·partner) 노출 조건: (게시 7일 이내 무료) 또는 (광고 featured_until 유효).
+  // 워크넷 수집분만 항상 노출한다 — 우리가 파는 자리가 아니라 배경 데이터다.
+  //
+  // 🔴 예전에는 `source.neq.direct` 라 **구 널스넷 이관분(partner)이 규칙 밖에 있었다.**
+  //    그래서 광고가 끝나도 목록에 남고, featured_until 값이 남아 있으니 정렬(featured_until desc)에서
+  //    워크넷(null)보다 위였다 — **돈 낸 광고가 끝났는데 계속 1페이지 상단을 차지**했다.
+  //    실측: 8/19 시점에 만료 광고 43건이 그대로 상단에 남는다.
   // 무료 기간은 lib/date의 상수를 그대로 쓴다 — 화면(listingEnd)과 어긋나면 "보이는데 지원은 안 되는" 공고가 생긴다.
   const now = Date.now();
   const fresh = new Date(now - FREE_LISTING_MS).toISOString();
   const nowIso = new Date(now).toISOString();
-  query = query.or(`source.neq.direct,posted_at.gte.${fresh},featured_until.gte.${nowIso}`);
+  query = query.or(`source.eq.worknet,posted_at.gte.${fresh},featured_until.gte.${nowIso}`);
   // 마감일 도래 공고 비노출: 상시(null) 또는 마감일(당일 포함)이 아직 안 지난 것만. deadline은 date라 KST 오늘로 비교.
   query = query.or(`deadline.is.null,deadline.gte.${todayKst(now)}`);
 
@@ -289,7 +295,8 @@ export async function getSitemapJobs(): Promise<{ id: string; updated_at: string
       .from("jobs")
       .select("id, updated_at")
       .eq("status", "open")
-      .or(`source.neq.direct,posted_at.gte.${fresh},featured_until.gte.${nowIso}`)
+      // 목록(getJobs)·판정(isOpenToSeekers)과 같은 규칙 — 어긋나면 사이트맵이 없는 페이지를 광고한다.
+      .or(`source.eq.worknet,posted_at.gte.${fresh},featured_until.gte.${nowIso}`)
       .or(`deadline.is.null,deadline.gte.${today}`)
       .order("posted_at", { ascending: false })
       .range(from, from + PAGE - 1);

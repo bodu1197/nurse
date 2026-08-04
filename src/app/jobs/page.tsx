@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { acceptsPlatformApply } from "@/lib/applyGate";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { SaveIcon } from "@/components/JobDetail";
@@ -229,7 +230,16 @@ export default async function JobsPage({
                   <a href={detailHref(job.id)} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-bold leading-snug text-slate-900">{job.title}</h3>
-                      {job.is_featured && <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700">추천</span>}
+                      {/* 🔴 '추천'(is_featured) 배지를 걷어냈다 — 전 공고 0건이라 아무 데도 안 뜨는 죽은 배지였다.
+                          대신 워크넷 수집분이 아닌 우리 공고에 '간편지원' 을 단다. 목록 1,282건이 워크넷이라
+                          우리 공고 44건이 그 안에 파묻힌다(3%). 배지는 광고 자랑이 아니라 **구직자가 얻는 것**을
+                          말한다 — 이 배지가 붙은 공고에서만 실제로 이력서 지원 폼이 뜬다(lib/applyGate).
+                          teal 을 쓰는 이유: 빨강은 이 카드에서 이미 '마감' 이고, amber 는 옛 추천 배지 색이다. */}
+                      {acceptsPlatformApply(job) && (
+                        <span className="shrink-0 rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-700">
+                          간편지원
+                        </span>
+                      )}
                     </div>
                     <p className="mt-1.5 text-sm text-slate-700">{job.hospital?.name ?? job.company_name ?? "병원 미상"}</p>
                     <p className="text-sm text-slate-500">{job.location}</p>

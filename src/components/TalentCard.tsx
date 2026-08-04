@@ -92,7 +92,10 @@ export default function TalentCard({
                 </span>
               ))}
             </div>
-            <span className="shrink-0 text-xs text-slate-400">{timeAgo(t.updated_at)}</span>
+            {/* 🔴 updated_at 이 아니라 created_at 을 보여준다. 이관·보정 배치가 8,070명의 updated_at 을
+                한꺼번에 오늘로 밀어놔서, 그대로 쓰면 "8,070명이 오늘 활동했다"는 거짓이 된다.
+                작성일은 사람이 실제로 쓴 날이라 배치 작업에 안 흔들린다. */}
+            <span className="shrink-0 text-xs text-slate-400">{timeAgo(t.created_at)} 작성</span>
           </div>
         </div>
       </div>

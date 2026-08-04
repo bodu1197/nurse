@@ -51,6 +51,11 @@ export function isOpenToSeekers(
   now: number,
 ): boolean {
   if (job.status !== "open") return false;
-  if (job.source === "direct" && listingEnd(job, now) <= now) return false;
+  // 🔴 `source === "direct"` 가 아니라 **워크넷이 아닌 우리 공고 전부**다.
+  //    구 널스넷 이관분(partner)이 이 규칙 밖에 있어서, 광고가 끝나도 목록에 남고
+  //    featured_until 값이 남은 탓에 정렬에서 워크넷(null)보다 위였다 —
+  //    **돈 낸 광고가 끝났는데 계속 1페이지 상단을 차지**했다(실측: 8/19 시점 43건).
+  //    워크넷 수집분만 노출 기간 없이 항상 보인다 — 우리가 파는 자리가 아니라 배경 데이터다.
+  if (job.source !== "worknet" && listingEnd(job, now) <= now) return false;
   return !(job.deadline && job.deadline < todayKst(now));
 }
