@@ -768,6 +768,7 @@ export type Database = {
           intro: string | null
           is_public: boolean
           job_categories: string[]
+          last_edited_at: string | null
           license_reported: boolean | null
           license_type: string | null
           license_year: number | null
@@ -803,6 +804,7 @@ export type Database = {
           intro?: string | null
           is_public?: boolean
           job_categories?: string[]
+          last_edited_at?: string | null
           license_reported?: boolean | null
           license_type?: string | null
           license_year?: number | null
@@ -838,6 +840,7 @@ export type Database = {
           intro?: string | null
           is_public?: boolean
           job_categories?: string[]
+          last_edited_at?: string | null
           license_reported?: boolean | null
           license_type?: string | null
           license_year?: number | null

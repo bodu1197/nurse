@@ -43,7 +43,7 @@ export default function TalentDetail({
           {t.night_available && <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-800">나이트 전담 가능</span>}
         </div>
         {/* 카드(TalentCard)와 같은 기준 — 이관 배치가 밀어놓은 updated_at 은 쓰지 않는다. */}
-        <p className="mt-1 text-xs text-slate-400">{fmtDay(t.created_at)} 작성</p>
+        <p className="mt-1 text-xs text-slate-400">{fmtDay(t.last_edited_at ?? t.created_at)} 갱신</p>
       </div>
 
       {/* 연락 — 이름·사진·전화·이메일을 한 블록에. 광고 병원만 보이고, 그 외엔 통째로 잠긴다. */}

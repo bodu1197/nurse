@@ -429,6 +429,9 @@ export async function saveResume(formData: FormData) {
 
   const { error } = await supabase.from("resumes").upsert({
     profile_id: user.id,
+    // 🔴 사람이 저장한 시각. 인재 목록 정렬이 이 값을 쓴다 — updated_at 은 이관·보정 배치가
+    //    한꺼번에 밀어놓아 "누가 실제로 손댔는지" 를 더 이상 말해주지 못한다(20260804290000).
+    last_edited_at: new Date().toISOString(),
     resume_title: s("resume_title"),
     name: s("name"),
     phone: s("phone"),
