@@ -1,6 +1,7 @@
 import { getDashboard } from "@/lib/data/adminLists";
 import { PageTitle, Stat, Section, Empty } from "@/components/admin/Ui";
 import { won } from "@/lib/ads";
+import { fmtDay } from "@/lib/date";
 
 export const metadata = { title: "대시보드 — 관리자" };
 // 숫자는 볼 때마다 지금 값이어야 한다. 캐시하면 "미결 주문 0" 을 보고 안심한 뒤 실제로는 3건인 상태가 된다.
@@ -50,18 +51,25 @@ export default async function AdminDashboard() {
         </div>
       </Section>
 
-      <Section title="공고 · 지원">
+      <Section title="우리 공고 · 지원">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="오늘 등록 공고" value={d.jobs.today} sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()}`} tone="good" />
-          <Stat label="게시중 공고" value={d.jobs.open} sub={`직접 ${d.jobs.direct.toLocaleString()} · 워크넷 ${d.jobs.worknet.toLocaleString()}`} />
+          <Stat label="게시중 공고" value={d.jobs.open} sub="병원이 직접 올린 것만" />
           <Stat label="3일 내 마감" value={d.jobs.closing3} />
           <Stat label="오늘 지원" value={d.applications.today} sub={`어제 ${d.applications.yesterday.toLocaleString()} · 최근 7일 ${d.applications.d7.toLocaleString()} · 누적 ${d.applications.total.toLocaleString()}`} />
         </div>
+        {/* 🔴 워크넷 수집분은 위 숫자에 넣지 않는다 — 고용24에서 자동으로 긁어오는 구인정보라
+            우리 매출도, 우리가 관리할 대상도 아니다. 크론이 죽었는지만 보이면 된다. */}
+        <p className="mt-2 text-xs text-slate-400">
+          워크넷 수집분은 위 숫자에서 제외했습니다 — 게시중 {d.collected.open.toLocaleString()}건 ·
+          오늘 {d.collected.today.toLocaleString()}건 수집
+          {d.collected.last_sync && ` · 마지막 수집 ${fmtDay(d.collected.last_sync)}`}
+        </p>
       </Section>
 
       <Section title="광고 · 매출">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="게재중 광고" value={d.ads.live} sub={`7일 내 종료 ${d.ads.ending7.toLocaleString()}건`} href="/admin/ads" />
+          <Stat label="유료 광고 게재중" value={d.ads.live} sub={`7일 내 종료 ${d.ads.ending7.toLocaleString()}건 · 무료 부여 ${d.ads.granted.toLocaleString()}건`} href="/admin/ads?kind=paid" />
           <Stat label="오늘 매출" value={won(d.revenue.today)} tone="good" href="/admin/orders?status=PAID" />
           <Stat label="최근 30일 매출" value={won(d.revenue.d30)} sub={`${d.revenue.count30.toLocaleString()}건`} href="/admin/orders?status=PAID" />
           {/* 링크를 걸지 않는다 — 결제 내역 목록은 관리자 테스트 주문(0원)까지 포함해서
