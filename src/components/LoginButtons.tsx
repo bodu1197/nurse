@@ -3,7 +3,14 @@
 import { useEffect, useState } from "react";
 
 /**
- * 카카오·네이버 시작 버튼.
+ * 카카오 시작 버튼.
+ *
+ * 🔴 네이버는 뺐다(2026-08-04). 네이버가 인증 요청 자체를 거부한다 —
+ *    "널스넷 서비스 설정에 오류가 있어 네이버 아이디로 로그인할 수 없습니다"(disp_stat=207).
+ *    콜백 주소를 뭘로 바꿔도(엉뚱한 주소까지) 같은 오류라 앱 단위 문제이고, 우리 코드로는
+ *    못 고친다. 네이버 개발자센터에서 앱 설정을 되살려야 한다.
+ *    구 널스넷에서도 2026년 소셜 연결이 0건이었다 — 같은 앱이라 작년부터 죽어 있었다.
+ *    고칠 수 없는 버튼을 두면 누른 사람이 네이버 오류 화면을 보고 그냥 떠난다.
  *
  * 🔴 회원유형(role)과 복귀 주소(next)를 반드시 실어 보낸다.
  *    전에는 이 버튼들이 가입 폼 **밖**의 독립 버튼이라 화면에서 고른 '병원 채용담당자'가 통째로
@@ -46,11 +53,6 @@ export default function LoginButtons({
     location.href = `/auth/kakao/start${carryQs()}`;
   }
 
-  function naver() {
-    setLoading("naver");
-    location.href = `/auth/naver/start${carryQs()}`;
-  }
-
   return (
     <div className="flex flex-col gap-3">
       <button
@@ -61,16 +63,6 @@ export default function LoginButtons({
       >
         <span aria-hidden>💬</span>
         {loading === "kakao" ? "이동 중…" : "카카오로 시작하기"}
-      </button>
-
-      <button
-        type="button"
-        onClick={naver}
-        disabled={loading !== null}
-        className="flex h-12 items-center justify-center gap-2 rounded-[12px] bg-[#03C75A] font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <span aria-hidden className="font-extrabold">N</span>
-        {loading === "naver" ? "이동 중…" : "네이버로 시작하기"}
       </button>
     </div>
   );

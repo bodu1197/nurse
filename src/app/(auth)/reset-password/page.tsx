@@ -11,7 +11,7 @@ export const metadata = {
 
 const socialNotice = (
   <p className="mt-6 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-600">
-    카카오·네이버로 가입하셨다면 로그인 화면에서 그 버튼으로 바로 들어가는 편이 빠릅니다.
+    카카오로 가입하셨다면 로그인 화면에서 카카오 버튼으로 바로 들어가는 편이 빠릅니다.
   </p>
 );
 
