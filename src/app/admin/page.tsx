@@ -20,7 +20,7 @@ export default async function AdminDashboard() {
 
   return (
     <>
-      <PageTitle title="대시보드" desc="오늘 무엇이 늘었고, 무엇을 처리해야 하는지. 날짜는 한국시간 기준이고, 기간 숫자는 그 기간 누적입니다." />
+      <PageTitle title="대시보드" desc="오늘 무엇이 늘었고, 무엇을 처리해야 하는지. 날짜는 한국시간 기준이고, 기간 숫자는 그 기간 누적입니다. 가입 기간 숫자에는 구 널스넷 이관 회원이 빠져 있습니다 — 이관 회원의 가입일은 실제 가입한 날이 아니라 옮겨온 날이기 때문입니다." />
 
       <Section title="처리할 일">
         {todoTotal === 0 ? (
@@ -49,9 +49,14 @@ export default async function AdminDashboard() {
 
       <Section title="가입 · 이력서">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {/* 🔴 이관분을 뺀 진짜 가입이다. 섞어 놓으면 17,193이라는 큰 수가 19라는 진짜 수를 덮는다. */}
-          <Stat label="오늘 가입" value={d.members.today} sub={`어제 ${d.members.yesterday.toLocaleString()} · 최근 7일 ${d.members.d7.toLocaleString()} · 이관분 제외`} tone="good" href="/admin/users" />
-          <Stat label="실제 회원" value={d.members.real} sub={`구 널스넷 이관 ${d.members.legacy.toLocaleString()} · 합계 ${d.members.total.toLocaleString()}`} href="/admin/users" />
+          {/* 🔴 이관 회원의 created_at 은 '이관을 돌린 시각' 이라 가입일이 아니다. 그래서 기간
+              숫자에서만 뺀다 — 안 빼면 "오늘 941명 가입" 같은 거짓말이 나온다(실제 18명).
+              **이관 회원이 가짜라는 뜻이 아니다.** 비밀번호까지 살아 있는 진짜 회원이고
+              지금도 로그인해서 이력서를 고친다. 전체 회원 칸이 그 수를 정면으로 보여준다. */}
+          <Stat label="오늘 신규 가입" value={d.members.today} sub={`어제 ${d.members.yesterday.toLocaleString()} · 최근 7일 ${d.members.d7.toLocaleString()} · 새로 가입한 사람만`} tone="good" href="/admin/users" />
+          <Stat label="전체 회원" value={d.members.total}
+            sub={`간호사 ${d.members.nurse.toLocaleString()} · 병원 ${d.members.hospital.toLocaleString()} — 구 널스넷 이관 ${d.members.legacy.toLocaleString()} · 신규 가입 ${d.members.real.toLocaleString()}`}
+            href="/admin/users" />
           {/* 🔴 '고친 것' 을 같이 보여준다. 이력서 대부분이 이관분이라 회원 활동은
               '새로 쓰기' 가 아니라 '고치기' 로 나타난다. 등록만 세면 목록에는 오늘 것이
               잔뜩 보이는데 대시보드는 0 이라 화면이 서로를 반증한다. */}
@@ -59,7 +64,7 @@ export default async function AdminDashboard() {
             sub={`새로 씀 ${d.resumes.today.toLocaleString()} · 고침 ${d.resumes.edited_today.toLocaleString()} · 어제 ${d.resumes.saved_yesterday.toLocaleString()}`}
             tone="good" href="/admin/resumes" />
           <Stat label="공개 이력서" value={d.resumes.public}
-            sub={`전체 ${d.resumes.total.toLocaleString()} · 실제 회원이 쓴 것 ${d.resumes.real.toLocaleString()}`} href="/admin/resumes" />
+            sub={`전체 ${d.resumes.total.toLocaleString()} · 그중 신규 회원이 쓴 것 ${d.resumes.real.toLocaleString()}`} href="/admin/resumes" />
         </div>
       </Section>
 
