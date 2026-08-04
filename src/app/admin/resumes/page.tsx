@@ -60,15 +60,11 @@ export default async function AdminResumesPage({
                   <span className="block text-xs text-slate-400">{r.email ?? ""}</span>
                 </TD>
                 <TD>
-                  {/* 공개 이력서는 실제 인재 화면으로 — 관리자가 무엇을 내리는지 보고 판단해야 한다.
-                      비공개는 그 화면이 404 라(getPublicTalent 가 is_public 만 본다) 링크를 걸지 않는다. */}
-                  {r.is_public && r.name ? (
-                    <Link href={`/talent/${r.profile_id}`} className="font-medium text-teal-700 hover:underline">
-                      {r.resume_title ?? "(제목 없음)"}
-                    </Link>
-                  ) : (
-                    <span>{r.resume_title ?? "(제목 없음)"}</span>
-                  )}
+                  {/* 관리자 상세로 보낸다 — 공개 화면(/talent/[id])은 공개 이력서만 열려서
+                      비공개 이력서는 눌러도 404 다. 상세 안에 공개 화면 링크를 따로 뒀다. */}
+                  <Link href={`/admin/resumes/${r.profile_id}`} className="font-medium text-teal-700 hover:underline">
+                    {r.resume_title ?? "(제목 없음)"}
+                  </Link>
                 </TD>
                 <TD className="whitespace-nowrap">{r.career_level ?? "-"}{r.experience_years != null ? ` ${r.experience_years}년` : ""}</TD>
                 <TD className="whitespace-nowrap">{r.residence_region ?? "-"}</TD>

@@ -109,7 +109,10 @@ export async function extendAd(formData: FormData) {
   //    연장은 기간을 늘리는 일이지 게시 상태를 바꾸는 일이 아니다.
   const { data: updated, error } = await supabase
     .from("jobs")
-    .update({ featured_until: until, ad_tier: job.ad_tier ?? "standard" })
+    // 🔴 ad_tier 를 'standard'(유료)로 찍지 않는다. 관리자가 켜준 광고는 돈을 받은 것이 아니라
+    //    유료로 표시하면 화면이 거짓말을 한다. 자격 판정은 실결제(ad_orders)를 보므로 이 값이
+    //    권한을 주지는 않지만, 보이는 것과 사실이 어긋나면 매출을 잘못 읽는다.
+    .update({ featured_until: until, ad_tier: job.ad_tier ?? "free" })
     .eq("id", jobId).select("id");
   if (error) {
     console.error("extendAd:", error.message);

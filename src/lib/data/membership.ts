@@ -60,9 +60,10 @@ export type Membership = {
 };
 
 /**
- * 광고를 **게재 중인** 병원인가.
+ * 인재정보를 볼 수 있는 병원인가 = **돈을 내고 광고를 게재 중인가.**
  *
- * 🔴 "공고를 낸 적 있다"가 아니라 "유료 광고가 살아 있다"(featured_until > now)여야 한다.
+ * 🔴 공고를 낸 것은 유료든 무료든 같은 광고지만, **돈을 안 낸 쪽은 인재를 볼 수 없다**(오너 확정 2026-08-04).
+ *    판정 = 노출 기간이 살아 있고 **그 공고에 실결제(0원 아님)가 있는 것**.
  *    인재정보 열람은 유료 광고의 특전이다. 무료 등록만으로 열어주면 돈을 낼 이유가 없어지고,
  *    이력서 7천 건의 이름·연락처가 광고비를 안 낸 계정에도 열린다.
  *    광고가 끝나면 열람도 함께 닫힌다 — 화면 안내(LockedNotice)와 같은 계약이다.
@@ -72,18 +73,15 @@ export type Membership = {
  */
 async function hasLiveAd(userId: string): Promise<boolean> {
   const supabase = await createClient();
-  const { data: test } = await supabase
-    .from("hospitals").select("id").eq("owner_profile_id", userId).eq("is_test", true).limit(1);
-  if (test?.length) return true;
-  const { data, error } = await supabase
-    .from("jobs").select("id, hospital:hospitals!inner(owner_profile_id)")
-    .eq("hospitals.owner_profile_id", userId)
-    .gt("featured_until", new Date().toISOString())
-    .limit(1);
+  // 🔴 판정을 여기서 다시 쓰지 않는다. RLS(resumes_select_advertiser)가 쓰는 is_talent_advertiser()
+  //    를 그대로 부른다 — 두 벌로 갈라지면 한쪽만 고쳤을 때 **화면은 열리는데 목록은 비거나**,
+  //    더 나쁘게는 **화면은 막는데 데이터는 새는** 상태가 된다.
+  //    (userId 는 쓰지 않는다 — 함수가 세션에서 직접 판정한다.)
+  void userId;
+  const { data, error } = await supabase.rpc("is_talent_advertiser");
   // 열람 자격 판정이라 실패 시에는 막는 쪽(false)이 맞다 — 조회가 안 되는데 열어주면 이력서가 샌다.
-  // 다만 광고 병원이 영문 모른 채 잠긴 화면을 볼 수 있으므로 원인은 반드시 남긴다.
   if (error) console.error("hasLiveAd failed:", error.message);
-  return !!data?.length;
+  return data === true;
 }
 
 /** 본인 이력서를 등록했는가 — head+count 라 행을 안 실어온다(RLS: 본인 select 허용). */

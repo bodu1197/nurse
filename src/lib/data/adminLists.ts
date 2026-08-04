@@ -172,23 +172,15 @@ export async function getResumeList(
 // ── 광고 관리 ──────────────────────────────────────────────
 
 /**
- * 이 사이트의 공고 노출은 **세 종류**다. 화면이 이걸 구분하지 못하면 관리가 안 된다.
- *
- *  paid    유료 광고    — featured_until 이 살아 있고 ad_tier='standard'. ad_orders 에 실결제가 있다.
- *  granted 무료 부여    — 관리자가 결제 없이 켠 것(ad_tier='admin_test', 0원).
- *  free    무료 게시    — 광고를 안 산 공고. 등록 후 7일 동안 그냥 보인다(병원당 동시 1건).
- *                        featured_until 이 없거나 이미 지났다.
- *  ended   종료         — 광고 기간이 끝난 것.
+ * 광고 목록 — **유료·무료를 나누지 않는다**(오너 확정 2026-08-04).
+ * 공고를 낸 것은 돈을 냈든 안 냈든 같은 광고다. 다른 것은 딱 하나 —
+ * **돈을 안 낸 광고는 인재를 열람할 자격이 없다**(is_talent_advertiser).
+ * 그래서 화면에는 결제금액과 '인재 열람' 칸을 두고, 탭은 노출 상태로만 나눈다.
  */
-export const AD_KINDS = ["paid", "granted", "free", "ended"] as const;
-export type AdKind = (typeof AD_KINDS)[number];
-export const AD_KIND_LABEL: Record<AdKind, string> = {
-  paid: "유료 광고",
-  granted: "무료 부여",
-  free: "무료 게시",
-  ended: "광고 종료",
-};
-export const isAdKind = (v: string | undefined | null): v is AdKind => AD_KINDS.includes(v as AdKind);
+export const AD_SCOPES = ["live", "ended", "all"] as const;
+export type AdScope = (typeof AD_SCOPES)[number];
+export const AD_SCOPE_LABEL: Record<AdScope, string> = { live: "노출중", ended: "노출 마감", all: "전체" };
+export const isAdScope = (v: string | undefined | null): v is AdScope => AD_SCOPES.includes(v as AdScope);
 
 export type AdRow = {
   id: string;
@@ -200,14 +192,14 @@ export type AdRow = {
   status: string;
   source: string;
   hospital: { id: string; name: string } | null;
-  /** 이 공고에 실제로 들어온 결제 합계(0원 관리자 부여는 제외). 무료 게시는 0. */
+  /** 이 공고에 실제로 들어온 결제 합계(0원 관리자 부여는 제외). 무료면 0. */
   paidAmount: number;
   /** 결제 건수 — 여러 번 연장했으면 2건 이상 */
   orderCount: number;
 };
 
 export async function getAdList(
-  { kind = "paid", q = "", page = 1 }: { kind?: AdKind; q?: string; page?: number },
+  { scope = "live", q = "", page = 1 }: { scope?: AdScope; q?: string; page?: number },
 ): Promise<Page<AdRow>> {
   await requireAdmin();
   const supabase = await createClient();
@@ -218,34 +210,18 @@ export async function getAdList(
     .from("jobs")
     .select("id,title,company_name,ad_tier,featured_until,posted_at,status,source,hospital:hospitals(id,name)", { count: "exact" })
     // 🔴 워크넷 공고는 우리가 파는 광고가 아니라 고용24에서 **수집한** 구인정보다(오너 지시 2026-08-04).
-    //    1,970건이 무료 게시 탭을 가득 채우면 정작 병원이 올린 공고가 묻힌다.
-    .neq("source", "worknet");
+    .neq("source", "worknet")
+    .not("featured_until", "is", null);
 
-  if (kind === "paid") {
-    query = query.gt("featured_until", nowIso).neq("ad_tier", "admin_test");
-  } else if (kind === "granted") {
-    query = query.gt("featured_until", nowIso).eq("ad_tier", "admin_test");
-  } else if (kind === "ended") {
-    query = query.not("featured_until", "is", null).lte("featured_until", nowIso);
-  } else {
-    // 무료 게시 — 광고를 사지 않은 게시중 공고 전부.
-    //
-    // 🔴 "등록 7일 이내" 로 좁히지 않는다(오너 지시 2026-08-04). 그 조건을 걸면 이관된 43건처럼
-    //    등록일이 오래된 공고가 **어느 탭에도 안 나와** 관리자가 존재 자체를 모른다.
-    //    7일은 공개 화면의 노출 규칙이고, 여기는 관리 화면이다 — 노출이 끝났는지는
-    //    '남은 기간' 칸이 말해준다(이미 지났으면 "N일 전 종료").
-    query = query
-      .or(`featured_until.is.null,featured_until.lt.${nowIso}`)
-      .eq("status", "open");
-  }
+  if (scope === "live") query = query.gt("featured_until", nowIso);
+  if (scope === "ended") query = query.lte("featured_until", nowIso);
 
   if (q.trim()) {
     const safe = likeSafe(q);
     query = query.or(`title.ilike.%${safe}%,company_name.ilike.%${safe}%`);
   }
 
-  const orderCol = kind === "free" ? "posted_at" : "featured_until";
-  const { data, count, error } = await query.order(orderCol, { ascending: false }).range(from, to);
+  const { data, count, error } = await query.order("featured_until", { ascending: false }).range(from, to);
   if (error) {
     console.error("getAdList:", error.message);
     return failed();
@@ -253,7 +229,6 @@ export async function getAdList(
 
   const rows = (data ?? []) as unknown as Omit<AdRow, "paidAmount" | "orderCount">[];
   // 결제액은 따로 한 번에 받아 붙인다 — PostgREST 로는 자식 합계를 목록에 못 실는다.
-  // 이 페이지의 공고 id 로만 좁히므로 30건짜리 조회 하나다.
   const money = new Map<string, { amount: number; count: number }>();
   if (rows.length) {
     const { data: orders, error: oErr } = await supabase
@@ -262,7 +237,7 @@ export async function getAdList(
       .eq("status", "PAID");
     if (oErr) console.error("getAdList(orders):", oErr.message);
     for (const o of orders ?? []) {
-      if (!o.job_id || o.tier === "admin_test") continue; // 관리자 부여는 매출이 아니다
+      if (!o.job_id || o.tier === "admin_test" || o.amount <= 0) continue; // 0원은 매출이 아니다
       const cur = money.get(o.job_id) ?? { amount: 0, count: 0 };
       money.set(o.job_id, { amount: cur.amount + o.amount, count: cur.count + 1 });
     }
