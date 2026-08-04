@@ -3,7 +3,7 @@ import { Pager } from "@/components/MasterDetail";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { fmtDay, fmtDate, listingEnd, DAY_MS, nowMs } from "@/lib/date";
 import { won } from "@/lib/ads";
-import { getAdList, PER_PAGE, AD_SCOPES, AD_SCOPE_LABEL, isAdScope, type AdScope } from "@/lib/data/adminLists";
+import { getAdList, PER_PAGE, isAdScope, type AdScope } from "@/lib/data/adminLists";
 import { PageTitle, Tabs, SearchBox, TableWrap, TH, TD, EmptyOrFailed, Notice } from "@/components/admin/Ui";
 import { extendAd, endAd } from "@/app/admin/actions";
 
@@ -55,12 +55,24 @@ export default async function AdminAdsPage({
       />
       <Notice ok={sp.ok} error={sp.error} messages={MESSAGES} />
 
-      {/* 🔴 개념(오너 확정 2026-08-04): **공고가 본체다.** 유료든 무료든 공고는 공고다.
-          돈을 냈는지는 그 공고의 **결제 구분**일 뿐이라 목록을 나누지 않고 칸으로 보여준다.
-          그 구분이 실제로 바꾸는 것은 딱 하나 — 인재 열람 자격이다. */}
-      <Tabs items={AD_SCOPES.map((s) => ({
-        href: `/admin/ads?${qs({ scope: s, page: "1" })}`, label: AD_SCOPE_LABEL[s], active: s === scope,
-      }))} />
+      {/* 🔴 두 층이다(오너 지시 2026-08-04, 화면 표시): 위에서 노출 상태를 고르고,
+          「노출중」 안에서만 유료·무료로 다시 나눈다. 끝난 공고가 유료였는지는 결제 내역에서 볼 일이다.
+          한 줄에 여섯 개를 늘어놓으면 무엇이 무엇의 하위인지 알 수 없다. */}
+      <Tabs items={[
+        { href: `/admin/ads?${qs({ scope: "live", page: "1" })}`, label: "노출중", active: scope !== "ended" },
+        { href: `/admin/ads?${qs({ scope: "ended", page: "1" })}`, label: "노출 마감", active: scope === "ended" },
+      ]} />
+
+      {scope !== "ended" && (
+        <div className="-mt-2 mb-4 flex items-center gap-2 pl-4">
+          <span aria-hidden className="text-slate-300">└</span>
+          <Tabs items={[
+            { href: `/admin/ads?${qs({ scope: "live", page: "1" })}`, label: "전체", active: scope === "live" },
+            { href: `/admin/ads?${qs({ scope: "paid", page: "1" })}`, label: "유료", active: scope === "paid" },
+            { href: `/admin/ads?${qs({ scope: "free", page: "1" })}`, label: "무료", active: scope === "free" },
+          ]} />
+        </div>
+      )}
 
       <p className="mb-4 text-sm text-slate-500">
         <b className="text-slate-700">{total.toLocaleString()}건</b> · 돈을 내지 않은 공고는 노출은 되지만{" "}

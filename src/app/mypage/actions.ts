@@ -230,17 +230,18 @@ export async function createJob(formData: FormData) {
     apply_email: s("apply_email") || null,
     apply_detail: s("apply_detail") || null,
     source: "direct",
-    status: paidWeeks ? "draft" : "open",
-    // 🔴 공고 = 광고다(오너 확정 2026-08-04). 돈을 냈든 무료 7일이든 **똑같은 광고**이고,
-    //    다른 것은 기간과 인재 열람 자격뿐이다. 그래서 무료 게시도 featured_until 을 채운다.
-    //    비워 두면 목록·정렬·관리자 화면이 이 공고를 "광고가 아닌 것"으로 취급해 2등 시민이 된다 —
-    //    실제로 오늘 올라온 공고가 「노출중」 탭에서 빠지고 카드도 3페이지로 밀렸다.
-    //    유료(draft)는 결제가 끝날 때 activateAdOrder 가 채운다 — 결제 전에는 노출되면 안 된다.
-    featured_until: paidWeeks ? null : new Date(nowMs() + FREE_LISTING_MS).toISOString(),
-    ad_tier: paidWeeks ? null : "free",
+    // 🔴 **첫 1주는 0원이다**(오너 확정 2026-08-04). 그러니 결제 여부와 상관없이 바로 게시한다.
+    //    전에는 유료 주수를 고르면 status='draft' 로 두고 결제해야 열렸다 — 이미 공짜로 받은
+    //    1주를 결제할 때까지 버리는 셈이었고, 관리자 목록에는 "결제 전" 이라는 알 수 없는 줄이 남았다.
+    //    2주를 고른 병원은 무료 1주 + 결제 1주다. 그 결제분은 activateAdOrder 가 **얹는다**.
+    status: "open",
+    // 공고 = 광고다. 무료 기간도 광고 기간이므로 featured_until 을 비워 두지 않는다 —
+    // 비우면 목록·정렬·관리자 화면이 이 공고를 "광고가 아닌 것" 으로 취급해 뒤로 밀어낸다.
+    featured_until: new Date(nowMs() + FREE_LISTING_MS).toISOString(),
+    ad_tier: "free",
   }).select("id").single();
   if (error || !created) redirect("/mypage/jobs/new?error=save");
-  // 유료면 결제 페이지로(기간 선택값 전달), 무료면 공고 관리로.
+  // 유료 주수를 골랐으면 결제 페이지로(공고는 이미 게시된 상태다). 아니면 공고 관리로.
   redirect(paidWeeks ? `/mypage/jobs/${created.id}/ad?weeks=${paidWeeks}` : "/mypage/jobs?ok=1");
 }
 
@@ -995,7 +996,11 @@ export async function prepareAdOrder(jobId: string, weeks: number): Promise<AdPr
   const merchant_uid = `ad_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
   const { error } = await admin.from("ad_orders").insert({
     merchant_uid, job_id: jobId, hospital_id: hosp.id, buyer_id: user.id,
-    tier: "standard", days: product.days, supply_amount: product.supply, vat: product.vat, amount: product.amount, status: "PREPARE",
+    // 🔴 days 는 **돈 낸 만큼**이다(billedWeeks×7). 선택 주수 전체(product.days)를 넣으면 안 된다 —
+    //    공고는 등록할 때 이미 무료 1주를 받았고(createJob), activateAdOrder 는 그 위에 얹는다.
+    //    전체를 넣으면 2주를 산 병원이 7+14=21일 노출된다. 지금 값이면 7+7=14일로 정확히 맞는다.
+    //    금액(product.amount)도 처음부터 billedWeeks 기준이다 — 이제 기간과 금액이 같은 셈법을 쓴다.
+    tier: "standard", days: product.billedWeeks * 7, supply_amount: product.supply, vat: product.vat, amount: product.amount, status: "PREPARE",
   });
   if (error) return { ok: false, error: "db" };
   return { ok: true, merchant_uid, amount: product.amount, name: `널스넷 광고 ${weeks}주(${product.days}일)` };

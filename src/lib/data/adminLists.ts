@@ -250,8 +250,14 @@ export async function getAdList(
   // 🔴 유료·무료도 **탭**이다. 배지만 달아 두면 8만 건 중에서 유료를 눈으로 찾아야 한다(오너 지시).
   //    판정은 ad_tier 로 한다 — 매 페이지마다 ad_orders 를 조인하면 결제 테이블을 통째로 훑는다.
   //    그 값이 사실과 어긋나 있던 것은 20260804360000 에서 바로잡았다(결제 없으면 free).
-  if (scope === "paid") query = query.eq("ad_tier", "standard");
-  if (scope === "free") query = query.or("ad_tier.is.null,ad_tier.neq.standard");
+  //    🔴 **노출중인 것 안에서만** 나눈다(오너 지시 2026-08-04): "마감된 공고의 유료·무료는
+  //       볼 필요도 없다." 끝난 광고가 유료였는지는 결제 내역에서 볼 일이다.
+  if (scope === "paid" || scope === "free") {
+    query = query.eq("status", "open").or(`posted_at.gte.${freshIso},featured_until.gt.${nowIso}`);
+    query = scope === "paid"
+      ? query.eq("ad_tier", "standard")
+      : query.or("ad_tier.is.null,ad_tier.neq.standard");
+  }
 
   if (q.trim()) {
     const safe = likeSafe(q);
