@@ -231,6 +231,13 @@ export async function createJob(formData: FormData) {
     apply_detail: s("apply_detail") || null,
     source: "direct",
     status: paidWeeks ? "draft" : "open",
+    // 🔴 공고 = 광고다(오너 확정 2026-08-04). 돈을 냈든 무료 7일이든 **똑같은 광고**이고,
+    //    다른 것은 기간과 인재 열람 자격뿐이다. 그래서 무료 게시도 featured_until 을 채운다.
+    //    비워 두면 목록·정렬·관리자 화면이 이 공고를 "광고가 아닌 것"으로 취급해 2등 시민이 된다 —
+    //    실제로 오늘 올라온 공고가 「노출중」 탭에서 빠지고 카드도 3페이지로 밀렸다.
+    //    유료(draft)는 결제가 끝날 때 activateAdOrder 가 채운다 — 결제 전에는 노출되면 안 된다.
+    featured_until: paidWeeks ? null : new Date(nowMs() + FREE_LISTING_MS).toISOString(),
+    ad_tier: paidWeeks ? null : "free",
   }).select("id").single();
   if (error || !created) redirect("/mypage/jobs/new?error=save");
   // 유료면 결제 페이지로(기간 선택값 전달), 무료면 공고 관리로.

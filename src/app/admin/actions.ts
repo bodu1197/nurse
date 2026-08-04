@@ -92,7 +92,7 @@ export async function extendAd(formData: FormData) {
   if (reason.length < 2) redirect(backTo(back, "error", "reason"));
 
   const supabase = await createClient();
-  const { data: job } = await supabase.from("jobs").select("featured_until, ad_tier").eq("id", jobId).maybeSingle();
+  const { data: job } = await supabase.from("jobs").select("featured_until, ad_tier, status").eq("id", jobId).maybeSingle();
   if (!job) redirect(backTo(back, "error", "target"));
 
   // 이미 끝난 광고를 연장하면 **지금부터** 센다. 과거 종료일에 더하면 연장했는데도 여전히 끝나 있다.
@@ -104,15 +104,16 @@ export async function extendAd(formData: FormData) {
     reason: `${days}일 연장 (→ ${until.slice(0, 10)}) — ${reason}`,
   });
 
-  // 🔴 status 를 건드리지 않는다. 전에는 status:"open" 을 같이 썼는데, 그러면 모더레이션으로
+  // 🔴 status 를 함부로 건드리지 않는다. 전에는 status:"open" 을 같이 썼는데, 그러면 모더레이션으로
   //    숨긴(hidden) 공고나 결제 안 한(draft) 공고가 **광고 연장만으로 다시 노출**된다.
-  //    연장은 기간을 늘리는 일이지 게시 상태를 바꾸는 일이 아니다.
+  //    딱 하나 예외 — 'closed' 는 endAd(즉시 종료)가 만든 상태다. 그걸 되돌리는 것이
+  //    「다시 켜기」의 뜻이므로 그때만 연다. hidden·draft 는 그대로 둔다.
   const { data: updated, error } = await supabase
     .from("jobs")
     // 🔴 ad_tier 를 'standard'(유료)로 찍지 않는다. 관리자가 켜준 광고는 돈을 받은 것이 아니라
     //    유료로 표시하면 화면이 거짓말을 한다. 자격 판정은 실결제(ad_orders)를 보므로 이 값이
     //    권한을 주지는 않지만, 보이는 것과 사실이 어긋나면 매출을 잘못 읽는다.
-    .update({ featured_until: until, ad_tier: job.ad_tier ?? "free" })
+    .update({ featured_until: until, ad_tier: job.ad_tier ?? "free", ...(job.status === "closed" ? { status: "open" } : {}) })
     .eq("id", jobId).select("id");
   if (error) {
     console.error("extendAd:", error.message);
@@ -141,8 +142,19 @@ export async function endAd(formData: FormData) {
   await logAdmin({ action: "ad.end", targetTable: "jobs", targetId: jobId, reason });
 
   const supabase = await createClient();
+  const { data: cur } = await supabase.from("jobs").select("status").eq("id", jobId).maybeSingle();
+  if (!cur) redirect(backTo(back, "error", "target"));
+
+  // 🔴 featured_until 만 지우면 **노출이 안 멈춘다.**
+  //    게시 7일 이내 공고는 featured_until 이 아니라 posted_at 으로 노출된다(무료 게시 창).
+  //    그래서 "즉시 종료"를 눌러도 목록에 그대로 남아 있었다(오너 지적 2026-08-04).
+  //    공고 = 광고다 — 광고를 끝낸다는 것은 노출을 멈춘다는 뜻이므로 status 도 닫는다.
+  //    🔴 open 일 때만 닫는다. hidden(모더레이션)·draft(결제 전)를 'closed' 로 덮으면
+  //       그 상태가 왜 그랬는지가 지워진다.
   const { data, error } = await supabase
-    .from("jobs").update({ featured_until: null, ad_tier: null }).eq("id", jobId).select("id");
+    .from("jobs")
+    .update({ featured_until: null, ad_tier: null, ...(cur.status === "open" ? { status: "closed" } : {}) })
+    .eq("id", jobId).select("id");
   if (error) {
     console.error("endAd:", error.message);
     redirect(backTo(back, "error", "save"));

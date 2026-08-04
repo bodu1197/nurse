@@ -84,8 +84,6 @@ export default async function AdminAdsPage({
               const endMs = listingEnd(a, nowMs());
               const r = remain(endMs);
               const paid = a.paidAmount > 0;
-              // 광고가 살아 있으면 그 종료일이 노출 종료다. 아니면 무료 게시 7일(또는 마감일).
-              const byAd = !!a.featured_until && new Date(a.featured_until).getTime() > nowMs();
               return (
                 <tr key={a.id}>
                   <TD className="font-medium">{a.hospital?.name ?? a.company_name ?? "-"}</TD>
@@ -97,16 +95,17 @@ export default async function AdminAdsPage({
                     </span>
                   </TD>
                   <TD className="whitespace-nowrap text-right">
+                    {/* 🔴 유료·무료는 **여기 한 줄**에서만 구분한다(오너 확정 2026-08-04).
+                        공고는 유료든 무료든 다 공고이자 광고다 — 목록을 나누거나 종료 칸에
+                        또 적으면 같은 말을 두 번 하는 것이고 표가 읽기 어려워진다. */}
                     {paid ? (
-                      <>
+                      <span className="whitespace-nowrap">
+                        <span className="mr-1.5 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">유료</span>
                         <b className="text-slate-900">{won(a.paidAmount)}</b>
-                        {a.orderCount > 1 && <span className="block text-xs text-slate-400">{a.orderCount}건 결제</span>}
-                      </>
-                    ) : a.featured_until ? (
-                      <span className="text-slate-400">0원 (무료 광고)</span>
+                        {a.orderCount > 1 && <span className="ml-1 text-xs text-slate-400">({a.orderCount}건)</span>}
+                      </span>
                     ) : (
-                      // 광고를 아예 안 낸 공고. 무료 게시 기간으로만 노출된다.
-                      <span className="text-slate-400">광고 없음</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">무료</span>
                     )}
                   </TD>
                   <TD>
@@ -118,10 +117,9 @@ export default async function AdminAdsPage({
                     </span>
                   </TD>
                   <TD className="whitespace-nowrap">{fmtDay(a.posted_at)}</TD>
-                  <TD className="whitespace-nowrap">
-                    {fmtDate(endMs)}
-                    <span className="block text-xs text-slate-400">{byAd ? "광고" : "무료 게시"}</span>
-                  </TD>
+                  {/* 🔴 "광고 / 무료 게시" 로 나눠 적지 않는다 — 무료나 유료나 **모두 공고이고
+                      광고다**(오너 확정 2026-08-04). 종료일 한 줄이면 된다. */}
+                  <TD className="whitespace-nowrap">{fmtDate(endMs)}</TD>
                   <TD className="whitespace-nowrap">
                     <span className={r.ended ? "text-slate-500" : r.urgent ? "font-semibold text-red-700" : "font-semibold text-teal-700"}>
                       {r.text}
