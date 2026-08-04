@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/data/admin";
-import { nowMs, kstDayStartIso } from "@/lib/date";
+import { nowMs, kstDayStartIso, FREE_LISTING_MS } from "@/lib/date";
 import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
 
 export const PER_PAGE = 30;
@@ -196,6 +196,8 @@ export type AdRow = {
   ad_tier: string | null;
   featured_until: string | null;
   posted_at: string;
+  /** 마감일 — 노출 종료 계산(listingEnd)에 필요하다. 광고보다 마감일이 이르면 그날 끝난다. */
+  deadline: string | null;
   status: string;
   source: string;
   hospital: { id: string; name: string } | null;
@@ -215,17 +217,26 @@ export async function getAdList(
 
   let query = supabase
     .from("jobs")
-    .select("id,title,company_name,ad_tier,featured_until,posted_at,status,source,hospital:hospitals(id,name)", { count: "exact" })
+    .select("id,title,company_name,ad_tier,featured_until,posted_at,deadline,status,source,hospital:hospitals(id,name)", { count: "exact" })
     // 🔴 워크넷 공고는 우리가 파는 광고가 아니라 고용24에서 **수집한** 구인정보다(오너 지시 2026-08-04).
     .neq("source", "worknet");
 
-  // 🔴 '전체' 는 featured_until 이 비어 있는 공고도 포함한다.
-  //    전에는 세 탭 모두 `.not("featured_until","is",null)` 을 걸어서, 광고를 안 낸 공고는
-  //    **어느 탭에서도 볼 수 없었다.** 대시보드는 "게시중 공고"로 세는데 목록에는 없으니
-  //    "숫자는 있는데 찾을 수가 없다"가 됐다(오너 지적 2026-08-04, 우리요양병원 건).
-  //    실측 당시: 광고 있는 게시중 43건은 보이고, 광고 없는 게시중 2건 + 종료 1,401건은 안 보였다.
-  if (scope === "live") query = query.not("featured_until", "is", null).gt("featured_until", nowIso);
-  if (scope === "ended") query = query.not("featured_until", "is", null).lte("featured_until", nowIso);
+  // 🔴 탭은 **지금 구직자에게 보이는가**로 나눈다. featured_until 유무로 나누면 안 된다.
+  //    전에는 세 탭 모두 `.not("featured_until","is",null)` 을 걸어서 광고를 안 낸 공고가
+  //    어느 탭에도 없었다 — 레거시 이관 공고 1,401건이 통째로 사라졌고, 오늘 올라온 무료 게시
+  //    공고도 안 보였다(오너 지적 2026-08-04: "그 병원들 다 어디 갔냐", 우리요양병원 건).
+  //    실측 당시: 광고 있는 게시중 43건만 보이고, 광고 없는 게시중 2건 + 종료 1,401건은 안 보였다.
+  //
+  //    노출 규칙은 구직자 목록(getJobs)과 **같아야 한다** — 광고가 살아 있거나, 게시 7일 이내면 노출.
+  //    그래야 오늘 올린 무료 게시 공고가 「오늘 등록」과 「노출중」에 **둘 다** 나온다
+  //    (탭은 서로 배타적인 분류가 아니라 보는 각도다).
+  const freshIso = new Date(nowMs() - FREE_LISTING_MS).toISOString();
+  if (scope === "live") query = query.or(`posted_at.gte.${freshIso},featured_until.gt.${nowIso}`);
+  if (scope === "ended") {
+    query = query
+      .lt("posted_at", freshIso)
+      .or(`featured_until.is.null,featured_until.lte.${nowIso}`);
+  }
   // 🔴 '오늘 등록' 은 created_at 이 아니라 **posted_at** 으로 본다.
   //    created_at 은 행이 우리 DB 에 만들어진 시각이라, 레거시 이관분 1,401건이 전부 오늘로 찍혀 있다.
   //    posted_at 은 그 공고가 실제로 게시된 시각이고 이관 때 원본 날짜를 그대로 넣었다.
@@ -236,12 +247,9 @@ export async function getAdList(
     query = query.or(`title.ilike.%${safe}%,company_name.ilike.%${safe}%`);
   }
 
-  // '전체' 는 광고가 없는 공고까지 섞이므로 featured_until 로 줄을 세우면 빈 값이 앞을 덮는다
-  //  (Postgres 에서 DESC 는 NULLS FIRST 다) — 최근에 올린 공고가 위로 오게 posted_at 을 쓴다.
-  const { data, count, error } = await (scope === "all" || scope === "today"
-    ? query.order("posted_at", { ascending: false })
-    : query.order("featured_until", { ascending: false })
-  ).range(from, to);
+  // 정렬은 전부 posted_at 이다. featured_until 로 세우면 광고를 안 낸 공고(빈 값)가 앞을 덮는다
+  // (Postgres 에서 DESC 는 NULLS FIRST).
+  const { data, count, error } = await query.order("posted_at", { ascending: false }).range(from, to);
   if (error) {
     console.error("getAdList:", error.message);
     return failed();

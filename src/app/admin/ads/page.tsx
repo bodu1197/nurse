@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Pager } from "@/components/MasterDetail";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
-import { fmtDay, DAY_MS, nowMs } from "@/lib/date";
+import { fmtDay, fmtDate, listingEnd, DAY_MS, nowMs } from "@/lib/date";
 import { won } from "@/lib/ads";
 import { getAdList, PER_PAGE, AD_SCOPES, AD_SCOPE_LABEL, isAdScope, type AdScope } from "@/lib/data/adminLists";
 import { PageTitle, Tabs, SearchBox, TableWrap, TH, TD, EmptyOrFailed, Notice } from "@/components/admin/Ui";
@@ -19,9 +19,16 @@ const MESSAGES: Record<string, string> = {
 };
 
 /** 남은 기간. 끝났으면 며칠 전에 끝났는지. */
-function remain(untilIso: string | null) {
-  if (!untilIso) return { text: "-", urgent: false, ended: true };
-  const diff = new Date(untilIso).getTime() - nowMs();
+/**
+ * 노출이 언제 끝나는가.
+ *
+ * 🔴 featured_until 만 보면 안 된다. 광고를 안 낸 공고는 그 값이 비어 있어서 종료·남은 기간이
+ *    통째로 "-" 로 나왔다 — 목록에 줄은 있는데 아무 정보가 없었다(오너 지적 2026-08-04).
+ *    광고가 없어도 **무료 게시 7일** 동안은 노출된다. listingEnd 가 그 규칙(광고 > 무료 7일,
+ *    마감일이 이르면 마감일)을 이미 갖고 있으니 구직자 화면과 같은 계산을 쓴다.
+ */
+function remain(endMs: number) {
+  const diff = endMs - nowMs();
   if (diff <= 0) return { text: `${Math.ceil(-diff / DAY_MS)}일 전 마감`, urgent: false, ended: true };
   const days = Math.ceil(diff / DAY_MS);
   return { text: `${days}일 남음`, urgent: days <= 7, ended: false };
@@ -74,8 +81,11 @@ export default async function AdminAdsPage({
           </thead>
           <tbody>
             {rows.map((a) => {
-              const r = remain(a.featured_until);
+              const endMs = listingEnd(a, nowMs());
+              const r = remain(endMs);
               const paid = a.paidAmount > 0;
+              // 광고가 살아 있으면 그 종료일이 노출 종료다. 아니면 무료 게시 7일(또는 마감일).
+              const byAd = !!a.featured_until && new Date(a.featured_until).getTime() > nowMs();
               return (
                 <tr key={a.id}>
                   <TD className="font-medium">{a.hospital?.name ?? a.company_name ?? "-"}</TD>
@@ -108,7 +118,10 @@ export default async function AdminAdsPage({
                     </span>
                   </TD>
                   <TD className="whitespace-nowrap">{fmtDay(a.posted_at)}</TD>
-                  <TD className="whitespace-nowrap">{a.featured_until ? fmtDay(a.featured_until) : "-"}</TD>
+                  <TD className="whitespace-nowrap">
+                    {fmtDate(endMs)}
+                    <span className="block text-xs text-slate-400">{byAd ? "광고" : "무료 게시"}</span>
+                  </TD>
                   <TD className="whitespace-nowrap">
                     <span className={r.ended ? "text-slate-500" : r.urgent ? "font-semibold text-red-700" : "font-semibold text-teal-700"}>
                       {r.text}
