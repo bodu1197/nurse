@@ -16,7 +16,7 @@ export default async function AdminDashboard() {
   if (!d) return <Empty>집계를 불러오지 못했습니다. 서버 로그(admin_dashboard)를 확인하세요.</Empty>;
 
   const todo = d.todo;
-  const todoTotal = todo.inquiries + todo.tax + todo.stale_orders + todo.failed_orders;
+  const todoTotal = todo.inquiries + todo.tax + todo.stale_orders + todo.failed_orders + todo.nameless_resumes;
 
   return (
     <>
@@ -31,6 +31,8 @@ export default async function AdminDashboard() {
             <Stat label="세금계산서 미발행" value={todo.tax} tone="warn" href="/admin/invoices" />
             <Stat label="미결 주문(1시간 초과)" value={todo.stale_orders} tone="warn" href="/admin/orders?status=PREPARE" />
             <Stat label="결제 실패" value={todo.failed_orders} tone="warn" href="/admin/orders?status=FAILED" />
+            {/* 이름이 빈 이력서는 공개 인재 목록에서 아예 빠진다 — 본인은 올렸다고 생각하는데 안 보인다 */}
+            <Stat label="이름 없는 이력서" value={todo.nameless_resumes} tone="warn" href="/admin/resumes" />
           </div>
         )}
       </Section>
@@ -46,14 +48,20 @@ export default async function AdminDashboard() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="오늘 가입" value={d.members.today} sub={`어제 ${d.members.yesterday.toLocaleString()} · 최근 7일 ${d.members.d7.toLocaleString()} · 최근 30일 ${d.members.d30.toLocaleString()}`} tone="good" href="/admin/users" />
           <Stat label="전체 회원" value={d.members.total} sub={`간호사 ${d.members.nurse.toLocaleString()} · 병원 ${d.members.hospital.toLocaleString()}`} href="/admin/users" />
-          <Stat label="오늘 등록 이력서" value={d.resumes.today} sub={`어제 ${d.resumes.yesterday.toLocaleString()} · 최근 7일 ${d.resumes.d7.toLocaleString()} · 최근 30일 ${d.resumes.d30.toLocaleString()}`} tone="good" href="/admin/resumes" />
+          {/* 🔴 '고친 것' 을 같이 보여준다. 이력서 7,270건이 전부 이관분이라 회원 활동은
+              '새로 쓰기' 가 아니라 '고치기' 로 나타난다. 등록만 세면 목록에는 오늘 것이
+              잔뜩 보이는데 대시보드는 0 이라 화면이 서로를 반증한다. */}
+          <Stat label="오늘 이력서 활동" value={d.resumes.today + d.resumes.edited_today}
+            sub={`새로 씀 ${d.resumes.today.toLocaleString()} · 고침 ${d.resumes.edited_today.toLocaleString()} (최근 7일 ${(d.resumes.d7 + d.resumes.edited_d7).toLocaleString()})`}
+            tone="good" href="/admin/resumes" />
           <Stat label="공개 이력서" value={d.resumes.public} sub={`전체 ${d.resumes.total.toLocaleString()} · 비공개 ${(d.resumes.total - d.resumes.public).toLocaleString()}`} href="/admin/resumes" />
         </div>
       </Section>
 
       <Section title="우리 공고 · 지원">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="오늘 등록 공고" value={d.jobs.today} sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()}`} tone="good" />
+          <Stat label="오늘 공고 활동" value={d.jobs.today + d.jobs.edited_today}
+            sub={`새로 씀 ${d.jobs.today.toLocaleString()} · 고침 ${d.jobs.edited_today.toLocaleString()} (어제 등록 ${d.jobs.yesterday.toLocaleString()})`} tone="good" />
           <Stat label="게시중 공고" value={d.jobs.open} sub="병원이 직접 올린 것만" />
           <Stat label="3일 내 마감" value={d.jobs.closing3} />
           <Stat label="오늘 지원" value={d.applications.today} sub={`어제 ${d.applications.yesterday.toLocaleString()} · 최근 7일 ${d.applications.d7.toLocaleString()} · 누적 ${d.applications.total.toLocaleString()}`} />

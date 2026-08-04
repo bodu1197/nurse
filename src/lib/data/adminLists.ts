@@ -39,15 +39,15 @@ const failed = <T,>(): Page<T> => ({ rows: [], total: 0, failed: true });
  *  한국시간 00:00~08:59 에 일어난 일이 "어제" 로 잡힌다. */
 export type Dashboard = {
   members: { total: number; nurse: number; hospital: number; today: number; yesterday: number; d7: number; d30: number };
-  resumes: { total: number; public: number; today: number; yesterday: number; d7: number; d30: number };
+  resumes: { total: number; public: number; today: number; yesterday: number; d7: number; d30: number; edited_today: number; edited_d7: number };
   /** 병원이 우리 사이트에 직접 올린 공고. **워크넷 수집분은 빠져 있다**(오너 지시). */
-  jobs: { open: number; today: number; yesterday: number; d7: number; closing3: number };
+  jobs: { open: number; today: number; yesterday: number; d7: number; edited_today: number; closing3: number };
   /** 워크넷(고용24)에서 자동 수집한 구인정보 — 우리 공고가 아니라 수집 상태다. */
   collected: { open: number; today: number; last_sync: string | null };
   applications: { total: number; today: number; yesterday: number; d7: number };
   ads: { live: number; granted: number; ending7: number };
   revenue: { today: number; yesterday: number; d30: number; total: number; count30: number };
-  todo: { inquiries: number; tax: number; stale_orders: number; failed_orders: number; hidden_reviews: number; hidden_posts: number };
+  todo: { inquiries: number; tax: number; stale_orders: number; failed_orders: number; hidden_reviews: number; hidden_posts: number; nameless_resumes: number };
   traffic: { today: number; yesterday: number; d7: number; d30: number };
 };
 
