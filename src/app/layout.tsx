@@ -56,7 +56,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-white text-slate-900">
+      {/* pb-14: 모바일 하단 탭(SiteHeader)이 화면 아래에 고정돼 있어, 그만큼 비워두지 않으면
+          목록 마지막 줄과 「더 보기」 버튼이 탭 밑에 깔려 손이 닿지 않는다. */}
+      <body className="min-h-full flex flex-col bg-white pb-14 text-slate-900 sm:pb-0">
         {/* 상용 한글 벌만 미리 받는다. CSS를 다 읽고 나서야 받기 시작하던 걸 앞당겨, 글꼴이
             바뀌는 게 눈에 보이기 전에 도착시킨다. 희귀 벌은 필요할 때만 받게 둔다.
             <head> 를 직접 열지 않는다 — Next 가 metadata·CSS 를 넣는 자리와 순서를 다투게
