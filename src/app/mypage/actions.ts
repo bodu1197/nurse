@@ -16,6 +16,7 @@ import { AVATAR_MAX_BYTES, AVATAR_MIME } from "@/lib/avatarLimits";
 import { CANCELABLE, isHospitalStatus, STATUS_LABEL, type AppStatus } from "@/lib/data/applications";
 import { DAY_MS, FREE_LISTING_MS, todayKst, nowMs } from "@/lib/date";
 import { logAdmin } from "@/lib/data/admin";
+import { isValidPersonName } from "@/lib/personName";
 import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
 import { regionOfLocation } from "@/lib/jobRegion";
@@ -425,6 +426,9 @@ export async function saveResume(formData: FormData) {
   // 병원명만 적고 입사연월을 비우면 그 줄이 조용히 버려져 경력이 사라진다 → 되돌려 알린다.
   if (work.some((w) => !w.hospital_name || !w.start_ym)) redirect("/mypage/resume?error=work");
   if (careerLevel === CAREER_EXPERIENCED && work.length === 0) redirect("/mypage/resume?error=work_required");
+  // 이름 규칙은 DB CHECK(resumes_name_shape)와 같다. 여기서 걸러야 사람이 읽는 안내가 나간다.
+  const resumeName = s("name");
+  if (resumeName && !isValidPersonName(resumeName)) redirect("/mypage/resume?error=nameshape");
 
   const { error } = await supabase.from("resumes").upsert({
     profile_id: user.id,
@@ -527,6 +531,9 @@ export async function updateDisplayName(formData: FormData) {
   if (!user) redirect("/login");
   const displayName = String(formData.get("display_name") ?? "").trim();
   if (!displayName) redirect("/mypage/account?error=name");
+  // DB CHECK 가 어차피 막지만, 여기서 걸러야 사람이 읽는 안내가 나간다
+  // (안 그러면 "violates check constraint" 라는 영어 오류만 보인다).
+  if (!isValidPersonName(displayName)) redirect("/mypage/account?error=nameshape");
   const { error } = await supabase.from("profiles").update({ display_name: displayName }).eq("id", user.id);
   if (error) {
     console.error("updateDisplayName failed:", error.message);

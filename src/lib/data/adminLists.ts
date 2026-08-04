@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/data/admin";
+import { nowMs, FREE_LISTING_MS } from "@/lib/date";
 
 export const PER_PAGE = 30;
 
@@ -10,7 +11,15 @@ export const range = (page: number) => {
   return { from, to: from + PER_PAGE - 1 };
 };
 
-export type Page<T> = { rows: T[]; total: number };
+/**
+ * 목록 조회 결과.
+ *
+ * 🔴 `failed` 가 있는 이유: 전에는 조회가 실패하면 빈 배열을 돌려줬다. 그래서 컬럼 이름을
+ *    하나 잘못 적었을 때(resumes.title → 실제로는 resume_title) 화면이 **"0건"** 이라고
+ *    말했다. 데이터가 없는 것과 못 읽은 것은 완전히 다른 이야기인데 화면에서 구분이 안 되면,
+ *    7,270건이 있는 표를 보고 "이력서가 하나도 없네" 라고 읽게 된다.
+ */
+export type Page<T> = { rows: T[]; total: number; failed?: boolean };
 
 /**
  * ilike 검색어 정리 — 한 곳에서만 한다(네 화면이 같은 규칙을 복붙하면 다섯 번째에서 어긋난다).
@@ -20,19 +29,22 @@ export type Page<T> = { rows: T[]; total: number };
  */
 export const likeSafe = (q: string) => q.trim().replace(/[%_,()*\\]/g, " ").trim();
 
-const empty = <T,>(): Page<T> => ({ rows: [], total: 0 });
+/** 조회 실패 — 화면이 "0건" 이 아니라 "불러오지 못했습니다" 를 보여주게 한다. */
+const failed = <T,>(): Page<T> => ({ rows: [], total: 0, failed: true });
 
 // ── 대시보드 · 통계 ────────────────────────────────────────
 
+/** 날짜 경계는 전부 **한국시간** 이다(마이그레이션 20260804220000). 서버가 UTC 라 그대로 두면
+ *  한국시간 00:00~08:59 에 일어난 일이 "어제" 로 잡힌다. */
 export type Dashboard = {
-  members: { total: number; nurse: number; hospital: number; today: number; d7: number; d30: number };
-  resumes: { total: number; public: number; today: number; d7: number; d30: number };
-  jobs: { open: number; direct: number; worknet: number; today: number; d7: number; closing3: number };
-  applications: { total: number; today: number; d7: number };
+  members: { total: number; nurse: number; hospital: number; today: number; yesterday: number; d7: number; d30: number };
+  resumes: { total: number; public: number; today: number; yesterday: number; d7: number; d30: number };
+  jobs: { open: number; direct: number; worknet: number; today: number; yesterday: number; d7: number; closing3: number };
+  applications: { total: number; today: number; yesterday: number; d7: number };
   ads: { live: number; ending7: number };
-  revenue: { today: number; d30: number; total: number; count30: number };
+  revenue: { today: number; yesterday: number; d30: number; total: number; count30: number };
   todo: { inquiries: number; tax: number; stale_orders: number; failed_orders: number; hidden_reviews: number; hidden_posts: number };
-  traffic: { today: number; d7: number; d30: number };
+  traffic: { today: number; yesterday: number; d7: number; d30: number };
 };
 
 export async function getDashboard(): Promise<Dashboard | null> {
@@ -65,6 +77,16 @@ export async function getTraffic(days = 30): Promise<Traffic | null> {
 
 // ── 회원 현황 ──────────────────────────────────────────────
 
+/**
+ * 가입 경로. 카카오·네이버는 커스텀 OAuth 라 auth.users 의 app_metadata 로는 구분되지 않는다
+ * (Supabase 가 'email' 로 덮어쓴다) — 가입 시점에 profiles.signup_provider 로 복사해 둔다.
+ */
+export const SIGNUP_PROVIDERS = ["email", "kakao", "naver", "legacy"] as const;
+export type SignupProvider = (typeof SIGNUP_PROVIDERS)[number];
+export const SIGNUP_LABEL: Record<string, string> = {
+  email: "이메일", kakao: "카카오", naver: "네이버", legacy: "구 널스넷 이관",
+};
+
 export type UserRow = {
   id: string;
   display_name: string | null;
@@ -74,18 +96,21 @@ export type UserRow = {
   role: string;
   business_verified: boolean;
   created_at: string;
+  /** 가입 경로 — email · kakao · naver · legacy(구 널스넷 이관) */
+  signup_provider: string | null;
 };
 
 export async function getUsers(
-  { q = "", role = "", page = 1 }: { q?: string; role?: string; page?: number },
+  { q = "", role = "", provider = "", page = 1 }: { q?: string; role?: string; provider?: string; page?: number },
 ): Promise<Page<UserRow>> {
   await requireAdmin();
   const supabase = await createClient();
   const { from, to } = range(page);
   let query = supabase
     .from("profiles")
-    .select("id,display_name,username,email,phone_number,role,business_verified,created_at", { count: "exact" });
+    .select("id,display_name,username,email,phone_number,role,business_verified,created_at,signup_provider", { count: "exact" });
   if (role === "nurse" || role === "hospital" || role === "admin") query = query.eq("role", role);
+  if (SIGNUP_PROVIDERS.includes(provider as SignupProvider)) query = query.eq("signup_provider", provider);
   if (q.trim()) {
     // 이름·아이디·이메일·전화 중 아무거나.
     const safe = likeSafe(q);
@@ -96,7 +121,7 @@ export async function getUsers(
   const { data, count, error } = await query.order("created_at", { ascending: false }).range(from, to);
   if (error) {
     console.error("getUsers:", error.message);
-    return empty();
+    return failed();
   }
   return { rows: (data ?? []) as UserRow[], total: count ?? 0 };
 }
@@ -105,13 +130,15 @@ export async function getUsers(
 
 export type ResumeRow = {
   profile_id: string;
-  title: string | null;
+  resume_title: string | null;
   is_public: boolean;
   career_level: string | null;
   experience_years: number | null;
-  sido: string | null;
+  residence_region: string | null;
   updated_at: string;
-  profile: { display_name: string | null; email: string | null } | null;
+  /** 이력서에 적힌 본인 정보 — profiles 조인이 아니라 resumes 자체 컬럼이다. */
+  name: string | null;
+  email: string | null;
 };
 
 export async function getResumeList(
@@ -122,21 +149,42 @@ export async function getResumeList(
   const { from, to } = range(page);
   let query = supabase
     .from("resumes")
-    .select("profile_id,title,is_public,career_level,experience_years,sido,updated_at,profile:profiles(display_name,email)", { count: "exact" });
+    .select("profile_id,resume_title,is_public,career_level,experience_years,residence_region,updated_at,name,email", { count: "exact" });
   if (visibility === "public") query = query.eq("is_public", true);
   if (visibility === "private") query = query.eq("is_public", false);
   if (q.trim()) {
-    query = query.ilike("title", `%${likeSafe(q)}%`);
+    // 제목·이름·지역 아무거나 — 관리자가 찾는 방식은 "그 사람" 이지 제목이 아니다.
+    const safe = likeSafe(q);
+    query = query.or(`resume_title.ilike.%${safe}%,name.ilike.%${safe}%,residence_region.ilike.%${safe}%`);
   }
   const { data, count, error } = await query.order("updated_at", { ascending: false }).range(from, to);
   if (error) {
     console.error("getResumeList:", error.message);
-    return empty();
+    return failed();
   }
   return { rows: (data ?? []) as unknown as ResumeRow[], total: count ?? 0 };
 }
 
 // ── 광고 관리 ──────────────────────────────────────────────
+
+/**
+ * 이 사이트의 공고 노출은 **세 종류**다. 화면이 이걸 구분하지 못하면 관리가 안 된다.
+ *
+ *  paid    유료 광고    — featured_until 이 살아 있고 ad_tier='standard'. ad_orders 에 실결제가 있다.
+ *  granted 무료 부여    — 관리자가 결제 없이 켠 것(ad_tier='admin_test', 0원).
+ *  free    무료 게시    — 광고를 안 산 공고. 등록 후 7일 동안 그냥 보인다(병원당 동시 1건).
+ *                        featured_until 이 없거나 이미 지났다.
+ *  ended   종료         — 광고 기간이 끝난 것.
+ */
+export const AD_KINDS = ["paid", "granted", "free", "ended"] as const;
+export type AdKind = (typeof AD_KINDS)[number];
+export const AD_KIND_LABEL: Record<AdKind, string> = {
+  paid: "유료 광고",
+  granted: "무료 부여",
+  free: "무료 게시",
+  ended: "광고 종료",
+};
+export const isAdKind = (v: string | undefined | null): v is AdKind => AD_KINDS.includes(v as AdKind);
 
 export type AdRow = {
   id: string;
@@ -146,33 +194,82 @@ export type AdRow = {
   featured_until: string | null;
   posted_at: string;
   status: string;
-  hospital: { id: string; name: string; owner_profile_id: string | null } | null;
+  source: string;
+  hospital: { id: string; name: string } | null;
+  /** 이 공고에 실제로 들어온 결제 합계(0원 관리자 부여는 제외). 무료 게시는 0. */
+  paidAmount: number;
+  /** 결제 건수 — 여러 번 연장했으면 2건 이상 */
+  orderCount: number;
 };
 
-/** scope: live(게재중) · ended(종료) · all */
 export async function getAdList(
-  { scope = "live", q = "", page = 1 }: { scope?: string; q?: string; page?: number },
+  { kind = "paid", q = "", page = 1 }: { kind?: AdKind; q?: string; page?: number },
 ): Promise<Page<AdRow>> {
   await requireAdmin();
   const supabase = await createClient();
   const { from, to } = range(page);
-  const nowIso = new Date().toISOString();
+  const nowIso = new Date(nowMs()).toISOString();
+  const freshIso = new Date(nowMs() - FREE_LISTING_MS).toISOString();
+
   let query = supabase
     .from("jobs")
-    .select("id,title,company_name,ad_tier,featured_until,posted_at,status,hospital:hospitals(id,name,owner_profile_id)", { count: "exact" })
-    .not("featured_until", "is", null);
-  if (scope === "live") query = query.gt("featured_until", nowIso);
-  if (scope === "ended") query = query.lte("featured_until", nowIso);
+    .select("id,title,company_name,ad_tier,featured_until,posted_at,status,source,hospital:hospitals(id,name)", { count: "exact" })
+    // 🔴 워크넷 공고는 우리가 파는 광고가 아니라 고용24에서 **수집한** 구인정보다(오너 지시 2026-08-04).
+    //    1,970건이 무료 게시 탭을 가득 채우면 정작 병원이 올린 공고가 묻힌다.
+    .neq("source", "worknet");
+
+  if (kind === "paid") {
+    query = query.gt("featured_until", nowIso).neq("ad_tier", "admin_test");
+  } else if (kind === "granted") {
+    query = query.gt("featured_until", nowIso).eq("ad_tier", "admin_test");
+  } else if (kind === "ended") {
+    query = query.not("featured_until", "is", null).lte("featured_until", nowIso);
+  } else {
+    // 무료 게시 — 광고가 없거나 끝났고, 등록 7일 이내로 아직 보이는 공고.
+    // freeSlotTaken(lib/data/jobs.ts)이 쓰는 판정과 같은 조건이라 화면과 규칙이 어긋나지 않는다.
+    query = query
+      .or(`featured_until.is.null,featured_until.lt.${nowIso}`)
+      .eq("status", "open")
+      .gte("posted_at", freshIso);
+  }
+
   if (q.trim()) {
     const safe = likeSafe(q);
     query = query.or(`title.ilike.%${safe}%,company_name.ilike.%${safe}%`);
   }
-  const { data, count, error } = await query.order("featured_until", { ascending: false }).range(from, to);
+
+  const orderCol = kind === "free" ? "posted_at" : "featured_until";
+  const { data, count, error } = await query.order(orderCol, { ascending: false }).range(from, to);
   if (error) {
     console.error("getAdList:", error.message);
-    return empty();
+    return failed();
   }
-  return { rows: (data ?? []) as unknown as AdRow[], total: count ?? 0 };
+
+  const rows = (data ?? []) as unknown as Omit<AdRow, "paidAmount" | "orderCount">[];
+  // 결제액은 따로 한 번에 받아 붙인다 — PostgREST 로는 자식 합계를 목록에 못 실는다.
+  // 이 페이지의 공고 id 로만 좁히므로 30건짜리 조회 하나다.
+  const money = new Map<string, { amount: number; count: number }>();
+  if (rows.length) {
+    const { data: orders, error: oErr } = await supabase
+      .from("ad_orders").select("job_id,amount,tier")
+      .in("job_id", rows.map((r) => r.id))
+      .eq("status", "PAID");
+    if (oErr) console.error("getAdList(orders):", oErr.message);
+    for (const o of orders ?? []) {
+      if (!o.job_id || o.tier === "admin_test") continue; // 관리자 부여는 매출이 아니다
+      const cur = money.get(o.job_id) ?? { amount: 0, count: 0 };
+      money.set(o.job_id, { amount: cur.amount + o.amount, count: cur.count + 1 });
+    }
+  }
+
+  return {
+    rows: rows.map((r) => ({
+      ...r,
+      paidAmount: money.get(r.id)?.amount ?? 0,
+      orderCount: money.get(r.id)?.count ?? 0,
+    })),
+    total: count ?? 0,
+  };
 }
 
 /** 한 공고의 광고 결제 이력 — "언제 어느 병원이 얼마에 며칠을 샀는가". */
@@ -224,7 +321,7 @@ export async function getOrders(
   const { data, count, error } = await query.order("created_at", { ascending: false }).range(from, to);
   if (error) {
     console.error("getOrders:", error.message);
-    return empty();
+    return failed();
   }
   return { rows: (data ?? []) as unknown as AdOrderRow[], total: count ?? 0 };
 }
@@ -258,7 +355,7 @@ export async function getTaxTargets(
   const { data, count, error } = await query.order("paid_at", { ascending: false }).range(from, to);
   if (error) {
     console.error("getTaxTargets:", error.message);
-    return empty();
+    return failed();
   }
   return { rows: (data ?? []) as unknown as TaxRow[], total: count ?? 0 };
 }
@@ -330,7 +427,7 @@ export async function getInquiries(
   const { data, count, error } = await query.order("created_at", { ascending: false }).range(from, to);
   if (error) {
     console.error("getInquiries:", error.message);
-    return empty();
+    return failed();
   }
   return { rows: (data ?? []) as InquiryRow[], total: count ?? 0 };
 }

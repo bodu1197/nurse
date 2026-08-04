@@ -1,7 +1,7 @@
 import { Pager } from "@/components/MasterDetail";
 import { fmtDay } from "@/lib/date";
 import { getInquiries, PER_PAGE, INQUIRY_KIND_LABEL, INQUIRY_STATUS_LABEL } from "@/lib/data/adminLists";
-import { PageTitle, Tabs, Empty, Notice } from "@/components/admin/Ui";
+import { PageTitle, Tabs, EmptyOrFailed, Notice } from "@/components/admin/Ui";
 import { saveInquiry } from "@/app/admin/actions";
 
 export const metadata = { title: "문의사항 — 관리자" };
@@ -26,7 +26,7 @@ export default async function AdminInquiriesPage({
   const status = sp.status ?? "open";
   const page = Math.max(1, Number(sp.page) || 1);
 
-  const { rows, total } = await getInquiries({ status, page });
+  const { rows, total, failed } = await getInquiries({ status, page });
   const qs = (over: Record<string, string> = {}) => new URLSearchParams({ status, ...over }).toString();
   const here = `/admin/inquiries?${qs({ page: String(page) })}`;
 
@@ -43,7 +43,7 @@ export default async function AdminInquiriesPage({
       ]} />
 
       {rows.length === 0 ? (
-        <Empty>해당하는 문의가 없습니다.</Empty>
+        <EmptyOrFailed failed={failed}>해당하는 문의가 없습니다.</EmptyOrFailed>
       ) : (
         <ul className="space-y-3">
           {rows.map((q) => (

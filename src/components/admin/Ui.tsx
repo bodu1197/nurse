@@ -92,6 +92,22 @@ export function Empty({ children }: Readonly<{ children: ReactNode }>) {
   );
 }
 
+/**
+ * 목록이 비었을 때 — **데이터가 없는 것**과 **못 읽은 것**을 구분해 보여준다.
+ *
+ * 🔴 이 구분이 없어서 사고가 났다. 이력서 목록이 컬럼 이름 하나 때문에 조회에 실패했는데
+ *    화면은 "0건" 이라고 말했고, 7,270건이 있는 표를 비어 있는 것으로 읽게 만들었다.
+ */
+export function EmptyOrFailed({ failed, children }: Readonly<{ failed?: boolean; children: ReactNode }>) {
+  if (!failed) return <Empty>{children}</Empty>;
+  return (
+    <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 px-4 py-12 text-center text-sm text-red-700">
+      <b className="block">목록을 불러오지 못했습니다.</b>
+      <span className="mt-1 block text-red-600">데이터가 없는 것이 아닙니다 — 서버 로그를 확인하세요.</span>
+    </p>
+  );
+}
+
 /** 필터 탭 — 링크로 만든다(서버에서 그대로 렌더되고 뒤로가기가 자연스럽다). */
 export function Tabs({ items }: Readonly<{ items: readonly { href: string; label: string; active: boolean }[] }>) {
   return (

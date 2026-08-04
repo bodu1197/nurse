@@ -3,7 +3,7 @@ import { Pager } from "@/components/MasterDetail";
 import { fmtDay } from "@/lib/date";
 import { won } from "@/lib/ads";
 import { getOrders, PER_PAGE } from "@/lib/data/adminLists";
-import { PageTitle, Tabs, SearchBox, TableWrap, TH, TD, Empty } from "@/components/admin/Ui";
+import { PageTitle, Tabs, SearchBox, TableWrap, TH, TD, EmptyOrFailed } from "@/components/admin/Ui";
 
 export const metadata = { title: "결제 내역 — 관리자" };
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export default async function AdminOrdersPage({
   const q = sp.q ?? "";
   const page = Math.max(1, Number(sp.page) || 1);
 
-  const { rows, total } = await getOrders({ status, q, page });
+  const { rows, total, failed } = await getOrders({ status, q, page });
   const qs = (over: Record<string, string> = {}) =>
     new URLSearchParams({ ...(status ? { status } : {}), ...(q ? { q } : {}), ...over }).toString();
 
@@ -46,7 +46,7 @@ export default async function AdminOrdersPage({
         hidden={status ? { status } : {}} />
 
       {rows.length === 0 ? (
-        <Empty>해당하는 주문이 없습니다.</Empty>
+        <EmptyOrFailed failed={failed}>해당하는 주문이 없습니다.</EmptyOrFailed>
       ) : (
         <TableWrap>
           <thead>

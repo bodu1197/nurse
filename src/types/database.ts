@@ -677,6 +677,7 @@ export type Database = {
           legacy_member_srl: number | null
           phone_number: string | null
           role: Database["public"]["Enums"]["user_role"]
+          signup_provider: string | null
           updated_at: string
           username: string | null
         }
@@ -697,6 +698,7 @@ export type Database = {
           legacy_member_srl?: number | null
           phone_number?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          signup_provider?: string | null
           updated_at?: string
           username?: string | null
         }
@@ -717,6 +719,7 @@ export type Database = {
           legacy_member_srl?: number | null
           phone_number?: string | null
           role?: Database["public"]["Enums"]["user_role"]
+          signup_provider?: string | null
           updated_at?: string
           username?: string | null
         }
@@ -1082,6 +1085,7 @@ export type Database = {
         Returns: undefined
       }
       admin_traffic: { Args: { days?: number }; Returns: Json }
+      clean_person_name: { Args: { v: string }; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       is_community_member: { Args: never; Returns: boolean }
       is_talent_advertiser: { Args: never; Returns: boolean }
@@ -1162,6 +1166,7 @@ export type Database = {
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
       track_page_view: { Args: { p_path: string }; Returns: undefined }
+      valid_person_name: { Args: { v: string }; Returns: string }
     }
     Enums: {
       user_role: "nurse" | "hospital" | "admin"

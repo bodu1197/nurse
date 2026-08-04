@@ -2,7 +2,7 @@ import { Pager } from "@/components/MasterDetail";
 import { fmtDay } from "@/lib/date";
 import { won } from "@/lib/ads";
 import { getTaxTargets, PER_PAGE } from "@/lib/data/adminLists";
-import { PageTitle, Tabs, Empty, Notice } from "@/components/admin/Ui";
+import { PageTitle, Tabs, EmptyOrFailed, Notice } from "@/components/admin/Ui";
 import { saveTaxInfo, markTaxIssued } from "@/app/admin/actions";
 
 export const metadata = { title: "세금계산서 — 관리자" };
@@ -32,7 +32,7 @@ export default async function AdminInvoicesPage({
   const issued = sp.issued === "1";
   const page = Math.max(1, Number(sp.page) || 1);
 
-  const { rows, total } = await getTaxTargets({ issued, page });
+  const { rows, total, failed } = await getTaxTargets({ issued, page });
   const qs = (over: Record<string, string> = {}) =>
     new URLSearchParams({ ...(issued ? { issued: "1" } : {}), ...over }).toString();
   const here = `/admin/invoices?${qs({ page: String(page) })}`;
@@ -51,7 +51,7 @@ export default async function AdminInvoicesPage({
       ]} />
 
       {rows.length === 0 ? (
-        <Empty>{issued ? "발행 완료한 건이 없습니다." : "발행할 건이 없습니다."}</Empty>
+        <EmptyOrFailed failed={failed}>{issued ? "발행 완료한 건이 없습니다." : "발행할 건이 없습니다."}</EmptyOrFailed>
       ) : (
         <div className="space-y-3">
           {rows.map((o) => (

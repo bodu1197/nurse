@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { NAME_HELP } from "@/lib/personName";
 import NurseShell from "@/components/NurseShell";
 import SubmitButton from "@/components/SubmitButton";
 import Button, { buttonClass } from "@/components/Button";
@@ -27,6 +28,7 @@ const label = "text-sm font-medium text-slate-700";
 const req = <><span className="text-red-500" aria-hidden>*</span><span className="sr-only">(필수)</span></>;
 
 const SAVE_ERRORS: Record<string, string> = {
+  nameshape: NAME_HELP,
   save: "저장에 실패했습니다. 다시 시도해 주세요.",
   visibility: "공개 설정을 바꾸지 못했습니다. 다시 시도해 주세요.",
   photo: "사진을 저장하지 못했습니다. 다시 시도해 주세요.",

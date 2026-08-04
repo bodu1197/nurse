@@ -19,7 +19,7 @@ export default async function AdminDashboard() {
 
   return (
     <>
-      <PageTitle title="대시보드" desc="오늘 무엇이 늘었고, 무엇을 처리해야 하는지." />
+      <PageTitle title="대시보드" desc="오늘 무엇이 늘었고, 무엇을 처리해야 하는지. 날짜는 한국시간 기준이고, 기간 숫자는 그 기간 누적입니다." />
 
       <Section title="처리할 일">
         {todoTotal === 0 ? (
@@ -43,19 +43,19 @@ export default async function AdminDashboard() {
 
       <Section title="가입 · 이력서">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="오늘 가입" value={d.members.today} sub={`7일 ${d.members.d7.toLocaleString()} · 30일 ${d.members.d30.toLocaleString()}`} tone="good" href="/admin/users" />
+          <Stat label="오늘 가입" value={d.members.today} sub={`어제 ${d.members.yesterday.toLocaleString()} · 최근 7일 ${d.members.d7.toLocaleString()} · 최근 30일 ${d.members.d30.toLocaleString()}`} tone="good" href="/admin/users" />
           <Stat label="전체 회원" value={d.members.total} sub={`간호사 ${d.members.nurse.toLocaleString()} · 병원 ${d.members.hospital.toLocaleString()}`} href="/admin/users" />
-          <Stat label="오늘 등록 이력서" value={d.resumes.today} sub={`7일 ${d.resumes.d7.toLocaleString()} · 30일 ${d.resumes.d30.toLocaleString()}`} tone="good" href="/admin/resumes" />
+          <Stat label="오늘 등록 이력서" value={d.resumes.today} sub={`어제 ${d.resumes.yesterday.toLocaleString()} · 최근 7일 ${d.resumes.d7.toLocaleString()} · 최근 30일 ${d.resumes.d30.toLocaleString()}`} tone="good" href="/admin/resumes" />
           <Stat label="공개 이력서" value={d.resumes.public} sub={`전체 ${d.resumes.total.toLocaleString()} · 비공개 ${(d.resumes.total - d.resumes.public).toLocaleString()}`} href="/admin/resumes" />
         </div>
       </Section>
 
       <Section title="공고 · 지원">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="오늘 등록 공고" value={d.jobs.today} sub={`7일 ${d.jobs.d7.toLocaleString()}`} tone="good" />
+          <Stat label="오늘 등록 공고" value={d.jobs.today} sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()}`} tone="good" />
           <Stat label="게시중 공고" value={d.jobs.open} sub={`직접 ${d.jobs.direct.toLocaleString()} · 워크넷 ${d.jobs.worknet.toLocaleString()}`} />
           <Stat label="3일 내 마감" value={d.jobs.closing3} />
-          <Stat label="오늘 지원" value={d.applications.today} sub={`7일 ${d.applications.d7.toLocaleString()} · 누적 ${d.applications.total.toLocaleString()}`} />
+          <Stat label="오늘 지원" value={d.applications.today} sub={`어제 ${d.applications.yesterday.toLocaleString()} · 최근 7일 ${d.applications.d7.toLocaleString()} · 누적 ${d.applications.total.toLocaleString()}`} />
         </div>
       </Section>
 
@@ -63,7 +63,7 @@ export default async function AdminDashboard() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Stat label="게재중 광고" value={d.ads.live} sub={`7일 내 종료 ${d.ads.ending7.toLocaleString()}건`} href="/admin/ads" />
           <Stat label="오늘 매출" value={won(d.revenue.today)} tone="good" href="/admin/orders?status=PAID" />
-          <Stat label="30일 매출" value={won(d.revenue.d30)} sub={`${d.revenue.count30.toLocaleString()}건`} href="/admin/orders?status=PAID" />
+          <Stat label="최근 30일 매출" value={won(d.revenue.d30)} sub={`${d.revenue.count30.toLocaleString()}건`} href="/admin/orders?status=PAID" />
           {/* 링크를 걸지 않는다 — 결제 내역 목록은 관리자 테스트 주문(0원)까지 포함해서
               여기 숫자와 합이 안 맞는다. 맞지 않는 곳으로 보내면 숫자를 못 믿게 된다. */}
           <Stat label="누적 매출" value={won(d.revenue.total)} sub="관리자 테스트 제외" />
@@ -73,8 +73,8 @@ export default async function AdminDashboard() {
       <Section title="접속자">
         <div className="grid gap-3 sm:grid-cols-3">
           <Stat label="오늘 조회" value={d.traffic.today} href="/admin/stats" />
-          <Stat label="7일 조회" value={d.traffic.d7} href="/admin/stats" />
-          <Stat label="30일 조회" value={d.traffic.d30} href="/admin/stats" />
+          <Stat label="최근 7일 조회" value={d.traffic.d7} href="/admin/stats" />
+          <Stat label="최근 30일 조회" value={d.traffic.d30} href="/admin/stats" />
         </div>
         {d.traffic.d30 === 0 && (
           <p className="mt-2 text-xs text-slate-400">아직 기록이 없습니다. 방문 기록은 배포된 뒤부터 쌓입니다.</p>

@@ -2,7 +2,7 @@ import { Pager } from "@/components/MasterDetail";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { fmtDay } from "@/lib/date";
 import { getResumeList, PER_PAGE } from "@/lib/data/adminLists";
-import { PageTitle, Tabs, SearchBox, TableWrap, TH, TD, Empty, Notice } from "@/components/admin/Ui";
+import { PageTitle, Tabs, SearchBox, TableWrap, TH, TD, EmptyOrFailed, Notice } from "@/components/admin/Ui";
 import { setResumeVisibility } from "@/app/admin/actions";
 
 export const metadata = { title: "이력서 목록 — 관리자" };
@@ -23,7 +23,7 @@ export default async function AdminResumesPage({
   const visibility = sp.v ?? "";
   const page = Math.max(1, Number(sp.page) || 1);
 
-  const { rows, total } = await getResumeList({ q, visibility, page });
+  const { rows, total, failed } = await getResumeList({ q, visibility, page });
   const qs = (over: Record<string, string> = {}) =>
     new URLSearchParams({ ...(q ? { q } : {}), ...(visibility ? { v: visibility } : {}), ...over }).toString();
   const here = `/admin/resumes?${qs({ page: String(page) })}`;
@@ -42,10 +42,10 @@ export default async function AdminResumesPage({
         { href: `/admin/resumes?${qs({ v: "private" })}`, label: "비공개", active: visibility === "private" },
       ]} />
 
-      <SearchBox action="/admin/resumes" value={q} placeholder="이력서 제목" hidden={visibility ? { v: visibility } : {}} />
+      <SearchBox action="/admin/resumes" value={q} placeholder="이력서 제목 · 이름 · 지역" hidden={visibility ? { v: visibility } : {}} />
 
       {rows.length === 0 ? (
-        <Empty>해당하는 이력서가 없습니다.</Empty>
+        <EmptyOrFailed failed={failed}>{q || visibility ? "해당 조건에 맞는 이력서가 없습니다." : "이력서가 없습니다."}</EmptyOrFailed>
       ) : (
         <TableWrap>
           <thead>
@@ -55,12 +55,12 @@ export default async function AdminResumesPage({
             {rows.map((r) => (
               <tr key={r.profile_id}>
                 <TD className="font-medium">
-                  {r.profile?.display_name ?? "-"}
-                  <span className="block text-xs text-slate-400">{r.profile?.email ?? ""}</span>
+                  {r.name ?? "-"}
+                  <span className="block text-xs text-slate-400">{r.email ?? ""}</span>
                 </TD>
-                <TD>{r.title ?? "(제목 없음)"}</TD>
+                <TD>{r.resume_title ?? "(제목 없음)"}</TD>
                 <TD className="whitespace-nowrap">{r.career_level ?? "-"}{r.experience_years != null ? ` ${r.experience_years}년` : ""}</TD>
-                <TD className="whitespace-nowrap">{r.sido ?? "-"}</TD>
+                <TD className="whitespace-nowrap">{r.residence_region ?? "-"}</TD>
                 <TD>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${r.is_public ? "bg-teal-50 text-teal-700" : "bg-slate-100 text-slate-600"}`}>
                     {r.is_public ? "공개" : "비공개"}
