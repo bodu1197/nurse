@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { acceptsPlatformApply } from "@/lib/applyGate";
 import Button from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { toggleSaveJob, applyToJob } from "@/app/jobs/actions";
@@ -158,7 +159,7 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
   // 그 안내는 direct + 간편지원 공고에서만 그려지므로, 조건을 그대로 맞춰야
   // 외부 공고에서 nurse_only로 되돌아온 사용자가 아무 설명도 못 보는 일이 없다.
   const roleNoticeShown =
-    job.source === "direct" && job.apply_methods.includes("platform") && !!profile && profile.role !== "nurse";
+    acceptsPlatformApply(job) && !!profile && profile.role !== "nurse";
   const showError = applyError === "nurse_only" && roleNoticeShown ? null : applyError;
   // 외부 공고 링크는 수집 데이터라 스킴을 신뢰하지 않는다(javascript: 등 차단).
   const externalHref = job.external_url && /^https?:\/\//i.test(job.external_url) ? job.external_url : null;
@@ -208,7 +209,8 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
         )}
 
         <div className="mt-4">
-          {job.source === "direct" ? (
+          {/* 판정은 lib/applyGate 한 곳 — 서버 액션(applyToJob)과 같은 함수를 써야 한다. */}
+          {job.source !== "worknet" ? (
             <div className="space-y-4 sm:max-w-md">
               {job.apply_methods.includes("platform") && (
                 !profile ? (

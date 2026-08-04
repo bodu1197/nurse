@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { acceptsPlatformApply } from "@/lib/applyGate";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { viewAsRole } from "@/lib/data/user";
@@ -36,13 +37,14 @@ export async function applyToJob(formData: FormData) {
 
   if (!prof || (await viewAsRole(prof.role)) !== "nurse") return fail("nurse_only");
 
-  // 공고 검증 — 열려 있고, 직접등록이고, 간편지원을 받는 공고인가.
+  // 공고 검증 — 열려 있고, 우리 공고이고(워크넷 수집분이 아니고), 간편지원을 받는 공고인가.
   // status 는 조회 결과에서 직접 확인한다. 쿼리 필터에만 기대면 나중에 그 필터가 옮겨졌을 때
   // 아래 노출 판정이 조용히 무력화된다(생성된 DB 타입이 string 이라 값을 좁혀서 넘긴다).
   if (!job) return fail("closed");
   const { status } = job;
   if (status !== "open") return fail("closed");
-  if (job.source !== "direct" || !job.apply_methods.includes("platform")) return fail("closed");
+  // 판정은 lib/applyGate 한 곳 — 화면(JobDetail)과 갈라지면 버튼은 보이는데 눌러도 실패한다.
+  if (!acceptsPlatformApply(job)) return fail("closed");
 
   // 노출이 끝난 공고(광고·무료 기간 만료 또는 마감일 경과)는 목록에 없지만 링크로는 들어올 수 있다.
   // 목록·상세와 **같은 함수**를 써야 "안 보이는데 지원은 되는" 구멍이 안 생긴다.
