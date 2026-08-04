@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JobDetail from "@/components/JobDetail";
-import { getPublicJob, getSavedJobIds, getNearbyJobs, getJobs, jobFilterQs, regionOf, PER_PAGE, type JobRow } from "@/lib/data/jobs";
+import { getPublicJob, getSavedJobIds, getNearbyJobs, getJobs, getMyHospitalIds, jobFilterQs, regionOf, PER_PAGE, type JobRow } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
 import { getCommunityAccess } from "@/lib/data/community";
 import { myApplication } from "@/lib/data/applications";
@@ -80,7 +80,7 @@ export default async function JobPage({
   // 외부 수집 공고는 **이력서를 등록한 간호사 회원**만 원본 사이트로 나갈 수 있다(오너 확정 2026-07-30).
   // 그 판정에만 필요하므로 해당 조건에서만 조회한다(직접등록 공고에는 헛왕복을 만들지 않는다).
   const needsResumeCheck = job.source !== "direct" && profile?.role === "nurse";
-  const [application, savedIds, side, resumeOwned] = await Promise.all([
+  const [application, savedIds, side, resumeOwned, myHospitalIds] = await Promise.all([
     profile?.role === "nurse" ? myApplication(job.id) : Promise.resolve(null),
     profile ? getSavedJobIds([job.id]) : Promise.resolve(new Set<string>()),
     // 필터로 들어왔으면 같은 검색결과(전체 개수 포함)를, 아니면 같은 지역(없으면 최근) 공고를 좌측 사이드바로.
@@ -89,7 +89,11 @@ export default async function JobPage({
           .then((r) => ({ jobs: r.jobs.filter((x) => x.id !== id), sameRegion: false, total: r.total }))
       : getNearbyJobs(job.location, job.id).then((r) => ({ ...r, total: 0 })),
     needsResumeCheck ? getCommunityAccess().then((a) => a.ok) : Promise.resolve(false),
+    // 🔴 병원이 **자기 공고**를 열었을 때 "간편지원은 간호사 회원만 가능합니다" 를 띄우면 안 된다.
+    //    자기가 낸 광고를 보러 온 사람에게 자격 미달을 통보하는 꼴이다(오너 지적 2026-08-04).
+    profile?.role === "hospital" ? getMyHospitalIds() : Promise.resolve([] as string[]),
   ]);
+  const isMyJob = !!job.hospital_id && myHospitalIds.includes(job.hospital_id);
   const nearby = side.jobs;
   const totalPages = Math.max(1, Math.ceil(side.total / PER_PAGE));
   // 사이드바 제목: 검색결과면 "검색 결과", 같은 지역이면 시/군명("성남시 채용공고"), 폴백이면 "최근 채용공고".
@@ -148,6 +152,7 @@ export default async function JobPage({
             applyError={apply}
             cancelled={ok === "cancel"}
             hasResume={resumeOwned}
+            isMyJob={isMyJob}
             asH1
             now={now}
           />

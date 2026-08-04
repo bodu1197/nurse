@@ -73,7 +73,7 @@ function ApplyError({ code, resumeHref }: Readonly<{ code: string; resumeHref: s
  *
  * 🔴 조건은 그대로 둔다(로그인 → 이력서 → 지원). 오너 지시 2026-08-04 는 **설명 문구를 없애고
  *    버튼 글자로 말하라**는 것이다. 긴 안내문 대신 버튼이 다음에 할 일을 그대로 적는다:
- *    로그인 전 "로그인 후 보기" · 이력서 없으면 "이력서 작성하기" · 다 되면 "원본에서 지원하기".
+ *    로그인 전 "로그인하고 지원" · 이력서 없으면 "이력서 작성하기" · 다 되면 "원본에서 지원하기".
  */
 function ExternalApply({
   href, profile, hasResume, loginHref, resumeHref, hasContact,
@@ -96,7 +96,7 @@ function ExternalApply({
       </p>
     );
   }
-  if (!profile) return <Button href={loginHref} size="md" className="self-start">로그인 후 보기</Button>;
+  if (!profile) return <Button href={loginHref} size="md" className="self-start">로그인하고 지원</Button>;
   if (profile.role !== "nurse")
     return <p className="text-sm text-slate-500 sm:max-w-md">간호사 회원 전용입니다.</p>;
   if (!hasResume) return <Button href={resumeHref} size="md" className="self-start">이력서 작성하기</Button>;
@@ -123,6 +123,8 @@ type Props = Readonly<{
    * 외부 수집 공고(워크넷)는 **이력서를 등록한 간호사 회원만** 원본 사이트로 나갈 수 있다(오너 확정 2026-07-30).
    */
   hasResume?: boolean;
+  /** 이 공고가 지금 보는 병원 계정의 것인가. 자기 공고에는 자격 안내 대신 관리 링크를 보인다. */
+  isMyJob?: boolean;
   /** 방금 이 화면에서 지원을 취소했는가(?ok=cancel) */
   cancelled?: boolean;
   /** ?apply= 로 넘어온 지원 실패 사유 */
@@ -132,15 +134,17 @@ type Props = Readonly<{
   now: number;
 }>;
 
-export default function JobDetail({ job, profile, application, saved, selfHref, backHref, applyError, cancelled, hasResume, asH1, now }: Props) {
+export default function JobDetail({ job, profile, application, saved, selfHref, backHref, applyError, cancelled, hasResume, isMyJob, asH1, now }: Props) {
   const loginHref = `/login?notice=apply&next=${encodeURIComponent(selfHref)}`;
   const resumeHref = `/mypage/resume?next=${encodeURIComponent(selfHref)}`;
   const Title = asH1 ? "h1" : "h2";
   // 아래 지원 영역에 "간호사 회원만 가능합니다"가 이미 떠 있을 때만 위 안내를 생략한다.
   // 그 안내는 direct + 간편지원 공고에서만 그려지므로, 조건을 그대로 맞춰야
   // 외부 공고에서 nurse_only로 되돌아온 사용자가 아무 설명도 못 보는 일이 없다.
+  // 🔴 자기 공고면 그 안내가 안 뜬다 — 안 뜨는데 뜬 셈 치면 nurse_only 로 되돌아온 사람이
+  //    아무 설명도 못 본다.
   const roleNoticeShown =
-    acceptsPlatformApply(job) && !!profile && profile.role !== "nurse";
+    acceptsPlatformApply(job) && !!profile && profile.role !== "nurse" && !isMyJob;
   const showError = applyError === "nurse_only" && roleNoticeShown ? null : applyError;
   // 외부 공고 링크는 수집 데이터라 스킴을 신뢰하지 않는다(javascript: 등 차단).
   const externalHref = job.external_url && /^https?:\/\//i.test(job.external_url) ? job.external_url : null;
@@ -198,6 +202,12 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
                   <div className="flex flex-col gap-2">
                     <p className="text-sm text-slate-500">간편지원하려면 로그인이 필요합니다.</p>
                     <Button href={loginHref} size="md">로그인하고 지원</Button>
+                  </div>
+                ) : isMyJob ? (
+                  // 🔴 내가 낸 공고다. 자격 미달을 통보할 자리가 아니라 관리로 가는 자리다(오너 지적 2026-08-04).
+                  <div className="flex flex-col gap-2 rounded-[12px] border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-700">내 공고입니다. 간호사에게는 여기에 간편지원 버튼이 보입니다.</p>
+                    <a href={`/mypage/jobs/${job.id}`} className="text-sm font-semibold text-teal-700 hover:underline">공고 관리 →</a>
                   </div>
                 ) : profile.role !== "nurse" ? (
                   <p className="rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">간편지원은 간호사 회원만 가능합니다.</p>

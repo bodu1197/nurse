@@ -23,6 +23,8 @@ const JOB_FIELDS = [
   "recruit_count", "shift_type", "manager_name", "manager_phone", "apply_methods", "apply_email", "apply_detail",
   // 워크넷 등 명부에 없는 광고의 회사명(구인 광고 자체가 갖는 텍스트). 명부 연결(hospital) 없을 때 표시명으로 쓴다.
   "company_name",
+  // 이 공고가 내 병원 것인가 판정용(공개 상세에서 '내 공고' 안내를 띄운다). hospitals 는 공개 명부라 FK 자체는 비밀이 아니다.
+  "hospital_id",
 ] as const satisfies readonly (keyof JobsRow)[];
 
 // source·status 는 생성 타입이 string 이라 실제 허용값(유니온)으로 좁혀 쓴다.
@@ -340,13 +342,19 @@ export async function getNearbyJobs(location: string | null, excludeId: string, 
 //    으로 표시하고 제목을 누르면 404 가 된다.
 export type MyJob = { id: string; title: string; status: JobStatus; source: string; posted_at: string; featured_until: string | null; deadline: string | null; applicant_count: number };
 
-// 병원 — 내가 소유한 병원의 공고 목록 + 지원자 수.
-export async function getMyJobs(): Promise<MyJob[]> {
+/** 내가 소유한 병원 id 들. 없으면 빈 배열(로그인 안 했거나 병원이 없거나 — 셋 다 결과가 같다). */
+export async function getMyHospitalIds(): Promise<string[]> {
   const user = await getSessionUser();
   if (!user) return [];
   const supabase = await createClient();
-  const { data: hosps } = await supabase.from("hospitals").select("id").eq("owner_profile_id", user.id);
-  const ids = (hosps ?? []).map((h) => h.id);
+  const { data } = await supabase.from("hospitals").select("id").eq("owner_profile_id", user.id);
+  return (data ?? []).map((h) => h.id);
+}
+
+// 병원 — 내가 소유한 병원의 공고 목록 + 지원자 수.
+export async function getMyJobs(): Promise<MyJob[]> {
+  const supabase = await createClient();
+  const ids = await getMyHospitalIds();
   if (ids.length === 0) return [];
 
   type Raw = { id: string; title: string; status: JobStatus; source: string; posted_at: string; featured_until: string | null; deadline: string | null; applications: { count: number }[] };
