@@ -16,7 +16,7 @@ export default async function AdminDashboard() {
   if (!d) return <Empty>집계를 불러오지 못했습니다. 서버 로그(admin_dashboard)를 확인하세요.</Empty>;
 
   const todo = d.todo;
-  const todoTotal = todo.inquiries + todo.tax + todo.stale_orders + todo.failed_orders + todo.nameless_resumes + todo.private_resumes_7d;
+  const todoTotal = todo.inquiries + todo.tax + todo.stale_orders + todo.failed_orders + todo.nameless_resumes;
 
   return (
     <>
@@ -33,8 +33,9 @@ export default async function AdminDashboard() {
             <Stat label="결제 실패" value={todo.failed_orders} tone="warn" href="/admin/orders?status=FAILED" />
             {/* 이름이 빈 이력서는 공개 인재 목록에서 아예 빠진다 — 본인은 올렸다고 생각하는데 안 보인다 */}
             <Stat label="이름 없는 이력서" value={todo.nameless_resumes} tone="warn" href="/admin/resumes" />
-            {/* 비공개 이력서는 병원에 안 보인다 — 본인은 올렸다고 생각하는데 아무도 못 본다 */}
-            <Stat label="최근 7일 비공개 저장" value={todo.private_resumes_7d} tone="warn" href="/admin/resumes?v=private" />
+            {/* 🔴 비공개 이력서는 여기에 넣지 않는다. 본인이 공개 동의를 안 한 것이고 시스템은
+                정확히 그대로 숨기고 있다 — 관리자가 할 일이 없다(오너 확인 2026-08-04).
+                할 일이 아닌 것을 '처리할 일'에 두면 목록 전체가 무시당한다. */}
           </div>
         )}
       </Section>
