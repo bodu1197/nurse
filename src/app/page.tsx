@@ -156,27 +156,32 @@ export default async function Home({
                스스로를 깎고("공고 320건, 다 볼 필요 없습니다"), 바로 위 섹션 제목이 이미 총 건수를
                말하고 있어 같은 말을 두 번 하게 된다. 변하지 않는 사실만 적는다. */}
         <div className="mx-auto max-w-[1280px] px-4">
-          <div className="flex flex-col gap-5 rounded-2xl border border-teal-100 bg-gradient-to-r from-teal-50 via-white to-teal-50 px-6 py-6 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-col gap-6 rounded-2xl border border-teal-200 bg-gradient-to-r from-teal-50 via-white to-teal-50 px-6 py-8 sm:px-10 lg:flex-row lg:items-center lg:justify-between lg:gap-10">
             <div>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-600 px-2.5 py-1 text-[11px] font-bold text-white">
-                {/* 하단 탭의 자동매치 아이콘과 같은 모양(반짝임) — 두 자리가 같은 기능을 가리킨다. */}
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <path d="M12 3l1.8 4.9 4.9 1.8-4.9 1.8L12 16.4l-1.8-4.9L5.3 9.7l4.9-1.8z" />
+              {/* 🔴 배지는 **읽히는 크기**여야 한다(오너 지적 2026-08-05: "좁쌀만해서 효과가 없다").
+                  종전 11px 글자 + 12px 아이콘이었는데, 그 크기에서는 별의 뾰족한 끝이 1px 미만이라
+                  아이콘이 뭉개져 형체가 안 보였다. 글자 16px · 아이콘 22px 로 올리고,
+                  별도 **끝이 굵은 대칭 4각별**로 다시 그려 작은 크기에서도 모양이 살아 있게 한다. */}
+              <span className="inline-flex items-center gap-2 rounded-full bg-teal-600 px-4 py-2 text-base font-extrabold tracking-tight text-white shadow-sm">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden className="shrink-0">
+                  <path d="M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z" />
                 </svg>
                 AI 자동매치
               </span>
-              <p className="mt-2.5 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+              <p className="mt-4 text-2xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-3xl">
                 찾지 마세요. 맞춰 드립니다.
               </p>
-              <p className="mt-1 text-sm text-slate-600 sm:text-base">
+              <p className="mt-2 text-base text-slate-600 sm:text-lg">
                 간호사에겐 조건에 맞는 <b className="text-slate-800">공고</b>를, 병원에는 조건에 맞는{" "}
                 <b className="text-slate-800">인재</b>를.
               </p>
             </div>
             {/* 목적지가 서로 달라 버튼이 둘이다 — 간호사는 매치 결과로, 병원은 가입·공고등록으로. */}
-            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
-              <Button href="/match">내게 맞는 공고 보기 →</Button>
-              <Button href="/hospital" variant="outline" className="bg-white">병원 회원가입 · 공고등록 →</Button>
+            <div className="flex shrink-0 flex-col gap-2.5 sm:flex-row">
+              <Button href="/match" size="lg">내게 맞는 공고 보기 →</Button>
+              <Button href="/hospital" variant="outline" size="lg" className="border-teal-300 bg-white text-teal-800 hover:bg-teal-50">
+                병원 회원가입 · 공고등록 →
+              </Button>
             </div>
           </div>
         </div>
