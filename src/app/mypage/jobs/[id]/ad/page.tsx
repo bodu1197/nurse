@@ -9,7 +9,7 @@ import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { AD_PRODUCTS, won } from "@/lib/ads";
 import { LINK_CLASS } from "@/lib/constants";
 import { todayKst, nowMs, fmtDay, DAY_MS } from "@/lib/date";
-import { activateAdFree } from "@/app/mypage/actions";
+import { activateAdFree } from "@/app/mypage/ads/actions";
 
 export const metadata = { title: "공고 광고 — 널스넷", robots: { index: false } };
 // 결제 준비가 포트원 조회를 탈 수 있다 — 기본 함수 타임아웃에 걸려 통째로 죽지 않게 한다.

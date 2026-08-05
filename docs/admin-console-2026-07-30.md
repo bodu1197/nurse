@@ -8,7 +8,7 @@
 | 지금 관리자가 할 수 있는 것 | 코드 | 한계 |
 |---|---|---|
 | 병원·간호사 화면으로 보기 전환 | `mypage/actions.ts` `setViewAs` | 12시간 쿠키. 화면만 바뀜 |
-| 결제 없이 광고 적용 | `mypage/actions.ts` `activateAdFree` | `ownedJobHospital(...)` 로 **자기 소유 공고만**. 남의 병원엔 못 씀 |
+| 결제 없이 광고 적용 | `mypage/ads/actions.ts` `activateAdFree` | `ownedJobHospital(...)` 로 **자기 소유 공고만**. 남의 병원엔 못 씀 |
 | 전용 테스트 병원 생성 | `mypage/actions.ts` `adminTestHospitalId` | 실제 명부 침범 방지용 |
 
 RLS 쪽도 마찬가지다. `is_admin()` 은 **커뮤니티(리뷰·게시판)에만** 걸려 있고,

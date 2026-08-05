@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { iamportWebhook } from "@/app/mypage/actions";
+import { iamportWebhook } from "@/lib/adOrders";
 
 // 포트원 웹훅 — 클라 콜백 실패 대비 서버-투-서버 활성화. imp_uid로 재검증하므로 위조 무해.
 export const dynamic = "force-dynamic";

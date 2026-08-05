@@ -1,3 +1,4 @@
+import "server-only";
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAnonClient } from "@supabase/supabase-js";
@@ -645,3 +646,18 @@ export async function getSavedJobs(): Promise<JobRow[]> {
   return ids.map((id) => byId.get(id)).filter((j): j is JobRow => !!j);
 }
 
+/**
+ * 이 공고가 **내 병원 것인가** — 소유 판정. 서버 키로 읽으므로 부르는 쪽이 먼저 로그인 확인을 한다.
+ *
+ * 🔴 공고 CRUD(actions.ts)와 광고 결제(app/mypage/ads/actions.ts) 둘 다 쓰는 판정이라 여기 둔다.
+ *    한쪽에 두고 export 하면 그 파일이 "use server" 라 헬퍼까지 서버 액션 엔드포인트가 된다.
+ */
+// deadline 도 같이 실어 준다 — 광고 결제 경로가 마감일을 봐야 하는데, 따로 조회하면
+// 결제 준비마다 왕복이 하나 더 붙는다(같은 행을 두 번 읽는 셈이다).
+export async function ownedJobHospital(admin: ReturnType<typeof createAdminClient>, jobId: string, userId: string) {
+  const { data: job } = await admin.from("jobs").select("hospital_id, deadline").eq("id", jobId).maybeSingle();
+  if (!job?.hospital_id) return null; // 워크넷 광고 등 명부 미연결 공고는 소유 대상이 아니다.
+  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region").eq("id", job.hospital_id).maybeSingle();
+  if (!hosp || hosp.owner_profile_id !== userId) return null;
+  return { ...hosp, deadline: job.deadline };
+}

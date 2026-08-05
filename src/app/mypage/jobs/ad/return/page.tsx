@@ -4,7 +4,7 @@ import HospitalShell from "@/components/HospitalShell";
 import { requireProfile } from "@/lib/data/user";
 import { createClient } from "@/lib/supabase/server";
 import { LINK_CLASS } from "@/lib/constants";
-import { verifyAdPayment, abandonAdOrder } from "@/app/mypage/actions";
+import { verifyAdPayment, abandonAdOrder } from "@/app/mypage/ads/actions";
 
 export const metadata = { title: "결제 확인 — 널스넷", robots: { index: false } };
 export const dynamic = "force-dynamic";

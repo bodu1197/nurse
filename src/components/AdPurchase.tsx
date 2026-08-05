@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
 import { AD_PRODUCTS, AD_WEEK_PRICE, splitPayment, won } from "@/lib/ads";
-import { prepareAdOrder, verifyAdPayment, abandonAdOrder } from "@/app/mypage/actions";
+import { prepareAdOrder, verifyAdPayment, abandonAdOrder } from "@/app/mypage/ads/actions";
 
 type ImpResponse = { success: boolean; imp_uid: string; merchant_uid: string; error_msg?: string };
 type Imp = {
