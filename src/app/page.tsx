@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { acceptsPlatformApply } from "@/lib/applyGate";
-import Image from "next/image";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import DraftCleaner from "@/components/DraftCleaner";
@@ -144,18 +143,42 @@ export default async function Home({
           </section>
         </div>
 
-        {/* ── 구인 ↔ 구직 사이 띠 배너 ─────────────
-            구 널스넷에서 쓰던 그림 그대로(1170×110). 장식이라 alt 는 문구를 그대로 옮겨 적는다.
-            priority 를 주지 않는다 — 첫 화면 밖이라 미리 받을 이유가 없다. */}
+        {/* ── 구인 ↔ 구직 사이 띠 배너 — AI 자동매치 홍보 ─────────────
+            🔴 종전에는 **링크 없는 장식 이미지**였다(구 널스넷 1170×110, "구인, 구직신청은 널스넷에서!").
+               홈에서 가장 눈에 띄는 가로 띠인데 눌러도 아무 데도 안 가고, 방문자가 이미 아는 말을
+               반복할 뿐이었다 — 얻는 것도 다음 행동도 없었다.
+            🔴 **이미지로 만들지 않는다**(오너 지시 2026-08-05). 문구를 고칠 때마다 그림을 다시
+               만들어야 하고, 휴대폰에서 글자가 읽을 수 없을 만큼 줄어든다.
+            🔴 **양쪽 다 부른다**(오너 지시). 이 배너가 서 있는 자리가 구인(위)과 구직(아래)의 이음매다.
+               병원 버튼은 /hospital(회원가입·공고등록)로 보낸다 — 자동매치로 인재를 보려면 공고를
+               게재해야 하므로, **이 배너가 곧 병원 가입을 부르는 자리**다.
+            🔴 **공고 건수 같은 숫자를 쓰지 않는다.** 매일 바뀌는 값이라 줄어드는 날에는 홍보가
+               스스로를 깎고("공고 320건, 다 볼 필요 없습니다"), 바로 위 섹션 제목이 이미 총 건수를
+               말하고 있어 같은 말을 두 번 하게 된다. 변하지 않는 사실만 적는다. */}
         <div className="mx-auto max-w-[1280px] px-4">
-          <Image
-            src="/img/banner-strip.png"
-            alt="구인, 구직신청은 널스넷에서!"
-            width={1170}
-            height={110}
-            sizes="(max-width: 1280px) 100vw, 1170px"
-            className="h-auto w-full rounded-2xl"
-          />
+          <div className="flex flex-col gap-5 rounded-2xl border border-teal-100 bg-gradient-to-r from-teal-50 via-white to-teal-50 px-6 py-6 sm:px-8 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-600 px-2.5 py-1 text-[11px] font-bold text-white">
+                {/* 하단 탭의 자동매치 아이콘과 같은 모양(반짝임) — 두 자리가 같은 기능을 가리킨다. */}
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                  <path d="M12 3l1.8 4.9 4.9 1.8-4.9 1.8L12 16.4l-1.8-4.9L5.3 9.7l4.9-1.8z" />
+                </svg>
+                AI 자동매치
+              </span>
+              <p className="mt-2.5 text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">
+                찾지 마세요. 맞춰 드립니다.
+              </p>
+              <p className="mt-1 text-sm text-slate-600 sm:text-base">
+                간호사에겐 조건에 맞는 <b className="text-slate-800">공고</b>를, 병원에는 조건에 맞는{" "}
+                <b className="text-slate-800">인재</b>를.
+              </p>
+            </div>
+            {/* 목적지가 서로 달라 버튼이 둘이다 — 간호사는 매치 결과로, 병원은 가입·공고등록으로. */}
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              <Button href="/match">내게 맞는 공고 보기 →</Button>
+              <Button href="/hospital" variant="outline" className="bg-white">병원 회원가입 · 공고등록 →</Button>
+            </div>
+          </div>
         </div>
 
         <div className="mx-auto max-w-[1280px] px-4">
