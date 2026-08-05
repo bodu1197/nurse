@@ -60,7 +60,11 @@ export default async function AdsPage() {
   return (
     <>
       <SiteHeader user={profile ? { displayName: profile.displayName } : null} />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-10">
+      {/* 🔴 폭은 다른 주요 화면(홈·채용공고·인재정보·자동매치·마이페이지)과 **같은 1280px** 다.
+          종전에는 여기만 max-w-5xl(1024px)이라, 같은 레이아웃인데 혼자 좁아 보여 이질감이 있었다
+          (오너 지적 2026-08-05). 약관·FAQ 처럼 읽기만 하는 문서는 좁게 두는 게 맞지만
+          이 페이지는 카드·표가 늘어선 화면이라 그쪽이 아니다. */}
+      <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-10">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">채용광고 안내</h1>
         <p className="mt-3 max-w-2xl text-base leading-relaxed text-slate-600">
           <b className="text-slate-900">공고 등록은 무료입니다.</b> 등록하면 {FREE_LISTING_DAYS}일 동안 목록에 나오고
@@ -71,7 +75,8 @@ export default async function AdsPage() {
         {/* ── 무료와 광고의 차이 ───────────────────────────── */}
         <section className="mt-8">
           <h2 className="text-lg font-bold text-slate-900">무료 등록과 광고, 무엇이 다른가</h2>
-          <div className="mt-3 overflow-x-auto">
+          {/* 표는 칸이 셋뿐이라 1280px 를 다 쓰면 값 사이가 벌어져 읽기 나빠진다 — 읽기 폭으로 묶는다. */}
+          <div className="mt-3 max-w-3xl overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left">
@@ -101,7 +106,7 @@ export default async function AdsPage() {
           {/* 🔴 이 한 줄이 이 페이지에서 제일 중요하다 — 열람 자격은 '공고를 냈는가'가 아니라
               '돈을 냈는가'로 갈린다(lib/data/membership 의 hasLiveAd). 여기서 얼버무리면
               무료로 올린 병원이 인재정보를 열려다 막히고 그때 처음 알게 된다. */}
-          <p className="mt-3 text-sm text-slate-500">
+          <p className="mt-3 max-w-3xl text-sm text-slate-500">
             간호사 연락처 열람과 AI 자동매치 인재 추천은 <b className="text-slate-700">결제한 광고가 노출되는 동안</b>{" "}
             열립니다. 무료 등록만으로는 열리지 않고, 광고 기간이 끝나면 함께 닫힙니다.
           </p>
@@ -187,7 +192,7 @@ export default async function AdsPage() {
         {/* ── 결제·환불 고지 ─────────────────────────────
             🔴 환불 없음은 반드시 **사기 전에** 보여야 한다(오너 확정 2026-08-04: 한번 사면 취소 없음).
                결제 화면에만 적어 두면 "몰랐다" 는 분쟁이 남는다. */}
-        <section className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-sm leading-relaxed text-slate-600">
+        <section className="mt-10 max-w-3xl rounded-2xl border border-slate-200 bg-slate-50 px-5 py-5 text-sm leading-relaxed text-slate-600">
           <h2 className="font-bold text-slate-900">결제 · 환불</h2>
           <ul className="mt-2 space-y-1.5">
             <li>· 신용카드로 결제하며, 결제가 확인되는 즉시 광고가 시작됩니다.</li>
