@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { BRAND_COLOR } from "@/lib/constants";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -20,9 +21,9 @@ export default function OgImage() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 20, fontSize: 96, fontWeight: 800 }}>
-          <span style={{ color: "#0d9488" }}>+</span>
+          <span style={{ color: BRAND_COLOR }}>+</span>
           <span style={{ color: "#0f172a" }}>
-            Nurse<span style={{ color: "#0d9488" }}>Net</span>
+            Nurse<span style={{ color: BRAND_COLOR }}>Net</span>
           </span>
         </div>
         <div style={{ fontSize: 40, fontWeight: 600, color: "#475569", marginTop: 28 }}>

@@ -92,6 +92,19 @@ export const RECOVERY_COOKIE_OPTIONS = {
   path: "/",
 } as const;
 
+/**
+ * 브랜드 청록. 파비콘·로고·OG 이미지·모바일 주소창이 모두 이 한 색이다.
+ *
+ * 🔴 globals.css 의 `--color-brand` 와 **반드시 같은 값**이어야 한다. CSS 변수를 못 읽는 자리
+ *    (`viewport.themeColor`, next/og 의 인라인 스타일)가 있어서 hex 를 여기 한 번 더 적는다 —
+ *    그 자리마다 리터럴을 복붙하지 말고 이걸 import 해라. 한때 파비콘만 레거시 파랑(#0044ff)으로
+ *    남아 로고와 색이 갈렸다(2026-08-05 통일).
+ *
+ * 아이콘 원본(`src/app/icon.png`·`favicon.ico`)은 래스터라 이 상수를 못 읽는다. 색을 바꾸면
+ * 그 두 파일은 따로 다시 만들어야 한다.
+ */
+export const BRAND_COLOR = "#0d9488";
+
 /** 입력칸 공용 스타일 */
 export const INPUT_CLASS =
   "h-12 rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";

@@ -1,6 +1,6 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import SiteFooter from "@/components/SiteFooter";
-import { SITE_URL } from "@/lib/constants";
+import { BRAND_COLOR, SITE_URL } from "@/lib/constants";
 import { FONT_PRELOAD_HREF } from "./fonts";
 import "./globals.css";
 
@@ -37,8 +37,9 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
-// 레거시와 같은 값. 모바일 주소창 색이 사이트마다 튀지 않게 한다.
-export const viewport = { themeColor: "#0044ff" };
+// 모바일 주소창 색을 파비콘·로고와 하나로 맞춘다(오너 확정 2026-08-05 — 레거시 파랑 #0044ff 에서
+// 청록으로 통일). themeColor 는 CSS 변수를 못 받아서 상수로 넣는다.
+export const viewport: Viewport = { themeColor: BRAND_COLOR };
 
 const ORG_JSONLD = {
   "@context": "https://schema.org",
