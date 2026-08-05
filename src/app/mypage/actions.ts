@@ -114,15 +114,26 @@ export async function verifyHospitalBusiness(formData: FormData) {
     if (!hosp.owner_profile_id) await admin.from("hospitals").update({ owner_profile_id: user.id, is_claimed: true }).eq("id", hospitalId);
   }
 
+  const bizDigits = b_no.replace(/\D/g, "");
   await admin
     .from("profiles")
     .update({
-      business_no: b_no.replace(/\D/g, ""),
+      business_no: bizDigits,
       business_verified: true,
       business_verified_at: new Date().toISOString(),
       ...(hospitalId ? { claimed_hospital_id: hospitalId } : {}),
     })
     .eq("id", user.id);
+
+  // 🎁 무료 1주 자물쇠를 **사업자번호로 옮겨 채운다**(/review8 지적 2026-08-06).
+  //    이관 회원은 사업자번호가 없어서, 무료를 먼저 받으면 ad_free_used 행의 business_no 가 비어 있다.
+  //    그 뒤 인증만 마치면 **같은 사업자번호의 두 번째 계정이 무료를 또 받는다** — 자물쇠가
+  //    계정에만 걸려 있었기 때문이다. 인증되는 순간 번호를 채워 사업자 단위로 잠근다.
+  //    실패해도 인증 자체는 되돌리지 않는다 — 최악이 "무료 한 번 더" 라서 인증을 막을 값이 아니다.
+  const { error: lockErr } = await admin
+    .from("ad_free_used").update({ business_no: bizDigits })
+    .eq("profile_id", user.id).is("business_no", null);
+  if (lockErr) console.error("무료 1주 자물쇠 백필 실패 — 수동 확인 필요:", user.id, bizDigits, lockErr.message);
 
   // 공고 등록 도중 인증하러 왔으면(from=jobs-new) 바로 공고 등록으로 복귀.
   redirect(String(formData.get("from") ?? "") === "jobs-new" ? "/mypage/jobs/new" : "/mypage/verify?ok=1");
@@ -176,8 +187,9 @@ export async function createJob(formData: FormData) {
   //    그래서 공고는 **저장만 되고 노출은 결제해야 시작된다**(draft). 등록 자체는 여전히 공짜다.
   //    종전에는 선택과 무관하게 status='open' + 7일 노출을 줬는데, 그 탓에 「2주」를 고르고
   //    결제만 안 하면 무료 7일을 몇 번이든 받을 수 있었다(실측 2026-08-05 15:18, 주문 0건).
-  //    이제 노출의 유일한 문은 featured_until 이고, 그건 결제(activateAdOrder)만 세운다.
-  //    첫 광고도 공짜가 아니다 — 가입 캐시 70,000 < 1주 80,000 이라 최소 10,000원이 나간다.
+  //    이제 노출의 유일한 문은 featured_until 이고, 그걸 세우는 길은 둘뿐이다 —
+  //    결제(activateAdOrder) 또는 **무료 1주(claim_free_week, 병원당 평생 1회)**.
+  //    가입 캐시 지급은 폐지했다(오너 확정 2026-08-06) — 유료는 정가 그대로 받는다.
   const weeksPicked = Number(s("duration"));
   const picked = adProduct(weeksPicked)?.weeks ?? AD_PRODUCTS[0].weeks;
 

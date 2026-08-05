@@ -1,9 +1,10 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { adProduct, isOrderStatus, type OrderStatus } from "@/lib/ads";
+import { adProduct, isOrderStatus, isFreeWeekResult, type OrderStatus, type FreeWeekResult } from "@/lib/ads";
 import { decidePayment } from "@/lib/paymentFlow";
 import { getPayment, findPaidPayment, iamportReady } from "@/lib/iamport";
 import { todayKst, nowMs } from "@/lib/date";
@@ -26,6 +27,46 @@ import {
 // 결제 전 주문 생성(서버가 금액 산정 — 클라 금액 신뢰 안 함). 클라가 받은 merchant_uid/amount로 IMP.request_pay.
 // expectedPayable: 화면이 손님에게 보여 준 결제금액. 서버가 계산한 값과 다르면 결제창을 열지 않는다
 //                  (캐시 잔액이 그사이 바뀐 경우 — 보여준 금액보다 많이 청구하는 일은 없어야 한다).
+
+/**
+ * 🎁 무료 1주 — **병원당 평생 1회**(오너 확정 2026-08-06).
+ *
+ * 노출은 되지만 유료 아래에 깔리고(jobs_listed.ad_paid 정렬), 간호사 연락처 열람과
+ * AI 자동매치 인재추천은 열리지 않는다 — is_talent_advertiser() 가 실결제(amount > 0)를
+ * 요구하므로 **여기서 따로 막을 것이 없다.** 주문(ad_orders)을 만들지 않는 것이 곧 제약이다.
+ *
+ * 🔴 판정·기록·적용을 전부 DB 함수(claim_free_week) 한 번에 맡긴다. 앱에서 "받은 적 있나"를
+ *    먼저 세고 없으면 넣는 식으로 하면 동시 요청 둘이 같은 0 을 보고 둘 다 받는다.
+ *    유니크 인덱스(ad_free_used)가 두 번째를 깨뜨려야 한다.
+ * 🔴 admin 클라이언트를 쓰지 않는다 — 함수가 auth.uid() 로 본인을 판정한다.
+ *    admin 으로 부르면 uid 가 없어 항상 not_owner 가 된다.
+ */
+export type ClaimFreeWeekError = Exclude<FreeWeekResult, "ok"> | "auth" | "server";
+
+export async function claimFreeWeek(jobId: string): Promise<{ ok: true } | { ok: false; error: ClaimFreeWeekError }> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { ok: false, error: "auth" };
+
+  const { data, error } = await supabase.rpc("claim_free_week", { p_job: jobId });
+  if (error) {
+    console.error("claim_free_week failed:", user.id, jobId, error.message);
+    return { ok: false, error: "server" };
+  }
+  // 🔴 모르는 코드는 'server' 로 떨어뜨린다. `as` 로 단언하면 DB 가 새 코드를 돌려줬을 때
+  //    컴파일은 통과하고 **화면만 빈 안내**가 된다(ads.ts 의 orderStatusLabel 과 같은 이유).
+  if (!isFreeWeekResult(data)) {
+    console.error("claim_free_week 가 모르는 값을 돌려줬다:", data);
+    return { ok: false, error: "server" };
+  }
+  if (data !== "ok") return { ok: false, error: data };
+
+  // 감사 기록은 따로 남기지 않는다 — ad_free_used 가 누가·언제·어느 공고에 받았는지 이미 담는다
+  // (logAdmin 은 관리자 콘솔 전용이라 여기 쓰면 감사로그가 손님 행동으로 오염된다).
+  // 노출이 방금 시작됐다 — 목록·내 공고·상세가 옛 화면을 들고 있으면 "올렸는데 안 보인다"가 된다.
+  for (const p of ["/jobs", "/mypage/jobs", `/jobs/${jobId}`, "/"]) revalidatePath(p);
+  return { ok: true };
+}
 
 export async function prepareAdOrder(jobId: string, weeks: number, expectedPayable?: number): Promise<AdPrepare> {
   if (!iamportReady()) return { ok: false, error: "unavailable" };

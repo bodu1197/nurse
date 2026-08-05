@@ -3,7 +3,7 @@ import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAnonClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSessionUser } from "@/lib/data/user";
+import { getSessionUser, getMyProfile } from "@/lib/data/user";
 import { LIST_LIMIT } from "@/lib/data/applications";
 
 import type { JobStatus } from "@/lib/jobState";
@@ -209,18 +209,28 @@ const LIVE = "is_live" as const;
 export async function getJobs(keyword: string, location: string, filters: JobFilters = {}, page = 1, withCount = true): Promise<{ jobs: JobRow[]; total: number }> {
   const supabase = await createClient();
   const from = (Math.max(1, page) - 1) * PER_PAGE;
-  // 🔴 jobs 가 아니라 jobs_listed 뷰다. 정렬 키를 두 질문으로 나누기 위한 것 —
-  //    ① 광고인가(ad_live) ② 광고끼리는 무슨 순서인가(posted_at).
+  // 🔴 jobs 가 아니라 jobs_listed 뷰다. 정렬 키를 세 질문으로 나누기 위한 것 —
+  //    ① **돈을 낸 광고인가**(ad_paid) ② 노출 중인 광고인가(ad_live) ③ 그 안에서는 무슨 순서인가(posted_at).
   //    전에는 featured_until 하나로 둘 다 하려다 보니 **종료일이 먼 쪽이 항상 1등**이었다:
   //    4주를 산 병원이 4주 내내 최상단이고, 뒤에 1주를 산 병원은 방금 결제해도 계속 2등.
   //    posted_at 은 activateAdOrder 가 광고를 켤 때 갱신하므로 곧 "광고를 켠 시각"이다.
+  //
+  // 🔴 ad_paid 를 맨 앞에 둔 이유(오너 확정 2026-08-06: "섞지 않고 유료만 위로 올린다"):
+  //    무료 1주도 featured_until 을 쓰므로 ad_live 가 true 다. 그것만으로 줄을 세우면
+  //    **공짜 광고가 돈 낸 광고와 같은 칸에 선다** — 그러면 5만원을 낼 이유가 없어진다.
   let query = supabase
     .from("jobs_listed")
     .select(SELECT, withCount ? { count: "exact" } : undefined)
-    // 노출 판정은 뷰가 한다(is_live) — status·무료기간·광고기간·마감일을 그 안에서 함께 본다.
+    // 노출 판정은 뷰가 한다(is_live) — status·광고기간·마감일을 그 안에서 함께 본다.
     .eq(LIVE, true)
+    .order("ad_paid", { ascending: false })
     .order("ad_live", { ascending: false })
     .order("posted_at", { ascending: false })
+    // 🔴 유일 키를 마지막 정렬 키로 둔다. 워크넷 일괄수집분은 posted_at 이 같은 행이 수백 건이라
+    //    쪽마다 별개 질의인 페이지네이션에서 **행이 중복되거나 누락된다**(20건 경계가 동률 한가운데
+    //    떨어진다). getMatchCandidates·getSitemapTalent 가 같은 이유로 이미 2차 키를 갖고 있는데
+    //    목록에만 없었다 — /review8 이 잡았다.
+    .order("id", { ascending: false })
     .range(from, from + PER_PAGE - 1);
 
   const kw = clean(keyword);
@@ -316,6 +326,9 @@ export async function getMatchCandidates(sidoIn: readonly string[]): Promise<Mat
       .select(MATCH_SELECT)
       .eq(LIVE, true)
       .in("sido", [...sidoIn])
+      // 목록(getJobs)과 **같은 순서**여야 한다 — 자동매치에서 본 차례가 목록과 다르면
+      // 같은 사이트가 두 말을 하는 셈이 된다. 유료 → 무료·워크넷 → 최신순.
+      .order("ad_paid", { ascending: false })
       .order("ad_live", { ascending: false })
       .order("posted_at", { ascending: false })
       // 🔴 유일 키를 마지막 정렬 키로 둔다. 페이지마다 별개 쿼리라 동률(워크넷 일괄수집분은
@@ -506,6 +519,37 @@ export async function getMyAdCash(): Promise<number> {
   return data?.ad_cash ?? 0;
 }
 
+/**
+ * 🎁 무료 1주를 아직 안 썼는가 — **화면 안내용**이다.
+ *
+ * 🔴 판정 정본은 DB 다(claim_free_week + ad_free_used 의 유니크 인덱스). 여기 값은
+ *    카드를 보여줄지 말지를 정할 뿐이고, 실제 지급은 함수가 다시 판정한다.
+ *    여기서만 막으면 조작된 POST 로 뚫린다 — 그래서 두 겹이다.
+ * 🔴 admin 클라이언트로 읽는다. 같은 **사업자번호**를 쓰는 다른 계정이 이미 받았는지도 봐야 하는데,
+ *    그 행은 남의 것이라 RLS(ad_free_used_select)에 막혀 본인 세션으로는 안 보인다.
+ * 🔴 or() 로 문자열을 조립하지 않는다 — 조건을 두 질의로 나눠 주입 여지를 없앤다.
+ *    둘 다 인덱스 한 방이라 비용도 사실상 같다.
+ */
+export async function canUseFreeWeek(): Promise<boolean> {
+  // 둘 다 react cache() 라 이 화면이 이미 부른 값이 재사용된다(추가 왕복 없음).
+  const [user, profile] = await Promise.all([getSessionUser(), getMyProfile()]);
+  if (!user) return false;
+  const admin = createAdminClient();
+  const biz = (profile?.businessNo ?? "").trim();
+  const [mine, sameBiz] = await Promise.all([
+    admin.from("ad_free_used").select("id", { count: "exact", head: true }).eq("profile_id", user.id),
+    biz
+      ? admin.from("ad_free_used").select("id", { count: "exact", head: true }).eq("business_no", biz)
+      : Promise.resolve({ count: 0, error: null }),
+  ]);
+  // 조회가 실패하면 **안 준다** — 열어 두면 한 병원이 여러 번 받는다(막는 쪽이 안전한 실패다).
+  if (mine.error || sameBiz.error) {
+    console.error("canUseFreeWeek failed:", mine.error?.message ?? sameBiz.error?.message);
+    return false;
+  }
+  return !mine.count && !sameBiz.count;
+}
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type MyJobDetail = {
@@ -514,6 +558,9 @@ export type MyJobDetail = {
   facility_type: string | null; job_category: string | null;
   employment_type: string | null; salary_text: string | null; benefits: string[];
   description: string | null; status: JobStatus; posted_at: string;
+  // 광고 화면이 "지금 노출 중인가"를 판단한다 — 노출 중이면 무료 1주 카드를 감춘다
+  // (1회뿐인 혜택을 남은 기간 위에 겹쳐 버리지 않도록. claim_free_week 도 같은 이유로 거절한다).
+  featured_until: string | null;
   recruit_count: number | null; shift_type: string | null;
   // 마감일도 수정·복제 폼이 다시 채워야 한다 — 빠지면 수정할 때마다 조용히 '상시'가 된다.
   deadline: string | null;
@@ -531,7 +578,7 @@ export async function getMyJob(id: string): Promise<MyJobDetail | null> {
   type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string; owner_profile_id: string | null } | null };
   const { data } = await supabase
     .from("jobs")
-    .select("id,title,specialty,facility_type,job_category,location,employment_type,salary_text,benefits,description,status,posted_at,recruit_count,shift_type,deadline,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(id,name,owner_profile_id)")
+    .select("id,title,specialty,facility_type,job_category,location,employment_type,salary_text,benefits,description,status,posted_at,featured_until,recruit_count,shift_type,deadline,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(id,name,owner_profile_id)")
     .eq("id", id)
     .maybeSingle()
     .returns<Raw>();
@@ -550,7 +597,7 @@ export async function getMyLastJob(): Promise<MyJobDetail | null> {
   type Raw = Omit<MyJobDetail, "hospital"> & { hospital: { id: string; name: string } | null };
   const { data } = await supabase
     .from("jobs")
-    .select("id,title,specialty,facility_type,job_category,location,employment_type,salary_text,benefits,description,status,posted_at,recruit_count,shift_type,deadline,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(id,name)")
+    .select("id,title,specialty,facility_type,job_category,location,employment_type,salary_text,benefits,description,status,posted_at,featured_until,recruit_count,shift_type,deadline,manager_name,manager_phone,apply_methods,apply_email,apply_detail,hospital:hospitals(id,name)")
     .in("hospital_id", ids)
     .order("posted_at", { ascending: false })
     .limit(1)

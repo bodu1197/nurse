@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import HospitalShell from "@/components/HospitalShell";
 import AdPurchase from "@/components/AdPurchase";
 import { getMyProfile } from "@/lib/data/user";
-import { getMyJob, getMyAdCash } from "@/lib/data/jobs";
+import { getMyJob, getMyAdCash, canUseFreeWeek } from "@/lib/data/jobs";
 import { iamportReady } from "@/lib/iamport";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { AD_PRODUCTS, won } from "@/lib/ads";
@@ -26,6 +26,11 @@ export default async function AdPage({ params, searchParams }: Readonly<{ params
   if (!job) redirect("/mypage/jobs");
   const ready = iamportReady();
   const adCash = await getMyAdCash();
+  // 🎁 무료 1주를 아직 안 썼는가 — 카드를 보여줄지만 정한다. 실제 지급 판정은 DB(claim_free_week)다.
+  //    이미 노출 중인 공고에는 무료를 얹지 않으므로(1회뿐인 혜택을 남은 기간 위에 겹치게 된다)
+  //    여기서도 같은 조건으로 카드를 감춘다 — 보이는데 눌러야 거절당하는 길을 만들지 않는다.
+  const adLive = !!job.featured_until && Date.parse(job.featured_until) > nowMs();
+  const freeAvailable = !adLive && (await canUseFreeWeek());
   const expiredDeadline = !!job.deadline && job.deadline < todayKst(nowMs());
   // 마감일까지 남은 일수. 광고 기간이 이 값을 넘으면 넘는 만큼은 노출되지 않는다.
   // 🔴 **내림**이다 — lib/date 의 remain() 과 같은 규칙. 올림(+1)으로 두면 오늘 23:50 마감인
@@ -59,7 +64,7 @@ export default async function AdPage({ params, searchParams }: Readonly<{ params
             오늘 이후로 바꾸신 뒤 결제해 주세요.
           </div>
         ) : ready ? (
-          <AdPurchase jobId={job.id} initialWeeks={initialWeeks} adCash={adCash} deadlineText={job.deadline ? fmtDay(job.deadline) : null} daysToDeadline={daysToDeadline} impCode={process.env.NEXT_PUBLIC_IAMPORT_CODE ?? ""} pg={process.env.NEXT_PUBLIC_IAMPORT_PG ?? "html5_inicis"} />
+          <AdPurchase jobId={job.id} initialWeeks={initialWeeks} adCash={adCash} freeAvailable={freeAvailable} deadlineText={job.deadline ? fmtDay(job.deadline) : null} daysToDeadline={daysToDeadline} impCode={process.env.NEXT_PUBLIC_IAMPORT_CODE ?? ""} pg={process.env.NEXT_PUBLIC_IAMPORT_PG ?? "html5_inicis"} />
         ) : (
           <div className="mt-6 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
             광고 결제는 준비 중입니다(도메인 연결 후 오픈).{job.status === "draft" ? " 이 공고는 결제 시 게시됩니다 — 그전까지 '결제 대기' 상태로 보관됩니다." : ""}

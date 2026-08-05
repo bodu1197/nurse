@@ -39,6 +39,31 @@ export type Database = {
   }
   public: {
     Tables: {
+      /** 무료 1주를 받은 기록 — 병원당 1회(profile_id·business_no 각각 유니크). 마이그레이션 20260806100000 */
+      ad_free_used: {
+        Row: {
+          id: string
+          profile_id: string
+          business_no: string | null
+          job_id: string | null
+          used_at: string
+        }
+        Insert: {
+          id?: string
+          profile_id: string
+          business_no?: string | null
+          job_id?: string | null
+          used_at?: string
+        }
+        Update: {
+          id?: string
+          profile_id?: string
+          business_no?: string | null
+          job_id?: string | null
+          used_at?: string
+        }
+        Relationships: []
+      }
       ad_orders: {
         Row: {
           amount: number
@@ -1104,6 +1129,7 @@ export type Database = {
       jobs_listed: {
         Row: {
           ad_live: boolean | null
+          ad_paid: boolean | null
           is_live: boolean | null
           ad_tier: string | null
           apply_detail: string | null
@@ -1145,6 +1171,7 @@ export type Database = {
         }
         Insert: {
           ad_live?: never
+          ad_paid?: never
           is_live?: never
           ad_tier?: string | null
           apply_detail?: string | null
@@ -1186,6 +1213,7 @@ export type Database = {
         }
         Update: {
           ad_live?: never
+          ad_paid?: never
           is_live?: never
           ad_tier?: string | null
           apply_detail?: string | null
@@ -1239,6 +1267,8 @@ export type Database = {
     Functions: {
       admin_dashboard: { Args: never; Returns: Json }
       claim_ad_cash: { Args: { p_profile: string; p_want: number }; Returns: number }
+      /** 무료 1주 지급(병원당 1회). 'ok' | 'already_used' | 'not_owner' | 'already_live' | 'deadline' */
+      claim_free_week: { Args: { p_job: string }; Returns: string }
       release_ad_cash: { Args: { p_profile: string; p_amount: number }; Returns: undefined }
       release_ad_order_cash: {
         Args: { p_order: string; p_allowed: string[]; p_next: string }

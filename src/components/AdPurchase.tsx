@@ -4,8 +4,11 @@ import Script from "next/script";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/Button";
-import { AD_PRODUCTS, AD_WEEK_PRICE, splitPayment, won } from "@/lib/ads";
-import { prepareAdOrder, verifyAdPayment, abandonAdOrder } from "@/app/mypage/ads/actions";
+import { AD_PRODUCTS, AD_WEEK_PRICE, FREE_WEEK_DAYS, splitPayment, won } from "@/lib/ads";
+import { prepareAdOrder, verifyAdPayment, abandonAdOrder, claimFreeWeek } from "@/app/mypage/ads/actions";
+
+/** 무료 1주를 고른 상태. 상품표(AD_PRODUCTS)에 0주는 없으므로 이 값이 곧 "유료가 아님" 이다. */
+const FREE = 0;
 
 type ImpResponse = { success: boolean; imp_uid: string; merchant_uid: string; error_msg?: string };
 type Imp = {
@@ -20,11 +23,13 @@ declare global {
 //    fmtDate/fmtDay 밖에서 만들지 않는데, 그 모듈은 react cache() 를 쓰는 서버 모듈이라
 //    클라이언트 컴포넌트가 import 할 수 없다. 여기서 손으로 찍으면 같은 날짜가 화면마다
 //    "2026-08-12" 와 "2026.08.12" 로 갈린다.
-export default function AdPurchase({ jobId, initialWeeks = 1, adCash, deadlineText, daysToDeadline, impCode, pg }: Readonly<{ jobId: string; initialWeeks?: number; adCash: number; deadlineText: string | null; daysToDeadline: number | null; impCode: string; pg: string }>) {
+export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvailable, deadlineText, daysToDeadline, impCode, pg }: Readonly<{ jobId: string; initialWeeks?: number; adCash: number; freeAvailable: boolean; deadlineText: string | null; daysToDeadline: number | null; impCode: string; pg: string }>) {
   const router = useRouter();
-  const [weeks, setWeeks] = useState(initialWeeks);
+  // 무료를 받을 수 있으면 그것을 먼저 고른 상태로 연다 — 첫 병원이 가장 흔히 누를 것이다.
+  const [weeks, setWeeks] = useState(freeAvailable ? FREE : initialWeeks);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const isFree = weeks === FREE;
   // non-null 단언 대신 기본값 — initialWeeks 가 상품에 없는 값으로 들어와도 화면이 죽지 않는다.
   const product = AD_PRODUCTS.find((p) => p.weeks === weeks) ?? AD_PRODUCTS[0];
   // 🔴 화면 계산도 서버와 **같은 함수**로 한다. 여기서 따로 빼면 표시액과 청구액이 어긋난다
@@ -35,6 +40,31 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, deadlineTe
   //    25일치를 받고 노출하지 않는 셈이고 환불도 없다. 사기 전에 보이게 한다.
   //    (남은 일수는 서버가 KST 로 계산해 내려준다 — 렌더 중 Date.now() 는 결과가 흔들린다.)
   const cutShort = daysToDeadline !== null && daysToDeadline < product.days;
+
+  /**
+   * 🎁 무료 1주 적용. 결제창을 열지 않는다 — 서버가 DB 함수 한 번으로 판정·기록·적용을 끝낸다.
+   * 🔴 화면의 freeAvailable 은 안내일 뿐이라 서버가 다시 판정한다. 그 답을 그대로 사람 말로 옮긴다 —
+   *    "이미 받았다" 를 "실패했습니다" 로 뭉개면 병원이 계속 다시 누른다.
+   */
+  async function claimFree() {
+    setErr(null);
+    setBusy(true);
+    const res = await claimFreeWeek(jobId);
+    if (!res.ok) {
+      setBusy(false);
+      setErr(
+        res.error === "already_used" ? "무료 1주는 병원당 한 번만 받으실 수 있습니다. 기간을 선택해 결제해 주세요."
+        : res.error === "already_live" ? "이미 노출 중인 공고입니다. 무료 1주는 노출이 끝난 뒤에 쓰실 수 있습니다."
+        : res.error === "deadline" ? "공고 마감일이 지났습니다. 마감일을 수정한 뒤 다시 시도해 주세요."
+        : res.error === "not_owner" ? "이 공고에 광고를 올릴 권한이 없습니다."
+        : res.error === "hidden" ? "운영자가 내린 공고입니다. 고객센터로 문의해 주세요."
+        : "무료 적용에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      );
+      return;
+    }
+    router.push(`/mypage/jobs?ok=free`);
+    router.refresh();
+  }
 
   async function pay() {
     setErr(null);
@@ -97,11 +127,35 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, deadlineTe
     <div className="mt-6">
       <Script src="https://cdn.iamport.kr/v1/iamport.js" strategy="afterInteractive" />
 
-      <div className="mt-4 grid grid-cols-2 gap-x-2 gap-y-5 sm:grid-cols-4">
+      {/* 🔴 무료 카드는 **아직 안 쓴 병원에게만** 보인다(freeAvailable). 한 번 쓰면 사라져 4장이 된다.
+          🔴 열 수를 카드 수에 맞춘다. 무료가 있으면 5장이라 2열에서는 2/2/1 로 **마지막 한 장이
+             외톨이**가 되고, sm(640)~lg(1024) 구간이 통째로 2열로 남아 세로로 길어진다(/review8 지적).
+             · 모바일: 무료를 col-span-2 로 한 줄 전부 쓰고(성격이 다른 상품이라 그게 더 읽힌다) 유료 4장이 2×2
+             · sm: 3열 → lg: 5열 로 계단을 준다
+          🔴 각 카드에 혜택을 적는다(오너 지시 2026-08-06). 무료를 유료 옆에 그냥 세워 두면
+             "그냥 싼 상품" 으로 보여서, 무료로 올린 병원이 연락처를 열려다 막히고 그때 항의가 온다. */}
+      <div className={`mt-4 grid grid-cols-2 gap-x-2 gap-y-5 ${freeAvailable ? "sm:grid-cols-3 lg:grid-cols-5" : "sm:grid-cols-4"}`}>
+        {freeAvailable && (
+          <label className="col-span-2 sm:col-span-1">
+            <input type="radio" name="weeks" value={FREE} checked={weeks === FREE} onChange={() => setWeeks(FREE)} className="peer sr-only" />
+            {/* peer-focus-visible: 라디오가 sr-only 라 키보드로 옮겨도 어디에 있는지 안 보였다 — 테두리를 준다. */}
+            <span className="relative flex h-36 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-dashed border-slate-400 text-sm text-slate-600 peer-checked:border-solid peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
+              <span className="absolute -top-2 rounded-full bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-white">병원당 1회</span>
+              <b>{FREE_WEEK_DAYS}일 무료</b>
+              <span className="text-xs">0원</span>
+              <span className="mt-1.5 text-[11px] leading-tight text-slate-500">
+                목록 노출 ○<br />
+                <span className="text-slate-400">유료 아래</span><br />
+                연락처 열람 ✕<br />
+                자동매치 ✕
+              </span>
+            </span>
+          </label>
+        )}
         {AD_PRODUCTS.map((p) => (
           <label key={p.weeks}>
             <input type="radio" name="weeks" value={p.weeks} checked={weeks === p.weeks} onChange={() => setWeeks(p.weeks)} className="peer sr-only" />
-            <span className="relative flex h-28 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-slate-300 text-sm text-slate-600 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700">
+            <span className="relative flex h-36 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-slate-300 text-sm text-slate-600 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
               {/* 🔴 할인 폭을 칸 안에 박아 둔다 — 고를 때 보이지 않으면 길게 살 이유가 안 보인다. */}
               {p.saved > 0 && (
                 <span className="absolute -top-2 rounded-full bg-teal-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{p.offPct}% 할인</span>
@@ -110,27 +164,44 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, deadlineTe
               <span className="text-xs">{won(p.amount)}</span>
               <span className="text-[11px] text-slate-400">주당 {won(p.perWeek)}</span>
               {adCash > 0 && <span className="text-[11px] font-semibold text-teal-600">캐시 후 {won(splitPayment(p.amount, adCash).payable)}</span>}
+              <span className="mt-1.5 text-[11px] leading-tight text-teal-700">
+                목록 <b>맨 위</b><br />
+                연락처 열람 ○<br />
+                자동매치 ○
+              </span>
             </span>
           </label>
         ))}
       </div>
 
       <dl className="mt-5 space-y-1 rounded-[12px] border border-slate-200 bg-slate-50 p-4 text-sm">
-        <div className="flex justify-between"><dt className="text-slate-500">노출 기간</dt><dd className="font-medium text-slate-800">{product.days}일</dd></div>
-        <div className="flex justify-between">
-          <dt className="text-slate-500">광고비</dt>
-          <dd>
-            {product.saved > 0 && <span className="mr-1.5 text-slate-400 line-through">{won(AD_WEEK_PRICE * product.weeks)}</span>}
-            {won(product.amount)}
-          </dd>
-        </div>
-        {product.saved > 0 && (
-          <div className="flex justify-between"><dt className="text-slate-500">기간 할인({product.offPct}%)</dt><dd className="text-teal-700">-{won(product.saved)}</dd></div>
+        <div className="flex justify-between"><dt className="text-slate-500">노출 기간</dt><dd className="font-medium text-slate-800">{isFree ? FREE_WEEK_DAYS : product.days}일</dd></div>
+        {isFree ? (
+          <>
+            <div className="flex justify-between"><dt className="text-slate-500">목록 노출</dt><dd className="text-slate-800">유료 광고 아래</dd></div>
+            {/* 🔴 못 하는 것을 **누르기 전에** 적는다. 나중에 알게 되면 그게 곧 항의다. */}
+            <div className="flex justify-between"><dt className="text-slate-500">간호사 연락처 열람</dt><dd className="text-slate-500">열리지 않음</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">AI 자동매치 인재 추천</dt><dd className="text-slate-500">열리지 않음</dd></div>
+            <div className="flex justify-between border-t border-slate-200 pt-1 font-bold text-slate-900"><dt>결제금액</dt><dd className="text-teal-700">0원</dd></div>
+          </>
+        ) : (
+          <>
+            <div className="flex justify-between">
+              <dt className="text-slate-500">광고비</dt>
+              <dd>
+                {product.saved > 0 && <span className="mr-1.5 text-slate-400 line-through">{won(AD_WEEK_PRICE * product.weeks)}</span>}
+                {won(product.amount)}
+              </dd>
+            </div>
+            {product.saved > 0 && (
+              <div className="flex justify-between"><dt className="text-slate-500">기간 할인({product.offPct}%)</dt><dd className="text-teal-700">-{won(product.saved)}</dd></div>
+            )}
+            {cashUsed > 0 && (
+              <div className="flex justify-between"><dt className="text-slate-500">광고 캐시 사용</dt><dd className="text-teal-700">-{won(cashUsed)}</dd></div>
+            )}
+            <div className="flex justify-between border-t border-slate-200 pt-1 font-bold text-slate-900"><dt>결제금액</dt><dd className="text-teal-700">{won(payable)}</dd></div>
+          </>
         )}
-        {cashUsed > 0 && (
-          <div className="flex justify-between"><dt className="text-slate-500">광고 캐시 사용</dt><dd className="text-teal-700">-{won(cashUsed)}</dd></div>
-        )}
-        <div className="flex justify-between border-t border-slate-200 pt-1 font-bold text-slate-900"><dt>결제금액</dt><dd className="text-teal-700">{won(payable)}</dd></div>
       </dl>
 
       {/* 🔴 환불 규정은 **결제 버튼 위에** 있어야 한다(오너 확정 2026-07-30: 환불하지 않는다).
@@ -152,10 +223,14 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, deadlineTe
 
       {err && <p role="alert" className="mt-3 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{err}</p>}
 
-      <Button type="button" onClick={pay} disabled={busy} size="lg" className="mt-4 w-full">
-        {busy ? "결제 진행 중…" : `${won(payable)} 결제하기`}
+      <Button type="button" onClick={isFree ? claimFree : pay} disabled={busy} size="lg" className="mt-4 w-full">
+        {busy ? (isFree ? "적용 중…" : "결제 진행 중…") : isFree ? "무료 1주 올리기" : `${won(payable)} 결제하기`}
       </Button>
-      <p className="mt-2 text-center text-xs text-slate-400">{product.days}일 동안 목록 상단에 노출됩니다. 광고 캐시가 있으면 먼저 쓰이고 나머지만 카드로 결제합니다(이니시스).</p>
+      <p className="mt-2 text-center text-xs text-slate-400">
+        {isFree
+          ? `${FREE_WEEK_DAYS}일 동안 목록에 노출됩니다(유료 광고 아래). 병원당 한 번만 받을 수 있고, 되돌릴 수 없습니다.`
+          : `${product.days}일 동안 목록 맨 위에 노출되고 간호사 연락처 열람과 AI 자동매치가 열립니다. 카드로 결제합니다(이니시스).`}
+      </p>
     </div>
   );
 }

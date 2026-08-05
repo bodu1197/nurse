@@ -3,10 +3,11 @@ import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { LINK_CLASS } from "@/lib/constants";
-import { SIGNUP_AD_CASH, won } from "@/lib/ads";
+import { AD_WEEK_PRICE, won } from "@/lib/ads";
 
 const HOSP_TITLE = "병원 서비스 — 간호사 채용공고 등록 | 널스넷";
-const HOSP_DESC = `병원 채용담당자를 위한 간호사 채용 서비스. 사업자 인증 후 공고를 등록하시면 가입 시 드리는 광고 캐시 ${won(SIGNUP_AD_CASH)}으로 첫 광고를 시작할 수 있습니다.`;
+// 🔴 금액은 lib/ads 에서 온다 — 손으로 적으면 값을 바꿨을 때 검색결과 설명만 옛 가격으로 남는다.
+const HOSP_DESC = `병원 채용담당자를 위한 간호사 채용 서비스. 사업자 인증 후 공고를 등록하시면 첫 공고 1주는 무료로 노출됩니다. 유료 광고는 1주 ${won(AD_WEEK_PRICE)}부터이며 목록 상단 노출과 간호사 연락처 열람이 열립니다.`;
 
 export const metadata = {
   title: HOSP_TITLE,
@@ -19,7 +20,7 @@ export const metadata = {
 const STEPS = [
   { n: "1", t: "병원 회원가입", d: "이메일로 간단히 가입합니다." },
   { n: "2", t: "사업자 인증", d: "국세청 사업자등록 진위확인으로 병원을 인증합니다." },
-  { n: "3", t: "공고 등록 · 광고 시작", d: "병원을 검색·선택하면 정보가 자동 입력됩니다. 가입 캐시가 광고비에서 먼저 차감됩니다." },
+  { n: "3", t: "공고 등록 · 광고 시작", d: "병원을 검색·선택하면 정보가 자동 입력됩니다. 첫 공고는 1주 무료로 올려 보고, 이어서 유료 광고를 고르시면 됩니다." },
 ];
 
 export default async function HospitalPage() {
@@ -31,10 +32,11 @@ export default async function HospitalPage() {
       <main className="flex-1">
         <section className="mx-auto max-w-3xl px-4 py-16 text-center sm:py-20">
           <p className="text-sm font-semibold text-teal-700">병원 채용담당자님께</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">간호사 채용, 광고 캐시 {won(SIGNUP_AD_CASH)}으로 시작하세요</h1>
+          <h1 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">간호사 채용, 첫 1주는 무료로 시작하세요</h1>
           <p className="mx-auto mt-4 max-w-xl text-slate-600">
             전국 79,000여 개 병원 데이터를 기반으로, 사업자 인증을 마친 병원만 공고를 등록합니다.
-            인증된 병원의 공고는 간호사에게 신뢰를 줍니다. 가입하시면 광고 캐시 {won(SIGNUP_AD_CASH)}을 드립니다.
+            인증된 병원의 공고는 간호사에게 신뢰를 줍니다. 첫 공고 1주는 무료로 올려 보시고,
+            상단 노출과 간호사 연락처 열람이 필요하시면 1주 {won(AD_WEEK_PRICE)}부터 광고를 더하시면 됩니다.
           </p>
 
           <div className="mt-8">

@@ -1,7 +1,7 @@
 // 실행: pnpm test   (Node 24의 네이티브 TS 실행 — 테스트 러너 설치 불필요)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { AD_PRODUCTS, AD_WEEK_PRICE, SIGNUP_AD_CASH, adProduct, splitPayment } from "./ads.ts";
+import { AD_PRODUCTS, AD_WEEK_PRICE, adProduct, splitPayment } from "./ads.ts";
 
 test("상품 값이 스스로 어긋나지 않는다", () => {
   for (const p of AD_PRODUCTS) {
@@ -29,23 +29,23 @@ test("길게 살수록 주당 단가가 내려간다", () => {
 });
 
 /**
- * 🔴 이 테스트가 "완전 무료 광고는 없다"(오너 확정 2026-08-05)를 코드에 못 박는다.
- *    가입 캐시가 최소 광고비 이상이 되는 순간 1주짜리가 0원이 되어 공짜 광고가 부활한다.
+ * 🔴 "유료는 공짜돈 없이 정가 그대로 받는다"(오너 확정 2026-08-06)를 코드에 못 박는다.
+ *    가입 캐시 지급은 폐지했다 — 잔액이 0 이면 전액이 카드로 청구되어야 한다.
+ *    캐시 배관(splitPayment·claim/release)은 남겨 뒀다. 결제 트랜잭션 한가운데라 걷어내는 것이
+ *    더 위험하고, 관리자가 예외적으로 얹어 줄 여지도 남는다. 다만 **자동 지급은 없다.**
  */
-test("가입 캐시로는 어느 상품도 다 살 수 없다 — 최소 1원은 결제된다", () => {
-  // 🔴 제일 싼 상품 하나만 보면 안 된다. 나중에 할인을 더 키워 어떤 상품이 캐시 밑으로
-  //    내려가면, 그 상품이 곧 공짜 광고다. 전 상품을 본다.
+test("캐시 잔액 0 이면 광고비 전액이 결제된다 — 공짜 광고가 없다", () => {
   for (const p of AD_PRODUCTS) {
-    const { cashUsed, payable } = splitPayment(p.amount, SIGNUP_AD_CASH);
-    assert.equal(cashUsed, SIGNUP_AD_CASH, `${p.weeks}주에서 캐시는 전액 쓰인다`);
-    assert.equal(payable, p.amount - SIGNUP_AD_CASH);
+    const { cashUsed, payable } = splitPayment(p.amount, 0);
+    assert.equal(cashUsed, 0, `${p.weeks}주에서 쓸 캐시가 없다`);
+    assert.equal(payable, p.amount, `${p.weeks}주는 정가 전액이 청구된다`);
     assert.ok(payable > 0, `${p.weeks}주도 현금이 나가야 한다`);
   }
 });
 
 test("캐시가 광고비보다 많아도 광고비까지만 쓴다", () => {
-  const { cashUsed, payable } = splitPayment(80_000, 500_000);
-  assert.equal(cashUsed, 80_000);
+  const { cashUsed, payable } = splitPayment(AD_WEEK_PRICE, 500_000);
+  assert.equal(cashUsed, AD_WEEK_PRICE);
   assert.equal(payable, 0);
 });
 

@@ -5,6 +5,7 @@ import { requireProfile } from "@/lib/data/user";
 import { getMyJobs } from "@/lib/data/jobs";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import { jobState, isLive } from "@/lib/jobState";
+import { FREE_WEEK_DAYS } from "@/lib/ads";
 import { nowMs, fmtDate, fmtDay, listingEnd, remain } from "@/lib/date";
 import { setJobStatus, deleteJob, repostJob } from "../actions";
 
@@ -26,6 +27,14 @@ export default async function MyJobsPage({
         <p className="mt-1 text-sm text-slate-500">공고 등록은 <b className="text-teal-700">무료</b> <span className="text-slate-500">· 노출은 광고를 결제하시면 시작됩니다.</span></p>
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
+        {/* 🔴 무료 1주는 "처리되었습니다" 로 뭉개면 안 된다 — 평생 한 번뿐인 혜택을 방금 쓴 것이라
+            무엇을 받았고 무엇이 안 열리는지 그 자리에서 알려야 나중에 항의가 안 온다. */}
+        {ok === "free" && (
+          <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm leading-relaxed text-teal-800">
+            <b>무료 {FREE_WEEK_DAYS}일 노출이 시작되었습니다.</b> 병원당 한 번만 드리는 혜택이라 다음부터는 광고를 결제하셔야 합니다.
+            <span className="block text-teal-700">간호사 연락처 열람과 AI 자동매치는 유료 광고에서만 열립니다.</span>
+          </div>
+        )}
         {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
         {/* 마감일이 지난 공고는 다시 게시해도 아무 데도 안 나온다 — 예전에는 "처리되었습니다"만 뜨고
             실제로는 비노출인 채였다(침묵하는 실패). 무엇을 해야 하는지 짚어 준다. */}
