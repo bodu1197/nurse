@@ -1,7 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/data/admin";
-import { nowMs } from "@/lib/date";
+
 import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
 
 export const PER_PAGE = 30;
@@ -46,11 +46,22 @@ export type Dashboard = {
   members: { total: number; nurse: number; hospital: number; legacy: number; real: number; today: number; yesterday: number; d7: number; d30: number };
   /** real/today/... 은 실제 회원 것만. saved_* 는 이관 회원도 센다 — 저장은 사람이 한 행위다. */
   resumes: { total: number; public: number; real: number; real_public: number; today: number; yesterday: number; d7: number; d30: number; edited_today: number; edited_d7: number; saved_today: number; saved_yesterday: number };
-  /** 병원이 우리 사이트에 직접 올린 공고. **워크넷 수집분은 빠져 있다**(오너 지시). */
+  /**
+   * 우리 공고 — 병원이 올린 것 + 구 널스넷 이관분(source='partner'). **워크넷 수집분은 빠져 있다**(오너 지시).
+   * 🔴 `open` 만 노출 판정(jobs_listed.is_live)을 거친다. today/yesterday/d7 는 posted_at 기준이라
+   *    **노출 여부와 무관**하다 — 그래서 화면에서 그 카드에는 목록 링크를 걸지 않는다(도착지와 숫자가 어긋난다).
+   */
   jobs: { open: number; today: number; yesterday: number; d7: number; closing3: number };
   /** 워크넷(고용24)에서 자동 수집한 구인정보 — 우리 공고가 아니라 수집 상태다. */
   collected: { open: number; today: number; last_sync: string | null };
   applications: { total: number; today: number; yesterday: number; d7: number };
+  /**
+   * 🔴 `live` 는 **돈을 낸 광고**만(ad_tier='standard' + is_live) — 공고관리 「유료」 탭과 같은 술어라
+   *    카드 숫자와 눌러서 도착한 목록의 건수가 일치한다.
+   * 🔴 `granted` 는 **무료로 노출 중인 공고 수**다. 종전에는 ad_tier='admin_test' 를 세었는데 그 값은
+   *    DB 에 한 건도 없어(관리자가 켜준 광고도 'free' 로 둔다) 영원히 0 인 죽은 숫자였다.
+   * `ending7` 은 유료 광고 중 7일 안에 끝나는 것. 정의는 마이그레이션 20260805100000 에 있다.
+   */
   ads: { live: number; granted: number; ending7: number };
   revenue: { today: number; yesterday: number; d30: number; total: number; count30: number };
   todo: { inquiries: number; tax: number; stale_orders: number; failed_orders: number; hidden_reviews: number; hidden_posts: number; nameless_resumes: number; private_resumes_7d: number };
@@ -218,10 +229,9 @@ export async function getAdList(
   await requireAdmin();
   const supabase = await createClient();
   const { from, to } = range(page);
-  const nowIso = new Date(nowMs()).toISOString();
 
   let query = supabase
-    .from("jobs")
+    .from("jobs_listed")
     .select("id,title,company_name,ad_tier,featured_until,posted_at,deadline,status,source,hospital:hospitals(id,name)", { count: "exact" })
     // 🔴 워크넷 공고는 우리가 파는 광고가 아니라 고용24에서 **수집한** 구인정보다(오너 지시 2026-08-04).
     .neq("source", "worknet");
@@ -241,11 +251,13 @@ export async function getAdList(
   //    서로 덮여 엉뚱한 목록이 나왔다(오너 지적 2026-08-04: 무료 탭에 끝난 공고가 섞였다).
   //    이제 모든 공고가 등록 즉시 featured_until 을 갖는다(첫 1주 0원, createJob + 20260804350000).
   //    그래서 노출중 = 열려 있고 + 기간이 남았다 — 조건 두 개면 끝이고 인덱스도 그대로 탄다.
-  if (scope !== "ended") query = query.eq("status", "open").gt("featured_until", nowIso);
-  // 「노출 마감」은 그 여집합이다: 닫혔거나, 기간이 없거나, 지났거나.
-  if (scope === "ended") {
-    query = query.or(`status.neq.open,featured_until.is.null,featured_until.lte.${nowIso}`);
-  }
+  // 🔴 판정은 **jobs_listed.is_live 하나**를 읽는다(마이그레이션 20260805100000).
+  //    전에는 여기·구직자 목록·대시보드 RPC 가 각자 규칙을 손으로 적어서, 대시보드는 "게시중 44"
+  //    인데 이 목록은 "노출중 40" 이었다(오너 지적 2026-08-05: "어떤 게 맞는 거냐").
+  //    규칙을 바꿀 일이 생기면 그 마이그레이션 파일만 고친다 — 여기 다시 적지 말 것.
+  if (scope !== "ended") query = query.eq("is_live", true);
+  // 「노출 마감」은 그 여집합이다.
+  if (scope === "ended") query = query.eq("is_live", false);
   // 🔴 유료·무료도 **탭**이다. 배지만 달아 두면 8만 건 중에서 유료를 눈으로 찾아야 한다(오너 지시).
   //    판정은 ad_tier 로 한다 — 매 페이지마다 ad_orders 를 조인하면 결제 테이블을 통째로 훑는다.
   //    그 값이 사실과 어긋나 있던 것은 20260804360000 에서 바로잡았다(결제 없으면 free).

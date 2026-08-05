@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { jobState, isLive, isOpenToSeekers } from "./jobState.ts";
-import { listingEnd } from "./date.ts";
+import { listingEnd, FREE_LISTING_DAYS } from "./date.ts";
 
 const DAY = 86_400_000;
 // 2026-07-23 12:00 UTC = KST 21:00 → KST 기준 오늘은 2026-07-23
@@ -107,4 +107,18 @@ test("구 널스넷 이관 공고도 노출 기간 규칙을 받는다", () => {
     isOpenToSeekers({ status: "open", source: "worknet", posted_at: ago(400), featured_until: null, deadline: null }, NOW),
     true,
   );
+});
+
+/**
+ * 🔴 이 규칙의 **정본은 DB** 다 — `jobs_listed.is_live`(마이그레이션 20260805100000)에
+ *    `posted_at >= now() - interval '7 days'` 라고 **숫자가 박혀 있다**. 여기 상수를 바꾸면
+ *    목록(SQL)과 상세·지원·저장(TS)이 갈라져 "목록엔 없는데 링크로는 열리는" 공고가 생긴다.
+ *    상수를 바꾸려면 그 마이그레이션도 같이 고치고 이 테스트의 7을 바꿀 것.
+ */
+test("무료 노출 기간은 DB 정의(7일)와 같은 값이어야 한다", () => {
+  assert.equal(FREE_LISTING_DAYS, 7);
+  const j = { status: "open", source: "partner", featured_until: null, deadline: null } as const;
+  // 경계: 6일 지난 것은 보이고, 8일 지난 것은 안 보인다.
+  assert.equal(isOpenToSeekers({ ...j, posted_at: ago(FREE_LISTING_DAYS - 1) }, NOW), true);
+  assert.equal(isOpenToSeekers({ ...j, posted_at: ago(FREE_LISTING_DAYS + 1) }, NOW), false);
 });

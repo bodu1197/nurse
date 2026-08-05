@@ -4,7 +4,7 @@ import { createClient as createAnonClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/data/user";
 import { LIST_LIMIT } from "@/lib/data/applications";
-import { FREE_LISTING_MS, todayKst } from "@/lib/date";
+import { FREE_LISTING_MS } from "@/lib/date";
 import type { JobStatus } from "@/lib/jobState";
 import { DEPT_ANY } from "@/lib/resumeOptions";
 import type { Database } from "@/types/database";
@@ -188,27 +188,17 @@ const tailLast = (rows: JobRegionNode[]): JobRegionNode[] =>
   [...rows].sort((a, b) => Number(TAIL_LAST.has(a.name)) - Number(TAIL_LAST.has(b.name)));
 
 /**
- * 🗂 **노출 중 공고 술어** — 목록·사이트맵·AI 자동매치가 전부 이 한 곳을 쓴다.
+ * 🗂 **"지금 구직자에게 보이는 공고인가"의 단일 정의는 DB 에 있다** — `jobs_listed.is_live`
+ *    (마이그레이션 20260805100000). 앱은 `.eq("is_live", true)` 로 **읽기만** 한다.
  *
- * 우리 공고(direct·partner) 노출 조건: (게시 7일 이내 무료) 또는 (광고 featured_until 유효).
- * 워크넷 수집분만 항상 노출한다 — 우리가 파는 자리가 아니라 배경 데이터다.
- * 마감일 도래 공고는 뺀다: 상시(null) 또는 마감일(당일 포함)이 아직 안 지난 것만.
- * deadline 은 date 라 KST 오늘로 비교한다.
+ * 왜 이렇게 바꿨나(오너 지적 2026-08-05: "매번 수동으로 맞춰주는 게 바른 방법이냐?"):
+ * 같은 규칙이 관리자 대시보드 RPC · 공고관리 목록 · 여기 · isOpenToSeekers 네 곳에 손으로
+ * 적혀 있었고, 그래서 **대시보드는 "게시중 44", 공고관리는 "노출중 40"** 을 동시에 보여줬다.
+ * 이제 규칙을 바꿀 일이 생기면 그 마이그레이션 파일 하나만 고친다.
  *
- * 🔴 예전에는 `source.neq.direct` 라 **구 널스넷 이관분(partner)이 규칙 밖에 있었다.**
- *    그래서 광고가 끝나도 목록에 남고, featured_until 값이 남아 있으니 정렬에서 워크넷보다 위였다 —
- *    **돈 낸 광고가 끝났는데 계속 1페이지 상단을 차지**했다(실측 43건).
- * 🔴 이 규칙을 복사해 쓰면 안 된다. 한쪽만 고치는 순간 사이트맵·자동매치가 **없는 페이지를 가리키고**
- *    (상세는 노출 종료 공고를 404 로 응답한다), 그건 조용히 일어난다.
- * 무료 기간은 lib/date 의 상수를 그대로 쓴다 — 화면(listingEnd)과 어긋나면 "보이는데 지원은 안 되는" 공고가 생긴다.
+ * 🔴 규칙을 여기 다시 적지 말 것. 복사하는 순간 다시 네 벌이 된다.
  */
-function applyListingWindow<T extends { or(filter: string): T }>(query: T, now: number): T {
-  const fresh = new Date(now - FREE_LISTING_MS).toISOString();
-  const nowIso = new Date(now).toISOString();
-  return query
-    .or(`source.eq.worknet,posted_at.gte.${fresh},featured_until.gte.${nowIso}`)
-    .or(`deadline.is.null,deadline.gte.${todayKst(now)}`);
-}
+const LIVE = "is_live" as const;
 
 // 관리자 테스트 공고(hospitals.is_test)를 여기서 걸러내지 않는 것은 의도된 결정이다.
 // 숨기면 등록→광고→지원까지 실제 화면에서 확인할 방법이 없어 테스트 기능이 무용지물이 된다.
@@ -226,12 +216,11 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   let query = supabase
     .from("jobs_listed")
     .select(SELECT, withCount ? { count: "exact" } : undefined)
-    .eq("status", "open")
+    // 노출 판정은 뷰가 한다(is_live) — status·무료기간·광고기간·마감일을 그 안에서 함께 본다.
+    .eq(LIVE, true)
     .order("ad_live", { ascending: false })
     .order("posted_at", { ascending: false })
     .range(from, from + PER_PAGE - 1);
-
-  query = applyListingWindow(query, Date.now());
 
   const kw = clean(keyword);
   // 🔴 기관 종별·직종도 함께 본다. 진료과 어휘가 바뀌면서 '요양병원'이 specialty 에서 facility_type
@@ -310,26 +299,22 @@ export type MatchJob = Pick<JobsRow, (typeof MATCH_FIELDS)[number]> & {
  *    (워크넷 공고는 진료과 개념이 원래 없다 — jobTaxonomy 참고) 후보가 통째로 사라진다.
  *    넓게 가져와 **일치 개수로 줄을 세운다**(등급으로 자르지 않는다 — 오너 확정 2026-08-05).
  * 🔴 급여는 자유 텍스트라 SQL 로 비교할 수 없다. 이것도 앱에서 판정한다.
- * 🔒 노출 규칙은 목록과 **같은 applyListingWindow** — 어긋나면 매치를 눌렀을 때 404 가 된다.
+ * 🔒 노출 판정은 목록과 **같은 뷰 컬럼(is_live)** — 어긋나면 매치를 눌렀을 때 404 가 된다.
  */
 export async function getMatchCandidates(sidoIn: readonly string[]): Promise<MatchJob[]> {
   if (sidoIn.length === 0) return []; // 지역이 없으면 전국이 나온다 — "내 조건"이 거짓말이 된다
   const supabase = await createClient();
-  const now = Date.now();
   // 🔴 PostgREST 는 max_rows(1000)에서 **조용히 자른다**(.limit() 으로 못 넘는다 — 사이트맵과 같은 함정).
   //    지금은 전국 공고가 1,344건이라 한두 쪽이면 끝나지만, 늘어나도 안 잘리도록 이어 받는다.
   const PAGE = 1000;
   const MAX = 5000; // 한 요청이 수만 행을 메모리로 끌어와 페이지가 죽는 것만 막는 상한
   const out: MatchJob[] = [];
   for (let from = 0; from < MAX; from += PAGE) {
-    const { data, error } = await applyListingWindow(
-      supabase
-        .from("jobs_listed")
-        .select(MATCH_SELECT)
-        .eq("status", "open")
-        .in("sido", [...sidoIn]),
-      now,
-    )
+    const { data, error } = await supabase
+      .from("jobs_listed")
+      .select(MATCH_SELECT)
+      .eq(LIVE, true)
+      .in("sido", [...sidoIn])
       .order("ad_live", { ascending: false })
       .order("posted_at", { ascending: false })
       // 🔴 유일 키를 마지막 정렬 키로 둔다. 페이지마다 별개 쿼리라 동률(워크넷 일괄수집분은
@@ -357,7 +342,7 @@ export type AdConditions = { specialties: string[]; sidos: string[]; count: numb
  *    (= RLS 의 is_talent_advertiser())가 이미 판정했고, 이 함수는 그 다음 질문인 **무슨 조건으로
  *    고를까**에만 답한다. 결제 판정을 여기에 한 벌 더 쓰면 둘이 갈라져, 한쪽만 고쳤을 때
  *    "화면은 열리는데 목록은 비는" 상태가 된다(membership.ts 가 같은 이유로 RPC 를 재사용한다).
- * 🔴 "노출 중" 판정은 **목록과 같은 applyListingWindow** 다. 전에는 여기만 `featured_until > now` 를
+ * 🔴 "노출 중" 판정은 **목록과 같은 뷰 컬럼(is_live)** 이다. 전에는 여기만 `featured_until > now` 를
  *    손으로 적었는데, 그러면 (가) 무료 기간(게시 7일) 중인 공고의 조건이 통째로 빠지고
  *    (나) 마감일이 지난 광고 공고의 조건은 남아, 화면이 말하는 "노출 중인 공고 N건" 과 어긋났다.
  * 🔴 노출 중인 공고 **전건**의 조건을 겹쳐 쓴다 — 첫 건만 보면 나머지 공고에 맞는 인재가 조용히 사라진다.
@@ -367,10 +352,12 @@ export async function getMyAdConditions(): Promise<AdConditions> {
   const ids = await getMyHospitalIds();
   if (ids.length === 0) return empty;
   const supabase = await createClient();
-  const { data, error } = await applyListingWindow(
-    supabase.from("jobs").select("specialty,sido").in("hospital_id", ids).eq("status", "open"),
-    Date.now(),
-  ).returns<{ specialty: string | null; sido: string | null }[]>();
+  const { data, error } = await supabase
+    .from("jobs_listed")
+    .select("specialty,sido")
+    .in("hospital_id", ids)
+    .eq(LIVE, true)
+    .returns<{ specialty: string | null; sido: string | null }[]>();
   if (error) {
     // 🔴 삼키면 돈 낸 병원이 아무 설명 없이 "조건 없음" 화면을 본다.
     console.error("getMyAdConditions failed:", error.message);
@@ -403,19 +390,17 @@ export async function getSitemapJobs(): Promise<{ id: string; updated_at: string
   }
   const supabase = createAnonClient<Database>(url, anon, { auth: { persistSession: false } });
 
-  const now = Date.now();
-
   // 🔴 PostgREST 는 supabase/config.toml 의 max_rows(1000)를 **하드 상한**으로 건다.
   //    .limit(50000) 을 줘도 에러 없이 1000행에서 조용히 잘린다(같은 함정이 지역 RPC 주석에도 있다).
   //    → range 로 나눠 받는다. 사이트맵 상한 50,000건 안에서만 돈다.
   const PAGE = 1000;
   const out: { id: string; updated_at: string }[] = [];
   for (let from = 0; from < 50_000; from += PAGE) {
-    // 목록(getJobs)·판정(isOpenToSeekers)과 같은 규칙 — 어긋나면 사이트맵이 없는 페이지를 광고한다.
-    const { data, error } = await applyListingWindow(
-      supabase.from("jobs").select("id, updated_at").eq("status", "open"),
-      now,
-    )
+    // 목록(getJobs)과 **같은 뷰 컬럼(is_live)** — 어긋나면 사이트맵이 없는 페이지를 광고한다.
+    const { data, error } = await supabase
+      .from("jobs_listed")
+      .select("id, updated_at")
+      .eq(LIVE, true)
       .order("posted_at", { ascending: false })
       // 🔴 유일 키 2차 정렬 — 워크넷 일괄수집분은 posted_at 동률이 수백 건이라, 없으면 1000행
       //    경계에서 URL 이 중복·누락된다(getSitemapTalent 가 같은 이유로 profile_id 를 쓴다).
@@ -426,7 +411,9 @@ export async function getSitemapJobs(): Promise<{ id: string; updated_at: string
       console.error("getSitemapJobs failed:", error.message);
       return out; // 사이트맵은 일부만 나가도 사이트가 죽지 않는다 — 정적 경로는 그대로 실린다
     }
-    out.push(...(data ?? []));
+    // 🔒 뷰의 생성 타입은 모든 컬럼이 nullable 이다(뷰라서 그렇지 실제 컬럼은 not null).
+    //    단언으로 덮지 않고 값이 실제로 있는 행만 싣는다 — 사이트맵에 빈 URL 이 들어가면 안 된다.
+    for (const r of data ?? []) if (r.id && r.updated_at) out.push({ id: r.id, updated_at: r.updated_at });
     if (!data || data.length < PAGE) break;
   }
   return out;

@@ -1101,6 +1101,7 @@ export type Database = {
       jobs_listed: {
         Row: {
           ad_live: boolean | null
+          is_live: boolean | null
           ad_tier: string | null
           apply_detail: string | null
           apply_email: string | null
@@ -1141,6 +1142,7 @@ export type Database = {
         }
         Insert: {
           ad_live?: never
+          is_live?: never
           ad_tier?: string | null
           apply_detail?: string | null
           apply_email?: string | null
@@ -1181,6 +1183,7 @@ export type Database = {
         }
         Update: {
           ad_live?: never
+          is_live?: never
           ad_tier?: string | null
           apply_detail?: string | null
           apply_email?: string | null

@@ -68,16 +68,20 @@ export default async function AdminDashboard() {
 
       <Section title="우리 공고 · 지원">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {/* 🔴 링크를 걸지 않는다. 공고관리 목록에는 **날짜 필터가 없어서**, 이 카드를 누르면
+              "오늘 등록 0" 이라 해놓고 노출중 전체(40건)가 나온다 — 카드 숫자와 도착지가 어긋나는
+              것이 바로 "게시중 44 vs 노출중 40" 을 만든 그 함정이다(오너 지적 2026-08-05).
+              목록은 최신순이라 오늘 것은 어차피 맨 위에 있다. */}
           <Stat label="오늘 등록 공고" value={d.jobs.today}
-            sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()}`} tone="good" href="/admin/ads?scope=live" />
-          <Stat label="게시중 공고" value={d.jobs.open} sub="병원이 직접 올린 것만" href="/admin/ads?scope=live" />
+            sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()} · 노출 여부 무관`} tone="good" />
+          <Stat label="노출중 공고" value={d.jobs.open} sub="지금 구직자에게 보이는 것 · 워크넷 제외" href="/admin/ads?scope=live" />
           <Stat label="3일 내 마감" value={d.jobs.closing3} />
           <Stat label="오늘 지원" value={d.applications.today} sub={`어제 ${d.applications.yesterday.toLocaleString()} · 최근 7일 ${d.applications.d7.toLocaleString()} · 누적 ${d.applications.total.toLocaleString()}`} />
         </div>
         {/* 🔴 워크넷 수집분은 위 숫자에 넣지 않는다 — 고용24에서 자동으로 긁어오는 구인정보라
             우리 매출도, 우리가 관리할 대상도 아니다. 크론이 죽었는지만 보이면 된다. */}
         <p className="mt-2 text-xs text-slate-400">
-          워크넷 수집분은 위 숫자에서 제외했습니다 — 게시중 {d.collected.open.toLocaleString()}건 ·
+          워크넷 수집분은 위 숫자에서 제외했습니다 — 노출중 {d.collected.open.toLocaleString()}건 ·
           오늘 {d.collected.today.toLocaleString()}건 수집
           {d.collected.last_sync && ` · 마지막 수집 ${fmtDay(d.collected.last_sync)}`}
         </p>
@@ -85,7 +89,7 @@ export default async function AdminDashboard() {
 
       <Section title="광고 · 매출">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="유료 광고 게재중" value={d.ads.live} sub={`7일 내 종료 ${d.ads.ending7.toLocaleString()}건 · 무료 부여 ${d.ads.granted.toLocaleString()}건`} href="/admin/ads?scope=paid" />
+          <Stat label="유료 광고 게재중" value={d.ads.live} sub={`7일 내 종료 ${d.ads.ending7.toLocaleString()}건 · 무료 노출중 ${d.ads.granted.toLocaleString()}건(=위 노출중 공고)`} href="/admin/ads?scope=paid" />
           <Stat label="오늘 매출" value={won(d.revenue.today)} tone="good" href="/admin/orders?status=PAID" />
           <Stat label="최근 30일 매출" value={won(d.revenue.d30)} sub={`${d.revenue.count30.toLocaleString()}건`} href="/admin/orders?status=PAID" />
           {/* 링크를 걸지 않는다 — 결제 내역 목록은 관리자 테스트 주문(0원)까지 포함해서

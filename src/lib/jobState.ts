@@ -42,9 +42,14 @@ export const isSettableJobStatus = (s: string): s is (typeof JOB_SETTABLE)[numbe
   JOB_SETTABLE.some((v) => v === s);
 
 /**
- * 구직자에게 지금 보여줄 공고인가 — 목록(getJobs)의 SQL 필터와 **같은 규칙**을 코드로 옮긴 것.
- * 목록·상세·저장한 공고·지원 서버검증이 어긋나면 "목록엔 없는데 링크로는 열리는" 공고가 생긴다.
- * status 도 본다 — 저장 목록은 마감된 공고를 서버 권한으로 되살려 보여주므로 RLS만 믿을 수 없다.
+ * 구직자에게 지금 보여줄 공고인가 — **정본은 DB 에 있다**: `jobs_listed.is_live`
+ * (마이그레이션 20260805100000). 이건 그 규칙을 코드로 옮긴 사본이다.
+ *
+ * 🔴 왜 사본이 필요한가: 상세·지원·저장 목록은 **이미 받아 온 행 하나**를 판정해야 해서
+ *    쿼리 필터를 쓸 수 없다(저장 목록은 마감 공고를 서버 권한으로 되살려 보여주기까지 한다).
+ * 🔴 **둘이 어긋나면 "목록엔 없는데 링크로는 열리는" 공고가 생긴다.** 규칙을 바꿀 일이 생기면
+ *    반드시 양쪽을 같이 고칠 것 — 아래 jobState.test.ts 가 무료 기간 상수를 마이그레이션에
+ *    적힌 값(7일)에 못 박아 두어, 한쪽만 바꾸면 테스트가 깨진다.
  */
 export function isOpenToSeekers(
   job: Readonly<{ status: JobStatus; source: string; posted_at: string; featured_until: string | null; deadline: string | null }>,
