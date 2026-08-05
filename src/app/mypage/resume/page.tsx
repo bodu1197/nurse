@@ -273,7 +273,9 @@ function VisibilitySwitch({ isPublic, hasName }: Readonly<{ isPublic: boolean; h
           <p className="mt-1 text-sm text-slate-700">
             {isPublic
               ? "누구나 볼 수 있는 상태입니다. 이 버튼으로 언제든 즉시 멈출 수 있습니다."
-              : "아무도 볼 수 없습니다. 공개하면 아래 범위로 열립니다."}
+              // 🔴 "아무도 볼 수 없습니다" 만 적으면 **자동매치도 멈춘 줄로 읽힌다.** 비공개는
+              //    인재 검색에서만 빠지는 것이고, 내가 받는 공고 추천은 그대로다(app/match).
+              : "아무도 볼 수 없습니다 — 단, 내가 받는 AI 자동매치 공고 추천은 그대로입니다. 공개하면 아래 범위로 열립니다."}
           </p>
           {/* 🔴 이름이 비어 있으면 searchPublicTalent 가 목록에서 제외한다(.not("name","is",null)).
               그런데 화면은 "공개 중"이라고만 해서, 아무리 기다려도 병원 눈에 안 띄는 이유를 알 수 없었다.
@@ -419,7 +421,7 @@ export default async function ResumePage({
       {ok === "photo" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">사진을 저장했습니다.</div>}
       {ok === "photo_deleted" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">사진을 삭제했습니다.</div>}
       {ok === "public" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 공개했습니다. 연락처를 뺀 내용은 누구나 볼 수 있고, {RESUME_PUBLIC_SCOPE.advertiser}은 {RESUME_PUBLIC_SCOPE.advertiserWho}만 봅니다.</div>}
-      {ok === "private" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">이력서를 비공개로 바꿨습니다. 이제 아무도 볼 수 없습니다 — 위 버튼으로 언제든 다시 공개할 수 있습니다.</div>}
+      {ok === "private" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">이력서를 비공개로 바꿨습니다. 이제 병원의 인재 검색에는 나오지 않습니다 — <b>AI 자동매치 공고 추천은 그대로 받습니다.</b> 위 버튼으로 언제든 다시 공개할 수 있습니다.</div>}
       {messageFor(SAVE_ERRORS, error) && <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{messageFor(SAVE_ERRORS, error)}</div>}
 
       {/* 공개 스위치는 이력서보다 먼저 — 회원이 가장 급하게 찾는 것이라 스크롤 없이 보여야 한다. */}

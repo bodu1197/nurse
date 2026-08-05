@@ -15,16 +15,19 @@ import { canMatch, candidateSidos, evaluateMatch, shortSidos, talentSpecialtyFil
  * 🤖 AI 자동매치 — dolpagu(https://dolpagu.com/match) 이식.
  *
  * 접속자에 따라 화면이 갈린다:
- *   ① 이력서를 **공개**로 등록한 간호사 → 내 조건에 맞는 공고(일치 개수 순, 어긋난 조건 표시)
+ *   ① 이력서를 등록한 간호사(공개·비공개 무관) → 내 조건에 맞는 공고(일치 개수 순, 어긋난 조건 표시)
  *   ② 인재정보 열람 자격이 있는 병원   → 내 공고 조건에 맞는 인재
  *   ③ 그 외(비로그인 포함)            → 기능 설명 + 이력서 등록·광고 게재 유도
  *
  * 🔴 **노출 중(지원을 받고 있는) 공고만 매칭한다**(오너 지시 2026-08-05). 판정은 목록과 같은
  *    술어 하나(lib/data/jobs 의 applyListingWindow)를 쓴다 — 마감됐거나 무료 기간이 끝난 공고를
  *    추천하면 눌렀을 때 404 가 되고, 그건 조용히 일어난다.
- * 🔴 **숨김(비공개) 이력서는 매칭하지 않는다**(오너 지시 2026-08-05). 양쪽 모두다:
- *    간호사 본인 화면은 아래 is_public 검사가 막고, 병원이 보는 인재 목록은 searchPublicTalent 가
- *    is_public=true 만 조회한다. 스스로 내려둔 이력서가 매칭에 도는 것은 본인 의사에 어긋난다.
+ * 🔴 **비공개 이력서는 「병원 → 인재」 방향에서만 빠진다**(오너 확정 2026-08-05).
+ *    비공개는 "인재 목록에 날 올리지 마라"는 뜻이지 "나한테 공고를 추천하지 마라"가 아니다.
+ *    · 병원이 보는 인재 목록 → searchPublicTalent 가 is_public=true 만 조회한다(그대로).
+ *    · 간호사 본인이 보는 공고 추천 → **비공개여도 그대로 받는다.** 이 화면은 본인만 보고,
+ *      읽는 것은 공개 데이터(공고)와 자기 이력서뿐이라 밖으로 새는 것이 없다.
+ *    (종전에는 본인 화면까지 막아, 취업해서 이력서를 잠시 내려둔 사람이 공고 추천도 함께 잃었다.)
  * 🔒 등급(A/B)으로 가르지 않는다(오너 확정 2026-08-05) — 한 목록에 쌓고 카드마다
  *    "5개 중 4개 일치 · 다른 조건: 진료과 미표기" 를 적는다. 판정은 lib/match.
  * 🔒 비로그인에게 보이는 기본 화면이 기능 설명이라 색인을 막지 않는다(크롤러가 받는 것 = 비로그인 화면).
@@ -105,22 +108,15 @@ async function SeekerMatches({
     );
   }
 
-  // 🔴 본인이 내려둔 이력서는 매칭하지 않는다(오너 지시). "등록하세요" 라고 하면 안 된다 — 이미 있다.
-  if (!resume.is_public) {
-    return (
-      <Section title="내 조건에 맞는 공고">
-        <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          이력서가 <b>비공개</b> 상태입니다. 비공개인 동안에는 자동매치가 열리지 않고 병원에게도 보이지 않습니다.{" "}
-          <Link href="/mypage/resume" className="font-semibold underline underline-offset-2">다시 공개하기</Link>
-        </p>
-      </Section>
-    );
-  }
-
   // 지역이 비면 전국 공고가 나와 "내 조건에 맞는 공고"가 거짓말이 된다 → 채우라고 말한다.
   if (!canMatch(resume)) {
     return (
       <Section title="내 조건에 맞는 공고">
+        {!resume.is_public && (
+          <div className="mb-2">
+            <PrivateResumeNotice />
+          </div>
+        )}
         <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           희망 근무지가 비어 있어 매치할 수 없습니다.{" "}
           <Link href="/mypage/resume" className="font-semibold underline underline-offset-2">이력서에서 채우기</Link>
@@ -145,6 +141,12 @@ async function SeekerMatches({
 
   return (
     <Section title="내 조건에 맞는 공고" count={graded.length} unit="건">
+      {/* 비공개여도 공고 추천은 그대로 받는다 — 다만 그동안 무엇을 잃고 있는지는 알려준다. */}
+      {!resume.is_public && (
+        <div className="mb-3">
+          <PrivateResumeNotice />
+        </div>
+      )}
       <MatchAxisNotice seeker={resume} linkToResume />
       {/* 🔴 "전부" 라고 단언하지 않는다 — 조회가 중간에 실패하면(getMatchCandidates 는 받은 만큼
           돌려준다) 그 말이 거짓이 된다. 실제로 살펴본 수만 말한다. */}
@@ -174,6 +176,20 @@ async function SeekerMatches({
         </>
       )}
     </Section>
+  );
+}
+
+/**
+ * 이력서를 본인이 내려둔 상태 — **공고 추천은 계속 받는다.** 막지 않고, 그동안 무엇을 잃는지만 알린다.
+ * 🔴 "자동매치가 열리지 않는다" 라고 쓰면 안 된다. 지금 화면에 결과가 나오고 있으니 거짓말이 된다.
+ */
+function PrivateResumeNotice() {
+  return (
+    <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      이력서가 <b>비공개</b>입니다. 공고 추천은 그대로 받지만, <b>병원의 인재 검색에는 나오지 않아</b>{" "}
+      병원이 먼저 연락할 수는 없습니다.{" "}
+      <Link href="/mypage/resume" className="font-semibold underline underline-offset-2">공개로 바꾸기</Link>
+    </p>
   );
 }
 
@@ -283,7 +299,7 @@ function HowItWorks({ loggedIn, hospital = false }: Readonly<{ loggedIn: boolean
       <div className="grid gap-3 sm:grid-cols-2">
         <Card
           title="간호사 — 맞는 공고를 자동으로"
-          body="이력서를 등록하고 공개해 두면, 지금 지원을 받고 있는 공고 중에서 희망 근무지·근무부서·직종·고용형태·급여가 맞는 곳을 조건이 많이 맞는 순서로 모아 드립니다. 어떤 조건이 다른지도 카드마다 적어 드립니다."
+          body="이력서를 등록해 두면, 지금 지원을 받고 있는 공고 중에서 희망 근무지·근무부서·직종·고용형태·급여가 맞는 곳을 조건이 많이 맞는 순서로 모아 드립니다. 어떤 조건이 다른지도 카드마다 적어 드립니다. 이력서를 비공개로 두어도 이 추천은 그대로 받습니다."
           href={loggedIn && !hospital ? "/mypage/resume" : "/signup"}
           label={loggedIn && !hospital ? "이력서 등록하기" : "간호사 회원가입"}
         />
@@ -295,9 +311,9 @@ function HowItWorks({ loggedIn, hospital = false }: Readonly<{ loggedIn: boolean
         />
       </div>
       <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-        자동매치는 <b className="text-slate-800">공개된 이력서</b>와{" "}
-        <b className="text-slate-800">지금 지원을 받고 있는 공고</b>만 대상으로 합니다. 마감된 공고나 본인이 숨겨 둔
-        이력서는 나오지 않습니다.
+        추천하는 공고는 <b className="text-slate-800">지금 지원을 받고 있는 것</b>뿐입니다 — 마감된 공고는 나오지 않습니다.
+        병원에게 보이는 인재는 <b className="text-slate-800">공개된 이력서</b>뿐이고, 비공개로 두면 인재 검색에서만
+        빠집니다(<b className="text-slate-800">공고 추천은 그대로</b> 받습니다).
       </p>
     </div>
   );
