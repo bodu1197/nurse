@@ -38,7 +38,7 @@ export const FOOTER_NAV: readonly MenuItem[] = [
   { label: "병원 리뷰", href: "/reviews" },
   { label: "병원 서비스", href: "/hospital" },
   // 광고 상품 안내 — 돈이 들어오는 길이라 푸터 어디서든 닿아야 한다(구 널스넷도 전 화면 메뉴에 뒀다)
-  { label: "광고 상품 안내", href: "/ads" },
+  { label: "채용광고 안내", href: "/ads" },
   // 고객센터는 허브(/customer)로 보낸다 — 그 아래 자주묻는질문·공지사항·이벤트·1:1문의가 걸려 있다
   { label: "고객센터", href: "/customer" },
 ];
