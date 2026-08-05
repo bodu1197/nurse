@@ -4,7 +4,7 @@ import { createClient as createAnonClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/data/user";
 import { LIST_LIMIT } from "@/lib/data/applications";
-import { FREE_LISTING_MS } from "@/lib/date";
+
 import type { JobStatus } from "@/lib/jobState";
 import { DEPT_ANY } from "@/lib/resumeOptions";
 import type { Database } from "@/types/database";
@@ -646,27 +646,23 @@ export async function getSavedJobs(): Promise<JobRow[]> {
 }
 
 /**
- * 지금 무료 공고를 새로 올릴 수 있는가 — 공고 등록 화면이 **제출 전에** 알려주기 위한 판정.
+ * 첫 광고비 지원을 **이미 썼는가** — 공고 등록 화면이 제출 전에 무료 칸을 잠그려고 쓴다.
  *
- * 🔴 전에는 이 규칙이 createJob 안에만 있어서, 15개 항목을 다 채우고 등록을 누른 뒤에야
- *    "무료는 동시 1건" 이라며 되돌려 보냈다. 규칙은 서버가 최종 판정하되(그대로 유지),
- *    화면도 같은 답을 미리 보여준다.
+ * 🔴 널스넷은 병원당 **1회만** 광고비를 지원한다(오너 확정 2026-08-05). 병원 화면에는 그냥
+ *    「무료 7일」로 보이지만, 안에서는 hospitals.free_credits 라는 지원금이 1회 차감된다.
+ *    잔액이 없으면 그다음부터는 유료로만 광고할 수 있다.
  *
- * 판정 조건은 createJob·repostJob 과 같다: 게시 7일 이내 · open · 광고 아님.
+ * 🔴 종전 규칙은 "무료 동시 1건" 뿐이었다. 그래서 7일이 끝날 때마다 다시 게시를 누르면
+ *    **1원도 안 내고 계속 광고**할 수 있었다(오너 지적: "그러면 나는 망한다").
+ *    실제로 그 일이 일어났다 — 관리자가 켜준 무료 7일을 쓴 병원이 같은 공고를 또 무료로 올렸다.
+ *    이제 동시 건수가 아니라 **잔액**을 본다(잔액이 1회뿐이라 동시 1건은 저절로 지켜진다).
+ *
+ * 🔒 최종 판정은 서버(createJob·repostJob)가 조건부 UPDATE 로 한다 — 이건 화면 안내용이다.
  */
-export async function freeSlotTaken(): Promise<boolean> {
+export async function firstAdUsed(): Promise<boolean> {
   const hosp = await getMyHospital();
   if (!hosp) return false;
   const supabase = await createClient();
-  const now = Date.now();
-  const fresh = new Date(now - FREE_LISTING_MS).toISOString();
-  const nowIso = new Date(now).toISOString();
-  const { count } = await supabase
-    .from("jobs")
-    .select("id", { count: "exact", head: true })
-    .eq("hospital_id", hosp.id)
-    .eq("status", "open")
-    .gte("posted_at", fresh)
-    .or(`featured_until.is.null,featured_until.lt.${nowIso}`);
-  return (count ?? 0) >= 1;
+  const { data } = await supabase.from("hospitals").select("free_credits").eq("id", hosp.id).maybeSingle();
+  return (data?.free_credits ?? 0) <= 0;
 }

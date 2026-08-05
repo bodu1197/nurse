@@ -178,24 +178,28 @@ export async function createJob(formData: FormData) {
     await admin.from("profiles").update({ claimed_hospital_id: hospitalId }).eq("id", user.id);
   }
 
-  // 게시 기간 선택: free=무료 7일(동시 1건), 2/3/4=유료(draft로 생성 후 결제 시 게시 → 동시1건 미적용).
+  // 게시 기간 선택: free=첫 광고 지원 7일(병원당 1회), 2/3/4=유료(첫 1주는 0원이라 바로 게시).
   const duration = s("duration");
   const paidWeeks = ["2", "3", "4"].includes(duration) ? Number(duration) : 0;
+  // 지원금을 이미 차감했는가 — 아래에서 공고 생성이 실패하면 되돌려 줘야 한다.
+  let freeCreditSpent = false;
 
   if (!paidWeeks) {
-    // 무료 동시 1건: 활성(게시 7일 이내·비광고) 무료 공고가 이미 있으면 추가 무료 불가.
-    const fresh = new Date(Date.now() - FREE_LISTING_MS).toISOString();
-    const nowIso = new Date().toISOString();
-    const { count: freeActive } = await admin
-      .from("jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("hospital_id", hospitalId)
-      .eq("status", "open")
-      .gte("posted_at", fresh)
-      .or(`featured_until.is.null,featured_until.lt.${nowIso}`);
-    // 🔴 쓰던 화면으로 되돌린다. 전에는 공고 관리 화면으로 보내서, 다 채운 상세내용·복리후생·
-    //    담당자 정보를 처음부터 다시 써야 했다. 같은 화면으로 돌아와야 임시저장(FormDraft)도 복원된다.
-    if ((freeActive ?? 0) >= 1) redirect("/mypage/jobs/new?error=freelimit");
+    // 🔴 **첫 광고비 지원은 병원당 1회다**(오너 확정 2026-08-05).
+    //    종전 규칙은 "무료 동시 1건" 뿐이었다. 그래서 7일이 끝나면 다시 게시, 또 7일 —
+    //    **1원도 안 내고 1년 내내 광고할 수 있었다**(오너 지적: "그러면 나는 망한다").
+    //    실제로 오늘 그 일이 있었다: 관리자가 켜준 무료 7일을 쓴 병원이 오늘 또 무료로 다시 게시했다.
+    //    hospitals.free_credits 는 처음부터 있었지만(기본 1) **한 번도 차감된 적이 없어**
+    //    제한이 작동한 적이 없다(실측: 81,430곳 전부 1).
+    // 🔒 차감은 **조건부 UPDATE 한 번**으로 한다 — 읽고 나서 쓰면 동시 요청 둘이 같은 1을 보고
+    //    둘 다 통과한다. `free_credits > 0` 을 조건에 넣어 이긴 쪽만 행을 돌려받는다.
+    const { data: granted } = await admin
+      .from("hospitals").update({ free_credits: 0 })
+      .eq("id", hospitalId).gt("free_credits", 0).select("id");
+    // 🔴 쓰던 화면으로 되돌린다. 공고 관리로 보내면 다 채운 상세내용·복리후생·담당자 정보를
+    //    처음부터 다시 써야 한다. 같은 화면이어야 임시저장(FormDraft)도 복원된다.
+    if (!granted?.length) redirect("/mypage/jobs/new?error=nofree");
+    freeCreditSpent = true; // 아래에서 공고 생성이 실패하면 되돌린다
   }
 
   const num = (k: string) => { const n = parseInt(s(k), 10); return Number.isFinite(n) && n > 0 ? n : null; };
@@ -240,7 +244,12 @@ export async function createJob(formData: FormData) {
     featured_until: new Date(nowMs() + FREE_LISTING_MS).toISOString(),
     ad_tier: "free",
   }).select("id").single();
-  if (error || !created) redirect("/mypage/jobs/new?error=save");
+  if (error || !created) {
+    // 🔴 지원금을 먼저 차감했으므로 여기서 되돌린다. 안 그러면 저장에 실패한 병원이
+    //    아무것도 못 얻고 1회 지원만 잃는다.
+    if (freeCreditSpent) await admin.from("hospitals").update({ free_credits: 1 }).eq("id", hospitalId);
+    redirect("/mypage/jobs/new?error=save");
+  }
   // 유료 주수를 골랐으면 결제 페이지로(공고는 이미 게시된 상태다). 아니면 공고 관리로.
   redirect(paidWeeks ? `/mypage/jobs/${created.id}/ad?weeks=${paidWeeks}` : "/mypage/jobs?ok=1");
 }
@@ -336,39 +345,50 @@ export async function repostJob(formData: FormData) {
   // 광고가 아직 살아 있는 공고는 **유료 자리**다 — 무료 동시 1건 규칙의 대상이 아니다.
   // 이 구분이 없으면 돈을 낸 공고를 다시 게시하려다 무료 제한에 막힌다.
   const paidLive = !!job.featured_until && job.featured_until > nowIso;
+  let freeCreditSpent = false;
   if (!paidLive) {
-    // 다시 게시 = 새 7일 무료 노출 → 동시 무료 1건 규칙 적용(다른 활성 무료 공고가 있으면 불가).
-    const fresh = new Date(Date.now() - FREE_LISTING_MS).toISOString();
-    const { count: freeActive } = await admin
-      .from("jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("hospital_id", hosp.id)
-      .eq("status", "open")
-      .gte("posted_at", fresh)
-      .or(`featured_until.is.null,featured_until.lt.${nowIso}`)
-      .neq("id", jobId);
-    if ((freeActive ?? 0) >= 1) redirect("/mypage/jobs?error=freelimit");
+    // 🔴 **다시 게시도 새 광고다** — 첫 광고비 지원(병원당 1회)을 여기서도 쓴다.
+    //    종전에는 "동시 1건" 만 봤기 때문에, 7일이 끝날 때마다 다시 게시를 눌러 **영원히 공짜로**
+    //    광고할 수 있었다(오너 지적 2026-08-05). 실제로 오늘 그 일이 있었다 —
+    //    관리자가 켜준 무료 7일을 쓴 병원이 같은 공고를 또 무료로 올렸다.
+    // 🔒 위 createJob 과 같은 조건부 UPDATE 다(읽고 쓰면 동시 요청 둘이 같은 잔액을 본다).
+    const { data: granted } = await admin
+      .from("hospitals").update({ free_credits: 0 })
+      .eq("id", hosp.id).gt("free_credits", 0).select("id");
+    if (!granted?.length) redirect("/mypage/jobs?error=nofree");
+    freeCreditSpent = true;
   }
 
   // 조건을 update 에도 한 번 더 건다(읽고 쓰는 사이에 상태가 바뀌는 경우) + 반환 행으로 반영 확인.
   //
-  // 🔴 무료로 다시 게시할 때는 **끝난 광고 표식을 지운다**(featured_until·ad_tier).
-  //    목록 정렬이 `order(featured_until desc, nullsFirst:false)` 라, 지난 광고 날짜가 남아 있으면
-  //    그 공고가 무료·워크넷 공고(featured_until = null) 전부보다 **영원히 위**에 뜬다.
-  //    돈을 낸 기간은 이미 끝났는데 노출 특혜만 남는 셈이라, 다음 광고주에게 불공정하다.
-  //    결제 기록은 ad_orders 에 그대로 있고, 나중에 다시 광고를 사면 그때부터 새로 계산된다.
+  // 🔴 무료로 다시 게시하면 **새 7일 창을 찍는다** — createJob 과 같은 값이다.
+  //    종전에는 featured_until 을 `null` 로 지웠다. 그때는 목록 정렬이 `featured_until desc` 라
+  //    지난 광고 날짜가 남으면 그 공고가 영원히 위에 뜨는 문제가 있었고, 지우는 것이 답이었다.
+  //    지금은 둘 다 바뀌었다 — 정렬은 `ad_live desc, posted_at desc` 이고(jobs_listed),
+  //    무료 게시도 7일짜리 광고로 본다(20260804350000). 그래서 null 로 두면 **방금 올린 공고가
+  //    ad_live=false 가 되어, 기간이 살아 있는 석 달 전 공고들 전부보다 아래로 밀린다.**
+  //    실측 2026-08-05: 오늘 14:24 에 다시 게시한 공고가 목록 40위였고, 홈의 「최신 채용공고」
+  //    6칸에도 못 들어갔다(오너 지적: "오늘 올라왔는데 왜 카드가 생성 안 되냐").
+  //    옛 걱정(끝난 광고 날짜가 남아 특혜)은 그대로 해결된다 — 낡은 값을 남기는 게 아니라
+  //    **지금부터 7일** 로 새로 쓰기 때문이다. 결제 기록은 ad_orders 에 그대로 있다.
+  //    🔴 ad_tier 는 null 이 아니라 'free' 다 — NOT NULL(20260804370000). null 을 쓰면 이 재게시가
+  //       통째로 실패한다(즉시 종료가 같은 이유로 깨져 있었다 — 오너 지적 2026-08-05).
   let q = admin
     .from("jobs")
-    //    🔴 ad_tier 는 null 이 아니라 'free' 다 — NOT NULL(20260804370000). null 을 쓰면 이 재게시가
-    //       통째로 실패한다(즉시 종료가 같은 이유로 깨져 있었다 — 오너 지적 2026-08-05).
-    .update(paidLive ? { status: "open", posted_at: nowIso } : { status: "open", posted_at: nowIso, featured_until: null, ad_tier: "free" })
+    .update(paidLive
+      ? { status: "open", posted_at: nowIso }
+      : { status: "open", posted_at: nowIso, featured_until: new Date(nowMs() + FREE_LISTING_MS).toISOString(), ad_tier: "free" })
     .eq("id", jobId).in("status", ["open", "closed"]);
   // 광고 표식을 지우는 경우에만, "여전히 만료 상태인 행" 으로 한번 더 좀힌다 —
   // 읽고 쓰는 사이에 결제 웹훅이 들어와 featured_until 을 연장했다면
   // 방금 산 광고를 이 update 가 지우게 된다(돈은 나갔는데 노출은 없어진다).
   if (!paidLive) q = q.or(`featured_until.is.null,featured_until.lt.${nowIso}`);
   const { data: done, error } = await q.select("id");
-  if (error || !done?.length) redirect("/mypage/jobs?error=1");
+  if (error || !done?.length) {
+    // 지원금을 먼저 차감했으니 되돌린다 — 게시에 실패한 병원이 1회 지원만 잃으면 안 된다.
+    if (freeCreditSpent) await admin.from("hospitals").update({ free_credits: 1 }).eq("id", hosp.id);
+    redirect("/mypage/jobs?error=1");
+  }
   redirect("/mypage/jobs?ok=1");
 }
 

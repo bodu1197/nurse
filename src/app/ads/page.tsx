@@ -67,28 +67,31 @@ export default async function AdsPage() {
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-10">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">채용광고 안내</h1>
         <p className="mt-3 max-w-2xl text-base leading-relaxed text-slate-600">
-          <b className="text-slate-900">공고 등록은 무료입니다.</b> 등록하면 {FREE_LISTING_DAYS}일 동안 목록에 나오고
-          지원도 받습니다. 광고는 그 뒤에 <b className="text-slate-900">더 오래, 더 위에</b> 노출하고{" "}
-          <b className="text-slate-900">간호사에게 먼저 연락</b>하기 위한 것입니다.
+          <b className="text-slate-900">첫 공고는 널스넷이 광고비를 지원합니다</b> — 병원당 1회,{" "}
+          {FREE_LISTING_DAYS}일 동안 목록에 나오고 지원도 받습니다. 그 뒤로는 광고를 올리시면{" "}
+          <b className="text-slate-900">더 오래, 더 위에</b> 노출하고{" "}
+          <b className="text-slate-900">간호사에게 먼저 연락</b>할 수 있습니다.
         </p>
 
         {/* ── 무료와 광고의 차이 ───────────────────────────── */}
         <section className="mt-8">
-          <h2 className="text-lg font-bold text-slate-900">무료 등록과 광고, 무엇이 다른가</h2>
+          <h2 className="text-lg font-bold text-slate-900">첫 공고(널스넷 지원)와 광고, 무엇이 다른가</h2>
           {/* 표는 칸이 셋뿐이라 1280px 를 다 쓰면 값 사이가 벌어져 읽기 나빠진다 — 읽기 폭으로 묶는다. */}
           <div className="mt-3 max-w-3xl overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left">
                   <th className="py-2.5 pr-4 font-semibold text-slate-500">　</th>
-                  <th className="py-2.5 pr-4 font-semibold text-slate-700">무료 등록</th>
+                  <th className="py-2.5 pr-4 font-semibold text-slate-700">첫 공고 (지원)</th>
                   <th className="py-2.5 font-semibold text-teal-700">광고</th>
                 </tr>
               </thead>
               <tbody className="text-slate-600">
                 {[
                   ["노출 기간", `${FREE_LISTING_DAYS}일`, "14일 · 21일 · 28일 중 선택"],
-                  ["동시 등록", "1건", "제한 없음"],
+                  // 🔴 "동시 1건" 이 아니라 **평생 1회**다(오너 확정 2026-08-05). 종전 규칙(동시 1건)은
+                  //    7일마다 다시 게시하면 영원히 공짜라는 뜻이어서, 광고를 팔 수 없는 구조였다.
+                  ["횟수", "병원당 1회 (널스넷 지원)", "제한 없음"],
                   ["목록 노출", "○", "○ (상단 우선)"],
                   ["지원 접수 · 지원자 관리", "○", "○"],
                   ["간호사 연락처 열람", "✕", "○"],

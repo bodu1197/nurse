@@ -27,7 +27,10 @@ export default async function MyJobsPage({
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
         {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
-        {error === "freelimit" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">무료 공고는 동시 1건까지입니다. 기존 공고가 만료되거나 광고로 전환하면 새 공고를 올릴 수 있습니다.</div>}
+        {/* 🔴 다시 게시도 새 광고다 — 무료 게시는 병원당 1회이고, 그걸 이미 쓰면 유료로만 올릴 수 있다
+            (오너 확정 2026-08-05). 종전 문구는 "동시 1건" 이라 7일마다 다시 눌러 영원히 공짜로
+            광고할 수 있다는 뜻으로 읽혔고, 실제로 그렇게 동작했다. */}
+        {error === "nofree" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">무료 게시는 병원당 1회입니다. 이미 사용하셔서 다시 게시하려면 광고를 올려 주세요 — 공고의 <b>광고 올리기</b>에서 기간을 고르시면 됩니다.</div>}
         {/* 마감일이 지난 공고는 다시 게시해도 아무 데도 안 나온다 — 예전에는 "처리되었습니다"만 뜨고
             실제로는 비노출인 채였다(침묵하는 실패). 무엇을 해야 하는지 짚어 준다. */}
         {error === "deadline" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">마감일이 이미 지난 공고입니다. 다시 게시하려면 먼저 공고를 수정해 마감일을 오늘 이후로 바꿔주세요.</div>}
