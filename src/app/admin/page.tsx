@@ -98,14 +98,27 @@ export default async function AdminDashboard() {
         </div>
       </Section>
 
+      {/* 🔴 조회수만 있으면 "오늘 414 조회" 가 몇 명인지 알 수 없다 — 100명이 4쪽씩 본 것과
+          400명이 한 쪽씩 본 것은 완전히 다른 이야기다(오너 지적 2026-08-06). 사람 수를 앞에 둔다.
+          🔴 7일·30일 순 방문자는 **일별 합이 아니라 서로 다른 사람 수**다(사흘 온 사람은 1). */}
       <Section title="접속자">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Stat label="오늘 조회" value={d.traffic.today} href="/admin/stats" />
-          <Stat label="최근 7일 조회" value={d.traffic.d7} href="/admin/stats" />
-          <Stat label="최근 30일 조회" value={d.traffic.d30} href="/admin/stats" />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Stat label="오늘 순 방문자" value={d.visitors.today} tone="good"
+            sub={`어제 ${d.visitors.yesterday.toLocaleString()}명 · 오늘 조회 ${d.traffic.today.toLocaleString()}회`} href="/admin/stats?days=7" />
+          <Stat label="최근 7일 순 방문자" value={d.visitors.d7}
+            sub={`서로 다른 사람 수 · 조회 ${d.traffic.d7.toLocaleString()}회`} href="/admin/stats?days=7" />
+          <Stat label="최근 30일 순 방문자" value={d.visitors.d30}
+            sub={`서로 다른 사람 수 · 조회 ${d.traffic.d30.toLocaleString()}회`} href="/admin/stats?days=30" />
+          <Stat label="최근 30일 봇 조회" value={d.traffic.bots30}
+            sub="검색엔진·크롤러 · 위 조회수에는 안 들어감" href="/admin/stats?days=30" />
         </div>
         {d.traffic.d30 === 0 && (
           <p className="mt-2 text-xs text-slate-400">아직 기록이 없습니다. 방문 기록은 배포된 뒤부터 쌓입니다.</p>
+        )}
+        {d.traffic.d30 > 0 && d.visitors.d30 === 0 && (
+          <p className="mt-2 text-xs text-slate-400">
+            순 방문자는 새 배포가 반영된 뒤부터 쌓입니다. 조회수만 있는 동안에는 0으로 보입니다.
+          </p>
         )}
       </Section>
     </>

@@ -682,19 +682,49 @@ export type Database = {
       }
       page_views: {
         Row: {
+          bots: number
           day: string
           path: string
           views: number
         }
         Insert: {
+          bots?: number
           day: string
           path: string
           views?: number
         }
         Update: {
+          bots?: number
           day?: string
           path?: string
           views?: number
+        }
+        Relationships: []
+      }
+      visitors: {
+        Row: {
+          day: string
+          device: string
+          hits: number
+          hour_kst: number
+          ref: string
+          vid: string
+        }
+        Insert: {
+          day: string
+          device: string
+          hits?: number
+          hour_kst: number
+          ref: string
+          vid: string
+        }
+        Update: {
+          day?: string
+          device?: string
+          hits?: number
+          hour_kst?: number
+          ref?: string
+          vid?: string
         }
         Relationships: []
       }
@@ -1364,7 +1394,16 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
-      track_page_view: { Args: { p_path: string }; Returns: undefined }
+      track_page_view: {
+        Args: {
+          p_path: string
+          p_vid?: string | null
+          p_device?: string | null
+          p_ref?: string | null
+          p_bot?: boolean | null
+        }
+        Returns: undefined
+      }
       valid_person_name: { Args: { v: string }; Returns: string }
     }
     Enums: {

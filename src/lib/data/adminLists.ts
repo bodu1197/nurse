@@ -65,7 +65,10 @@ export type Dashboard = {
   ads: { live: number; granted: number; ending7: number };
   revenue: { today: number; yesterday: number; d30: number; total: number; count30: number };
   todo: { inquiries: number; tax: number; stale_orders: number; failed_orders: number; hidden_reviews: number; hidden_posts: number; nameless_resumes: number; private_resumes_7d: number };
-  traffic: { today: number; yesterday: number; d7: number; d30: number };
+  /** 조회수 — 사람이 연 페이지 수(봇 제외). bots30 은 최근 30일 봇 조회수. */
+  traffic: { today: number; yesterday: number; d7: number; d30: number; bots30: number };
+  /** 순 방문자. 🔴 d7/d30 은 일별 합이 아니라 **서로 다른 사람 수**다(사흘 온 사람은 1). */
+  visitors: { today: number; yesterday: number; d7: number; d30: number };
 };
 
 export async function getDashboard(): Promise<Dashboard | null> {
@@ -79,10 +82,38 @@ export async function getDashboard(): Promise<Dashboard | null> {
   return data as unknown as Dashboard;
 }
 
+/**
+ * 접속 통계.
+ *
+ * 🔴 `uniques`(기간 순 방문자)는 `days[].uniques` 의 합이 **아니다** — 서로 다른 사람 수라
+ *    사흘 연속 온 사람은 3이 아니라 1로 센다. 화면에서 둘을 더해 보여주면 거짓말이 된다.
+ * 🔴 refs/devices/hours 는 **방문(사람×날짜) 기준**이다. 같은 사람이 다른 날 오면 각각 센다.
+ *    (한 사람이 월요일엔 구글, 화요일엔 네이버로 올 수 있어 순 방문자로는 나눌 수 없다.)
+ */
 export type Traffic = {
-  days: { day: string; views: number }[];
-  paths: { path: string; views: number }[];
+  /** 오늘·어제는 이 배열의 마지막 두 칸이다 — 같은 값을 DB 에서 따로 세지 않는다. */
+  days: {
+    day: string;
+    /** 그날 순 방문자 수 */
+    uniques: number;
+    /** 그 방문자들이 연 쪽수. views 와 다르다 — 지문을 못 만든 요청은 views 에만 들어간다. */
+    hits: number;
+    views: number;
+    bots: number;
+  }[];
+  paths: { path: string; views: number; bots: number }[];
+  /** 사람 조회수 합 */
   total: number;
+  /** 봇 조회수 합 */
+  bots: number;
+  /** 기간 순 방문자 — 서로 다른 사람 수 */
+  uniques: number;
+  /** 그중 기간 안에 이틀 이상 온 사람 수 */
+  returning: number;
+  /** 🔴 ref/device 문자열은 SQL(track_page_view 화이트리스트)과 짝이다 — 한쪽만 바꾸면 안 된다. */
+  refs: { ref: string; visits: number }[];
+  devices: { device: string; visits: number }[];
+  hours: { hour: number; visits: number }[];
 };
 
 export async function getTraffic(days = 30): Promise<Traffic | null> {
