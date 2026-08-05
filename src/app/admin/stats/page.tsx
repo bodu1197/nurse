@@ -92,7 +92,7 @@ export default async function AdminStatsPage({
     <>
       <PageTitle
         title="접속자 통계"
-        desc="한국시간 기준입니다. 순 방문자는 쿠키 없이, IP·브라우저정보를 서버만 아는 비밀값과 섞은 되돌릴 수 없는 지문으로 셉니다 — 이름·이메일·IP 와는 연결되지 않아 누가 누구인지는 알 수 없습니다. 병원·회사처럼 인터넷을 함께 쓰면 여러 명이 한 명으로 뭉쳐 실제보다 조금 적게 잡힙니다."
+        desc="한국시간 기준입니다. 순 방문자는 쿠키 없이, IP·브라우저정보를 서버만 아는 비밀값과 섞은 되돌릴 수 없는 지문으로 셉니다 — 이름·이메일·IP 와는 연결되지 않아 누가 누구인지는 알 수 없습니다. 병원·회사처럼 인터넷을 함께 쓰면 여러 명이 한 명으로 뭉쳐 실제보다 조금 적게 잡힙니다. 관리자 화면과 로그인 절차는 세지 않습니다 — 방문자에게 보이는 페이지만 셉니다."
       />
 
       <Tabs items={RANGES.map((n) => ({ href: `/admin/stats?days=${n}`, label: `${n}일`, active: n === days }))} />
@@ -144,6 +144,11 @@ export default async function AdminStatsPage({
                 방문자 집계는 {firstUniqueDay.slice(5).replace("-", "월 ")}일부터입니다. 그 전 날짜는 조회수만 있어 방문자 0으로 보입니다.
               </p>
             )}
+            {/* 🔴 봇 판정 한계를 적어둔다. 완벽한 판별은 불가능한데 화면이 그걸 안 말하면
+                "봇 0" 을 보고 크롤러가 안 온다고 믿게 된다. */}
+            <p className="mt-2 text-xs text-slate-500">
+              봇은 접속자가 스스로 밝히는 신원(User-Agent)으로 가릅니다 — 자기를 브라우저라고 속이는 크롤러는 사람으로 셉니다.
+            </p>
           </Section>
 
           <Section title="일별 추이">

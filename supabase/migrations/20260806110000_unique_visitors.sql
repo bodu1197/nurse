@@ -74,11 +74,26 @@ begin
   end if;
   clean := left(clean, 80);
 
-  insert into public.page_views (day, path, views, bots)
-  values (d, clean, case when is_bot then 0 else 1 end, case when is_bot then 1 else 0 end)
-  on conflict (day, path) do update
-    set views = public.page_views.views + excluded.views,
-        bots  = public.page_views.bots  + excluded.bots;
+  -- 흔한 경우: 이미 있는 칸을 올린다(주키 인덱스 한 번). 여기서 끝나면 아래 상한 검사도 안 한다.
+  update public.page_views
+     set views = views + (case when is_bot then 0 else 1 end),
+         bots  = bots  + (case when is_bot then 1 else 0 end)
+   where day = d and path = clean;
+
+  if not found then
+    -- 🔴 **새 경로일 때만** 하루 5,000개 상한을 본다. 봇 스캐너는 /wp-login.php, /.env 처럼
+    --    없는 주소를 무작위로 때리는데, 경로가 곧 행이라 그대로 두면 이 표가 무한히 는다.
+    --    사람 트래픽의 경로는 (동적 구간을 /:id 로 묶은 뒤) 수십 개뿐이라 5,000은 넉넉하다.
+    --    상한을 넘겨도 **이미 있는 경로는 위 update 로 계속 센다** — 통계가 멈추지 않는다.
+    if not exists (select 1 from public.page_views where day = d offset 5000 limit 1) then
+      insert into public.page_views (day, path, views, bots)
+      values (d, clean, case when is_bot then 0 else 1 end, case when is_bot then 1 else 0 end)
+      -- 같은 새 경로를 두 요청이 동시에 넣을 때를 위해 on conflict 는 남긴다.
+      on conflict (day, path) do update
+        set views = public.page_views.views + excluded.views,
+            bots  = public.page_views.bots  + excluded.bots;
+    end if;
+  end if;
 
   -- 사람만 방문자로 센다. 이 함수는 비로그인도 부를 수 있으므로 **받은 값을 전부 검사**한다.
   if is_bot or p_vid is null or p_vid !~ '^[0-9a-f]{16}$' then

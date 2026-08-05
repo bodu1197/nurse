@@ -30,10 +30,19 @@ const BOT =
   /bot|crawl|spider|slurp|yeti|daumoa|facebookexternalhit|embedly|preview|curl|wget|python-requests|okhttp|go-http-client|java\/|headless|lighthouse|monitor|uptime|semrush|ahrefs|mj12|dotbot|petalbot|bytespider|scrapy|phantomjs|node-fetch|axios/i;
 
 export function trackPageView(request: NextRequest): Promise<unknown> | undefined {
-  // 문서 요청만 센다. prefetch·데이터 요청까지 세면 사람이 안 본 페이지가 조회수로 잡힌다.
   if (request.method !== "GET") return undefined;
-  if (request.headers.get("sec-fetch-dest") !== "document") return undefined;
   if (request.headers.get("next-router-prefetch")) return undefined;
+
+  const ua = request.headers.get("user-agent") ?? "";
+  // UA 가 아예 없는 요청은 사람이 아니다(브라우저는 항상 보낸다).
+  const bot = ua === "" || BOT.test(ua);
+
+  // 🔴 사람은 **문서 요청만** 센다. prefetch·데이터 요청까지 세면 사람이 안 본 페이지가 조회수가 된다.
+  // 🔴 봇에는 이 조건을 걸지 않는다. Sec-Fetch-* 는 브라우저 기능이라 크롤러 대부분
+  //    (ahrefs·semrush·python-requests 류)은 아예 안 보낸다 — 봇에도 걸면 세기도 전에 걸러져
+  //    "봇 조회" 가 영원히 0 인 죽은 숫자가 되고, 검색엔진이 우리 사이트를 도는지 못 본다.
+  //    사람 조회수(views)에는 봇이 안 들어가므로 이 완화가 사람 숫자를 오염시키지 않는다.
+  if (!bot && request.headers.get("sec-fetch-dest") !== "document") return undefined;
 
   const path = request.nextUrl.pathname;
   if (SKIP.some((re) => re.test(path))) return undefined; // 관리자·인증 콜백은 통계에 넣지 않는다
@@ -46,14 +55,10 @@ export function trackPageView(request: NextRequest): Promise<unknown> | undefine
   //    응답을 반환하는 순간 엣지 인스턴스가 얼어붙어, 매달아 두기만 하면 기록이 유실된다.
   // 🔴 catch 를 여기서 한 번 더 건다. 해시 계산(crypto.subtle)이 던지면 그 rejection 이
   //    waitUntil 로 그대로 넘어가 요청 자체를 실패로 만든다 — 통계 때문에 페이지가 죽으면 안 된다.
-  return send(request, path, url, anon).catch((e) => console.error("trackPageView:", e?.message ?? e));
+  return send(request, path, url, anon, ua, bot).catch((e) => console.error("trackPageView:", e?.message ?? e));
 }
 
-async function send(request: NextRequest, path: string, url: string, anon: string) {
-  const ua = request.headers.get("user-agent") ?? "";
-  // UA 가 아예 없는 요청은 사람이 아니다(브라우저는 항상 보낸다).
-  const bot = ua === "" || BOT.test(ua);
-
+async function send(request: NextRequest, path: string, url: string, anon: string, ua: string, bot: boolean) {
   const body: Record<string, unknown> = { p_path: path, p_bot: bot };
 
   if (!bot) {
