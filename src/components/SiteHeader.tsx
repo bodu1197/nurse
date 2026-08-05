@@ -7,9 +7,11 @@ import { HEADER_MENU } from "@/lib/constants";
 import { signOut } from "@/app/(auth)/actions";
 
 /**
- * 모바일 하단 탭 — 홈 · 채용공고 · 인재정보 · 리뷰 · 로그인(로그인 후 마이페이지). 오너 확정 2026-08-04.
+ * 모바일 하단 탭 — 홈 · 채용공고 · 인재정보 · AI 자동매치 · 로그인(로그인 후 마이페이지).
  * 🔴 메뉴(햄버거)는 여기 넣지 않는다. 하단은 **자주 가는 곳**을 두는 자리이고,
  *    메뉴는 이미 화면 위 오른쪽에 있다. 다섯 칸을 넘기면 글자가 줄어 읽을 수 없다.
+ * 🔴 네 번째 칸이 '리뷰' → 'AI 자동매치' 로 바뀌었다(오너 지시 2026-08-05). 리뷰는 햄버거
+ *    메뉴(HEADER_MENU)와 푸터(FOOTER_NAV)에 그대로 있어 갈 길이 막히지 않는다.
  */
 const TAB_CLASS =
   "flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600";
@@ -18,7 +20,17 @@ const BOTTOM_TABS = [
   { href: "/", label: "홈", icon: <path d="M3 10l9-7 9 7v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z" /> },
   { href: "/jobs", label: "채용공고", icon: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></> },
   { href: "/talent", label: "인재정보", icon: <><circle cx="12" cy="8" r="3.5" /><path d="M5 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5" /></> },
-  { href: "/reviews", label: "리뷰", icon: <path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.4 6.8 19.1l1-5.8L3.5 9.2l5.9-.9z" /> },
+  // 반짝임(sparkles) — 큰 별 하나 + 작은 별 하나. 리뷰의 5각 별과 헷갈리지 않게 모양을 다르게 둔다.
+  {
+    href: "/match",
+    label: "AI 자동매치",
+    icon: (
+      <>
+        <path d="M12 3l1.8 4.9 4.9 1.8-4.9 1.8L12 16.4l-1.8-4.9L5.3 9.7l4.9-1.8z" />
+        <path d="M18.5 15.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z" />
+      </>
+    ),
+  },
 ] as const;
 
 export default function SiteHeader({ user }: Readonly<{ user: { displayName: string } | null }>) {
