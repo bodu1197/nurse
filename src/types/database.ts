@@ -46,7 +46,7 @@ export type Database = {
           buyer_id: string | null
           created_at: string
           days: number
-          hospital_id: string
+          hospital_id: string | null
           id: string
           imp_uid: string | null
           job_id: string | null
@@ -70,7 +70,7 @@ export type Database = {
           buyer_id?: string | null
           created_at?: string
           days: number
-          hospital_id: string
+          hospital_id?: string | null
           id?: string
           imp_uid?: string | null
           job_id?: string | null
@@ -94,7 +94,7 @@ export type Database = {
           buyer_id?: string | null
           created_at?: string
           days?: number
-          hospital_id?: string
+          hospital_id?: string | null
           id?: string
           imp_uid?: string | null
           job_id?: string | null
@@ -1240,6 +1240,10 @@ export type Database = {
       admin_dashboard: { Args: never; Returns: Json }
       claim_ad_cash: { Args: { p_profile: string; p_want: number }; Returns: number }
       release_ad_cash: { Args: { p_profile: string; p_amount: number }; Returns: undefined }
+      release_ad_order_cash: {
+        Args: { p_order: string; p_allowed: string[]; p_next: string }
+        Returns: number
+      }
       admin_set_hidden: {
         Args: {
           hide: boolean

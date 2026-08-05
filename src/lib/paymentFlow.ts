@@ -18,7 +18,11 @@ export type PayView = {
 export type PaymentDecision =
   | { do: "activate" }                       // 정상 결제 — 광고를 켠다
   | { do: "record_cancel"; note: string }    // 취소·부분취소 — 기록만. 광고는 안 내린다(오너 확정)
-  | { do: "fail"; note: string }             // 금액 불일치 등 — FAILED 로 내리고 사유를 남긴다
+  | { do: "fail"; note: string }             // 금액 불일치 — 돈이 오간 정황이 있다. FAILED 로 내려 사람이 본다
+  // 🔴 "돈이 아예 안 나갔다" 가 확정된 끝(카드 거절 등). fail 과 **반드시 구분**해야 한다:
+  //    FAILED 는 관리자가 포트원과 대조할 사건이라 캐시를 자동 회수하지 않는데, 카드 거절까지
+  //    거기 넣으면 흔한 실패 한 번에 손님 광고 캐시 7만원이 영영 안 돌아온다.
+  | { do: "declined"; note: string }         // 결제 실패로 종료 — 캐시를 돌려주고 주문을 닫는다
   | { do: "nothing" }                        // 아직 결제 전(ready) 등 — 통보가 따로 온다
   | { do: "done" };                          // 이미 처리됨 — 중복 통보
 
@@ -37,11 +41,16 @@ export function decidePayment(pay: PayView, orderAmount: number, orderStatus: st
   if (pay.cancelAmount > 0) {
     return { do: "record_cancel", note: cancelNote(`포트원에서 ${won(pay.cancelAmount)}원 부분취소됨`, orderStatus) };
   }
-  // 3) 아직 결제 전 — 완료 통보가 따로 온다. 아무것도 하지 않는다.
-  if (pay.status !== "paid") return { do: "nothing" };
-  // 4) 이미 활성화된 주문 — 중복 통보. 아래 금액 검사로 내려보내면 안 된다
+  // 3) 이미 활성화된 주문 — 중복 통보. 아래 어떤 검사로도 내려보내면 안 된다
   //    (활성화 시점에 이미 금액을 확인했으므로, 여기서 FAILED 로 덮으면 나가는 광고를 실패로 만든다).
+  //    🔴 취소(1·2)보다는 **뒤**, 실패·금액 검사보다는 **앞**이다. 이 위치가 규칙 전체를 지탱한다.
   if (orderStatus === "PAID") return { do: "done" };
+  // 4) 승인 거절 등으로 **끝난** 거래. 전에는 아래 "아직 결제 전" 에 같이 묻혀서
+  //    주문이 PREPARE 로 남고 사유도 안 남았다 — 왜 실패했는지가 어디에도 없었고,
+  //    그 주문이 손님의 광고 캐시를 계속 붙들었다.
+  if (pay.status === "failed") return { do: "declined", note: "포트원에서 결제가 실패로 종료됨" };
+  // 5) 아직 결제 전(ready) — 완료 통보가 따로 온다. 아무것도 하지 않는다.
+  if (pay.status !== "paid") return { do: "nothing" };
   if (pay.amount !== orderAmount) {
     return { do: "fail", note: `금액 불일치 — 결제 ${won(pay.amount)}원 / 주문 ${won(orderAmount)}원` };
   }

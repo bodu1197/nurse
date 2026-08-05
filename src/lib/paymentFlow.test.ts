@@ -62,7 +62,27 @@ test("취소 메모는 광고가 실제로 켜졌을 때만 '유지 중' 이라�
 
 test("아직 결제 전(ready)이면 아무것도 하지 않는다", () => {
   assert.deepEqual(decidePayment(pay("ready"), AMOUNT, "PREPARE"), { do: "nothing" });
-  assert.deepEqual(decidePayment(pay("failed"), AMOUNT, "PREPARE"), { do: "nothing" });
+});
+
+// 🔴 'failed' 는 "아직 결제 전" 이 아니라 **끝난** 거래다. 전에는 ready 와 같이 nothing 으로 묶여
+//    주문이 PREPARE 로 남고 사유도 안 남았다 — 손님 캐시를 계속 붙든 채 이유가 어디에도 없었다.
+test("카드 거절은 declined — 캐시를 돌려주는 쪽으로 간다", () => {
+  const d = decidePayment(pay("failed"), AMOUNT, "PREPARE");
+  assert.equal(d.do, "declined");
+  assert.match(d.do === "declined" ? d.note : "", /실패로 종료/);
+});
+
+// 🔴 이 둘을 섞으면 **돈이 안 나간 흔한 실패**(카드 거절)가 관리자 대기열로 가고, 그 주문이
+//    캐시 자동 회수 대상에서 빠져 손님 7만원이 영영 안 돌아온다. 구분을 못 박는다.
+test("금액 불일치(fail)와 카드 거절(declined)은 서로 다른 결정이다", () => {
+  assert.equal(decidePayment(pay("paid", 1_000), AMOUNT, "PREPARE").do, "fail");
+  assert.equal(decidePayment(pay("failed"), AMOUNT, "PREPARE").do, "declined");
+});
+
+// 실패 통보가 늦게 와도 이미 켜진 광고를 끄지 않는다(취소 판정이 먼저이므로 여기 오지도 않지만,
+// 순서가 바뀌는 순간 나가는 광고가 죽는다 — 그 사고를 여기서 못 박는다).
+test("이미 PAID 인 주문에 'failed' 가 와도 광고를 죽이지 않는다", () => {
+  assert.deepEqual(decidePayment(pay("failed"), AMOUNT, "PAID"), { do: "done" });
 });
 
 // 오너 확정 2026-08-04 — 산 광고를 무르는 기능은 없다

@@ -5,7 +5,7 @@ import { requireProfile } from "@/lib/data/user";
 import { getMyJobs } from "@/lib/data/jobs";
 import JobStatusBadge from "@/components/JobStatusBadge";
 import { jobState, isLive } from "@/lib/jobState";
-import { nowMs, fmtDate, fmtDay, listingEnd, DAY_MS } from "@/lib/date";
+import { nowMs, fmtDate, fmtDay, listingEnd, remain } from "@/lib/date";
 import { setJobStatus, deleteJob, repostJob } from "../actions";
 
 export const metadata = { title: "공고 관리 — 널스넷", robots: { index: false } };
@@ -43,7 +43,10 @@ export default async function MyJobsPage({
               const live = isLive(state);
               const expired = state === "expired";
               const end = listingEnd(j);
-              const daysLeft = Math.max(0, Math.ceil((end - now) / DAY_MS));
+              // 🔴 계산은 lib/date 의 remain() 한 곳에서만 한다 — 관리자 화면과 **같은 함수**다.
+              //    각자 적어 두었을 때 여기만 올림이라 같은 광고를 "7일 남음"(병원) 과
+              //    "6일 남음"(관리자) 으로 다르게 말했다. 하필 부푼 쪽이 돈 낸 사람 화면이었다.
+              const leftText = remain(end, now).text;
               return (
                 <li key={j.id} className="rounded-xl border border-slate-200 bg-white p-4">
                   <div className="flex flex-wrap items-start justify-between gap-2">
@@ -57,7 +60,7 @@ export default async function MyJobsPage({
                     {fmtDay(j.posted_at)} 등록 · 지원자{" "}
                     <a href={`/mypage/applicants?job_id=${j.id}`} className="font-semibold text-teal-700 hover:underline">{j.applicant_count}명</a>
                     {pending && <span className="text-amber-700"> · 결제 후 게시</span>}
-                    {featured && <span className="text-violet-700"> · 광고 {fmtDate(end)}까지 ({daysLeft}일 남음)</span>}
+                    {featured && <span className="text-violet-700"> · 광고 {fmtDate(end)}까지 ({leftText})</span>}
                     {expired && <span className="text-amber-700"> · 노출 종료</span>}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -91,7 +94,7 @@ export default async function MyJobsPage({
                       {/* 광고가 살아 있는 공고는 남은 기간이 그대로 사라진다 — 돈이 걸린 일이라 그 사실을 먼저 말한다.
                           대안(마감하기)이 바로 옆에 있다는 것도 같이 알린다. */}
                       <ConfirmSubmit message={featured
-                        ? `이 공고는 광고가 ${daysLeft}일 남았습니다.
+                        ? `이 공고는 광고가 ${leftText} 상태입니다.
 삭제하면 남은 광고 기간은 환불·이전되지 않으며 지원자 정보도 함께 사라집니다.
 잠시 내리기만 하려면 '마감하기'를 쓰세요.`
                         : "이 공고를 삭제할까요? 지원자 정보도 함께 사라지며 되돌릴 수 없습니다."}>삭제</ConfirmSubmit>

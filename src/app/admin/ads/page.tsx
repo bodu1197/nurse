@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Pager } from "@/components/MasterDetail";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
-import { fmtDay, fmtDate, listingEnd, DAY_MS, nowMs } from "@/lib/date";
+import { fmtDay, fmtDate, listingEnd, remain } from "@/lib/date";
 import { won } from "@/lib/ads";
 import { getAdList, PER_PAGE, isAdScope, type AdScope } from "@/lib/data/adminLists";
 import { PageTitle, Tabs, SearchBox, TableWrap, TH, TD, EmptyOrFailed, Notice } from "@/components/admin/Ui";
@@ -18,28 +18,14 @@ const MESSAGES: Record<string, string> = {
   save: "저장에 실패했습니다.",
 };
 
-/** 남은 기간. 끝났으면 며칠 전에 끝났는지. */
 /**
- * 노출이 언제 끝나는가.
+ * 노출이 언제 끝나는가 — 계산은 lib/date 의 remain() 한 곳에만 있다(병원 화면과 같은 함수).
  *
  * 🔴 featured_until 만 보면 안 된다. 광고를 안 낸 공고는 그 값이 비어 있어서 종료·남은 기간이
  *    통째로 "-" 로 나왔다 — 목록에 줄은 있는데 아무 정보가 없었다(오너 지적 2026-08-04).
  *    노출은 **광고가 살아 있는 동안만** 이다(20260805200000). listingEnd 가 그 규칙(광고 종료일,
  *    마감일이 이르면 마감일)을 이미 갖고 있으니 구직자 화면과 같은 계산을 쓴다.
  */
-function remain(endMs: number) {
-  // 🔴 광고를 산 적 없는 공고는 종료 시각이 0(1970년)이다. 그대로 빼면 "20669일 전 마감" 이
-  //    찍힌다 — 워크넷 크론이 만료된 featured_until 을 null 로 지우기 때문에 「노출 마감」 탭의
-  //    대부분이 여기 해당한다(/review8 2026-08-05).
-  if (endMs <= 0) return { text: "-", urgent: false, ended: true };
-  const diff = endMs - nowMs();
-  if (diff <= 0) return { text: `${Math.ceil(-diff / DAY_MS)}일 전 마감`, urgent: false, ended: true };
-  // 🔴 올림(ceil)이 아니라 **내림**이다. 6일 3시간 남은 광고를 "7일 남음" 이라고 하면 광고주에게
-  //    하루를 더 있는 것처럼 말하는 셈이다(오너 지적 2026-08-05: "실제 남은 일수와 일치하지 않냐").
-  //    하루가 채 안 남았으면 날짜 대신 그 사실을 적는다 — "0일 남음" 은 끝난 것처럼 읽힌다.
-  const days = Math.floor(diff / DAY_MS);
-  return { text: days >= 1 ? `${days}일 남음` : "24시간 내 종료", urgent: days <= 7, ended: false };
-}
 
 export default async function AdminAdsPage({
   searchParams,
@@ -113,7 +99,12 @@ export default async function AdminAdsPage({
                 <tr key={a.id}>
                   <TD className="font-medium">{a.hospital?.name ?? a.company_name ?? "-"}</TD>
                   <TD>
-                    <Link href={`/jobs/${a.id}`} className="text-teal-700 hover:underline">{a.title}</Link>
+                    {/* 🔴 노출 중인 공고만 링크로 둔다. 공개 상세는 isOpenToSeekers 로 걸러 404 를 내므로,
+                        「노출 마감」 탭은 정의상 모든 제목이 막힌 길이었다(병원 화면은 이미 같은 이유로
+                        링크를 떼어 뒀다 — mypage/jobs/page.tsx). */}
+                    {r.ended || a.status !== "open"
+                      ? <span className="text-slate-700">{a.title}</span>
+                      : <Link href={`/jobs/${a.id}`} className="text-teal-700 hover:underline">{a.title}</Link>}
                     {/* 🔴 status 를 그대로 적으면 안 된다. 기간이 지난 공고도 status 는 'open' 이라
                         「노출 마감」 탭에서 "게시중" 이라고 적혀 있었다(오너 지적 2026-08-04).
                         구직자에게 실제로 보이는지를 적는다. */}

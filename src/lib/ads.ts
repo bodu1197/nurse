@@ -51,6 +51,37 @@ export function adProduct(weeks: number): AdProduct | null {
 
 export const won = (n: number) => n.toLocaleString("ko-KR") + "원";
 
+/** ad_orders.status 의 허용값 — DB check 제약과 같은 집합(마이그레이션 20260805200000). */
+export const ORDER_STATUSES = ["PREPARE", "PAID", "CANCELED", "FAILED", "EXPIRED"] as const;
+export type OrderStatus = (typeof ORDER_STATUSES)[number];
+
+/** DB 에서 온 넓은 string 을 **검사해서** 좁힌다 — `as OrderStatus` 단언은 쓰지 않는다. */
+export const isOrderStatus = (s: string | null | undefined): s is OrderStatus =>
+  !!s && (ORDER_STATUSES as readonly string[]).includes(s);
+
+/**
+ * 주문 상태를 사람 말로.
+ *
+ * 🔴 손님 화면(/mypage/jobs/ad/orders)과 관리자 화면(/admin/orders)이 **같은 표**를 쓴다.
+ *    각자 적어 두면 어긋난다 — 실제로 같은 EXPIRED 를 한쪽은 "결제 안 됨(캐시 반환)",
+ *    다른 쪽은 "기간만료(캐시 반환)" 라고 불렀다. 상태 하나에 이름 하나.
+ */
+const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
+  PAID: "결제완료",
+  PREPARE: "결제 미완료",
+  CANCELED: "결제 미진행",
+  FAILED: "결제실패",
+  EXPIRED: "결제 안 됨(캐시 반환)",
+};
+
+/**
+ * 상태 문자열 → 라벨. DB 에서 온 값은 넓은 string 이라 그대로 받는다.
+ * 🔴 `as OrderStatus` 로 단언하면 `?? s` 가 타입상 죽은 코드가 되어, 나중에 상태가 하나 늘었을 때
+ *    컴파일은 통과하고 **화면만 빈칸**이 된다. 모르는 값은 값 그대로 보여 준다.
+ */
+export const orderStatusLabel = (s: string): string =>
+  (ORDER_STATUS_LABEL as Record<string, string | undefined>)[s] ?? s;
+
 /** 캐시를 먼저 쓰고 카드로 낼 금액. 캐시가 광고비보다 많아도 광고비까지만 쓴다. */
 export function splitPayment(amount: number, cash: number): { cashUsed: number; payable: number } {
   const cashUsed = Math.max(0, Math.min(cash, amount));

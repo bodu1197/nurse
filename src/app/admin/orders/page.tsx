@@ -1,16 +1,13 @@
 import Link from "next/link";
 import { Pager } from "@/components/MasterDetail";
 import { fmtDay } from "@/lib/date";
-import { won } from "@/lib/ads";
+import { won, orderStatusLabel } from "@/lib/ads";
 import { getOrders, PER_PAGE } from "@/lib/data/adminLists";
 import { PageTitle, Tabs, SearchBox, TableWrap, TH, TD, EmptyOrFailed } from "@/components/admin/Ui";
 
 export const metadata = { title: "결제 내역 — 관리자" };
 export const dynamic = "force-dynamic";
 
-const STATUS_LABEL: Record<string, string> = {
-  PAID: "결제완료", PREPARE: "미결", FAILED: "실패", CANCELED: "결제 미진행", EXPIRED: "기간만료(캐시 반환)",
-};
 const STATUS_CLASS: Record<string, string> = {
   PAID: "bg-teal-50 text-teal-700",
   PREPARE: "bg-amber-50 text-amber-700",
@@ -37,11 +34,11 @@ export default async function AdminOrdersPage({
 
       <Tabs items={[
         { href: `/admin/orders?${qs({ status: "", page: "1" })}`, label: "전체", active: status === "" },
-        { href: `/admin/orders?${qs({ status: "PAID", page: "1" })}`, label: "결제완료", active: status === "PAID" },
-        { href: `/admin/orders?${qs({ status: "PREPARE", page: "1" })}`, label: "미결", active: status === "PREPARE" },
-        { href: `/admin/orders?${qs({ status: "FAILED", page: "1" })}`, label: "실패", active: status === "FAILED" },
-        { href: `/admin/orders?${qs({ status: "CANCELED", page: "1" })}`, label: "결제 미진행", active: status === "CANCELED" },
-        { href: `/admin/orders?${qs({ status: "EXPIRED", page: "1" })}`, label: "기간만료", active: status === "EXPIRED" },
+        { href: `/admin/orders?${qs({ status: "PAID", page: "1" })}`, label: orderStatusLabel("PAID"), active: status === "PAID" },
+        { href: `/admin/orders?${qs({ status: "PREPARE", page: "1" })}`, label: orderStatusLabel("PREPARE"), active: status === "PREPARE" },
+        { href: `/admin/orders?${qs({ status: "FAILED", page: "1" })}`, label: orderStatusLabel("FAILED"), active: status === "FAILED" },
+        { href: `/admin/orders?${qs({ status: "CANCELED", page: "1" })}`, label: orderStatusLabel("CANCELED"), active: status === "CANCELED" },
+        { href: `/admin/orders?${qs({ status: "EXPIRED", page: "1" })}`, label: "캐시 반환", active: status === "EXPIRED" },
       ]} />
 
       <SearchBox action="/admin/orders" value={q} placeholder="주문번호(ad_...) · 포트원 거래번호(imp_...)"
@@ -72,7 +69,7 @@ export default async function AdminOrdersPage({
                 </TD>
                 <TD>
                   <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CLASS[o.status] ?? "bg-slate-100 text-slate-600"}`}>
-                    {STATUS_LABEL[o.status] ?? o.status}
+                    {orderStatusLabel(o.status)}
                   </span>
                 </TD>
                 <TD className="whitespace-nowrap">{o.paid_at ? fmtDay(o.paid_at) : "-"}</TD>

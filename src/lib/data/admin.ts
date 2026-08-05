@@ -2,7 +2,11 @@ import "server-only";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getMyProfile, getSessionUser, type MyProfile } from "@/lib/data/user";
-import { HOUR_MS, nowMs } from "@/lib/date";
+// ponytail: 여기 있던 getAdminCounts/AdminCounts 는 **부르는 곳이 하나도 없는 죽은 코드**였다.
+//   대시보드 숫자는 RPC admin_dashboard(20260804200000)가 만든다. 그 안의 '승인됐는데 닫힌 주문'
+//   카운터는 술어가 `status='CANCELED' and imp_uid is not null` 이었는데, CANCELED 를 쓰는 곳은
+//   abandonAdOrder 하나뿐이고 그 대상은 PREPARE(=거래번호가 없는 상태)라 **어떤 사고가 나도
+//   영원히 0** 이었다. 고쳐서 되살리기보다 지운다 — 안 쓰는 화면의 거짓 숫자를 유지할 이유가 없다.
 
 /**
  * 🔐 관리자 전용 화면·서버 액션의 문지기.
@@ -56,84 +60,6 @@ export async function logAdmin(entry: AdminAction): Promise<void> {
     reason: entry.reason,
   });
   if (error) throw new Error(`감사 로그 실패로 작업을 중단했다: ${error.message}`);
-}
-
-export type AdminCounts = {
-  members: number | null;
-  hospitals: number | null;
-  openJobs: number | null;
-  liveAds: number | null;
-  publicResumes: number | null;
-  posts: number | null;
-  comments: number | null;
-  reviews: number | null;
-  applications: number | null;
-  paid: number | null;
-  stalePrepare: number | null;
-  failed: number | null;
-  abandoned: number | null;
-};
-
-/**
- * head+count 결과를 숫자로.
- *
- * 🔴 실패를 0 으로 뭉개지 않는다. "게시글 0건" 과 "못 셌음" 은 완전히 다른 이야기인데
- *    화면에서 구분이 안 되면, 정책이 깨져서 안 보이는 것을 데이터가 없는 것으로 읽는다.
- */
-async function one(
-  q: PromiseLike<{ count: number | null; error: { message: string } | null }>,
-  label: string,
-): Promise<number | null> {
-  const { count, error } = await q;
-  if (error) {
-    console.error(`getAdminCounts(${label}) failed:`, error.message);
-    return null;
-  }
-  return count ?? 0;
-}
-
-// head:true 라도 PostgREST 는 select 목록으로 소스 쿼리를 만든다 — id 하나만 건다.
-const HEAD = { count: "exact", head: true } as const;
-
-/**
- * 관리자 대시보드 숫자.
- *
- * ponytail: `count: "exact"` 를 그대로 쓴다. 실측(2026-08-04) hospitals 80,104행 192ms,
- * profiles 16,317행 26ms, 나머지는 10ms 미만이고 13개가 병렬이라 화면은 ~200ms 다.
- * 관리자 5명이 가끔 여는 화면이라 추정치(`planned`)를 도입하고 "약" 을 붙이는 복잡도가 이득보다 크다.
- * 명부가 수십만 행이 되면 hospitals 만 `planned` 로 내린다.
- */
-export async function getAdminCounts(): Promise<AdminCounts> {
-  await requireAdmin(); // 이 함수를 다른 곳에서 부르더라도 관리자만 통과한다
-  const supabase = await createClient();
-  const now = new Date(nowMs()).toISOString();
-  const hourAgo = new Date(nowMs() - HOUR_MS).toISOString();
-
-  const [
-    members, hospitals, openJobs, liveAds, publicResumes,
-    posts, comments, reviews, applications,
-    paid, stalePrepare, failed, abandoned,
-  ] = await Promise.all([
-    one(supabase.from("profiles").select("id", HEAD), "profiles"),
-    one(supabase.from("hospitals").select("id", HEAD), "hospitals"),
-    one(supabase.from("jobs").select("id", HEAD).eq("status", "open"), "jobs.open"),
-    one(supabase.from("jobs").select("id", HEAD).gt("featured_until", now), "jobs.ad"),
-    one(supabase.from("resumes").select("profile_id", HEAD).eq("is_public", true), "resumes.public"),
-    one(supabase.from("board_posts").select("id", HEAD), "board_posts"),
-    one(supabase.from("board_comments").select("id", HEAD), "board_comments"),
-    one(supabase.from("reviews").select("id", HEAD), "reviews"),
-    one(supabase.from("applications").select("id", HEAD), "applications"),
-    one(supabase.from("ad_orders").select("id", HEAD).eq("status", "PAID"), "orders.paid"),
-    // 🔴 PREPARE 전체가 아니라 **1시간 넘은 것**만 센다. 결제창이 열려 있는 동안에도 PREPARE 라
-    //    전체를 세면 정상 결제 중인 손님이 사고로 잡힌다. 1시간이 지난 PREPARE 는 사고다.
-    one(supabase.from("ad_orders").select("id", HEAD).eq("status", "PREPARE").lt("created_at", hourAgo), "orders.stale"),
-    one(supabase.from("ad_orders").select("id", HEAD).eq("status", "FAILED"), "orders.failed"),
-    // 🔴 CANCELED 중 imp_uid 가 있는 것은 **결제 승인이 났는데 취소로 닫힌 것**이다.
-    //    손님 브라우저가 "결제 안 됨" 이라고 알려와 닫았지만 실제로는 승인된 경우가 여기 걸린다 — 경보 대상.
-    one(supabase.from("ad_orders").select("id", HEAD).eq("status", "CANCELED").not("imp_uid", "is", null), "orders.abandoned_paid"),
-  ]);
-
-  return { members, hospitals, openJobs, liveAds, publicResumes, posts, comments, reviews, applications, paid, stalePrepare, failed, abandoned };
 }
 
 // ── 모더레이션 ────────────────────────────────────────────────

@@ -2,7 +2,7 @@ import Link from "next/link";
 import HospitalShell from "@/components/HospitalShell";
 import { requireProfile } from "@/lib/data/user";
 import { createClient } from "@/lib/supabase/server";
-import { won } from "@/lib/ads";
+import { won, orderStatusLabel } from "@/lib/ads";
 import { COMPANY, LINK_CLASS } from "@/lib/constants";
 
 export const metadata = { title: "광고 결제 내역 — 널스넷", robots: { index: false } };
@@ -60,8 +60,11 @@ export default async function AdOrdersPage() {
               const paid = o.status === "PAID";
               return (
                 <li key={o.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-slate-200 bg-white p-4">
+                  {/* 🔴 라벨은 lib/ads 한 곳에서만 온다 — 관리자 화면과 **같은 표**다.
+                      전에는 EXPIRED 를 여기만 "미완료" 로 뭉개서, 캐시를 이미 돌려받은 주문을
+                      손님은 계속 "돈이 묶여 있는 건" 으로 읽었다(관리자 화면은 반환됐다고 말했다). */}
                   <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${paid ? "bg-teal-100 text-teal-800" : "bg-slate-100 text-slate-600"}`}>
-                    {paid ? "결제완료" : o.status === "FAILED" ? "결제실패" : "미완료"}
+                    {orderStatusLabel(o.status)}
                   </span>
                   <span className="min-w-0 flex-1 truncate font-medium text-slate-800">{o.job?.title ?? "삭제된 공고"}</span>
                   <span className="shrink-0 text-xs text-slate-500">{o.days}일</span>

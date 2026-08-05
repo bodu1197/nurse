@@ -59,6 +59,24 @@ export const fmtDay = (iso: string) => fmtDate(new Date(iso).getTime());
 // KST 기준 오늘 "2026-07-23". date 컬럼(jobs.deadline)과 비교할 때 쓴다.
 export const todayKst = (now: number) => new Date(now + KST_MS).toISOString().slice(0, 10);
 
+/**
+ * 노출 종료까지 남은 기간을 사람 말로.
+ *
+ * 🔴 병원 화면과 관리자 화면이 **같은 함수**를 쓴다. 각자 적어 두었더니 한쪽은 올림, 한쪽은 내림이라
+ *    같은 광고를 "7일 남음"(병원) 과 "6일 남음"(관리자) 으로 다르게 말했다 — 하필 부풀어 보이는 쪽이
+ *    돈 낸 사람 화면이었다.
+ * 🔴 내림(floor)이다. 6일 3시간 남은 광고를 "7일" 이라고 하면 하루를 더 있는 것처럼 말하는 셈이다.
+ *    하루가 채 안 남았으면 "0일 남음"(끝난 것처럼 읽힌다) 대신 그 사실을 적는다.
+ */
+export function remain(endMs: number, now: number = nowMs()) {
+  // 🔴 광고를 산 적 없는 공고는 종료 시각이 0(1970년)이다. 그대로 빼면 "20669일 전 마감" 이 찍힌다.
+  if (endMs <= 0) return { text: "-", urgent: false, ended: true };
+  const diff = endMs - now;
+  if (diff <= 0) return { text: `${Math.ceil(-diff / DAY_MS)}일 전 마감`, urgent: false, ended: true };
+  const days = Math.floor(diff / DAY_MS);
+  return { text: days >= 1 ? `${days}일 남음` : "24시간 내 종료", urgent: days <= 7, ended: false };
+}
+
 /** 오늘(한국시간) 0시를 UTC ISO 로. DB 질의에 "오늘부터" 조건을 걸 때 쓴다. */
 export const kstDayStartIso = (now: number) =>
   new Date(new Date(now + KST_MS).setUTCHours(0, 0, 0, 0) - KST_MS).toISOString();

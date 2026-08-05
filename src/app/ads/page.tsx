@@ -198,7 +198,10 @@ export default async function AdsPage() {
           <h2 className="font-bold text-slate-900">결제 · 환불</h2>
           <ul className="mt-2 space-y-1.5">
             <li>· 신용카드로 결제하며, 결제가 확인되는 즉시 광고가 시작됩니다.</li>
-            <li>· 세금계산서를 발행해 드립니다. 결제 후 <Link href="/mypage/jobs/ad/orders" className={LINK_CLASS}>결제 내역</Link>에서 사업자 정보를 남겨 주세요.</li>
+            {/* 🔴 "결제 내역에서 사업자 정보를 남겨 주세요" 라고 적혀 있었는데 그 화면에는 입력란이 없다
+                (사업자 정보 폼은 관리자 화면 /admin/invoices 에만 있다). 안내대로 하려다 못 하고
+                결국 문의로 오는 막힌 길이라, 실제로 되는 방법으로 고쳐 적는다. */}
+            <li>· 세금계산서를 발행해 드립니다. 결제 후 <Link href="/contact" className={LINK_CLASS}>고객센터</Link>로 사업자등록번호·상호·대표자·수신 이메일을 보내 주세요.</li>
             <li>
               · <b className="text-slate-800">구매하신 광고는 환불되지 않습니다.</b> 노출이 시작되면 되돌릴 수 없으니
               기간을 정하신 뒤 결제해 주세요.
