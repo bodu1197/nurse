@@ -6,15 +6,14 @@ import { todayKst, nowMs } from "@/lib/date";
 import JobFields, { type JobDefaults } from "@/components/JobFields";
 import FormDraft from "@/components/FormDraft";
 import { requireProfile } from "@/lib/data/user";
-import { getMyJob, getMyHospital, getMyLastJob, firstAdUsed } from "@/lib/data/jobs";
-import { AD_PRODUCTS, won } from "@/lib/ads";
+import { getMyJob, getMyHospital, getMyLastJob, getMyAdCash } from "@/lib/data/jobs";
+import { AD_PRODUCTS, splitPayment, won } from "@/lib/ads";
 import { createJob } from "../../actions";
 
 export const metadata = { title: "공고 등록 — 널스넷", robots: { index: false } };
 
 const ERR: Record<string, string> = {
   deadline: "마감일이 오늘보다 이전입니다. 그대로 두면 공고가 한 번도 노출되지 않습니다.",
-  nofree: "무료 게시는 병원당 1회입니다. 이미 사용하셔서 이번에는 아래 '게시 기간'에서 유료를 골라 주세요.",
   missing: "병원과 공고 제목은 필수입니다.",
   hospital: "선택한 병원을 찾을 수 없습니다.",
   claimed: "이미 다른 계정이 등록·관리 중인 병원입니다.",
@@ -29,10 +28,7 @@ export default async function NewJobPage({
   const { error, from } = await searchParams;
   const dup = !!from;
   const myHosp = await getMyHospital();
-  // 첫 광고비 지원(병원당 1회)을 이미 썼는지 **누르기 전에** 알린다(서버 판정은 createJob 이 그대로 한다).
-  // 관리자는 createJob 이 전용 테스트 병원을 쓰므로(폼의 병원과 다르다) 화면 판정을 걸지 않는다 —
-  // 걸면 서버와 다른 병원 기준으로 무료 칸이 잠기거나 열린다.
-  const freeTaken = p.isAdmin ? false : await firstAdUsed();
+  const adCash = await getMyAdCash(); // 결제 전에 "얼마 내야 하는지"를 보여주기 위한 잔액(판정은 서버가 한다)
   // 복제 지정(from)이면 그 공고, 아니면 직전 공고를 템플릿으로 → 전 필드 자동입력. 근무지·접수안내는 없으면 병원 데이터로.
   const template = from ? await getMyJob(from) : await getMyLastJob();
   const d: JobDefaults = template
@@ -75,7 +71,7 @@ export default async function NewJobPage({
               무료 1건 제한에 걸려 되돌아오는 경우가 바로 그 상황이다. */}
           <FormDraft
             storageKey={`nursenet:draft:job-new:${p.email}`}
-            ownErrors={["missing", "hospital", "claimed", "save", "nofree", "deadline"]}
+            ownErrors={["missing", "hospital", "claimed", "save", "deadline"]}
           />
           {myHosp ? (
             <div className="flex flex-col gap-1">
@@ -100,26 +96,28 @@ export default async function NewJobPage({
 
           <fieldset className="flex flex-col gap-2">
             <legend className="text-sm font-medium text-slate-700">게시 기간</legend>
-            <label className="flex items-center gap-3 rounded-xl border border-slate-300 p-3 has-[:checked]:border-teal-500 has-[:checked]:bg-teal-50">
-              {/* 🔴 첫 광고비 지원(병원당 1회)을 이미 썼으면 이 칸을 미리 잠근다. 전에는 15개 항목을
-                  다 채우고 등록을 누른 뒤에야 되돌려 보냈다(입력도 함께 날아갔다). 서버 판정은 그대로 둔다. */}
-              <input type="radio" name="duration" value="free" defaultChecked={!freeTaken} disabled={freeTaken} className="accent-teal-600 disabled:opacity-50" />
-              <span className={`text-sm ${freeTaken ? "text-slate-400" : "text-slate-700"}`}>
-                <b>무료 7일</b>{" "}
-                {freeTaken
-                  ? <span>· 이미 사용하셨습니다 — 아래에서 기간을 골라 주세요</span>
-                  : <span className="text-slate-400">· 병원당 1회 · 인재정보 열람은 유료 광고만</span>}
-              </span>
-            </label>
+            {/* 🔴 무료 칸은 없앴다(오너 확정 2026-08-05: "완전 무료 광고는 없애라").
+                공고는 저장만 되고, 노출은 다음 화면에서 결제해야 시작된다. */}
+            <p className="text-xs text-slate-500">
+              보유 광고 캐시 <b className="text-teal-700">{won(adCash)}</b>
+              {adCash > 0 && <span className="text-slate-400"> · 결제할 때 먼저 차감됩니다</span>}
+            </p>
             {AD_PRODUCTS.map((p) => (
               <label key={p.weeks} className="flex items-center gap-3 rounded-xl border border-slate-300 p-3 has-[:checked]:border-teal-500 has-[:checked]:bg-teal-50">
-                {/* 🔴 무료가 잠겼다고 유료를 **미리 골라두지 않는다** — 돈이 드는 선택을 대신 해주는 꼴이다.
-                  대신 required 로 "직접 하나 고르기"를 브라우저가 강제한다(잠긴 무료 라디오는 대상에서 빠진다). */}
-              <input type="radio" name="duration" value={p.weeks} required={freeTaken} className="accent-teal-600" />
-                <span className="text-sm text-slate-700"><b>{p.weeks}주 노출</b> <span className="text-teal-700">· {won(p.amount)}</span> <span className="text-teal-600">(1주 무료 포함)</span></span>
+                <input type="radio" name="duration" value={p.weeks} defaultChecked={p.weeks === 1} className="accent-teal-600" />
+                <span className="text-sm text-slate-700">
+                  <b>{p.weeks}주 노출</b> <span className="text-teal-700">· {won(p.amount)}</span>
+                  {p.saved > 0 && (
+                    <span className="ml-1.5 rounded-full bg-teal-600 px-1.5 py-0.5 text-[11px] font-bold text-white">{p.offPct}% 할인</span>
+                  )}
+                  <span className="block text-xs text-slate-500">
+                    주당 {won(p.perWeek)}
+                    {adCash > 0 && <span className="text-teal-600"> · 캐시 차감 후 {won(splitPayment(p.amount, adCash).payable)}</span>}
+                  </span>
+                </span>
               </label>
             ))}
-            <p className="text-xs text-slate-400">유료 선택 시 작성 후 결제하면 그 기간으로 게시됩니다. (결제는 도메인 연결 후 오픈 — 그전까진 &ldquo;결제 대기&rdquo;로 보관)</p>
+            <p className="text-xs text-slate-400">등록하면 결제 화면으로 넘어갑니다. 결제 전까지는 공고가 저장만 되고 노출되지 않습니다.</p>
           </fieldset>
 
           <SubmitButton pendingText="등록 중…">{dup ? "복제 공고 등록" : "공고 등록"}</SubmitButton>

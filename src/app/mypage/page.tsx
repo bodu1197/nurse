@@ -39,7 +39,7 @@ function ViewAsSwitch({ current }: Readonly<{ current: MyProfile["role"] }>) {
 
 // 노출 종료 시각(ms). 노출 중이 아니면 0.
 // 판정은 공고 관리 화면·배지와 **같은 함수**로 — 여기서 따로 계산하면 두 화면이 다른 말을 한다.
-const endMs = (j: MyJob, now: number) => (isLive(jobState(j, now)) ? listingEnd(j, now) : 0);
+const endMs = (j: MyJob, now: number) => (isLive(jobState(j, now)) ? listingEnd(j) : 0);
 
 function DeniedNotice({ message }: Readonly<{ message: string }>) {
   return (
@@ -86,7 +86,7 @@ function HospitalDashboard({ profile, jobs, notice }: Readonly<{ profile: MyProf
 
       <section className="mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-bold text-slate-900">내 채용공고 <span className="text-sm font-normal text-slate-500">· 무료 동시 1건</span></h2>
+          <h2 className="font-bold text-slate-900">내 채용공고 <span className="text-sm font-normal text-slate-500">· 광고 중에만 노출됩니다</span></h2>
           <Button href="/mypage/jobs/new" size="sm">+ 공고 등록</Button>
         </div>
         {jobs.length === 0 ? (

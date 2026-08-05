@@ -9,13 +9,14 @@ export const metadata = { title: "결제 내역 — 관리자" };
 export const dynamic = "force-dynamic";
 
 const STATUS_LABEL: Record<string, string> = {
-  PAID: "결제완료", PREPARE: "미결", FAILED: "실패", CANCELED: "결제 미진행",
+  PAID: "결제완료", PREPARE: "미결", FAILED: "실패", CANCELED: "결제 미진행", EXPIRED: "기간만료(캐시 반환)",
 };
 const STATUS_CLASS: Record<string, string> = {
   PAID: "bg-teal-50 text-teal-700",
   PREPARE: "bg-amber-50 text-amber-700",
   FAILED: "bg-red-50 text-red-700",
   CANCELED: "bg-slate-100 text-slate-600",
+  EXPIRED: "bg-slate-100 text-slate-600",
 };
 
 export default async function AdminOrdersPage({
@@ -40,6 +41,7 @@ export default async function AdminOrdersPage({
         { href: `/admin/orders?${qs({ status: "PREPARE", page: "1" })}`, label: "미결", active: status === "PREPARE" },
         { href: `/admin/orders?${qs({ status: "FAILED", page: "1" })}`, label: "실패", active: status === "FAILED" },
         { href: `/admin/orders?${qs({ status: "CANCELED", page: "1" })}`, label: "결제 미진행", active: status === "CANCELED" },
+        { href: `/admin/orders?${qs({ status: "EXPIRED", page: "1" })}`, label: "기간만료", active: status === "EXPIRED" },
       ]} />
 
       <SearchBox action="/admin/orders" value={q} placeholder="주문번호(ad_...) · 포트원 거래번호(imp_...)"
@@ -64,7 +66,10 @@ export default async function AdminOrdersPage({
                 <TD className="whitespace-nowrap">
                   {o.days}일{o.tier === "admin_test" && <span className="ml-1 rounded bg-slate-100 px-1 text-xs text-slate-500">테스트</span>}
                 </TD>
-                <TD className="whitespace-nowrap text-right font-semibold">{won(o.amount)}</TD>
+                <TD className="whitespace-nowrap text-right font-semibold">
+                  {won(o.amount)}
+                  {o.cash_used > 0 && <span className="block text-xs font-normal text-slate-500">캐시 {won(o.cash_used)}</span>}
+                </TD>
                 <TD>
                   <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CLASS[o.status] ?? "bg-slate-100 text-slate-600"}`}>
                     {STATUS_LABEL[o.status] ?? o.status}

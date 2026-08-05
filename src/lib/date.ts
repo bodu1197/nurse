@@ -4,10 +4,6 @@ export const DAY_MS = 86_400_000;
 export const HOUR_MS = 3_600_000;
 const KST_MS = 9 * 3600 * 1000;
 
-/** 직접등록 공고의 무료 노출 기간(7일). 화면·쿼리·서버검증이 같은 값을 쓴다. */
-export const FREE_LISTING_DAYS = 7;
-export const FREE_LISTING_MS = FREE_LISTING_DAYS * DAY_MS;
-
 // 요청당 고정된 '지금'. 서버 컴포넌트가 렌더 중 Date.now()를 직접 읽으면 react-hooks/purity 경고가 나는데,
 // 규칙을 끄는 대신 cache()로 감싼다 — 같은 요청 안에서는 항상 같은 값이라 화면 계산도 일관된다.
 export const nowMs = cache(() => Date.now());
@@ -31,19 +27,22 @@ export const timeAgo = (iso: string) => {
   return day <= 30 ? `${day}일 전` : fmtDay(iso);
 };
 
-// 직접등록 공고의 노출 종료 시각: 광고 중이면 featured_until, 아니면 게시 + 7일(무료 노출).
+// 우리 공고의 노출 종료 시각 = 광고 종료일(featured_until). 광고를 산 적 없으면 0 이다.
 // 화면(목록·상세)과 서버 액션(지원 가능 여부)이 **같은 규칙**을 써야 해서 여기 한 곳에만 둔다.
 // 컴포넌트가 아니라 lib에 두는 이유: actions.ts가 컴포넌트를 import하면 순환이 된다.
 // 🔴 deadline 도 **필수 인자**로 받는다(jobState 와 같은 계약). 병원이 마감일을 넣을 수 있게 되면서,
-//    이걸 안 보면 "무료 8월 6일까지 (7일 남음)" 이라 적어놓고 실제로는 내일 사라지는 공고가 생긴다.
+//    이걸 안 보면 "8월 6일까지 (7일 남음)" 이라 적어놓고 실제로는 내일 사라지는 공고가 생긴다.
 //    대시보드의 '마감 임박(3일)' 위젯도 같은 값을 쓰므로 존재 이유 자체가 무력화됐다.
 //    선택 인자로 두면 호출부가 조용히 빠뜨리므로 필수로 둔다.
+// 🔴 `now` 인자는 없앴다 — 노출 기간이 광고 하나로 정해지면서 "지금" 을 볼 일이 없어졌다.
+//    남겨 두면 "시점에 따라 답이 달라진다" 는 오해를 준다.
 export const listingEnd = (
-  job: { posted_at: string; featured_until: string | null; deadline: string | null },
-  now: number,
+  job: { featured_until: string | null; deadline: string | null },
 ) => {
-  const featured = job.featured_until ? new Date(job.featured_until).getTime() : 0;
-  const base = featured > now ? featured : new Date(job.posted_at).getTime() + FREE_LISTING_MS;
+  // 🔴 광고가 없으면 노출 기간도 없다(0). 종전에는 "게시 7일" 을 기본값으로 줬는데, 그게
+  //    다시 게시로 공짜 7일을 덧붙이던 통로였다(/review8 2026-08-05).
+  //    지난 광고라도 **그때가 노출 종료일**이다 — 관리자 「노출 마감」 표가 이 값을 쓴다.
+  const base = job.featured_until ? new Date(job.featured_until).getTime() : 0;
   if (!job.deadline) return base;
   // 마감일은 date 컬럼이고 "그 날까지 유효"다 → KST 그날 23:59:59 까지. 둘 중 먼저 오는 쪽이 종료다.
   const until = Date.parse(`${job.deadline}T23:59:59+09:00`);

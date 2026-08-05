@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { acceptsPlatformApply } from "@/lib/applyGate";
-import { daysAgo, listingEnd, fmtDate, nowMs } from "@/lib/date";
+import { daysAgo, listingEnd, fmtDate } from "@/lib/date";
 
 /**
  * '간편지원' 배지 — 홈·목록·자동매치가 **같은 모양**을 쓴다.
@@ -62,10 +62,6 @@ export default function JobCard({
   /** 카드 위에 겹쳐 놓는 버튼(목록의 저장 아이콘)이 있으면 아래 줄 오른쪽을 비워 둔다. */
   reserveAction?: boolean;
 }>) {
-  // 🔴 '지금'을 prop 으로 받지 않는다. 받으면 호출부가 `Date.now()` 를 넘겼을 때 아래 daysAgo(내부에서
-  //    nowMs() 를 쓴다)와 값이 갈려, 같은 카드에서 "0일 전"과 마감일 계산이 서로 다른 시각을 본다.
-  //    nowMs() 는 요청당 고정(cache())이라 여기서 불러도 한 화면 안에서는 항상 같은 값이다.
-  const now = nowMs();
   const canApply = acceptsPlatformApply({ source: job.source, apply_methods: job.apply_methods });
   const hospitalName = job.hospital?.name ?? job.company_name ?? "병원 미상";
   return (
@@ -100,7 +96,7 @@ export default function JobCard({
         <span className="text-slate-400">{daysAgo(job.posted_at)}일 전</span>
         {/* 노출 마감일 — 우리 공고는 게시 기간(listingEnd), 수집분은 공고에 적힌 마감일. */}
         {job.source === "direct" ? (
-          <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job, now)).slice(5)} 마감</span>
+          <span className="font-medium text-rose-600">~{fmtDate(listingEnd(job)).slice(5)} 마감</span>
         ) : (
           job.deadline && <span className="font-medium text-rose-600">~{job.deadline.slice(5).replace("-", ".")} 마감</span>
         )}

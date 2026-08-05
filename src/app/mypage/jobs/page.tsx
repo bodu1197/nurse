@@ -23,14 +23,10 @@ export default async function MyJobsPage({
           <h1 className="text-2xl font-bold text-slate-900">공고 관리</h1>
           <Button href="/mypage/jobs/new" size="md">공고 등록</Button>
         </div>
-        <p className="mt-1 text-sm text-slate-500">무료 공고는 <b className="text-teal-700">동시 1건</b> <span className="text-slate-500">(7일 노출). 추가·기간연장·상단 노출은 광고로.</span></p>
+        <p className="mt-1 text-sm text-slate-500">공고 등록은 <b className="text-teal-700">무료</b> <span className="text-slate-500">· 노출은 광고를 결제하시면 시작됩니다.</span></p>
 
         {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
         {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
-        {/* 🔴 다시 게시도 새 광고다 — 무료 게시는 병원당 1회이고, 그걸 이미 쓰면 유료로만 올릴 수 있다
-            (오너 확정 2026-08-05). 종전 문구는 "동시 1건" 이라 7일마다 다시 눌러 영원히 공짜로
-            광고할 수 있다는 뜻으로 읽혔고, 실제로 그렇게 동작했다. */}
-        {error === "nofree" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">무료 게시는 병원당 1회입니다. 이미 사용하셔서 다시 게시하려면 광고를 올려 주세요 — 공고의 <b>광고 올리기</b>에서 기간을 고르시면 됩니다.</div>}
         {/* 마감일이 지난 공고는 다시 게시해도 아무 데도 안 나온다 — 예전에는 "처리되었습니다"만 뜨고
             실제로는 비노출인 채였다(침묵하는 실패). 무엇을 해야 하는지 짚어 준다. */}
         {error === "deadline" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">마감일이 이미 지난 공고입니다. 다시 게시하려면 먼저 공고를 수정해 마감일을 오늘 이후로 바꿔주세요.</div>}
@@ -44,10 +40,9 @@ export default async function MyJobsPage({
               const state = jobState(j, now);
               const pending = state === "pending";
               const featured = state === "featured";
-              const freeLive = state === "free";
               const live = isLive(state);
               const expired = state === "expired";
-              const end = listingEnd(j, now);
+              const end = listingEnd(j);
               const daysLeft = Math.max(0, Math.ceil((end - now) / DAY_MS));
               return (
                 <li key={j.id} className="rounded-xl border border-slate-200 bg-white p-4">
@@ -63,7 +58,6 @@ export default async function MyJobsPage({
                     <a href={`/mypage/applicants?job_id=${j.id}`} className="font-semibold text-teal-700 hover:underline">{j.applicant_count}명</a>
                     {pending && <span className="text-amber-700"> · 결제 후 게시</span>}
                     {featured && <span className="text-violet-700"> · 광고 {fmtDate(end)}까지 ({daysLeft}일 남음)</span>}
-                    {freeLive && <span className="text-slate-500"> · 무료 {fmtDate(end)}까지 ({daysLeft}일 남음)</span>}
                     {expired && <span className="text-amber-700"> · 노출 종료</span>}
                   </div>
                   <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -80,6 +74,10 @@ export default async function MyJobsPage({
                             <input type="hidden" name="status" value="closed" />
                             <Button type="submit" variant="outline" size="sm">마감하기</Button>
                           </form>
+                        ) : expired ? (
+                          // 🔴 광고가 끝난 공고에는 「다시 게시」를 걸지 않는다 — 눌러도 서버가 결제로
+                          //    돌려보낼 뿐이라(repostJob) 헛걸음이다. 처음부터 결제로 보낸다.
+                          <Button href={`/mypage/jobs/${j.id}/ad?error=expired`} variant="outline" size="sm">다시 게시</Button>
                         ) : (
                           <form action={repostJob} className="inline">
                             <input type="hidden" name="job_id" value={j.id} />

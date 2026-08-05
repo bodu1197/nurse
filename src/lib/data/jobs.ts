@@ -496,13 +496,13 @@ export async function getMyHospital(): Promise<MyHospital | null> {
   return data?.[0] ?? null;
 }
 
-// 병원 무료 게시권 잔여(병원당 7일×4). null=병원 없음.
-export async function getMyFreeCredits(): Promise<number | null> {
+/** 내 광고 캐시 잔액(원). 로그인 안 했으면 0. */
+export async function getMyAdCash(): Promise<number> {
   const user = await getSessionUser();
-  if (!user) return null;
+  if (!user) return 0;
   const supabase = await createClient();
-  const { data } = await supabase.from("hospitals").select("free_credits").eq("owner_profile_id", user.id).limit(1);
-  return data?.[0]?.free_credits ?? null;
+  const { data } = await supabase.from("profiles").select("ad_cash").eq("id", user.id).maybeSingle();
+  return data?.ad_cash ?? 0;
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -645,38 +645,3 @@ export async function getSavedJobs(): Promise<JobRow[]> {
   return ids.map((id) => byId.get(id)).filter((j): j is JobRow => !!j);
 }
 
-/**
- * 첫 광고비 지원을 **이미 썼는가** — 공고 등록 화면이 제출 전에 무료 칸을 잠그려고 쓴다.
- *
- * 🔴 널스넷은 병원당 **1회만** 광고비를 지원한다(오너 확정 2026-08-05). 병원 화면에는 그냥
- *    「무료 7일」로 보이지만, 안에서는 hospitals.free_credits 라는 지원금이 1회 차감된다.
- *    잔액이 없으면 그다음부터는 유료로만 광고할 수 있다.
- *
- * 🔴 종전 규칙은 "무료 동시 1건" 뿐이었다. 그래서 7일이 끝날 때마다 다시 게시를 누르면
- *    **1원도 안 내고 계속 광고**할 수 있었다(오너 지적: "그러면 나는 망한다").
- *    실제로 그 일이 일어났다 — 관리자가 켜준 무료 7일을 쓴 병원이 같은 공고를 또 무료로 올렸다.
- *    이제 동시 건수가 아니라 **잔액**을 본다(잔액이 1회뿐이라 동시 1건은 저절로 지켜진다).
- *
- * 🔒 최종 판정은 서버(createJob·repostJob)가 조건부 UPDATE 로 한다 — 이건 화면 안내용이다.
- */
-export async function firstAdUsed(): Promise<boolean> {
-  const user = await getSessionUser();
-  if (!user) return false;
-  const hosp = await getMyHospital();
-  // 🔴 admin 클라이언트로 읽는다. ad_credit_used 는 병원이 자기 기록을 지우지 못하게 RLS 로
-  //    잠가 뒀다(관리자 SELECT 만) — 사용자 권한으로는 조회가 비어 나와 "안 썼다"로 오판한다.
-  const admin = createAdminClient();
-  // 자물쇠 ①: 이 병원에서 이미 받았는가
-  if (hosp) {
-    const { data } = await admin.from("hospitals").select("free_credits").eq("id", hosp.id).maybeSingle();
-    if ((data?.free_credits ?? 0) <= 0) return true;
-  }
-  // 자물쇠 ②③: 이 계정 또는 이 사업자번호가 이미 받았는가
-  //   — 명부의 다른 병원으로 갈아타거나 계정을 새로 만들어도 같은 사업자면 막힌다.
-  const { data: prof } = await admin.from("profiles").select("business_no").eq("id", user.id).maybeSingle();
-  const keys = [`profile_id.eq.${user.id}`];
-  if (prof?.business_no) keys.push(`business_no.eq.${prof.business_no}`);
-  const { count } = await admin
-    .from("ad_credit_used").select("id", { count: "exact", head: true }).or(keys.join(","));
-  return (count ?? 0) > 0;
-}

@@ -3,9 +3,10 @@ import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { LINK_CLASS } from "@/lib/constants";
+import { SIGNUP_AD_CASH, won } from "@/lib/ads";
 
-const HOSP_TITLE = "병원 서비스 — 간호사 채용 무료 등록 | 널스넷";
-const HOSP_DESC = "병원 채용담당자를 위한 간호사 채용 서비스. 사업자 인증 후 공고를 무료로 등록하고 79,000여 개 병원 데이터 기반으로 간호사를 만나보세요.";
+const HOSP_TITLE = "병원 서비스 — 간호사 채용공고 등록 | 널스넷";
+const HOSP_DESC = `병원 채용담당자를 위한 간호사 채용 서비스. 사업자 인증 후 공고를 등록하시면 가입 시 드리는 광고 캐시 ${won(SIGNUP_AD_CASH)}으로 첫 광고를 시작할 수 있습니다.`;
 
 export const metadata = {
   title: HOSP_TITLE,
@@ -18,7 +19,7 @@ export const metadata = {
 const STEPS = [
   { n: "1", t: "병원 회원가입", d: "이메일로 간단히 가입합니다." },
   { n: "2", t: "사업자 인증", d: "국세청 사업자등록 진위확인으로 병원을 인증합니다." },
-  { n: "3", t: "공고 등록 (무료)", d: "병원을 검색·선택하면 정보가 자동 입력됩니다." },
+  { n: "3", t: "공고 등록 · 광고 시작", d: "병원을 검색·선택하면 정보가 자동 입력됩니다. 가입 캐시가 광고비에서 먼저 차감됩니다." },
 ];
 
 export default async function HospitalPage() {
@@ -30,10 +31,10 @@ export default async function HospitalPage() {
       <main className="flex-1">
         <section className="mx-auto max-w-3xl px-4 py-16 text-center sm:py-20">
           <p className="text-sm font-semibold text-teal-700">병원 채용담당자님께</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">간호사 채용, 무료로 시작하세요</h1>
+          <h1 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">간호사 채용, 광고 캐시 {won(SIGNUP_AD_CASH)}으로 시작하세요</h1>
           <p className="mx-auto mt-4 max-w-xl text-slate-600">
             전국 79,000여 개 병원 데이터를 기반으로, 사업자 인증을 마친 병원만 공고를 등록합니다.
-            인증된 병원의 공고는 간호사에게 신뢰를 줍니다.
+            인증된 병원의 공고는 간호사에게 신뢰를 줍니다. 가입하시면 광고 캐시 {won(SIGNUP_AD_CASH)}을 드립니다.
           </p>
 
           <div className="mt-8">
@@ -64,7 +65,7 @@ export default async function HospitalPage() {
               </div>
             ))}
           </div>
-          {/* 공고 등록은 무료지만 상단 노출은 유료다 — 알아볼 곳으로 가는 길을 여기 둔다.
+          {/* 공고 작성은 공짜지만 노출은 광고다 — 알아볼 곳으로 가는 길을 여기 둔다.
               구 널스넷도 /service_information 을 전 화면 메뉴에 달아 뒀고, 그 주소가 이제 /ads 로 온다. */}
           <p className="mx-auto max-w-4xl px-4 pb-14 text-center text-sm text-slate-600">
             더 많은 간호사에게 먼저 보이고 싶다면{" "}

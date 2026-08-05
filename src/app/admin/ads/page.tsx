@@ -24,10 +24,14 @@ const MESSAGES: Record<string, string> = {
  *
  * 🔴 featured_until 만 보면 안 된다. 광고를 안 낸 공고는 그 값이 비어 있어서 종료·남은 기간이
  *    통째로 "-" 로 나왔다 — 목록에 줄은 있는데 아무 정보가 없었다(오너 지적 2026-08-04).
- *    광고가 없어도 **무료 게시 7일** 동안은 노출된다. listingEnd 가 그 규칙(광고 > 무료 7일,
+ *    노출은 **광고가 살아 있는 동안만** 이다(20260805200000). listingEnd 가 그 규칙(광고 종료일,
  *    마감일이 이르면 마감일)을 이미 갖고 있으니 구직자 화면과 같은 계산을 쓴다.
  */
 function remain(endMs: number) {
+  // 🔴 광고를 산 적 없는 공고는 종료 시각이 0(1970년)이다. 그대로 빼면 "20669일 전 마감" 이
+  //    찍힌다 — 워크넷 크론이 만료된 featured_until 을 null 로 지우기 때문에 「노출 마감」 탭의
+  //    대부분이 여기 해당한다(/review8 2026-08-05).
+  if (endMs <= 0) return { text: "-", urgent: false, ended: true };
   const diff = endMs - nowMs();
   if (diff <= 0) return { text: `${Math.ceil(-diff / DAY_MS)}일 전 마감`, urgent: false, ended: true };
   // 🔴 올림(ceil)이 아니라 **내림**이다. 6일 3시간 남은 광고를 "7일 남음" 이라고 하면 광고주에게
@@ -77,14 +81,15 @@ export default async function AdminAdsPage({
           <Tabs items={[
             { href: tabHref("live"), label: "전체", active: scope === "live" },
             { href: tabHref("paid"), label: "유료", active: scope === "paid" },
-            { href: tabHref("free"), label: "무료", active: scope === "free" },
+            { href: tabHref("free"), label: "광고 없음", active: scope === "free" },
           ]} />
         </div>
       )}
 
       <p className="mb-4 text-sm text-slate-500">
-        <b className="text-slate-700">{total.toLocaleString()}건</b> · 돈을 내지 않은 공고는 노출은 되지만{" "}
-        <b className="text-slate-700">인재정보를 열람할 수 없습니다.</b>
+        <b className="text-slate-700">{total.toLocaleString()}건</b> · 우리 공고는{" "}
+        <b className="text-slate-700">광고가 살아 있는 동안만 노출</b>되고, 인재정보 열람도 그때만 열립니다.
+        「광고 없음」은 결제 없이 관리자가 열어 준 공고와 옛 이관분입니다.
       </p>
 
       <SearchBox action="/admin/ads" value={q} placeholder="공고 제목 · 병원명" hidden={{ scope }} />
@@ -101,7 +106,7 @@ export default async function AdminAdsPage({
           </thead>
           <tbody>
             {rows.map((a) => {
-              const endMs = listingEnd(a, nowMs());
+              const endMs = listingEnd(a);
               const r = remain(endMs);
               const paid = a.paidAmount > 0;
               return (
@@ -131,7 +136,7 @@ export default async function AdminAdsPage({
                         {a.orderCount > 1 && <span className="ml-1 text-xs text-slate-400">({a.orderCount}건)</span>}
                       </span>
                     ) : (
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">무료</span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">광고 없음</span>
                     )}
                   </TD>
                   <TD>
@@ -145,7 +150,7 @@ export default async function AdminAdsPage({
                   <TD className="whitespace-nowrap">{fmtDay(a.posted_at)}</TD>
                   {/* 🔴 "광고 / 무료 게시" 로 나눠 적지 않는다 — 무료나 유료나 **모두 공고이고
                       광고다**(오너 확정 2026-08-04). 종료일 한 줄이면 된다. */}
-                  <TD className="whitespace-nowrap">{fmtDate(endMs)}</TD>
+                  <TD className="whitespace-nowrap">{endMs > 0 ? fmtDate(endMs) : <span className="text-slate-400">-</span>}</TD>
                   <TD className="whitespace-nowrap">
                     <span className={r.ended ? "text-slate-500" : r.urgent ? "font-semibold text-red-700" : "font-semibold text-teal-700"}>
                       {r.text}

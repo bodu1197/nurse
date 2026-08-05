@@ -27,12 +27,12 @@ export default async function AdOrdersPage() {
   // 결제창을 닫았을 뿐인데 목록에서 사라지면 "돈이 나갔나?" 를 확인할 방법이 없다.
   type Row = {
     id: string; merchant_uid: string; tier: string; days: number;
-    amount: number; status: string; created_at: string; paid_at: string | null;
+    amount: number; cash_used: number; status: string; created_at: string; paid_at: string | null;
     job: { title: string } | null;
   };
   const { data, error } = await supabase
     .from("ad_orders")
-    .select("id, merchant_uid, tier, days, amount, status, created_at, paid_at, job:jobs(title)")
+    .select("id, merchant_uid, tier, days, amount, cash_used, status, created_at, paid_at, job:jobs(title)")
     .order("created_at", { ascending: false })
     .limit(100)
     .returns<Row[]>();
@@ -68,7 +68,10 @@ export default async function AdOrdersPage() {
                   <span className="shrink-0 text-xs text-slate-500">{fmt(o.paid_at ?? o.created_at)}</span>
                   {/* 0원 주문이 실결제처럼 보이면 매출을 잘못 읽는다 */}
                   {o.tier === "admin_test" && <span className="shrink-0 rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-semibold text-white">테스트</span>}
-                  <span className="shrink-0 font-bold text-teal-700">{won(o.amount)}</span>
+                  <span className="shrink-0 text-right">
+                    <span className="font-bold text-teal-700">{won(o.amount)}</span>
+                    {o.cash_used > 0 && <span className="block text-[11px] text-slate-500">캐시 {won(o.cash_used)} 사용</span>}
+                  </span>
                   <Link href={`/mypage/jobs/ad/receipt/${o.id}`} className="shrink-0 text-sm font-semibold text-teal-700 hover:underline">영수증</Link>
                 </li>
               );

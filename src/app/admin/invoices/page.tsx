@@ -41,7 +41,7 @@ export default async function AdminInvoicesPage({
     <>
       <PageTitle
         title="세금계산서"
-        desc="결제된 광고의 계산서 발행 현황입니다. 발행 자체는 홈택스에서 하고, 끝나면 여기에 표시합니다."
+        desc="결제된 광고의 계산서 발행 현황입니다. 발행 자체는 홈택스에서 하고, 끝나면 여기에 표시합니다. 금액은 광고 캐시를 뺀 실수령액 기준입니다."
       />
       <Notice ok={sp.ok} error={sp.error} messages={MESSAGES} />
 
@@ -63,9 +63,17 @@ export default async function AdminInvoicesPage({
                     {o.paid_at ? fmtDay(o.paid_at) : "-"} 결제 · {o.job?.title ?? "삭제된 공고"} · {o.days}일
                   </p>
                 </div>
+                {/* 🔴 발행 금액은 **실제로 받은 돈**이다. 광고 캐시(널스넷이 무상 지급한 적립금)로
+                    깎인 만큼은 에누리라 과세표준에서 빠진다 — 전액으로 끊으면 받지도 않은
+                    부가세를 우리가 낸다. 그 사정을 여기 한 줄로 보여 준다. */}
                 <p className="text-right text-sm">
                   <span className="font-bold text-slate-900">{won(o.amount)}</span>
                   <span className="block text-xs text-slate-500">공급가 {won(o.supply_amount)} · 부가세 {won(o.vat)}</span>
+                  {o.cash_used > 0 && (
+                    <span className="block text-xs text-amber-700">
+                      광고비 {won(o.amount + o.cash_used)} 중 캐시 {won(o.cash_used)} 차감(에누리) — 계산서는 {won(o.amount)}
+                    </span>
+                  )}
                 </p>
               </div>
 

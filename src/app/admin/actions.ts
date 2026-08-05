@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { safeNext } from "@/lib/url";
 import { DAY_MS, nowMs } from "@/lib/date";
 import { requireAdmin, logAdmin, isHideable } from "@/lib/data/admin";
@@ -91,7 +92,10 @@ export async function extendAd(formData: FormData) {
   if (!Number.isInteger(days) || days < 1 || days > 365) redirect(backTo(back, "error", "days"));
   if (reason.length < 2) redirect(backTo(back, "error", "reason"));
 
-  const supabase = await createClient();
+  // 🔴 서버 키로 쓴다. featured_until·ad_tier 의 UPDATE 권한을 authenticated 에서 회수했기
+  //    때문이다(20260805210000) — 그 권한이 열려 있으면 병원이 브라우저에서 자기 광고를
+  //    무기한 늘릴 수 있다. 관리자 자격은 위의 requireAdmin() 이 이미 확인했다.
+  const supabase = createAdminClient();
   const { data: job } = await supabase.from("jobs").select("featured_until, ad_tier, status").eq("id", jobId).maybeSingle();
   if (!job) redirect(backTo(back, "error", "target"));
 
@@ -141,14 +145,15 @@ export async function endAd(formData: FormData) {
 
   await logAdmin({ action: "ad.end", targetTable: "jobs", targetId: jobId, reason });
 
-  const supabase = await createClient();
+  // extendAd 와 같은 이유로 서버 키를 쓴다(20260805210000).
+  const supabase = createAdminClient();
   const { data: cur } = await supabase.from("jobs").select("status").eq("id", jobId).maybeSingle();
   if (!cur) redirect(backTo(back, "error", "target"));
 
-  // 🔴 featured_until 만 지우면 **노출이 안 멈춘다.**
-  //    게시 7일 이내 공고는 featured_until 이 아니라 posted_at 으로 노출된다(무료 게시 창).
-  //    그래서 "즉시 종료"를 눌러도 목록에 그대로 남아 있었다(오너 지적 2026-08-04).
-  //    공고 = 광고다 — 광고를 끝낸다는 것은 노출을 멈춘다는 뜻이므로 status 도 닫는다.
+  // 🔴 featured_until 만 지우지 않고 status 도 닫는다.
+  //    공고 = 광고다 — 광고를 끝낸다는 것은 노출을 멈춘다는 뜻이다. 종전에는 featured_until 만
+  //    지웠는데, 그때는 "게시 7일 무료 창" 이 있어서 "즉시 종료"를 눌러도 목록에 남았다
+  //    (오너 지적 2026-08-04). 그 창은 없어졌지만(20260805200000) 닫는 것이 여전히 맞다.
   //    🔴 open 일 때만 닫는다. hidden(모더레이션)·draft(결제 전)를 'closed' 로 덮으면
   //       그 상태가 왜 그랬는지가 지워진다.
   // 🔴 ad_tier 는 **건드리지 않는다.** 20260804370000 이 이 컬럼을 NOT NULL 로 바꾼 뒤로도

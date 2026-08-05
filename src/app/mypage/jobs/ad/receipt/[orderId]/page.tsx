@@ -15,16 +15,19 @@ export default async function ReceiptPage({ params }: Readonly<{ params: Promise
   const { orderId } = await params;
   const supabase = await createClient();
   // RLS: 본인 주문만 조회 가능(buyer_id = auth.uid())
-  type Row = { merchant_uid: string; imp_uid: string | null; tier: string; days: number; supply_amount: number; vat: number; amount: number; status: string; created_at: string; paid_at: string | null; job: { title: string } | null };
+  type Row = { merchant_uid: string; imp_uid: string | null; tier: string; days: number; supply_amount: number; vat: number; amount: number; cash_used: number; status: string; created_at: string; paid_at: string | null; job: { title: string } | null };
   const { data: o } = await supabase
     .from("ad_orders")
-    .select("merchant_uid, imp_uid, tier, days, supply_amount, vat, amount, status, created_at, paid_at, job:jobs(title)")
+    .select("merchant_uid, imp_uid, tier, days, supply_amount, vat, amount, cash_used, status, created_at, paid_at, job:jobs(title)")
     .eq("id", orderId)
     .maybeSingle()
     .returns<Row>();
   if (!o) redirect("/mypage/jobs");
 
   const paid = o.status === "PAID";
+  // 🔴 amount 는 **카드로 받은 돈**이다(캐시 제외). 광고비 원가는 그 둘을 더해야 나온다.
+  //    이 줄이 있어야 영수증이 "80,000원짜리를 캐시 70,000 깎고 10,000 받았다" 를 스스로 설명한다.
+  const listAmount = o.amount + o.cash_used;
 
   return (
     <HospitalShell displayName={p.displayName} active="/mypage/jobs">
@@ -40,15 +43,24 @@ export default async function ReceiptPage({ params }: Readonly<{ params: Promise
           </div>
           <dl className="mt-6 space-y-2 text-sm">
             <div className="flex justify-between"><dt className="text-slate-500">공고</dt><dd className="font-medium text-slate-800">{o.job?.title ?? "-"}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">광고 기간</dt><dd>{o.days}일 <span className="text-teal-600">(1주 무료 포함)</span></dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">광고 기간</dt><dd>{o.days}일</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">주문번호</dt><dd className="text-slate-600">{o.merchant_uid}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">결제일시</dt><dd>{fmt(o.paid_at)}</dd></div>
             <div className="my-2 border-t border-slate-100" />
+            {/* 🔴 캐시로 깎인 금액을 영수증에 남긴다. 이게 없으면 병원은 "80,000원 광고인데 왜
+                10,000원 영수증이냐" 를 묻게 되고, 우리는 공급가를 왜 그렇게 신고했는지 설명할
+                근거가 장부 밖에만 있게 된다. 캐시는 널스넷이 무상 지급한 자사 적립금이다. */}
+            {o.cash_used > 0 && (
+              <>
+                <div className="flex justify-between"><dt className="text-slate-500">광고비</dt><dd>{won(listAmount)}</dd></div>
+                <div className="flex justify-between"><dt className="text-slate-500">광고 캐시 사용(널스넷 지급)</dt><dd className="text-teal-700">-{won(o.cash_used)}</dd></div>
+              </>
+            )}
             <div className="flex justify-between"><dt className="text-slate-500">공급가액</dt><dd>{won(o.supply_amount)}</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">부가세(10%)</dt><dd>{won(o.vat)}</dd></div>
             <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-bold text-slate-900"><dt>결제금액</dt><dd className="text-teal-700">{won(o.amount)}</dd></div>
           </dl>
-          <p className="mt-6 text-center text-xs text-slate-400">광고는 결제 후 환불되지 않습니다(이용약관 제9조). 정식 세금계산서가 필요하시면 {COMPANY.email} 로 요청해 주세요.</p>
+          <p className="mt-6 text-center text-xs text-slate-400">{o.cash_used > 0 && "광고 캐시는 널스넷이 무상 지급한 적립금이며 공급가액에서 차감(에누리)됩니다 — 세금계산서는 실제 결제하신 금액으로 발행됩니다. "}광고는 결제 후 환불되지 않습니다(이용약관 제9조). 정식 세금계산서가 필요하시면 {COMPANY.email} 로 요청해 주세요.</p>
         </div>
       </div>
     </HospitalShell>

@@ -131,10 +131,9 @@ type Props = Readonly<{
   applyError?: string;
   /** 단독 상세 페이지에서는 공고 제목이 그 페이지의 h1이다(목록 옆 패널일 때는 h2). */
   asH1?: boolean;
-  now: number;
 }>;
 
-export default function JobDetail({ job, profile, application, saved, selfHref, backHref, applyError, cancelled, hasResume, isMyJob, asH1, now }: Props) {
+export default function JobDetail({ job, profile, application, saved, selfHref, backHref, applyError, cancelled, hasResume, isMyJob, asH1 }: Props) {
   const loginHref = `/login?notice=apply&next=${encodeURIComponent(selfHref)}`;
   const resumeHref = `/mypage/resume?next=${encodeURIComponent(selfHref)}`;
   // 🔴 이 사이트에서 '간호회원' 은 **이력서를 등록한 간호사** 다(오너 정의 2026-08-04).
@@ -330,7 +329,7 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
           {job.shift_type && (<div><dt className="text-slate-500">근무형태</dt><dd className="mt-0.5 text-slate-800">{job.shift_type}</dd></div>)}
           {job.recruit_count ? (<div><dt className="text-slate-500">모집인원</dt><dd className="mt-0.5 text-slate-800">{job.recruit_count}명</dd></div>) : null}
           {job.source === "direct"
-            ? (<div><dt className="text-slate-500">마감일</dt><dd className="mt-0.5 text-lg font-bold text-red-600">{fmtDate(listingEnd(job, now))} 마감</dd></div>)
+            ? (<div><dt className="text-slate-500">마감일</dt><dd className="mt-0.5 text-lg font-bold text-red-600">{fmtDate(listingEnd(job))} 마감</dd></div>)
             : job.deadline ? (<div><dt className="text-slate-500">마감일</dt><dd className="mt-0.5 text-lg font-bold text-red-600">{job.deadline.replace(/-/g, ".")} 마감</dd></div>) : null}
         </dl>
 

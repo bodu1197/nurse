@@ -5,7 +5,6 @@ import type { JobState } from "@/lib/jobState";
 const LABEL: Record<JobState, string> = {
   pending: "결제 대기",
   featured: "광고중",
-  free: "게시중",
   expired: "만료",
   closed: "마감",
 };
@@ -14,7 +13,6 @@ const LABEL: Record<JobState, string> = {
 const TONE: Record<JobState, string> = {
   pending: "bg-amber-100 text-amber-800",
   featured: "bg-violet-100 text-violet-800",
-  free: "bg-teal-100 text-teal-800",
   expired: "bg-rose-100 text-rose-700",
   closed: "bg-slate-200 text-slate-700",
 };

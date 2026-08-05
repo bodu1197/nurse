@@ -324,7 +324,9 @@ export type AdOrderRow = {
   id: string;
   merchant_uid: string;
   status: string;
+  /** 카드로 청구한 금액(원). 광고비 전액이 아니다 — 캐시로 낸 몫은 cash_used 에 따로 있다. */
   amount: number;
+  cash_used: number;
   days: number;
   tier: string;
   paid_at: string | null;
@@ -337,7 +339,7 @@ export type AdOrderRow = {
 };
 
 const ORDER_SELECT =
-  "id,merchant_uid,status,amount,days,tier,paid_at,created_at,note,imp_uid,tax_issued_at,job:jobs(id,title),hospital:hospitals(name)";
+  "id,merchant_uid,status,amount,cash_used,days,tier,paid_at,created_at,note,imp_uid,tax_issued_at,job:jobs(id,title),hospital:hospitals(name)";
 
 export async function getJobAdOrders(jobId: string): Promise<AdOrderRow[]> {
   await requireAdmin();

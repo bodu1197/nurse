@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyBusiness } from "@/lib/data/nts";
-import { adProduct } from "@/lib/ads";
+import { adProduct, AD_PRODUCTS } from "@/lib/ads";
 import { decidePayment } from "@/lib/paymentFlow";
 import { getPayment, iamportReady } from "@/lib/iamport";
 import { viewAsRole } from "@/lib/data/user";
@@ -14,7 +14,7 @@ import { safeNext } from "@/lib/url";
 import { AVATAR_BUCKET } from "@/lib/data/avatar";
 import { AVATAR_MAX_BYTES, AVATAR_MIME } from "@/lib/avatarLimits";
 import { CANCELABLE, isHospitalStatus, STATUS_LABEL, type AppStatus } from "@/lib/data/applications";
-import { DAY_MS, FREE_LISTING_MS, todayKst, nowMs } from "@/lib/date";
+import { DAY_MS, todayKst, nowMs } from "@/lib/date";
 import { logAdmin } from "@/lib/data/admin";
 import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
@@ -170,7 +170,7 @@ export async function createJob(formData: FormData) {
   const hospitalId = isAdminTest ? await adminTestHospitalId(admin, user.id) : s("hospital_id");
   if (!hospitalId) redirect(`/mypage/jobs/new?error=${isAdminTest ? "hospital" : "missing"}`);
 
-  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region, address, free_credits").eq("id", hospitalId).maybeSingle();
+  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region, address").eq("id", hospitalId).maybeSingle();
   if (!hosp) redirect("/mypage/jobs/new?error=hospital");
   if (hosp.owner_profile_id && hosp.owner_profile_id !== user.id) redirect("/mypage/jobs/new?error=claimed");
   if (!hosp.owner_profile_id) {
@@ -178,28 +178,14 @@ export async function createJob(formData: FormData) {
     await admin.from("profiles").update({ claimed_hospital_id: hospitalId }).eq("id", user.id);
   }
 
-  // 게시 기간 선택: free=첫 광고 지원 7일(병원당 1회), 2/3/4=유료(첫 1주는 0원이라 바로 게시).
-  const duration = s("duration");
-  const paidWeeks = ["2", "3", "4"].includes(duration) ? Number(duration) : 0;
-  // 지원금을 차감했으면 되돌리는 함수가 담긴다 — 공고 생성이 실패하면 부른다.
-  let refundCredit: null | (() => Promise<void>) = null;
-
-  // 🔴 **첫 광고비 지원은 병원당 1회다**(오너 확정 2026-08-05). 그래서 무료를 골랐든 유료를
-  //    골랐든 **먼저 지원금부터 써 본다** — 무료 7일 노출은 그 지원금으로 나가는 것이기 때문이다.
-  //
-  //    종전에는 `if (!paidWeeks)` 안에서만 검사했다. 그런데 아래 insert 는 **선택과 무관하게**
-  //    status='open' + 7일 노출을 준다("첫 1주는 0원"). 그래서 **「2주 노출」을 고르고 결제를
-  //    안 하면 지원금 검사를 통째로 건너뛰고 무료 7일을 받았다** — 그것도 몇 번이든.
-  //    실측 2026-08-05 15:18: 잔액 0인 병원이 이 경로로 두 번째 무료 공고를 올렸다(주문 0건).
-  // 🔒 자물쇠 셋(병원·계정·사업자번호)을 한 번에 건다 — spendAdCredit 주석 참고.
-  refundCredit = await spendAdCredit(admin, hospitalId, user.id);
-  // 무료를 골랐는데 지원금이 없으면 올릴 수 없다.
-  // 🔴 쓰던 화면으로 되돌린다. 공고 관리로 보내면 다 채운 상세내용·복리후생·담당자 정보를
-  //    처음부터 다시 써야 한다. 같은 화면이어야 임시저장(FormDraft)도 복원된다.
-  if (!paidWeeks && !refundCredit) redirect("/mypage/jobs/new?error=nofree");
-  // 유료를 골랐는데 지원금이 없으면 **결제 전까지 노출하지 않는다**(draft).
-  // 지원금이 남아 있으면 종전처럼 바로 7일 노출하고, 결제분은 activateAdOrder 가 그 위에 얹는다.
-  const supported = !!refundCredit;
+  // 🔴 **완전 무료 광고는 없다**(오너 확정 2026-08-05: "병원이 1주 내면 1만원 돈으로 지불하게").
+  //    그래서 공고는 **저장만 되고 노출은 결제해야 시작된다**(draft). 등록 자체는 여전히 공짜다.
+  //    종전에는 선택과 무관하게 status='open' + 7일 노출을 줬는데, 그 탓에 「2주」를 고르고
+  //    결제만 안 하면 무료 7일을 몇 번이든 받을 수 있었다(실측 2026-08-05 15:18, 주문 0건).
+  //    이제 노출의 유일한 문은 featured_until 이고, 그건 결제(activateAdOrder)만 세운다.
+  //    첫 광고도 공짜가 아니다 — 가입 캐시 70,000 < 1주 80,000 이라 최소 10,000원이 나간다.
+  const weeksPicked = Number(s("duration"));
+  const picked = adProduct(weeksPicked)?.weeks ?? AD_PRODUCTS[0].weeks;
 
   const num = (k: string) => { const n = parseInt(s(k), 10); return Number.isFinite(n) && n > 0 ? n : null; };
   const deadline = jobDeadline(s);
@@ -233,76 +219,23 @@ export async function createJob(formData: FormData) {
     apply_email: s("apply_email") || null,
     apply_detail: s("apply_detail") || null,
     source: "direct",
-    // 🔴 **첫 1주는 0원이다**(오너 확정 2026-08-04). 그러니 결제 여부와 상관없이 바로 게시한다.
-    //    전에는 유료 주수를 고르면 status='draft' 로 두고 결제해야 열렸다 — 이미 공짜로 받은
-    //    1주를 결제할 때까지 버리는 셈이었고, 관리자 목록에는 "결제 전" 이라는 알 수 없는 줄이 남았다.
-    //    2주를 고른 병원은 무료 1주 + 결제 1주다. 그 결제분은 activateAdOrder 가 **얹는다**.
-    // 🔴 노출은 **지원금을 썼을 때만** 바로 시작한다. 지원금이 없는데 유료를 고른 경우는
-    //    결제해야 열린다(activateAdOrder 가 status·featured_until 을 함께 세운다).
-    //    종전에는 무조건 open + 7일이라, 유료를 고르고 결제만 안 하면 무료 7일이 무한이었다.
-    status: supported ? "open" : "draft",
-    // 공고 = 광고다. 지원분(7일)도 광고 기간이므로 featured_until 을 비워 두지 않는다 —
-    // 비우면 목록·정렬·관리자 화면이 이 공고를 "광고가 아닌 것" 으로 취급해 뒤로 밀어낸다.
-    featured_until: supported ? new Date(nowMs() + FREE_LISTING_MS).toISOString() : null,
+    // 🔴 결제 전에는 **아무 데도 안 보인다.** 노출을 여는 문은 featured_until 하나뿐이고,
+    //    그건 결제(activateAdOrder)만 세운다 — 거기서 status·featured_until 을 함께 쓴다.
+    //    ad_tier 는 NOT NULL 이라(20260804370000) 자리값이 필요하다. 'free' 는 "아직 광고 없음" 이다.
+    status: "draft",
+    featured_until: null,
     ad_tier: "free",
   }).select("id").single();
-  if (error || !created) {
-    // 🔴 지원금을 먼저 차감했으므로 여기서 되돌린다. 안 그러면 저장에 실패한 병원이
-    //    아무것도 못 얻고 1회 지원만 잃는다.
-    await refundCredit?.();
-    redirect("/mypage/jobs/new?error=save");
-  }
-  // 유료 주수를 골랐으면 결제 페이지로(공고는 이미 게시된 상태다). 아니면 공고 관리로.
-  redirect(paidWeeks ? `/mypage/jobs/${created.id}/ad?weeks=${paidWeeks}` : "/mypage/jobs?ok=1");
-}
-
-/**
- * 💰 첫 광고비 지원 1회를 **쓴다**. 성공하면 되돌리는 함수를, 이미 썼으면 null 을 돌려준다.
- *
- * 자물쇠가 셋인 이유(오너 지적 2026-08-05: "명부를 기준으로 하면 안 되지"):
- *   ① hospitals.free_credits — 같은 병원에서 두 번 받는 것을 막는다.
- *   ② ad_credit_used.profile_id — **명부의 다른 병원으로 갈아타는 것**을 막는다.
- *      지원금이 심평원 명부 81,430곳에 기본값 1로 뿌려져 있어서, 이게 없으면 한 계정이
- *      병원을 바꿔 가며 병원 수만큼 받을 수 있다.
- *   ③ ad_credit_used.business_no — **계정을 새로 만드는 것**을 막는다. 사업자 인증을 거쳐야
- *      공고를 올릴 수 있으므로, 같은 사업자면 계정이 달라도 같은 번호에 걸린다.
- *      이관 회원은 아직 번호가 없어(실측 37곳 중 31곳) ②가 그 몫을 대신한다.
- *
- * 🔒 ②③ 은 부분 유니크 인덱스라 INSERT 가 원자적으로 판정한다 — 중복이면 23505 로 실패한다.
- *    읽고 나서 쓰면 동시 요청 둘이 같은 "안 썼음" 을 보고 둘 다 통과한다.
- */
-async function spendAdCredit(
-  admin: ReturnType<typeof createAdminClient>,
-  hospitalId: string,
-  profileId: string,
-): Promise<null | (() => Promise<void>)> {
-  // ① 병원 잔액 — 조건부 UPDATE 로 원자적으로 차감.
-  const { data: granted } = await admin
-    .from("hospitals").update({ free_credits: 0 })
-    .eq("id", hospitalId).gt("free_credits", 0).select("id");
-  if (!granted?.length) return null;
-
-  // ②③ 계정·사업자 단위 기록. 사업자번호는 있으면 함께 적는다(없는 이관 회원은 계정만).
-  const { data: prof } = await admin.from("profiles").select("business_no").eq("id", profileId).maybeSingle();
-  const { error } = await admin
-    .from("ad_credit_used").insert({ profile_id: profileId, business_no: prof?.business_no ?? null });
-  if (error) {
-    await admin.from("hospitals").update({ free_credits: 1 }).eq("id", hospitalId); // ① 되돌린다
-    return null;
-  }
-
-  // 공고 생성·게시가 실패하면 호출부가 이걸 부른다 — 아무것도 못 얻고 1회만 잃으면 안 된다.
-  return async () => {
-    await admin.from("hospitals").update({ free_credits: 1 }).eq("id", hospitalId);
-    await admin.from("ad_credit_used").delete().eq("profile_id", profileId);
-  };
+  if (error || !created) redirect("/mypage/jobs/new?error=save");
+  // 저장했으니 결제 화면으로 — 여기서 기간을 고르고 결제하면 그때 노출이 시작된다.
+  redirect(`/mypage/jobs/${created.id}/ad?weeks=${picked}`);
 }
 
 // 소유 공고인지 확인(병원 소유주 == 본인). 아니면 null.
 async function ownedJobHospital(admin: ReturnType<typeof createAdminClient>, jobId: string, userId: string) {
   const { data: job } = await admin.from("jobs").select("hospital_id").eq("id", jobId).maybeSingle();
   if (!job?.hospital_id) return null; // 워크넷 광고 등 명부 미연결 공고는 소유 대상이 아니다.
-  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region, free_credits").eq("id", job.hospital_id).maybeSingle();
+  const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region").eq("id", job.hospital_id).maybeSingle();
   if (!hosp || hosp.owner_profile_id !== userId) return null;
   return hosp;
 }
@@ -357,7 +290,7 @@ export async function updateJob(formData: FormData) {
   redirect("/mypage/jobs?ok=1");
 }
 
-// 다시 게시 — 게시일 갱신(무료 7일 재시작) + 공개.
+// 다시 게시 — 마감했던 공고를 다시 공개한다(광고 기간이 남아 있을 때만).
 export async function repostJob(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -386,50 +319,24 @@ export async function repostJob(formData: FormData) {
   //    병원이 정한 마감일을 서버가 말없이 지우는 쪽이 더 나쁘기 때문이다.
   if (job.deadline && job.deadline < todayKst(nowMs())) redirect("/mypage/jobs?error=deadline");
 
-  // 광고가 아직 살아 있는 공고는 **유료 자리**다 — 무료 동시 1건 규칙의 대상이 아니다.
-  // 이 구분이 없으면 돈을 낸 공고를 다시 게시하려다 무료 제한에 막힌다.
+  // 🔴 **무료로 다시 게시하는 길은 없다**(오너 확정 2026-08-05: "완전 무료 광고는 없애라").
+  //    종전에는 다시 게시가 새 7일 무료 노출을 줬고, 그래서 7일마다 눌러 영원히 공짜였다.
+  //    이제 광고 기간이 남아 있는 공고만 다시 게시할 수 있다(마감했다가 되살리는 경우).
+  //    기간이 끝났으면 광고를 새로 사야 한다 — 화면이 결제로 안내한다.
   const paidLive = !!job.featured_until && job.featured_until > nowIso;
-  let refundCredit: null | (() => Promise<void>) = null;
-  if (!paidLive) {
-    // 🔴 **다시 게시도 새 광고다** — 첫 광고비 지원(병원당 1회)을 여기서도 쓴다.
-    //    종전에는 "동시 1건" 만 봤기 때문에, 7일이 끝날 때마다 다시 게시를 눌러 **영원히 공짜로**
-    //    광고할 수 있었다(오너 지적 2026-08-05). 실제로 오늘 그 일이 있었다 —
-    //    관리자가 켜준 무료 7일을 쓴 병원이 같은 공고를 또 무료로 올렸다.
-    // 🔒 자물쇠 셋(병원·계정·사업자번호)을 한 번에 건다 — createJob 과 같은 헬퍼다.
-    refundCredit = await spendAdCredit(admin, hosp.id, user.id);
-    if (!refundCredit) redirect("/mypage/jobs?error=nofree");
-  }
+  if (!paidLive) redirect(`/mypage/jobs/${jobId}/ad?error=expired`);
 
   // 조건을 update 에도 한 번 더 건다(읽고 쓰는 사이에 상태가 바뀌는 경우) + 반환 행으로 반영 확인.
   //
-  // 🔴 무료로 다시 게시하면 **새 7일 창을 찍는다** — createJob 과 같은 값이다.
-  //    종전에는 featured_until 을 `null` 로 지웠다. 그때는 목록 정렬이 `featured_until desc` 라
-  //    지난 광고 날짜가 남으면 그 공고가 영원히 위에 뜨는 문제가 있었고, 지우는 것이 답이었다.
-  //    지금은 둘 다 바뀌었다 — 정렬은 `ad_live desc, posted_at desc` 이고(jobs_listed),
-  //    무료 게시도 7일짜리 광고로 본다(20260804350000). 그래서 null 로 두면 **방금 올린 공고가
-  //    ad_live=false 가 되어, 기간이 살아 있는 석 달 전 공고들 전부보다 아래로 밀린다.**
-  //    실측 2026-08-05: 오늘 14:24 에 다시 게시한 공고가 목록 40위였고, 홈의 「최신 채용공고」
-  //    6칸에도 못 들어갔다(오너 지적: "오늘 올라왔는데 왜 카드가 생성 안 되냐").
-  //    옛 걱정(끝난 광고 날짜가 남아 특혜)은 그대로 해결된다 — 낡은 값을 남기는 게 아니라
-  //    **지금부터 7일** 로 새로 쓰기 때문이다. 결제 기록은 ad_orders 에 그대로 있다.
-  //    🔴 ad_tier 는 null 이 아니라 'free' 다 — NOT NULL(20260804370000). null 을 쓰면 이 재게시가
-  //       통째로 실패한다(즉시 종료가 같은 이유로 깨져 있었다 — 오너 지적 2026-08-05).
-  let q = admin
+  // 🔴 featured_until 은 **건드리지 않는다.** 남은 광고 기간이 그대로 이어져야 한다 —
+  //    여기서 새로 쓰면 마감/재게시를 반복해 광고를 무한 연장할 수 있다.
+  //    posted_at 만 갱신해 목록·홈 카드에서 최신으로 잡히게 한다(정렬은 ad_live desc, posted_at desc).
+  const q = admin
     .from("jobs")
-    .update(paidLive
-      ? { status: "open", posted_at: nowIso }
-      : { status: "open", posted_at: nowIso, featured_until: new Date(nowMs() + FREE_LISTING_MS).toISOString(), ad_tier: "free" })
+    .update({ status: "open", posted_at: nowIso })
     .eq("id", jobId).in("status", ["open", "closed"]);
-  // 광고 표식을 지우는 경우에만, "여전히 만료 상태인 행" 으로 한번 더 좀힌다 —
-  // 읽고 쓰는 사이에 결제 웹훅이 들어와 featured_until 을 연장했다면
-  // 방금 산 광고를 이 update 가 지우게 된다(돈은 나갔는데 노출은 없어진다).
-  if (!paidLive) q = q.or(`featured_until.is.null,featured_until.lt.${nowIso}`);
   const { data: done, error } = await q.select("id");
-  if (error || !done?.length) {
-    // 지원금을 먼저 차감했으니 되돌린다 — 게시에 실패한 병원이 1회 지원만 잃으면 안 된다.
-    await refundCredit?.();
-    redirect("/mypage/jobs?error=1");
-  }
+  if (error || !done?.length) redirect("/mypage/jobs?error=1");
   redirect("/mypage/jobs?ok=1");
 }
 
@@ -1043,10 +950,53 @@ export async function deleteSavedSearch(formData: FormData) {
 }
 
 // ───────── 광고 결제(포트원) ─────────
-type AdPrepare = { ok: true; merchant_uid: string; amount: number; name: string } | { ok: false; error: string };
+/** 결제 준비 실패 사유. 넓은 string 으로 두면 오타를 화면에서야 알게 된다. */
+type AdPrepareError = "unavailable" | "auth" | "product" | "not_owner" | "db" | "cash_only" | "changed";
+type AdPrepare = { ok: true; merchant_uid: string; amount: number; name: string } | { ok: false; error: AdPrepareError };
+
+/**
+ * 결제되지 않은 주문이 붙들고 있는 광고 캐시를 되돌린다.
+ *
+ * 🔴 캐시는 **주문을 만들 때 바로 잔액에서 뺀다**(claim). 그래야 결제창을 두 개 띄워
+ *    같은 캐시를 두 번 쓰는 길이 막힌다. 대신 손님이 결제창을 닫고 떠나면 그 캐시가
+ *    주문에 묶인 채 남으므로, 다음 결제 준비 때 오래된 것부터 풀어 준다.
+ * 🔴 푼 주문은 **EXPIRED 로 못 박는다**(조건부 UPDATE 로 성공한 행만 푼다).
+ *    풀어 주고도 나중에 활성화되면 캐시를 공짜로 가져간 셈이 되기 때문이다 —
+ *    activateAdOrder 가 EXPIRED 를 선점 대상에서 뺀다.
+ * 🔴 2시간을 기다리는 이유: 카드 결제창은 몇 분이면 끝난다. 넉넉히 지난 것만 풀어야
+ *    **결제 중인 주문의 캐시를 뺏는** 사고가 안 난다.
+ */
+const STALE_ORDER_MS = 2 * 60 * 60 * 1000;
+const ORDER_HOLDS_CASH = ["PREPARE", "CANCELED", "FAILED"] as const;
+
+async function reclaimStaleAdCash(admin: ReturnType<typeof createAdminClient>, userId: string): Promise<void> {
+  // 🔴 note 를 덮어쓰지 않는다. 여기 있는 주문에는 "금액 불일치" 같은 **사고 기록**이 남아
+  //    있을 수 있는데, 덮으면 그 사고가 "결제되지 않았습니다" 라는 반대 사실로 바뀐다.
+  //    상태만 바꾸고 사유는 아래에서 덧붙인다.
+  const { data: stale } = await admin
+    .from("ad_orders")
+    .update({ status: "EXPIRED" })
+    .eq("buyer_id", userId)
+    .in("status", [...ORDER_HOLDS_CASH])
+    .gt("cash_used", 0)
+    .lt("created_at", new Date(Date.now() - STALE_ORDER_MS).toISOString())
+    .select("id, cash_used");
+  for (const o of stale ?? []) {
+    const { error } = await admin.rpc("release_ad_cash", { p_profile: userId, p_amount: o.cash_used });
+    if (error) {
+      // 손님 캐시가 사라진 것이다. 로그만으로는 못 찾으니 주문에도 남긴다.
+      console.error("광고 캐시 반환 실패 — 수동 확인 필요:", o.id, userId, o.cash_used, error.message);
+      await appendOrderNote(admin, o.id, `광고 캐시 ${o.cash_used.toLocaleString("ko-KR")}원 반환 실패 — 수동 확인 필요`);
+      continue;
+    }
+    await appendOrderNote(admin, o.id, `결제되지 않아 광고 캐시 ${o.cash_used.toLocaleString("ko-KR")}원을 돌려드렸습니다`);
+  }
+}
 
 // 결제 전 주문 생성(서버가 금액 산정 — 클라 금액 신뢰 안 함). 클라가 받은 merchant_uid/amount로 IMP.request_pay.
-export async function prepareAdOrder(jobId: string, weeks: number): Promise<AdPrepare> {
+// expectedPayable: 화면이 손님에게 보여 준 결제금액. 서버가 계산한 값과 다르면 결제창을 열지 않는다
+//                  (캐시 잔액이 그사이 바뀐 경우 — 보여준 금액보다 많이 청구하는 일은 없어야 한다).
+export async function prepareAdOrder(jobId: string, weeks: number, expectedPayable?: number): Promise<AdPrepare> {
   if (!iamportReady()) return { ok: false, error: "unavailable" };
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -1056,17 +1006,45 @@ export async function prepareAdOrder(jobId: string, weeks: number): Promise<AdPr
   const admin = createAdminClient();
   const hosp = await ownedJobHospital(admin, jobId, user.id);
   if (!hosp) return { ok: false, error: "not_owner" };
+
+  await reclaimStaleAdCash(admin, user.id);
+
+  // 💰 캐시를 **여기서 실제로 뺀다.** 잔액이 모자라면 남은 만큼만 잡히고 그 값이 돌아온다.
+  //    가입 캐시(70,000) < 1주 광고비(80,000) 라 첫 광고도 반드시 카드 결제가 붙는다.
+  const { data: claimed, error: claimErr } = await admin.rpc("claim_ad_cash", { p_profile: user.id, p_want: product.amount });
+  if (claimErr) return { ok: false, error: "db" };
+  const cashUsed = claimed ?? 0;
+  const payable = product.amount - cashUsed;
+  // 여기서부터 실패하면 잡은 캐시를 반드시 돌려준다 — 안 그러면 손님 돈이 조용히 사라진다.
+  // ⚠️ ponytail: 이 줄과 아래 insert 사이에서 프로세스가 죽으면(배포 중 종료 등) 잡은 캐시가
+  //    주문 없이 사라진다 — reclaim 은 ad_orders 만 훑기 때문이다. 원장(ledger) 표를 두면
+  //    막히지만 그 무게를 지금 질 이유가 없다(창이 수 ms, 최대 손실 1계정 지급액).
+  //    대신 복구에 필요한 값을 전부 로그에 남긴다 — 고객센터가 이 줄로 되돌릴 수 있다.
+  const giveBack = async () => {
+    if (cashUsed <= 0) return;
+    const { error } = await admin.rpc("release_ad_cash", { p_profile: user.id, p_amount: cashUsed });
+    if (error) console.error("광고 캐시 반환 실패 — 수동 확인 필요:", user.id, cashUsed, error.message);
+  };
+  console.info("[ad] 광고 캐시 사용:", { profile: user.id, job: jobId, weeks, cashUsed, payable });
+
+  // 🔴 0원은 PG 가 받지 않는다. 정상 경로에서는 생길 수 없지만, 관리자가 캐시를 얹어 주는 순간
+  //    결제창이 조용히 실패한다 — 여기서 막는다.
+  if (payable <= 0) { await giveBack(); return { ok: false, error: "cash_only" }; }
+  // 🔴 화면이 "10,000원 결제하기" 라고 보여 줬는데 결제창에 80,000원이 뜨면 안 된다.
+  if (expectedPayable !== undefined && expectedPayable !== payable) { await giveBack(); return { ok: false, error: "changed" }; }
+
   const merchant_uid = `ad_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+  const supply = Math.round(payable / 1.1);
   const { error } = await admin.from("ad_orders").insert({
     merchant_uid, job_id: jobId, hospital_id: hosp.id, buyer_id: user.id,
-    // 🔴 days 는 **돈 낸 만큼**이다(billedWeeks×7). 선택 주수 전체(product.days)를 넣으면 안 된다 —
-    //    공고는 등록할 때 이미 무료 1주를 받았고(createJob), activateAdOrder 는 그 위에 얹는다.
-    //    전체를 넣으면 2주를 산 병원이 7+14=21일 노출된다. 지금 값이면 7+7=14일로 정확히 맞는다.
-    //    금액(product.amount)도 처음부터 billedWeeks 기준이다 — 이제 기간과 금액이 같은 셈법을 쓴다.
-    tier: "standard", days: product.billedWeeks * 7, supply_amount: product.supply, vat: product.vat, amount: product.amount, status: "PREPARE",
+    // 🔴 days 는 산 기간 전체다. 무료 1주가 없어졌으니 결제한 만큼만 노출된다.
+    // 🔴 amount 는 **카드로 청구하는 금액**이다(캐시 제외). 매출 집계가 캐시에 부풀지 않는다.
+    tier: "standard", days: product.days, cash_used: cashUsed,
+    supply_amount: supply, vat: payable - supply,
+    amount: payable, status: "PREPARE",
   });
-  if (error) return { ok: false, error: "db" };
-  return { ok: true, merchant_uid, amount: product.amount, name: `널스넷 광고 ${weeks}주(${product.days}일)` };
+  if (error) { await giveBack(); return { ok: false, error: "db" }; }
+  return { ok: true, merchant_uid, amount: payable, name: `널스넷 광고 ${weeks}주(${product.days}일)` };
 }
 
 // 결제 활성화(검증 통과/웹훅 공용, 멱등). 광고 노출 기간 연장.
@@ -1081,10 +1059,19 @@ async function activateAdOrder(admin: ReturnType<typeof createAdminClient>, orde
     //    성공해도 그때 무슨 일이 있었는지 알아야 할 기록이다.
     .update({ status: "PAID", imp_uid: impUid, paid_at: new Date().toISOString() })
     .eq("id", orderId)
-    .neq("status", "PAID")
+    // 🔴 EXPIRED 는 **되살리지 않는다.** 결제되지 않아 캐시를 이미 돌려준 주문이라,
+    //    여기서 켜 주면 캐시를 공짜로 가져간 광고가 된다(reclaimStaleAdCash 참고).
+    //    CANCELED·FAILED 는 되살린다 — 콜백만 실패하고 승인은 났을 수 있다.
+    .in("status", [...ORDER_HOLDS_CASH])
     .select("id");
   if (claimErr) return false;        // DB 오류 — 0행과 구분해야 한다(성공으로 착각하면 재시도가 끊긴다)
-  if (!claimed?.length) return true; // 이미 다른 경로가 활성화 완료
+  if (!claimed?.length) {
+    const { data: cur } = await admin.from("ad_orders").select("status").eq("id", orderId).maybeSingle();
+    if (cur?.status === "PAID") return true; // 이미 다른 경로가 활성화 완료
+    // 만료된 주문에 결제가 들어왔다 — 돈은 나갔는데 광고는 못 켠다. 반드시 사람이 봐야 한다.
+    await appendOrderNote(admin, orderId, "결제가 확인됐지만 주문이 만료되어 광고를 켜지 못했습니다 — 수동 확인 필요");
+    return false;
+  }
 
   const { data: job } = await admin.from("jobs").select("featured_until").eq("id", jobId).maybeSingle();
   const now = Date.now();
@@ -1100,6 +1087,8 @@ async function activateAdOrder(admin: ReturnType<typeof createAdminClient>, orde
     await admin.from("ad_orders").update({ status: "PREPARE", paid_at: null, imp_uid: null }).eq("id", orderId);
     return false;
   }
+  // 💰 캐시는 주문을 만들 때 이미 뺐다(prepareAdOrder 의 claim_ad_cash). 여기서 또 빼지 않는다 —
+  //    그게 같은 캐시를 두 번 쓰던 원인이었다.
   return true;
 }
 
@@ -1218,6 +1207,9 @@ export async function abandonAdOrder(merchantUid: string): Promise<void> {
     //    이 액션은 브라우저에서 직접 부를 수 있으므로 **운영자가 읽는 칸에 시스템 문구를 위장 주입**할 수 있었다
     //    ("🔴 포트원에서 결제가 취소됨…" 같은 줄을 손님이 심을 수 있다는 뜻이다).
     //    문구도 단정하지 않는다 — 승인은 났는데 콜백만 실패했을 수 있다(그 경우 웹훅이 PAID 로 올린다).
+    // 🔴 여기서 광고 캐시를 돌려주지 않는다. 승인은 났는데 콜백만 실패했을 수 있고, 그러면
+    //    웹훅이 이 주문을 PAID 로 올린다 — 미리 돌려주면 그 광고는 캐시를 공짜로 쓴 셈이 된다.
+    //    끝내 결제가 안 된 주문은 2시간 뒤 reclaimStaleAdCash 가 EXPIRED 로 못 박고 돌려준다.
     .update({ status: "CANCELED", note: "결제창이 닫혀 결제 완료를 확인하지 못함" })
     .eq("merchant_uid", merchantUid)
     .eq("buyer_id", user.id)   // 남의 주문을 건드리지 못하게

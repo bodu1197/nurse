@@ -111,7 +111,7 @@ export default async function JobPage({
     // 상세 설명이 없는 수집 공고는 제목만 되풀이하지 않고 요약(병원·지역·고용형태·급여)을 쓴다.
     description: job.description ?? jobSummary(job),
     datePosted: job.posted_at,
-    validThrough: job.source === "direct" ? new Date(listingEnd(job, now)).toISOString() : job.deadline ?? undefined,
+    validThrough: job.source === "direct" ? new Date(listingEnd(job)).toISOString() : job.deadline ?? undefined,
     employmentType: job.employment_type ? EMPLOYMENT_TYPE[job.employment_type] : undefined,
     hiringOrganization: { "@type": "Organization", name: job.hospital?.name ?? job.company_name ?? "병원" },
     jobLocation: {
@@ -154,7 +154,6 @@ export default async function JobPage({
             hasResume={resumeOwned}
             isMyJob={isMyJob}
             asH1
-            now={now}
           />
         </div>
 

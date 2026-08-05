@@ -3,8 +3,7 @@ import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
 import { LINK_CLASS } from "@/lib/constants";
-import { AD_PRODUCTS, AD_WEEK_PRICE, won } from "@/lib/ads";
-import { FREE_LISTING_DAYS } from "@/lib/date";
+import { AD_PRODUCTS, AD_WEEK_PRICE, SIGNUP_AD_CASH, won } from "@/lib/ads";
 import { RESUME_PUBLIC_SCOPE } from "@/lib/resumeOptions";
 
 /**
@@ -16,14 +15,15 @@ import { RESUME_PUBLIC_SCOPE } from "@/lib/resumeOptions";
  *    VVIP 배너·프라임/스페셜/베스트 영역·'핫한 공고' 자리는 화면에 없고, 휴대폰 문자 알림 2종은
  *    발송 코드 자체가 없다. 지킬 수 없는 약속을 적어 두면 문의가 올 때마다 말을 바꿔야 한다.
  *
- * 🔒 숫자는 **한 곳에서만** 온다 — 요금은 lib/ads(결제창이 쓰는 그 값), 무료 기간은 lib/date,
+ * 🔒 숫자는 **한 곳에서만** 온다 — 요금·가입 캐시는 lib/ads(결제창이 쓰는 그 값),
  *    인재정보 공개 범위는 lib/resumeOptions. 여기에 손으로 옮겨 적으면 값을 바꿨을 때
  *    안내와 청구가 어긋난다(그게 종전 페이지가 "준비 중" 이어야 했던 이유다).
  */
 
 const TITLE = "채용광고 안내 — 널스넷";
+// 🔴 금액을 손으로 적지 않는다 — 값을 바꾸면 검색결과 설명만 옛 가격으로 남는다.
 const DESC =
-  "간호사 채용공고 등록은 무료입니다. 광고를 올리면 목록 상단에 노출되고, 이력서를 공개한 간호사의 연락처를 열람하고 AI 자동매치로 조건에 맞는 인재를 받아볼 수 있습니다.";
+  `간호사 채용광고 1주 ${won(AD_WEEK_PRICE)}, 길게 하실수록 주당 단가가 내려갑니다. 병원 회원가입 시 광고 캐시 ${won(SIGNUP_AD_CASH)}을 드립니다. 광고 중에는 목록 상단에 노출되고, 이력서를 공개한 간호사의 연락처 열람과 AI 자동매치 인재 추천이 열립니다.`;
 
 export const metadata = {
   title: TITLE,
@@ -67,33 +67,31 @@ export default async function AdsPage() {
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-10">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">채용광고 안내</h1>
         <p className="mt-3 max-w-2xl text-base leading-relaxed text-slate-600">
-          <b className="text-slate-900">첫 공고는 널스넷이 광고비를 지원합니다</b> — 병원당 1회,{" "}
-          {FREE_LISTING_DAYS}일 동안 목록에 나오고 지원도 받습니다. 그 뒤로는 광고를 올리시면{" "}
-          <b className="text-slate-900">더 오래, 더 위에</b> 노출하고{" "}
-          <b className="text-slate-900">간호사에게 먼저 연락</b>할 수 있습니다.
+          <b className="text-slate-900">1주 {won(AD_WEEK_PRICE)}</b>, 광고 중에만 목록 상단에 노출됩니다. 병원 회원가입 시{" "}
+          <b className="text-slate-900">광고 캐시 {won(SIGNUP_AD_CASH)}</b>을 드리니 첫 1주는{" "}
+          <b className="text-slate-900">{won(AD_WEEK_PRICE - SIGNUP_AD_CASH)}</b>입니다.
         </p>
 
-        {/* ── 무료와 광고의 차이 ───────────────────────────── */}
+        {/* ── 광고 유무의 차이 ───────────────────────────── */}
         <section className="mt-8">
-          <h2 className="text-lg font-bold text-slate-900">첫 공고(널스넷 지원)와 광고, 무엇이 다른가</h2>
+          <h2 className="text-lg font-bold text-slate-900">광고를 올렸을 때와 올리지 않았을 때</h2>
           {/* 표는 칸이 셋뿐이라 1280px 를 다 쓰면 값 사이가 벌어져 읽기 나빠진다 — 읽기 폭으로 묶는다. */}
           <div className="mt-3 max-w-3xl overflow-x-auto">
             <table className="w-full min-w-[560px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-slate-200 text-left">
                   <th className="py-2.5 pr-4 font-semibold text-slate-500">　</th>
-                  <th className="py-2.5 pr-4 font-semibold text-slate-700">첫 공고 (지원)</th>
-                  <th className="py-2.5 font-semibold text-teal-700">광고</th>
+                  <th className="py-2.5 pr-4 font-semibold text-slate-700">광고 없음</th>
+                  <th className="py-2.5 font-semibold text-teal-700">광고 중</th>
                 </tr>
               </thead>
               <tbody className="text-slate-600">
                 {[
-                  ["노출 기간", `${FREE_LISTING_DAYS}일`, "14일 · 21일 · 28일 중 선택"],
-                  // 🔴 "동시 1건" 이 아니라 **평생 1회**다(오너 확정 2026-08-05). 종전 규칙(동시 1건)은
-                  //    7일마다 다시 게시하면 영원히 공짜라는 뜻이어서, 광고를 팔 수 없는 구조였다.
-                  ["횟수", "병원당 1회 (널스넷 지원)", "제한 없음"],
-                  ["목록 노출", "○", "○ (상단 우선)"],
-                  ["지원 접수 · 지원자 관리", "○", "○"],
+                  // 🔴 "무료 7일" 칸은 없앴다(오너 확정 2026-08-05: "완전 무료 광고는 없애라").
+                  //    공고 작성·보관은 여전히 공짜지만, **노출되는 순간부터는 광고다.**
+                  ["공고 작성 · 보관", "○", "○"],
+                  ["목록 노출", "✕", "○ (상단 우선)"],
+                  ["지원 접수 · 지원자 관리", "✕", "○"],
                   ["간호사 연락처 열람", "✕", "○"],
                   ["AI 자동매치 인재 추천", "✕", "○"],
                 ].map(([label, free, paid]) => (
@@ -108,10 +106,10 @@ export default async function AdsPage() {
           </div>
           {/* 🔴 이 한 줄이 이 페이지에서 제일 중요하다 — 열람 자격은 '공고를 냈는가'가 아니라
               '돈을 냈는가'로 갈린다(lib/data/membership 의 hasLiveAd). 여기서 얼버무리면
-              무료로 올린 병원이 인재정보를 열려다 막히고 그때 처음 알게 된다. */}
+              캐시만 쓴 줄 알았던 병원이 인재정보를 열려다 막히고 그때 처음 알게 된다. */}
           <p className="mt-3 max-w-3xl text-sm text-slate-500">
             간호사 연락처 열람과 AI 자동매치 인재 추천은 <b className="text-slate-700">결제한 광고가 노출되는 동안</b>{" "}
-            열립니다. 무료 등록만으로는 열리지 않고, 광고 기간이 끝나면 함께 닫힙니다.
+            열리고, 광고 기간이 끝나면 함께 닫힙니다.
           </p>
         </section>
 
@@ -119,36 +117,37 @@ export default async function AdsPage() {
         <section className="mt-10">
           <h2 className="text-lg font-bold text-slate-900">요금</h2>
           <p className="mt-1 text-sm text-slate-600">
-            모든 상품에 <b className="text-slate-800">1주(7일) 무료</b>가 포함됩니다. 표시 금액은 부가세 포함이고,
-            길게 하실수록 주당 단가가 내려갑니다.
+            1주 <b className="text-slate-800">{won(AD_WEEK_PRICE)}</b>(부가세 포함)에서 시작하고,{" "}
+            <b className="text-slate-800">기간이 길수록 주당 단가가 내려갑니다.</b> 병원 회원이 되면{" "}
+            <b className="text-slate-800">광고 캐시 {won(SIGNUP_AD_CASH)}</b>이 한 번 지급되어 결제할 때 먼저 쓰입니다 —
+            첫 1주는 <b className="text-slate-800">{won(AD_WEEK_PRICE - SIGNUP_AD_CASH)}</b>만 내시면 됩니다.
           </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
-            {AD_PRODUCTS.map((p) => {
-              const perWeek = Math.round(p.amount / p.billedWeeks);
-              const off = Math.round((1 - perWeek / AD_WEEK_PRICE) * 100);
-              return (
-                <article
-                  key={p.weeks}
-                  className={`flex flex-col rounded-2xl border bg-white p-5 ${off > 0 ? "border-teal-300 shadow-sm" : "border-slate-200"}`}
-                >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <h3 className="text-lg font-bold text-slate-900">{p.days}일 노출</h3>
-                    {off > 0 && (
-                      <span className="rounded-full bg-teal-600 px-2 py-0.5 text-[11px] font-bold text-white">
-                        주당 {off}% 절약
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900">{won(p.amount)}</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    {p.weeks}주 중 {p.billedWeeks}주만 청구 · 주당 {won(perWeek)}
-                  </p>
-                  <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
-                    공급가 {won(p.supply)} + 부가세 {won(p.vat)}
-                  </p>
-                </article>
-              );
-            })}
+          <div className="mt-4 grid gap-3 sm:grid-cols-4">
+            {AD_PRODUCTS.map((p) => (
+              <article
+                key={p.weeks}
+                className={`flex flex-col rounded-2xl border bg-white p-5 ${p.saved > 0 ? "border-teal-300 shadow-sm" : "border-slate-200"}`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <h3 className="text-lg font-bold text-slate-900">{p.days}일 노출</h3>
+                  {p.saved > 0 && (
+                    <span className="shrink-0 rounded-full bg-teal-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                      {p.offPct}% 할인
+                    </span>
+                  )}
+                </div>
+                <p className="mt-3 text-2xl font-extrabold tracking-tight text-slate-900">{won(p.amount)}</p>
+                {/* 🔴 정가에 취소선을 그어 **깎인 금액이 눈에 보이게** 한다(오너 지시 2026-08-05:
+                    "여러 개 많이 구매할 때 할인받아야 기분 좋아한다"). 1주는 정가라 이 줄이 없다. */}
+                <p className="mt-1 text-xs text-slate-500">
+                  {p.weeks}주 · 주당 {won(p.perWeek)}
+                  {p.saved > 0 && <span className="font-semibold text-teal-700"> · {won(p.saved)} 절약</span>}
+                </p>
+                <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+                  공급가 {won(p.supply)} + 부가세 {won(p.vat)}
+                </p>
+              </article>
+            ))}
           </div>
         </section>
 
@@ -174,8 +173,8 @@ export default async function AdsPage() {
           <ol className="mt-3 grid gap-3 sm:grid-cols-4">
             {[
               ["1", "병원 회원가입", "사업자 정보로 병원을 인증합니다."],
-              ["2", "공고 등록", `무료로 등록하면 ${FREE_LISTING_DAYS}일 노출됩니다.`],
-              ["3", "기간 선택 · 결제", "내 공고에서 기간을 고르고 카드로 결제합니다."],
+              ["2", "공고 등록", "등록은 무료입니다. 이때는 아직 노출되지 않습니다."],
+              ["3", "기간 선택 · 결제", "캐시를 먼저 쓰고 남은 금액만 카드로 냅니다."],
               ["4", "즉시 노출", "결제 직후 상단에 올라가고 인재 열람이 열립니다."],
             ].map(([n, t, d]) => (
               <li key={n} className="rounded-2xl border border-slate-200 bg-white p-5">

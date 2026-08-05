@@ -89,7 +89,7 @@ export default async function AdminDashboard() {
 
       <Section title="광고 · 매출">
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Stat label="유료 광고 게재중" value={d.ads.live} sub={`7일 내 종료 ${d.ads.ending7.toLocaleString()}건 · 무료 노출중 ${d.ads.granted.toLocaleString()}건(=위 노출중 공고)`} href="/admin/ads?scope=paid" />
+          <Stat label="유료 광고 게재중" value={d.ads.live} sub={`7일 내 종료 ${d.ads.ending7.toLocaleString()}건 · 광고 없이 노출중 ${d.ads.granted.toLocaleString()}건(=위 노출중 공고)`} href="/admin/ads?scope=paid" />
           <Stat label="오늘 매출" value={won(d.revenue.today)} tone="good" href="/admin/orders?status=PAID" />
           <Stat label="최근 30일 매출" value={won(d.revenue.d30)} sub={`${d.revenue.count30.toLocaleString()}건`} href="/admin/orders?status=PAID" />
           {/* 링크를 걸지 않는다 — 결제 내역 목록은 관리자 테스트 주문(0원)까지 포함해서

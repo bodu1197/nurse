@@ -39,15 +39,10 @@ export type Database = {
   }
   public: {
     Tables: {
-      ad_credit_used: {
-        Row: { id: string; business_no: string | null; profile_id: string | null; job_id: string | null; used_at: string }
-        Insert: { id?: string; business_no?: string | null; profile_id?: string | null; job_id?: string | null; used_at?: string }
-        Update: { id?: string; business_no?: string | null; profile_id?: string | null; job_id?: string | null; used_at?: string }
-        Relationships: []
-      }
       ad_orders: {
         Row: {
           amount: number
+          cash_used: number
           buyer_id: string | null
           created_at: string
           days: number
@@ -71,6 +66,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          cash_used?: number
           buyer_id?: string | null
           created_at?: string
           days: number
@@ -94,6 +90,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          cash_used?: number
           buyer_id?: string | null
           created_at?: string
           days?: number
@@ -374,7 +371,6 @@ export type Database = {
         Row: {
           address: string | null
           created_at: string
-          free_credits: number
           id: string
           is_claimed: boolean
           is_test: boolean
@@ -391,7 +387,6 @@ export type Database = {
         Insert: {
           address?: string | null
           created_at?: string
-          free_credits?: number
           id?: string
           is_claimed?: boolean
           is_test?: boolean
@@ -408,7 +403,6 @@ export type Database = {
         Update: {
           address?: string | null
           created_at?: string
-          free_credits?: number
           id?: string
           is_claimed?: boolean
           is_test?: boolean
@@ -681,6 +675,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          ad_cash: number
           avatar_url: string | null
           birthday: string | null
           business_no: string | null
@@ -703,6 +698,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          ad_cash?: number
           avatar_url?: string | null
           birthday?: string | null
           business_no?: string | null
@@ -725,6 +721,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          ad_cash?: number
           avatar_url?: string | null
           birthday?: string | null
           business_no?: string | null
@@ -1241,6 +1238,8 @@ export type Database = {
     }
     Functions: {
       admin_dashboard: { Args: never; Returns: Json }
+      claim_ad_cash: { Args: { p_profile: string; p_want: number }; Returns: number }
+      release_ad_cash: { Args: { p_profile: string; p_amount: number }; Returns: undefined }
       admin_set_hidden: {
         Args: {
           hide: boolean

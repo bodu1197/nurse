@@ -1,6 +1,6 @@
 // 형제 모듈이라 상대 경로로 부른다(lib/data/user.ts → ./role 과 같은 방식).
 // 확장자를 붙여야 Node 의 네이티브 TS 실행(npm test)에서도 그대로 불러온다.
-import { FREE_LISTING_MS, listingEnd, todayKst } from "./date.ts";
+import { todayKst } from "./date.ts";
 
 // 공고가 지금 어떤 상태인지 — 화면이 아니라 규칙이라 lib에 둔다.
 // (컴포넌트에 두면 서버 액션이 이 판정을 쓰려는 순간 액션→컴포넌트 의존이 생긴다.)
@@ -9,7 +9,7 @@ import { FREE_LISTING_MS, listingEnd, todayKst } from "./date.ts";
 export type JobStatus = "draft" | "open" | "closed" | "expired" | "hidden";
 
 /** 병원에게 보여줄 노출 상태 */
-export type JobState = "pending" | "featured" | "free" | "expired" | "closed";
+export type JobState = "pending" | "featured" | "expired" | "closed";
 
 /**
  * 🔴 deadline 을 **필수 인자**로 둔다(선택으로 두면 부르는 쪽이 조용히 빠뜨린다).
@@ -26,13 +26,14 @@ export function jobState(
   if (job.status !== "open") return "closed";
   // 마감일이 지났으면 광고가 남아 있어도 구직자에게 안 보인다 → 노출 종료로 본다.
   if (job.deadline && job.deadline < todayKst(now)) return "expired";
-  if (job.featured_until && new Date(job.featured_until).getTime() > now) return "featured";
-  if (new Date(job.posted_at).getTime() >= now - FREE_LISTING_MS) return "free";
-  return "expired";
+  // 🔴 광고가 살아 있을 때만 노출된다. 종전에는 "게시 7일 이내면 무료 노출" 이 하나 더 있었는데,
+  //    다시 게시(repostJob)가 posted_at 을 새로 찍는 탓에 **1주를 사고 6일째 마감→다시 게시로
+  //    공짜 7일을 덧붙일 수 있었다**(/review8 2026-08-05). 완전 무료 광고는 없다.
+  return job.featured_until && new Date(job.featured_until).getTime() > now ? "featured" : "expired";
 }
 
 /** 노출 중(구직자가 볼 수 있는 상태)인가 */
-export const isLive = (s: JobState) => s === "featured" || s === "free";
+export const isLive = (s: JobState) => s === "featured";
 
 /** 병원이 화면에서 바꿀 수 있는 공고 상태(게시/마감) */
 export const JOB_SETTABLE = ["open", "closed"] as const satisfies readonly JobStatus[];
@@ -43,13 +44,12 @@ export const isSettableJobStatus = (s: string): s is (typeof JOB_SETTABLE)[numbe
 
 /**
  * 구직자에게 지금 보여줄 공고인가 — **정본은 DB 에 있다**: `jobs_listed.is_live`
- * (마이그레이션 20260805100000). 이건 그 규칙을 코드로 옮긴 사본이다.
+ * (마이그레이션 20260805200000). 이건 그 규칙을 코드로 옮긴 사본이다.
  *
  * 🔴 왜 사본이 필요한가: 상세·지원·저장 목록은 **이미 받아 온 행 하나**를 판정해야 해서
  *    쿼리 필터를 쓸 수 없다(저장 목록은 마감 공고를 서버 권한으로 되살려 보여주기까지 한다).
  * 🔴 **둘이 어긋나면 "목록엔 없는데 링크로는 열리는" 공고가 생긴다.** 규칙을 바꿀 일이 생기면
- *    반드시 양쪽을 같이 고칠 것 — 아래 jobState.test.ts 가 무료 기간 상수를 마이그레이션에
- *    적힌 값(7일)에 못 박아 두어, 한쪽만 바꾸면 테스트가 깨진다.
+ *    반드시 양쪽을 같이 고칠 것 — jobState.test.ts 가 "광고가 없으면 안 보인다" 를 못 박아 둔다.
  */
 export function isOpenToSeekers(
   job: Readonly<{ status: JobStatus; source: string; posted_at: string; featured_until: string | null; deadline: string | null }>,
@@ -61,6 +61,8 @@ export function isOpenToSeekers(
   //    featured_until 값이 남은 탓에 정렬에서 워크넷(null)보다 위였다 —
   //    **돈 낸 광고가 끝났는데 계속 1페이지 상단을 차지**했다(실측: 8/19 시점 43건).
   //    워크넷 수집분만 노출 기간 없이 항상 보인다 — 우리가 파는 자리가 아니라 배경 데이터다.
-  if (job.source !== "worknet" && listingEnd(job, now) <= now) return false;
+  // 🔴 우리 공고는 **광고가 살아 있을 때만** 보인다(무료 노출 창은 없앴다 — jobState 주석 참고).
+  //    워크넷 수집분만 기간 없이 항상 보인다 — 우리가 파는 자리가 아니라 배경 데이터다.
+  if (job.source !== "worknet" && !(job.featured_until && new Date(job.featured_until).getTime() > now)) return false;
   return !(job.deadline && job.deadline < todayKst(now));
 }
