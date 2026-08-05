@@ -86,12 +86,31 @@ export default async function Home({
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600" aria-hidden><path d="M3 21h18M6 21V7l6-4 6 4v14M10 9h4M10 13h4M10 17h4" /></svg>
               <span><b className="font-extrabold text-teal-700">79,000+</b> 병원 데이터</span>
             </span>
-            {/* 🔴 "16,000+ 간호사 회원"을 뺐다 — 근거를 댈 수 없는 숫자였다(이관한 이력서는 7,257건).
-                증명할 수 없는 수치는 적지 않는다. 실제 회원 수를 세어 보여주려면 집계 쿼리를 붙이고
-                그때 다시 넣는다. 병원 데이터 79,000+ 는 심평원 명부 건수라 근거가 있다. */}
+            {/* 🔴 한때 "16,000+ 간호사 회원"이 적혀 있었는데 근거를 댈 수 없는 숫자라 뺐었다.
+                이제 **실제로 센 값**을 넣는다(오너 지시 2026-08-06) — 이력서를 공개한 간호사 수다.
+                숫자는 위에서 이미 받아온 talent.total 을 그대로 쓴다. /talent 목록·아래 '구직 현황'과
+                **같은 함수·같은 조건**(is_public=true + 이름 있음)이라 세 곳이 어긋날 수 없다.
+                여기서 따로 세면 조건이 갈리는 날 홈만 다른 숫자를 말하게 된다.
+                🔴 "구직중"이라고 쓰는 것이 맞다 — **널스넷에서 이력서 공개는 곧 구직 의사 표시다**
+                   (오너 확정 2026-08-06). 구직할 마음이 없으면 이력서를 비공개로 내린다.
+                   그래서 is_public=true 를 세는 것과 "구직중 간호사"는 같은 말이다.
+                   ⚠️ 검증 때 "is_public 은 공개일 뿐 구직중이 아니다"라는 지적이 한 번 올라와 문구를
+                      바꿨다가 되돌렸다. 이 도메인 규칙을 모르면 또 뒤집힌다 — 그래서 여기 적어 둔다.
+                   카드의 '구직중' 리본도 같은 근거로 붙어 있다(말이 어긋나지 않는다).
+                🔴 0명이면 숫자를 안 쓴다 — 신뢰를 주려고 놓은 자리에 "0명"이 뜨면 정반대가 된다.
+                   searchPublicTalent 는 조회 실패도 total 0 으로 돌려주므로 이 분기가 그것도 덮는다. */}
             <span className="inline-flex items-center gap-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600" aria-hidden><path d="M20 6L9 17l-5-5" /></svg>
-              <span>이력서 등록·지원 <b className="font-extrabold text-teal-700">무료</b></span>
+              {talent.total > 0 ? (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600" aria-hidden><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 7a4 4 0 100 8 4 4 0 000-8M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" /></svg>
+                  <span>구직중 간호사 <b className="font-extrabold text-teal-700">{talent.total.toLocaleString()}</b>명</span>
+                </>
+              ) : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-teal-600" aria-hidden><path d="M20 6L9 17l-5-5" /></svg>
+                  <span>이력서 등록·지원 <b className="font-extrabold text-teal-700">무료</b></span>
+                </>
+              )}
             </span>
           </div>
         </section>
