@@ -30,8 +30,11 @@ const MESSAGES: Record<string, string> = {
 function remain(endMs: number) {
   const diff = endMs - nowMs();
   if (diff <= 0) return { text: `${Math.ceil(-diff / DAY_MS)}일 전 마감`, urgent: false, ended: true };
-  const days = Math.ceil(diff / DAY_MS);
-  return { text: `${days}일 남음`, urgent: days <= 7, ended: false };
+  // 🔴 올림(ceil)이 아니라 **내림**이다. 6일 3시간 남은 광고를 "7일 남음" 이라고 하면 광고주에게
+  //    하루를 더 있는 것처럼 말하는 셈이다(오너 지적 2026-08-05: "실제 남은 일수와 일치하지 않냐").
+  //    하루가 채 안 남았으면 날짜 대신 그 사실을 적는다 — "0일 남음" 은 끝난 것처럼 읽힌다.
+  const days = Math.floor(diff / DAY_MS);
+  return { text: days >= 1 ? `${days}일 남음` : "24시간 내 종료", urgent: days <= 7, ended: false };
 }
 
 export default async function AdminAdsPage({

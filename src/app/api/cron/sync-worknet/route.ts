@@ -167,9 +167,14 @@ export async function GET(request: Request) {
     //    repostJob 의 유료 분기가 featured_until 을 남긴 채 posted_at 만 새로 찍어, 남은 무료
     //    7일 내내 상단을 차지한다(돈 안 낸 기간의 상단 노출).
     //    새 크론을 만들지 않고 여기 얹는다 — 하루 4회면 잔여 노출이 최대 6시간이다.
-    const { data: expiredAds } = await admin
-      .from("jobs").update({ featured_until: null, ad_tier: null })
+    //    🔴 ad_tier 는 건드리지 않는다 — NOT NULL(20260804370000) 이라 null 을 쓰면 이 UPDATE 가
+    //       통째로 실패한다. 정렬을 망치는 것은 featured_until 하나뿐이다.
+    //    🔴 error 를 반드시 본다. 종전에는 받지 않아 위 실패가 **조용히** 넘어갔고, 끝난 광고가
+    //       계속 상단에 남았다(오너 지적 2026-08-05).
+    const { data: expiredAds, error: expiredErr } = await admin
+      .from("jobs").update({ featured_until: null })
       .lt("featured_until", new Date().toISOString()).select("id");
+    if (expiredErr) console.error("[worknet] 만료 광고 표식 정리 실패:", expiredErr.message);
 
     const enrichedRemaining = jobs.filter((j) => !stored.get(j.authNo)?.detail_fetched_at && !details.has(j.authNo)).length;
     const geocoded = [...coords.values()].filter(Boolean).length;

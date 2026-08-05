@@ -359,7 +359,9 @@ export async function repostJob(formData: FormData) {
   //    결제 기록은 ad_orders 에 그대로 있고, 나중에 다시 광고를 사면 그때부터 새로 계산된다.
   let q = admin
     .from("jobs")
-    .update(paidLive ? { status: "open", posted_at: nowIso } : { status: "open", posted_at: nowIso, featured_until: null, ad_tier: null })
+    //    🔴 ad_tier 는 null 이 아니라 'free' 다 — NOT NULL(20260804370000). null 을 쓰면 이 재게시가
+    //       통째로 실패한다(즉시 종료가 같은 이유로 깨져 있었다 — 오너 지적 2026-08-05).
+    .update(paidLive ? { status: "open", posted_at: nowIso } : { status: "open", posted_at: nowIso, featured_until: null, ad_tier: "free" })
     .eq("id", jobId).in("status", ["open", "closed"]);
   // 광고 표식을 지우는 경우에만, "여전히 만료 상태인 행" 으로 한번 더 좀힌다 —
   // 읽고 쓰는 사이에 결제 웹훅이 들어와 featured_until 을 연장했다면

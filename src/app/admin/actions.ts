@@ -151,9 +151,15 @@ export async function endAd(formData: FormData) {
   //    공고 = 광고다 — 광고를 끝낸다는 것은 노출을 멈춘다는 뜻이므로 status 도 닫는다.
   //    🔴 open 일 때만 닫는다. hidden(모더레이션)·draft(결제 전)를 'closed' 로 덮으면
   //       그 상태가 왜 그랬는지가 지워진다.
+  // 🔴 ad_tier 는 **건드리지 않는다.** 20260804370000 이 이 컬럼을 NOT NULL 로 바꾼 뒤로도
+  //    여기는 null 을 쓰고 있어서, 즉시 종료를 누를 때마다 23502(not-null 위반)로 **전체가 실패**했다
+  //    (오너 지적 2026-08-05: "왜 즉시 종료가 안 되냐". admin_actions 에 ad.end 13건이 남아 있는데
+  //     실제로 닫힌 공고는 없었다 — 로그는 UPDATE 전에 쓰기 때문이다).
+  //    노출을 멈추는 데 필요한 것은 featured_until·status 둘뿐이고, 등급은 "그 공고가 유료였다"는
+  //    사실이라 지울 이유가 없다(결제 내역과 함께 남는다).
   const { data, error } = await supabase
     .from("jobs")
-    .update({ featured_until: null, ad_tier: null, ...(cur.status === "open" ? { status: "closed" } : {}) })
+    .update({ featured_until: null, ...(cur.status === "open" ? { status: "closed" } : {}) })
     .eq("id", jobId).select("id");
   if (error) {
     console.error("endAd:", error.message);
