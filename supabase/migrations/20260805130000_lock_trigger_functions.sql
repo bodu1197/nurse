@@ -1,0 +1,32 @@
+-- 🩺 Supabase Advisor 정리 — 3/3. SECURITY DEFINER 함수의 REST 노출 정리.
+--
+-- Postgres 는 함수를 만들면 **PUBLIC 에 EXECUTE 를 기본으로 준다.** 그래서 SECURITY DEFINER 함수가
+-- 전부 /rest/v1/rpc/<이름> 으로 누구에게나 열려 있었다(advisor: *_security_definer_function_executable).
+--
+-- 🔴 트리거 전용 함수는 아무도 부를 이유가 없다 — PUBLIC 에서 회수한다.
+--    트리거 실행에는 EXECUTE 권한이 필요 없다(실측 확인: 회수 후에도 admin_actions 의 이메일 스탬프 정상).
+revoke execute on function public.admin_actions_stamp_email() from public, anon, authenticated;
+revoke execute on function public.inquiries_stamp_author() from public, anon, authenticated;
+
+-- 🔴 나머지는 **회수하면 사이트가 죽는다** — 남겨두는 이유를 여기 적어 둔다.
+--
+--   is_admin() · is_community_member() · is_talent_advertiser()
+--     RLS 정책이 직접 호출한다. 정책 식은 **조회하는 사람의 권한**으로 평가되므로 EXECUTE 가 없으면
+--     `42501 permission denied for function is_admin` 이 나면서 **조회 자체가 실패**한다
+--     (실측 2026-08-05: anon 으로 jobs 를 세는 쿼리가 통째로 죽었다).
+--     세 함수 모두 **부르는 사람 자신에 대한 참/거짓**만 돌려주므로 남의 정보가 새지 않는다.
+--     is_talent_advertiser 는 앱도 rpc 로 부른다(lib/data/membership.ts) — 화면 게이트와 RLS 가
+--     같은 판정을 쓰게 하려고 일부러 그렇게 했다.
+--
+--   track_page_view(p_path)
+--     접속 통계 수집. 비로그인 방문자가 부르는 것이 정상이라 anon 에 열려 있어야 한다(lib/track.ts).
+--     page_views 에 경로 한 줄을 넣을 뿐 읽기는 없다.
+--
+--   admin_dashboard() · admin_traffic(days) · admin_set_hidden(...)
+--     관리자 화면이 부른다. anon 에는 이미 닫혀 있고 authenticated 에만 열려 있으며,
+--     **함수 첫 줄에서 is_admin() 을 확인해 관리자가 아니면 예외를 던진다**(관리자 전용입니다).
+--     즉 로그인만 했다고 내용을 볼 수 있는 것이 아니다.
+--
+-- 이 셋을 advisor 경고에서까지 없애려면 RLS 헬퍼를 PostgREST 가 노출하지 않는 별도 스키마로
+-- 옮겨야 하는데, 그러면 위 정책 전부를 다시 써야 한다(권한 사고 위험이 이득보다 크다).
+-- 남길 근거를 코드에 적어 두는 쪽을 택한다.
