@@ -39,6 +39,12 @@ export type Database = {
   }
   public: {
     Tables: {
+      ad_credit_used: {
+        Row: { id: string; business_no: string | null; profile_id: string | null; job_id: string | null; used_at: string }
+        Insert: { id?: string; business_no?: string | null; profile_id?: string | null; job_id?: string | null; used_at?: string }
+        Update: { id?: string; business_no?: string | null; profile_id?: string | null; job_id?: string | null; used_at?: string }
+        Relationships: []
+      }
       ad_orders: {
         Row: {
           amount: number

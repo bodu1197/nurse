@@ -181,26 +181,25 @@ export async function createJob(formData: FormData) {
   // 게시 기간 선택: free=첫 광고 지원 7일(병원당 1회), 2/3/4=유료(첫 1주는 0원이라 바로 게시).
   const duration = s("duration");
   const paidWeeks = ["2", "3", "4"].includes(duration) ? Number(duration) : 0;
-  // 지원금을 이미 차감했는가 — 아래에서 공고 생성이 실패하면 되돌려 줘야 한다.
-  let freeCreditSpent = false;
+  // 지원금을 차감했으면 되돌리는 함수가 담긴다 — 공고 생성이 실패하면 부른다.
+  let refundCredit: null | (() => Promise<void>) = null;
 
-  if (!paidWeeks) {
-    // 🔴 **첫 광고비 지원은 병원당 1회다**(오너 확정 2026-08-05).
-    //    종전 규칙은 "무료 동시 1건" 뿐이었다. 그래서 7일이 끝나면 다시 게시, 또 7일 —
-    //    **1원도 안 내고 1년 내내 광고할 수 있었다**(오너 지적: "그러면 나는 망한다").
-    //    실제로 오늘 그 일이 있었다: 관리자가 켜준 무료 7일을 쓴 병원이 오늘 또 무료로 다시 게시했다.
-    //    hospitals.free_credits 는 처음부터 있었지만(기본 1) **한 번도 차감된 적이 없어**
-    //    제한이 작동한 적이 없다(실측: 81,430곳 전부 1).
-    // 🔒 차감은 **조건부 UPDATE 한 번**으로 한다 — 읽고 나서 쓰면 동시 요청 둘이 같은 1을 보고
-    //    둘 다 통과한다. `free_credits > 0` 을 조건에 넣어 이긴 쪽만 행을 돌려받는다.
-    const { data: granted } = await admin
-      .from("hospitals").update({ free_credits: 0 })
-      .eq("id", hospitalId).gt("free_credits", 0).select("id");
-    // 🔴 쓰던 화면으로 되돌린다. 공고 관리로 보내면 다 채운 상세내용·복리후생·담당자 정보를
-    //    처음부터 다시 써야 한다. 같은 화면이어야 임시저장(FormDraft)도 복원된다.
-    if (!granted?.length) redirect("/mypage/jobs/new?error=nofree");
-    freeCreditSpent = true; // 아래에서 공고 생성이 실패하면 되돌린다
-  }
+  // 🔴 **첫 광고비 지원은 병원당 1회다**(오너 확정 2026-08-05). 그래서 무료를 골랐든 유료를
+  //    골랐든 **먼저 지원금부터 써 본다** — 무료 7일 노출은 그 지원금으로 나가는 것이기 때문이다.
+  //
+  //    종전에는 `if (!paidWeeks)` 안에서만 검사했다. 그런데 아래 insert 는 **선택과 무관하게**
+  //    status='open' + 7일 노출을 준다("첫 1주는 0원"). 그래서 **「2주 노출」을 고르고 결제를
+  //    안 하면 지원금 검사를 통째로 건너뛰고 무료 7일을 받았다** — 그것도 몇 번이든.
+  //    실측 2026-08-05 15:18: 잔액 0인 병원이 이 경로로 두 번째 무료 공고를 올렸다(주문 0건).
+  // 🔒 자물쇠 셋(병원·계정·사업자번호)을 한 번에 건다 — spendAdCredit 주석 참고.
+  refundCredit = await spendAdCredit(admin, hospitalId, user.id);
+  // 무료를 골랐는데 지원금이 없으면 올릴 수 없다.
+  // 🔴 쓰던 화면으로 되돌린다. 공고 관리로 보내면 다 채운 상세내용·복리후생·담당자 정보를
+  //    처음부터 다시 써야 한다. 같은 화면이어야 임시저장(FormDraft)도 복원된다.
+  if (!paidWeeks && !refundCredit) redirect("/mypage/jobs/new?error=nofree");
+  // 유료를 골랐는데 지원금이 없으면 **결제 전까지 노출하지 않는다**(draft).
+  // 지원금이 남아 있으면 종전처럼 바로 7일 노출하고, 결제분은 activateAdOrder 가 그 위에 얹는다.
+  const supported = !!refundCredit;
 
   const num = (k: string) => { const n = parseInt(s(k), 10); return Number.isFinite(n) && n > 0 ? n : null; };
   const deadline = jobDeadline(s);
@@ -238,20 +237,65 @@ export async function createJob(formData: FormData) {
     //    전에는 유료 주수를 고르면 status='draft' 로 두고 결제해야 열렸다 — 이미 공짜로 받은
     //    1주를 결제할 때까지 버리는 셈이었고, 관리자 목록에는 "결제 전" 이라는 알 수 없는 줄이 남았다.
     //    2주를 고른 병원은 무료 1주 + 결제 1주다. 그 결제분은 activateAdOrder 가 **얹는다**.
-    status: "open",
-    // 공고 = 광고다. 무료 기간도 광고 기간이므로 featured_until 을 비워 두지 않는다 —
+    // 🔴 노출은 **지원금을 썼을 때만** 바로 시작한다. 지원금이 없는데 유료를 고른 경우는
+    //    결제해야 열린다(activateAdOrder 가 status·featured_until 을 함께 세운다).
+    //    종전에는 무조건 open + 7일이라, 유료를 고르고 결제만 안 하면 무료 7일이 무한이었다.
+    status: supported ? "open" : "draft",
+    // 공고 = 광고다. 지원분(7일)도 광고 기간이므로 featured_until 을 비워 두지 않는다 —
     // 비우면 목록·정렬·관리자 화면이 이 공고를 "광고가 아닌 것" 으로 취급해 뒤로 밀어낸다.
-    featured_until: new Date(nowMs() + FREE_LISTING_MS).toISOString(),
+    featured_until: supported ? new Date(nowMs() + FREE_LISTING_MS).toISOString() : null,
     ad_tier: "free",
   }).select("id").single();
   if (error || !created) {
     // 🔴 지원금을 먼저 차감했으므로 여기서 되돌린다. 안 그러면 저장에 실패한 병원이
     //    아무것도 못 얻고 1회 지원만 잃는다.
-    if (freeCreditSpent) await admin.from("hospitals").update({ free_credits: 1 }).eq("id", hospitalId);
+    await refundCredit?.();
     redirect("/mypage/jobs/new?error=save");
   }
   // 유료 주수를 골랐으면 결제 페이지로(공고는 이미 게시된 상태다). 아니면 공고 관리로.
   redirect(paidWeeks ? `/mypage/jobs/${created.id}/ad?weeks=${paidWeeks}` : "/mypage/jobs?ok=1");
+}
+
+/**
+ * 💰 첫 광고비 지원 1회를 **쓴다**. 성공하면 되돌리는 함수를, 이미 썼으면 null 을 돌려준다.
+ *
+ * 자물쇠가 셋인 이유(오너 지적 2026-08-05: "명부를 기준으로 하면 안 되지"):
+ *   ① hospitals.free_credits — 같은 병원에서 두 번 받는 것을 막는다.
+ *   ② ad_credit_used.profile_id — **명부의 다른 병원으로 갈아타는 것**을 막는다.
+ *      지원금이 심평원 명부 81,430곳에 기본값 1로 뿌려져 있어서, 이게 없으면 한 계정이
+ *      병원을 바꿔 가며 병원 수만큼 받을 수 있다.
+ *   ③ ad_credit_used.business_no — **계정을 새로 만드는 것**을 막는다. 사업자 인증을 거쳐야
+ *      공고를 올릴 수 있으므로, 같은 사업자면 계정이 달라도 같은 번호에 걸린다.
+ *      이관 회원은 아직 번호가 없어(실측 37곳 중 31곳) ②가 그 몫을 대신한다.
+ *
+ * 🔒 ②③ 은 부분 유니크 인덱스라 INSERT 가 원자적으로 판정한다 — 중복이면 23505 로 실패한다.
+ *    읽고 나서 쓰면 동시 요청 둘이 같은 "안 썼음" 을 보고 둘 다 통과한다.
+ */
+async function spendAdCredit(
+  admin: ReturnType<typeof createAdminClient>,
+  hospitalId: string,
+  profileId: string,
+): Promise<null | (() => Promise<void>)> {
+  // ① 병원 잔액 — 조건부 UPDATE 로 원자적으로 차감.
+  const { data: granted } = await admin
+    .from("hospitals").update({ free_credits: 0 })
+    .eq("id", hospitalId).gt("free_credits", 0).select("id");
+  if (!granted?.length) return null;
+
+  // ②③ 계정·사업자 단위 기록. 사업자번호는 있으면 함께 적는다(없는 이관 회원은 계정만).
+  const { data: prof } = await admin.from("profiles").select("business_no").eq("id", profileId).maybeSingle();
+  const { error } = await admin
+    .from("ad_credit_used").insert({ profile_id: profileId, business_no: prof?.business_no ?? null });
+  if (error) {
+    await admin.from("hospitals").update({ free_credits: 1 }).eq("id", hospitalId); // ① 되돌린다
+    return null;
+  }
+
+  // 공고 생성·게시가 실패하면 호출부가 이걸 부른다 — 아무것도 못 얻고 1회만 잃으면 안 된다.
+  return async () => {
+    await admin.from("hospitals").update({ free_credits: 1 }).eq("id", hospitalId);
+    await admin.from("ad_credit_used").delete().eq("profile_id", profileId);
+  };
 }
 
 // 소유 공고인지 확인(병원 소유주 == 본인). 아니면 null.
@@ -345,18 +389,15 @@ export async function repostJob(formData: FormData) {
   // 광고가 아직 살아 있는 공고는 **유료 자리**다 — 무료 동시 1건 규칙의 대상이 아니다.
   // 이 구분이 없으면 돈을 낸 공고를 다시 게시하려다 무료 제한에 막힌다.
   const paidLive = !!job.featured_until && job.featured_until > nowIso;
-  let freeCreditSpent = false;
+  let refundCredit: null | (() => Promise<void>) = null;
   if (!paidLive) {
     // 🔴 **다시 게시도 새 광고다** — 첫 광고비 지원(병원당 1회)을 여기서도 쓴다.
     //    종전에는 "동시 1건" 만 봤기 때문에, 7일이 끝날 때마다 다시 게시를 눌러 **영원히 공짜로**
     //    광고할 수 있었다(오너 지적 2026-08-05). 실제로 오늘 그 일이 있었다 —
     //    관리자가 켜준 무료 7일을 쓴 병원이 같은 공고를 또 무료로 올렸다.
-    // 🔒 위 createJob 과 같은 조건부 UPDATE 다(읽고 쓰면 동시 요청 둘이 같은 잔액을 본다).
-    const { data: granted } = await admin
-      .from("hospitals").update({ free_credits: 0 })
-      .eq("id", hosp.id).gt("free_credits", 0).select("id");
-    if (!granted?.length) redirect("/mypage/jobs?error=nofree");
-    freeCreditSpent = true;
+    // 🔒 자물쇠 셋(병원·계정·사업자번호)을 한 번에 건다 — createJob 과 같은 헬퍼다.
+    refundCredit = await spendAdCredit(admin, hosp.id, user.id);
+    if (!refundCredit) redirect("/mypage/jobs?error=nofree");
   }
 
   // 조건을 update 에도 한 번 더 건다(읽고 쓰는 사이에 상태가 바뀌는 경우) + 반환 행으로 반영 확인.
@@ -386,7 +427,7 @@ export async function repostJob(formData: FormData) {
   const { data: done, error } = await q.select("id");
   if (error || !done?.length) {
     // 지원금을 먼저 차감했으니 되돌린다 — 게시에 실패한 병원이 1회 지원만 잃으면 안 된다.
-    if (freeCreditSpent) await admin.from("hospitals").update({ free_credits: 1 }).eq("id", hosp.id);
+    await refundCredit?.();
     redirect("/mypage/jobs?error=1");
   }
   redirect("/mypage/jobs?ok=1");

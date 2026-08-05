@@ -660,9 +660,23 @@ export async function getSavedJobs(): Promise<JobRow[]> {
  * 🔒 최종 판정은 서버(createJob·repostJob)가 조건부 UPDATE 로 한다 — 이건 화면 안내용이다.
  */
 export async function firstAdUsed(): Promise<boolean> {
+  const user = await getSessionUser();
+  if (!user) return false;
   const hosp = await getMyHospital();
-  if (!hosp) return false;
-  const supabase = await createClient();
-  const { data } = await supabase.from("hospitals").select("free_credits").eq("id", hosp.id).maybeSingle();
-  return (data?.free_credits ?? 0) <= 0;
+  // 🔴 admin 클라이언트로 읽는다. ad_credit_used 는 병원이 자기 기록을 지우지 못하게 RLS 로
+  //    잠가 뒀다(관리자 SELECT 만) — 사용자 권한으로는 조회가 비어 나와 "안 썼다"로 오판한다.
+  const admin = createAdminClient();
+  // 자물쇠 ①: 이 병원에서 이미 받았는가
+  if (hosp) {
+    const { data } = await admin.from("hospitals").select("free_credits").eq("id", hosp.id).maybeSingle();
+    if ((data?.free_credits ?? 0) <= 0) return true;
+  }
+  // 자물쇠 ②③: 이 계정 또는 이 사업자번호가 이미 받았는가
+  //   — 명부의 다른 병원으로 갈아타거나 계정을 새로 만들어도 같은 사업자면 막힌다.
+  const { data: prof } = await admin.from("profiles").select("business_no").eq("id", user.id).maybeSingle();
+  const keys = [`profile_id.eq.${user.id}`];
+  if (prof?.business_no) keys.push(`business_no.eq.${prof.business_no}`);
+  const { count } = await admin
+    .from("ad_credit_used").select("id", { count: "exact", head: true }).or(keys.join(","));
+  return (count ?? 0) > 0;
 }
