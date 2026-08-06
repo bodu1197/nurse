@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireAdmin } from "@/lib/data/admin";
 
 import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
+import { isAppStatus, type AppStatus } from "@/lib/data/applications";
 
 export const PER_PAGE = 30;
 
@@ -32,6 +33,16 @@ export const likeSafe = (q: string) => q.trim().replace(/[%_,()*\\]/g, " ").trim
 
 /** 조회 실패 — 화면이 "0건" 이 아니라 "불러오지 못했습니다" 를 보여주게 한다. */
 const failed = <T,>(): Page<T> => ({ rows: [], total: 0, failed: true });
+
+/**
+ * 주소창으로 들어온 id 는 uuid 일 때만 필터로 쓴다.
+ *
+ * 🔴 그냥 넘기면 PostgREST 가 `invalid input syntax for type uuid` 로 400 을 던지고, 화면은
+ *    "목록을 불러오지 못했습니다"(=서버 고장) 를 띄운다. 오타 난 주소 하나에 화면이 고장 난
+ *    것처럼 보이면 안 된다 — 잘못된 id 는 필터가 없었던 것으로 본다.
+ */
+export const uuidOrEmpty = (v: string | undefined | null) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v ?? "") ? (v as string) : "";
 
 // ── 대시보드 · 통계 ────────────────────────────────────────
 
@@ -218,6 +229,115 @@ export async function getResumeList(
   return { rows: (data ?? []) as unknown as ResumeRow[], total: count ?? 0 };
 }
 
+// ── 지원 내역 ──────────────────────────────────────────────
+
+/**
+ * 「지원 내역」 요약.
+ *
+ * 🔴 숫자는 전부 **관리자 테스트 병원(hospitals.is_test) 지원을 뺀 것**이다 — RPC 안에서 거른다.
+ *    대시보드의 「오늘 지원」도 같은 술어를 쓴다(20260806120000). 한쪽만 빼면 두 화면이 서로
+ *    다른 누적치를 말한다.
+ */
+export type ApplicationsOverview = {
+  /** 🔴 total 은 건수, nurses 는 사람 수다. 20건이 20명인지 한 명이 20번인지는 다른 이야기다. */
+  counts: { total: number; today: number; yesterday: number; d7: number; d30: number; nurses: number; nurses_d30: number; jobs: number };
+  /**
+   * live = 취소를 뺀 지원. seen = 그중 병원이 열어 본 것. 열람률은 seen/live 로 화면에서 낸다.
+   * median_hours 는 지원 → 열람까지 걸린 시간의 중앙값(기록이 없으면 null → 화면은 "-").
+   */
+  funnel: { submitted: number; viewed: number; accepted: number; rejected: number; withdrawn: number; live: number; seen: number; stale: number; median_hours: number | null };
+  /** 위 숫자에서 빠진 테스트 지원 건수 — 화면에 그대로 적어 "왜 3건이 2건이 됐나"에 답한다. */
+  test_total: number;
+  top_jobs: { job_id: string; title: string; hospital: string | null; n: number; unseen: number; last_at: string }[];
+};
+
+export async function getApplicationsOverview(): Promise<ApplicationsOverview | null> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_applications_overview");
+  if (error) {
+    console.error("admin_applications_overview:", error.message);
+    return null;
+  }
+  return data as unknown as ApplicationsOverview;
+}
+
+/** applications_admin 뷰의 한 줄 — 지원 + 그 공고·병원 + 지원자 이름이 이미 붙어 있다. */
+export type AdminApplicationRow = {
+  id: string;
+  status: AppStatus;
+  message: string | null;
+  created_at: string;
+  /** 병원이 처음 열어 본 시각. 20260806120000 이전에 끝난 옛 행은 비어 있을 수 있다. */
+  viewed_at: string | null;
+  /** 합격·불합격·취소로 끝난 시각. */
+  closed_at: string | null;
+  /** 3일 넘게 병원이 안 본 지원인가 — 판정은 뷰에 있다. 화면·목록 필터·요약 카드가 같은 값을 본다. */
+  is_stale: boolean;
+  applicant_id: string;
+  job_id: string;
+  job_title: string;
+  job_company_name: string | null;
+  /** 지금도 구직자에게 보이는 공고인가(jobs_listed.is_live). 🔴 이 판정을 화면에서 다시 계산하지 말 것. */
+  job_is_live: boolean;
+  hospital_id: string | null;
+  hospital_name: string | null;
+  /** 이력서에 적힌 본인 정보 — 이름·연락처가 없으면 지원 자체가 막히므로(jobs/actions) 보통 채워져 있다. */
+  nurse_name: string | null;
+  nurse_phone: string | null;
+  nurse_email: string | null;
+};
+
+/** stale: 3일 넘게 병원이 안 본 지원만. 판정은 뷰의 is_stale — 요약 카드와 같은 컬럼이라 건수가 맞는다. */
+export type ApplicationFilters = { status?: string; q?: string; nurse?: string; job?: string; stale?: boolean; page?: number };
+
+const APPLICATION_COLS =
+  "id,status,message,created_at,viewed_at,closed_at,is_stale,applicant_id,job_id,job_title,job_company_name,job_is_live,hospital_id,hospital_name,nurse_name,nurse_phone,nurse_email";
+
+/**
+ * 지원 목록(관리자). 최신순.
+ *
+ * 🔴 표가 아니라 **뷰(applications_admin)** 를 읽는다. 이름·공고 제목·병원명이 이미 한 줄에 있어
+ *    검색이 SQL 한 번으로 끝난다. 종전에는 지원 행을 먼저 긁어와 JS 로 맞춰 본 뒤 맞은 id 를
+ *    다시 URL 에 실었는데, 그 방식은 (1) 최근 1,000건 밖을 못 찾고 (2) uuid 수백 개짜리 주소를
+ *    만들어 414 로 죽고 (3) 테스트 병원 제외 술어가 SQL·TS 두 곳에 갈라져 있었다.
+ */
+export async function getApplications(
+  { status = "", q = "", nurse = "", job = "", stale = false, page = 1 }: ApplicationFilters,
+): Promise<Page<AdminApplicationRow>> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { from, to } = range(page);
+
+  let query = supabase
+    .from("applications_admin")
+    .select(APPLICATION_COLS, { count: "exact" })
+    // 관리자 테스트 병원 지원은 뺀다 — 요약 RPC 가 보는 것과 **같은 컬럼**이다.
+    .eq("is_test", false);
+  if (isAppStatus(status)) query = query.eq("status", status);
+  if (uuidOrEmpty(nurse)) query = query.eq("applicant_id", nurse);
+  if (uuidOrEmpty(job)) query = query.eq("job_id", job);
+  if (stale) query = query.eq("is_stale", true);
+  const safe = likeSafe(q);
+  // 🔴 likeSafe 가 다 지워 빈 문자열이 되면(예: "%%") 검색을 아예 걸지 않는다.
+  //    `ilike.%%` 는 전건 매치라, 검색했는데 전체가 나오는 화면이 된다.
+  if (safe) {
+    query = query.or(
+      `nurse_name.ilike.%${safe}%,job_title.ilike.%${safe}%,job_company_name.ilike.%${safe}%,hospital_name.ilike.%${safe}%`,
+    );
+  }
+
+  const { data, count, error } = await query
+    .order("created_at", { ascending: false })
+    .range(from, to)
+    .returns<AdminApplicationRow[]>();
+  if (error) {
+    console.error("getApplications:", error.message);
+    return failed();
+  }
+  return { rows: data ?? [], total: count ?? 0 };
+}
+
 // ── 광고 관리 ──────────────────────────────────────────────
 
 /**
@@ -299,21 +419,19 @@ export async function getAdList(
   if (scope === "paid") query = query.eq("ad_tier", "standard");
   if (scope === "free") query = query.neq("ad_tier", "standard");
 
-  if (q.trim()) {
-    const safe = likeSafe(q);
+  const safe = likeSafe(q);
+  if (safe) {
     // 🔴 병원 이름으로도 찾아야 한다. 검색창 안내가 "공고 제목 · 병원명" 인데 실제로는 제목과
     //    company_name 만 뒤졌다 — 명부에 연결된 공고(hospital_id 가 있는 것)는 병원 이름이
     //    jobs 에 없어서 "우리요양병원" 을 쳐도 안 나왔다(오너 지적 2026-08-04).
     //    company_name 은 명부에 없는 수집 공고가 갖는 텍스트라 둘 다 봐야 한다.
-    //    PostgREST 로는 조인한 표의 값으로 부모를 거를 수 없으니 병원 id 를 먼저 찾아 넣는다.
-    const parts = [`title.ilike.%${safe}%`, `company_name.ilike.%${safe}%`];
-    const { data: hs } = await supabase
-      .from("hospitals").select("id").ilike("name", `%${safe}%`).limit(300);
-    const ids = (hs ?? []).map((h) => h.id);
-    // 300개를 넘으면 뒤쪽 병원은 못 찾는다. 조용히 자르면 "왜 안 나오지" 가 반복되므로 로그를 남긴다.
-    if (ids.length === 300) console.warn("getAdList: 병원명 검색 300건 상한에 걸림 —", safe);
-    if (ids.length) parts.push(`hospital_id.in.(${ids.join(",")})`);
-    query = query.or(parts.join(","));
+    // 🔴 종전에는 hospitals 를 먼저 뒤져 id 를 300개까지 모아 `hospital_id=in.(…)` 로 넘겼다.
+    //    ① 300건에서 잘려 뒤쪽 병원의 공고가 **화면에 아무 말 없이** 빠졌고(로그만 남았다)
+    //    ② uuid 300개면 주소가 11KB 라 요청 자체가 414 로 죽을 수 있었다.
+    //    이제 뷰가 hospital_name 을 실어 준다(20260806130000) — 상한도 긴 주소도 없다.
+    query = query.or(
+      `title.ilike.%${safe}%,company_name.ilike.%${safe}%,hospital_name.ilike.%${safe}%`,
+    );
   }
 
   // 정렬은 전부 posted_at 이다. featured_until 로 세우면 광고를 안 낸 공고(빈 값)가 앞을 덮는다

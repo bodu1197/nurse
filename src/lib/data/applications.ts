@@ -29,6 +29,12 @@ export const STATUS_TONE: Record<AppStatus, string> = {
   withdrawn: "bg-slate-200 text-slate-700",
 };
 
+/** 상태 전부 — 상태 칩·필터가 이 순서로 늘어선다(진행 순서). */
+export const ALL_STATUSES = ["submitted", "viewed", "accepted", "rejected", "withdrawn"] as const satisfies readonly AppStatus[];
+
+/** 주소창으로 들어온 문자열을 상태로 좁힌다(오타·위조 차단). */
+export const isAppStatus = (s: string): s is AppStatus => ALL_STATUSES.some((v) => v === s);
+
 /** 진행 중인 지원만 취소할 수 있다(합격·불합격 후에는 되돌릴 게 없다). 서버 액션과 화면이 같은 값을 쓴다. */
 export const CANCELABLE = ["submitted", "viewed"] as const satisfies readonly AppStatus[];
 
@@ -223,7 +229,6 @@ export async function getReceivedApplications(
     const { count } = await cq;
     return count ?? 0;
   };
-  const ALL_STATUSES: AppStatus[] = ["submitted", "viewed", "accepted", "rejected", "withdrawn"];
   const [allCount, ...perStatus] = await Promise.all([countOf(), ...ALL_STATUSES.map((st) => countOf(st))]);
   const counts: ApplicantCounts = { all: allCount };
   ALL_STATUSES.forEach((st, i) => { if (perStatus[i] > 0) counts[st] = perStatus[i]; });

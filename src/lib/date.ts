@@ -27,6 +27,23 @@ export const timeAgo = (iso: string) => {
   return day <= 30 ? `${day}일 전` : fmtDay(iso);
 };
 
+/**
+ * 두 시각 **사이**의 간격을 사람 말로 — "3분 뒤" · "17시간 뒤" · "6일 뒤".
+ *
+ * timeAgo 는 '지금' 기준이라 "지원한 뒤 병원이 보기까지 얼마나 걸렸나" 를 적을 수 없다.
+ * 내림(floor)이다 — remain() 과 같은 이유로, 걸린 시간을 실제보다 길게 말하지 않는다.
+ */
+export const elapsed = (fromIso: string, toIso: string) => {
+  const diff = new Date(toIso).getTime() - new Date(fromIso).getTime();
+  if (!Number.isFinite(diff) || diff < 0) return "";
+  const min = Math.floor(diff / 60_000);
+  if (min < 1) return "바로";
+  if (min < 60) return `${min}분 뒤`;
+  const hour = Math.floor(min / 60);
+  if (hour < 48) return `${hour}시간 뒤`;
+  return `${Math.floor(hour / 24)}일 뒤`;
+};
+
 // 우리 공고의 노출 종료 시각 = 광고 종료일(featured_until). 광고를 산 적 없으면 0 이다.
 // 화면(목록·상세)과 서버 액션(지원 가능 여부)이 **같은 규칙**을 써야 해서 여기 한 곳에만 둔다.
 // 컴포넌트가 아니라 lib에 두는 이유: actions.ts가 컴포넌트를 import하면 순환이 된다.
@@ -55,6 +72,9 @@ export const fmtDate = (ms: number) => new Date(ms + KST_MS).toISOString().slice
 
 // ISO 문자열(created_at 등) → "2026.07.23". 날짜 표기는 이 두 함수 밖에서 만들지 않는다.
 export const fmtDay = (iso: string) => fmtDate(new Date(iso).getTime());
+
+// ISO → "14:11"(한국시간). 하루 안의 **순서**가 중요한 화면(지원 → 열람)에서만 쓴다.
+export const fmtTime = (iso: string) => new Date(new Date(iso).getTime() + KST_MS).toISOString().slice(11, 16);
 
 // KST 기준 오늘 "2026-07-23". date 컬럼(jobs.deadline)과 비교할 때 쓴다.
 export const todayKst = (now: number) => new Date(now + KST_MS).toISOString().slice(0, 10);

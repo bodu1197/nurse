@@ -248,30 +248,38 @@ export type Database = {
       applications: {
         Row: {
           applicant_id: string
+          /** 합격·불합격·취소로 끝난 시각. 트리거가 찍는다(20260806120000). */
+          closed_at: string | null
           created_at: string
           id: string
           job_id: string
           message: string | null
           status: string
           updated_at: string
+          /** 병원이 처음 열어 본 시각. 다시 지원하면 비워진다. */
+          viewed_at: string | null
         }
         Insert: {
           applicant_id: string
+          closed_at?: string | null
           created_at?: string
           id?: string
           job_id: string
           message?: string | null
           status?: string
           updated_at?: string
+          viewed_at?: string | null
         }
         Update: {
           applicant_id?: string
+          closed_at?: string | null
           created_at?: string
           id?: string
           job_id?: string
           message?: string | null
           status?: string
           updated_at?: string
+          viewed_at?: string | null
         }
         Relationships: [
           {
@@ -1156,6 +1164,33 @@ export type Database = {
       }
     }
     Views: {
+      /** 관리자 「지원 내역」 전용 뷰(20260806120000). is_test·is_stale 판정이 여기 한 곳에 있다. */
+      applications_admin: {
+        Row: {
+          applicant_id: string | null
+          closed_at: string | null
+          created_at: string | null
+          hospital_id: string | null
+          hospital_name: string | null
+          id: string | null
+          is_stale: boolean | null
+          is_test: boolean | null
+          job_company_name: string | null
+          job_id: string | null
+          job_is_live: boolean | null
+          job_source: string | null
+          job_status: string | null
+          job_title: string | null
+          message: string | null
+          nurse_email: string | null
+          nurse_name: string | null
+          nurse_phone: string | null
+          status: string | null
+          updated_at: string | null
+          viewed_at: string | null
+        }
+        Relationships: []
+      }
       jobs_listed: {
         Row: {
           ad_live: boolean | null
@@ -1179,6 +1214,8 @@ export type Database = {
           featured_until: string | null
           geocoded_at: string | null
           hospital_id: string | null
+          /** 명부에 연결된 공고의 병원 이름(20260806130000). 명부에 없으면 null — company_name 을 본다. */
+          hospital_name: string | null
           id: string | null
           is_featured: boolean | null
           job_category: string | null
@@ -1296,6 +1333,8 @@ export type Database = {
     }
     Functions: {
       admin_dashboard: { Args: never; Returns: Json }
+      /** 「지원 내역」 요약 — 관리자 테스트 병원 지원은 빠져 있다. */
+      admin_applications_overview: { Args: never; Returns: Json }
       claim_ad_cash: { Args: { p_profile: string; p_want: number }; Returns: number }
       /** 무료 1주 지급(병원당 1회). 'ok' | 'already_used' | 'not_owner' | 'already_live' | 'deadline' */
       claim_free_week: { Args: { p_job: string }; Returns: string }

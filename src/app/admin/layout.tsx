@@ -18,6 +18,8 @@ const NAV: readonly NavGroup[] = [
     items: [
       { href: "/admin/users", label: "회원 현황" },
       { href: "/admin/resumes", label: "이력서 목록" },
+      // 지원은 간호사가 하는 행동이라 「회원」 밑에 둔다 — 공고 밑에 두면 병원 관리로 읽힌다.
+      { href: "/admin/applications", label: "지원 내역" },
     ],
   },
   {

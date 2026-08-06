@@ -76,7 +76,11 @@ export default async function AdminDashboard() {
             sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()} · 노출 여부 무관`} tone="good" />
           <Stat label="노출중 공고" value={d.jobs.open} sub="지금 구직자에게 보이는 것 · 워크넷 제외" href="/admin/ads?scope=live" />
           <Stat label="3일 내 마감" value={d.jobs.closing3} />
-          <Stat label="오늘 지원" value={d.applications.today} sub={`어제 ${d.applications.yesterday.toLocaleString()} · 최근 7일 ${d.applications.d7.toLocaleString()} · 누적 ${d.applications.total.toLocaleString()}`} />
+          {/* 누르면 "누가 어디에 지원했고 병원이 봤는지"까지 나온다. 여기 숫자와 그 화면의 누적치는
+              같은 술어(관리자 테스트 병원 제외, 20260806120000)를 써서 서로 어긋나지 않는다. */}
+          <Stat label="오늘 지원" value={d.applications.today}
+            sub={`어제 ${d.applications.yesterday.toLocaleString()} · 최근 7일 ${d.applications.d7.toLocaleString()} · 누적 ${d.applications.total.toLocaleString()} · 테스트 제외`}
+            href="/admin/applications" />
         </div>
         {/* 🔴 워크넷 수집분은 위 숫자에 넣지 않는다 — 고용24에서 자동으로 긁어오는 구인정보라
             우리 매출도, 우리가 관리할 대상도 아니다. 크론이 죽었는지만 보이면 된다. */}
