@@ -107,7 +107,7 @@ export default async function NewJobPage({
               <span className="text-sm text-slate-700">
                 <b>{p.weeks}주 노출</b> <span className="text-teal-700">· {won(p.amount)}</span>
                 {p.saved > 0 && (
-                  <span className="ml-1.5 rounded-full bg-teal-600 px-1.5 py-0.5 text-[11px] font-bold text-white">{p.offPct}% 할인</span>
+                  <span className="ml-1.5 rounded-full bg-teal-600 px-1.5 py-0.5 text-xs font-bold text-white">{p.offPct}% 할인</span>
                 )}
                 <span className="block text-xs text-slate-500">
                   주당 {won(p.perWeek)}

@@ -6,7 +6,13 @@ import Link from "next/link";
 export function PageTitle({ title, desc }: Readonly<{ title: string; desc?: string }>) {
   return (
     <div className="mb-6">
-      <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+      {/* 🔴 화면 제목은 사이트 전체가 text-2xl 하나로 간다(마이페이지와 같다). 같은 자리의
+          같은 요소가 화면마다 text-xl·text-2xl 로 갈리면 그게 곧 "글자 크기가 제각각" 이다
+          (오너 지적 2026-08-06). 로그인·오류 화면의 text-xl 은 좁은 카드 안이라 일부러 작게
+          둔 것 — 거기는 그대로다.
+          🔴 sm: 로 크기를 또 키우지 않는다. globals.css 가 640px 부터 루트를 16→18px 로 올려
+             rem 값이 이미 따라 커진다(text-2xl = 24px → 27px). 반응형을 겹치면 두 번 커진다. */}
+      <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
       {desc && <p className="mt-1 text-sm text-slate-500">{desc}</p>}
     </div>
   );

@@ -52,7 +52,7 @@ async function PostPanel({ id, uid, loggedIn, error }: Readonly<{ id: string; ui
           </span>
         )}
       </div>
-      <p className="mt-4 whitespace-pre-line text-[15px] leading-relaxed text-slate-800">{post.body}</p>
+      <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-slate-800">{post.body}</p>
 
       {/* 구 널스넷에서 옮겨온 글의 사진. 본문은 평문이라(HTML 을 그대로 그리면 XSS) 아래에 따로 붙인다.
           레거시 파일이라 원본 크기·비율을 모른다 → 자리(4:3)를 미리 잡고 object-contain 으로 안에 맞춘다.

@@ -14,7 +14,7 @@ import { signOut } from "@/app/(auth)/actions";
  *    메뉴(HEADER_MENU)와 푸터(FOOTER_NAV)에 그대로 있어 갈 길이 막히지 않는다.
  */
 const TAB_CLASS =
-  "flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600";
+  "flex h-14 flex-col items-center justify-center gap-0.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600";
 
 /**
  * 누른 메뉴 글자를 깜빡여 "눌렸다"를 알린다. 이동이 끝나면 저절로 멈춘다.

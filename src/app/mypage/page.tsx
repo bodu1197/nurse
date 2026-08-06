@@ -68,7 +68,9 @@ function HospitalDashboard({ profile, jobs, notice }: Readonly<{ profile: MyProf
     <HospitalShell displayName={profile.displayName} active="/mypage">
       {profile.isAdmin && <ViewAsSwitch current="hospital" />}
       {notice && <DeniedNotice message={notice} />}
-      <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">대시보드</h1>
+      {/* 화면 제목은 전부 text-2xl 하나다(관리자 PageTitle·마이페이지와 같다).
+          sm: 로 또 키우지 않는다 — globals.css 가 640px 부터 루트를 16→18px 로 올려 이미 커진다. */}
+      <h1 className="text-2xl font-bold text-slate-900">대시보드</h1>
 
       {!profile.businessVerified && (
         <a href="/mypage/verify" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">

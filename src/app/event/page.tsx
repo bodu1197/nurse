@@ -48,7 +48,7 @@ export default async function EventPage() {
                 <li key={e.id} id={e.id} className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
                   <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 px-5 py-4">
                     <h2 className="font-bold text-slate-900">{e.title}</h2>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${ended ? "bg-slate-100 text-slate-500" : "bg-teal-50 text-teal-700"}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${ended ? "bg-slate-100 text-slate-500" : "bg-teal-50 text-teal-700"}`}>
                       {ended ? "종료" : "진행 중"}
                     </span>
                     <time dateTime={e.date} className="ml-auto text-xs text-slate-400">{e.date.replace(/-/g, ".")}</time>

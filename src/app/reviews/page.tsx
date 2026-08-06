@@ -57,7 +57,7 @@ function ReviewDetail({ r, uid }: Readonly<{ r: ReviewRow; uid: string | null }>
         {r.hospital?.region}{r.work_period ? ` · ${r.work_period} 근무` : ""} · {fmtDay(r.created_at)}
         {r.updated_at > r.created_at && <span className="ml-1 text-slate-400">· 수정됨 {fmtDay(r.updated_at)}</span>}
       </p>
-      <p className="mt-4 whitespace-pre-line text-[15px] leading-relaxed text-slate-800">{r.content}</p>
+      <p className="mt-4 whitespace-pre-line text-base leading-relaxed text-slate-800">{r.content}</p>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3">
         {/* 🔴 "간호사 회원"이라고 못 박지 않는다 — 관리자도 리뷰를 쓸 수 있게 된 뒤로는(2026-07-31)
             작성자 역할을 조회하지 않는 한 거짓 표기가 될 수 있다. 확실한 사실(비실명)만 적는다. */}
@@ -162,7 +162,7 @@ export default async function ReviewsPage({
                         <span className="text-xs text-slate-500">{v.work_period ? `${v.work_period} 근무 · ` : ""}{fmtDay(v.created_at)}</span>
                         <Stars rating={v.rating} />
                       </div>
-                      <p className="mt-2 whitespace-pre-line text-[15px] leading-relaxed text-slate-800">{v.content}</p>
+                      <p className="mt-2 whitespace-pre-line text-base leading-relaxed text-slate-800">{v.content}</p>
                       <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                         <p className="text-xs text-slate-400">
                           비실명 후기

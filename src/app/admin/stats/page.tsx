@@ -171,7 +171,7 @@ export default async function AdminStatsPage({
                 </span>
               </p>
               {/* 숫자 칸에 이름을 붙인다 — 색만으로 세 숫자를 구분하게 두면 무엇이 무엇인지 모른다. */}
-              <div className="mb-2 flex items-center gap-2 border-b border-slate-100 pb-2 text-[11px] font-semibold text-slate-500">
+              <div className="mb-2 flex items-center gap-2 border-b border-slate-100 pb-2 text-xs font-semibold text-slate-500">
                 <span className="w-12 shrink-0">날짜</span>
                 <span className="min-w-0 flex-1" />
                 <span className="w-12 shrink-0 text-right">방문자</span>
@@ -255,7 +255,7 @@ export default async function AdminStatsPage({
                         title={`${h.hour}시 · ${h.visits.toLocaleString()}회`} />
                     ))}
                   </ul>
-                  <div className="mt-1 flex justify-between text-[10px] text-slate-500" aria-hidden>
+                  <div className="mt-1 flex justify-between text-xs text-slate-500" aria-hidden>
                     <span>0시</span><span>6시</span><span>12시</span><span>18시</span><span>23시</span>
                   </div>
                   {/* 🔴 숫자를 글로도 준다. 막대에는 값이 안 적혀 있고 휴대폰에는 마우스오버가

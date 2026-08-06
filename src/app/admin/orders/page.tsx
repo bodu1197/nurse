@@ -75,7 +75,7 @@ export default async function AdminOrdersPage({
                 <TD className="whitespace-nowrap">{o.paid_at ? fmtDay(o.paid_at) : "-"}</TD>
                 <TD className="max-w-[22rem]">
                   {o.note ? <span className="whitespace-pre-wrap text-xs text-red-700">{o.note}</span> : <span className="text-slate-300">-</span>}
-                  {o.imp_uid && <span className="mt-0.5 block break-all text-[11px] text-slate-400">{o.imp_uid}</span>}
+                  {o.imp_uid && <span className="mt-0.5 block break-all text-xs text-slate-400">{o.imp_uid}</span>}
                 </TD>
               </tr>
             ))}

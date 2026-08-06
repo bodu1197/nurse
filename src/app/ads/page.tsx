@@ -136,7 +136,7 @@ export default async function AdsPage() {
                 <div className="flex items-baseline justify-between gap-2">
                   <h3 className="text-lg font-bold text-slate-900">{p.days}일 노출</h3>
                   {p.saved > 0 && (
-                    <span className="shrink-0 rounded-full bg-teal-600 px-2 py-0.5 text-[11px] font-bold text-white">
+                    <span className="shrink-0 rounded-full bg-teal-600 px-2 py-0.5 text-xs font-bold text-white">
                       {p.offPct}% 할인
                     </span>
                   )}

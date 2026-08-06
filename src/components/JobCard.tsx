@@ -15,7 +15,7 @@ import { daysAgo, listingEnd, fmtDate } from "@/lib/date";
  */
 export function ApplyBadge() {
   return (
-    <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-[11px] font-bold text-teal-700">
+    <span className="rounded-full border border-teal-200 bg-teal-50 px-2 py-0.5 text-xs font-bold text-teal-700">
       간편지원
     </span>
   );

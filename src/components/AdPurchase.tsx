@@ -134,18 +134,22 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
              · sm: 3열 → lg: 5열 로 계단을 준다
           🔴 각 카드에 혜택을 적는다(오너 지시 2026-08-06). 무료를 유료 옆에 그냥 세워 두면
              "그냥 싼 상품" 으로 보여서, 무료로 올린 병원이 연락처를 열려다 막히고 그때 항의가 온다. */}
+      {/* 🔴 카드 높이를 h-36 으로 못박지 않는다. 글자를 읽을 수 있는 크기로 키우면 내용이 넘친다.
+          min-h 만 주고 나머지는 격자가 맞춘다 — 같은 줄의 카드는 어차피 stretch 로 키가 같아진다. */}
       <div className={`mt-4 grid grid-cols-2 gap-x-2 gap-y-5 ${freeAvailable ? "sm:grid-cols-3 lg:grid-cols-5" : "sm:grid-cols-4"}`}>
         {freeAvailable && (
           <label className="col-span-2 sm:col-span-1">
             <input type="radio" name="weeks" value={FREE} checked={weeks === FREE} onChange={() => setWeeks(FREE)} className="peer sr-only" />
             {/* peer-focus-visible: 라디오가 sr-only 라 키보드로 옮겨도 어디에 있는지 안 보였다 — 테두리를 준다. */}
-            <span className="relative flex h-36 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-dashed border-slate-400 text-sm text-slate-600 peer-checked:border-solid peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
-              <span className="absolute -top-2 rounded-full bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-white">병원당 1회</span>
-              <b>{FREE_WEEK_DAYS}일 무료</b>
-              <span className="text-xs">0원</span>
-              <span className="mt-1.5 text-[11px] leading-tight text-slate-500">
+            <span className="relative flex h-full min-h-44 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-dashed border-slate-400 px-2 py-4 text-sm text-slate-600 peer-checked:border-solid peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
+              <span className="absolute -top-2.5 rounded-full bg-slate-700 px-2 py-0.5 text-xs font-bold text-white">병원당 1회</span>
+              <b className="text-base">{FREE_WEEK_DAYS}일 무료</b>
+              <span className="text-lg font-bold">0원</span>
+              {/* 🔴 slate-400 은 흰 바탕에서 명도대비 2.8:1 이라 작은 글자에서 특히 안 읽힌다
+                  (WCAG AA 기준 4.5:1). 정보를 담은 줄은 slate-500(4.8:1)로 올린다. */}
+              <span className="mt-2 text-xs leading-snug text-slate-500">
                 목록 노출 ○<br />
-                <span className="text-slate-400">유료 아래</span><br />
+                유료 아래<br />
                 연락처 열람 ✕<br />
                 자동매치 ✕
               </span>
@@ -155,16 +159,18 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
         {AD_PRODUCTS.map((p) => (
           <label key={p.weeks}>
             <input type="radio" name="weeks" value={p.weeks} checked={weeks === p.weeks} onChange={() => setWeeks(p.weeks)} className="peer sr-only" />
-            <span className="relative flex h-36 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-slate-300 text-sm text-slate-600 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
+            <span className="relative flex h-full min-h-44 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-slate-300 px-2 py-4 text-sm text-slate-600 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
               {/* 🔴 할인 폭을 칸 안에 박아 둔다 — 고를 때 보이지 않으면 길게 살 이유가 안 보인다. */}
               {p.saved > 0 && (
-                <span className="absolute -top-2 rounded-full bg-teal-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{p.offPct}% 할인</span>
+                <span className="absolute -top-2.5 rounded-full bg-teal-600 px-2 py-0.5 text-xs font-bold text-white">{p.offPct}% 할인</span>
               )}
-              <b>{p.weeks}주 노출</b>
-              <span className="text-xs">{won(p.amount)}</span>
-              <span className="text-[11px] text-slate-400">주당 {won(p.perWeek)}</span>
-              {adCash > 0 && <span className="text-[11px] font-semibold text-teal-600">캐시 후 {won(splitPayment(p.amount, adCash).payable)}</span>}
-              <span className="mt-1.5 text-[11px] leading-tight text-teal-700">
+              <b className="text-base">{p.weeks}주 노출</b>
+              {/* 🔴 값이 상품 이름보다 작으면 안 된다. 여기가 고를 때 실제로 읽는 숫자다
+                  (오너 지적 2026-08-06: 카드 글자가 작아 판독 불가 — 종전 12px). */}
+              <span className="text-lg font-bold">{won(p.amount)}</span>
+              <span className="text-xs text-slate-500">주당 {won(p.perWeek)}</span>
+              {adCash > 0 && <span className="text-xs font-semibold text-teal-600">캐시 후 {won(splitPayment(p.amount, adCash).payable)}</span>}
+              <span className="mt-2 text-xs leading-snug text-teal-700">
                 목록 <b>맨 위</b><br />
                 연락처 열람 ○<br />
                 자동매치 ○

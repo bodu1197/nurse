@@ -213,7 +213,7 @@ function MatchCard({
       href={`/jobs/${job.id}`}
       badge={
         <span
-          className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+          className={`rounded-full px-2 py-0.5 text-xs font-bold ${
             perfect ? "border border-teal-200 bg-teal-50 text-teal-700" : "border border-slate-200 bg-slate-50 text-slate-600"
           }`}
         >
