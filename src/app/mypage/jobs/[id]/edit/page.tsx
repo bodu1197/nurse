@@ -28,24 +28,22 @@ export default async function EditJobPage({
 
   return (
     <HospitalShell displayName={p.displayName} active="/mypage/jobs">
-      <div className="max-w-2xl">
-        <h1 className="mt-3 text-2xl font-bold text-slate-900">공고 수정</h1>
-        <p className="mt-1 text-sm text-slate-500">병원: <b className="text-slate-700">{job.hospital?.name ?? "-"}</b></p>
+      <h1 className="mt-3 text-2xl font-bold text-slate-900">공고 수정</h1>
+      <p className="mt-1 text-sm text-slate-500">병원: <b className="text-slate-700">{job.hospital?.name ?? "-"}</b></p>
 
-        {error && (
-          <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {ERR[error] ?? "오류가 발생했습니다."}
-          </div>
-        )}
+      {error && (
+        <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {ERR[error] ?? "오류가 발생했습니다."}
+        </div>
+      )}
 
-        <form action={updateJob} className="mt-6 flex flex-col gap-4">
-          <input type="hidden" name="job_id" value={job.id} />
-          {/* 공고별로 따로 보관한다 — A 공고 초안이 B 공고 수정 화면에 떠오면 안 된다. */}
-          <FormDraft storageKey={`nursenet:draft:job-edit:${p.email}:${job.id}`} ownErrors={["missing", "save", "deadline"]} />
-          <JobFields d={job} minDeadline={todayKst(nowMs())} />
-          <SubmitButton pendingText="저장 중…">수정 저장</SubmitButton>
-        </form>
-      </div>
+      <form action={updateJob} className="mt-6 flex flex-col gap-4">
+        <input type="hidden" name="job_id" value={job.id} />
+        {/* 공고별로 따로 보관한다 — A 공고 초안이 B 공고 수정 화면에 떠오면 안 된다. */}
+        <FormDraft storageKey={`nursenet:draft:job-edit:${p.email}:${job.id}`} ownErrors={["missing", "save", "deadline"]} />
+        <JobFields d={job} minDeadline={todayKst(nowMs())} />
+        <SubmitButton pendingText="저장 중…">수정 저장</SubmitButton>
+      </form>
     </HospitalShell>
   );
 }

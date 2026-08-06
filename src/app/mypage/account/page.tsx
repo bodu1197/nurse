@@ -129,7 +129,8 @@ export default async function AccountPage({
   return (
     <>
       <SiteHeader user={{ displayName: p.displayName }} />
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{body}</main>
+      {/* 폭은 병원·간호사 셸과 같은 1280px — 역할을 바꿔도 본문 폭이 널뛰지 않게. */}
+      <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6">{body}</main>
     </>
   );
 }

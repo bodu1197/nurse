@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser } from "@/lib/data/user";
@@ -164,8 +165,26 @@ type ReceivedBase = {
   message: string | null;
   created_at: string;
   applicant_id: string;
-  job: { id: string; title: string } | null;
+  job: { id: string; title: string; hospital_id: string | null } | null;
 };
+
+/**
+ * 내가 소유한 병원 id.
+ *
+ * 🔴 jobs.ts 의 getMyHospitalIds 와 같은 질의다. import 하지 않는 이유는 jobs.ts 가 이 파일의
+ *    LIST_LIMIT 을 이미 import 하고 있어 순환이 되기 때문이다 — 세 줄이라 여기 둔다.
+ * 🔴 cache() 로 감싼다. 지원자 화면은 목록·칩 숫자·이름검색이 각각 이 값을 필요로 해서,
+ *    안 감싸면 같은 요청 안에서 hospitals 를 여러 번 왕복한다.
+ */
+const myHospitalIds = cache(async (): Promise<string[]> => {
+  const user = await getSessionUser();
+  if (!user) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("hospitals").select("id").eq("owner_profile_id", user.id);
+  // 🔴 삼키면 "소유 병원 없음" 으로 떨어져 지원자가 있는 병원에도 빈 화면이 나간다.
+  if (error) console.error("myHospitalIds failed:", error.message);
+  return (data ?? []).map((h) => h.id);
+});
 
 /** 지원자 1건(이력서 전문 + 경력) — 인쇄·상세용 */
 export type ReceivedApplication = ReceivedBase & { resume: ApplicantResume | null; work: WorkExperience[] };
@@ -179,7 +198,10 @@ export type ApplicantListItem = ReceivedBase & {
 
 const RESUME_COLS = `profile_id,${SHEET_COLS}`;
 const CARD_COLS = CARD_FIELDS.join(",");
-const APP_COLS = "id,status,message,created_at,applicant_id,job:jobs(id,title)";
+// 🔴 jobs 를 !inner 로 붙인다 — 소유 병원으로 거르려면 조인이 필수다. applications.job_id 는
+//    not null FK 라 inner 로 잃는 행은 없다. 다만 jobs.hospital_id 는 nullable 이고(워크넷 수집분),
+//    그런 공고는 주인이 없으므로 「내 지원자」에서 빠지는 것이 계약에 맞다.
+const APP_COLS = "id,status,message,created_at,applicant_id,job:jobs!inner(id,title,hospital_id)";
 
 /** 지원자 목록 한 페이지 — 500건 규모에서 스크롤로는 관리가 안 된다. */
 export const APPLICANTS_PER_PAGE = 25;
@@ -212,8 +234,17 @@ export async function getReceivedApplications(
   page = 1,
 ): Promise<{ rows: ApplicantListItem[]; total: number; counts: ApplicantCounts; searchTruncated: boolean }> {
   const user = await getSessionUser();
-  if (!user) return { rows: [], total: 0, counts: { all: 0 }, searchTruncated: false };
+  const empty = { rows: [], total: 0, counts: { all: 0 }, searchTruncated: false };
+  if (!user) return empty;
   const supabase = await createClient();
+
+  // 🔴 RLS 에만 기대지 않는다. applications_select 는 **관리자에게 전부 열려 있어서**
+  //    (20260805120000), 관리자가 「병원 회원 화면」으로 들어오면 남의 병원 지원자가 자기 것처럼
+  //    나왔다 — 지원을 한 건도 못 받은 병원인데 "전체 3명 · 아직 확인하지 않은 지원 1건"
+  //    (오너 지적 2026-08-06). 이 함수의 계약은 "**내** 공고에 들어온 지원자" 이므로
+  //    소유 병원으로 직접 좁힌다. 진짜 병원 회원에게는 결과가 종전과 같다(RLS 가 이미 같은 일을 했다).
+  const hospitalIds = await myHospitalIds();
+  if (hospitalIds.length === 0) return empty;
 
   // 상태 칩 숫자 — 목록 필터와 무관하게 "이 공고 전체" 기준으로 센다(칩을 눌러도 숫자가 안 흔들리게).
   //
@@ -223,7 +254,9 @@ export async function getReceivedApplications(
   //    관리하려고 만든 것이라 그 지점에서 바로 깨진다.
   //    → head:true + count:"exact" 로 **개수만** 받는다(body 0바이트, 상한과 무관).
   const countOf = async (status?: AppStatus) => {
-    let cq = supabase.from("applications").select("id", { count: "exact", head: true });
+    let cq = supabase
+      .from("applications").select("id,job:jobs!inner(hospital_id)", { count: "exact", head: true })
+      .in("job.hospital_id", hospitalIds);
     if (f.jobId) cq = cq.eq("job_id", f.jobId);
     if (status) cq = cq.eq("status", status);
     const { count } = await cq;
@@ -241,7 +274,9 @@ export async function getReceivedApplications(
     // 상한 1000 = PostgREST max_rows. 넘으면 잘리는데, 이름 검색은 보통 수십 명이라 실제로는
     // 닿지 않는다. 닿았다면 검색어가 너무 짧다는 뜻이라 화면에서 그렇게 알린다(truncated).
     // 먼저 내 지원자(=이 공고에 지원한 사람)만 추린다. 이게 없으면 위 주석의 사고가 난다.
-    let mineQ = supabase.from("applications").select("applicant_id").limit(1000);
+    let mineQ = supabase
+      .from("applications").select("applicant_id,job:jobs!inner(hospital_id)")
+      .in("job.hospital_id", hospitalIds).limit(1000);
     if (f.jobId) mineQ = mineQ.eq("job_id", f.jobId);
     const { data: mine } = await mineQ.returns<{ applicant_id: string }[]>();
     const mineIds = [...new Set((mine ?? []).map((m) => m.applicant_id))];
@@ -258,13 +293,17 @@ export async function getReceivedApplications(
   let q = supabase
     .from("applications")
     .select(APP_COLS, { count: "exact" })
+    .in("job.hospital_id", hospitalIds)
     .order("created_at", { ascending: false })
     .range(from, from + APPLICANTS_PER_PAGE - 1);
   if (f.jobId) q = q.eq("job_id", f.jobId);
   if (f.status) q = q.eq("status", f.status);
   if (nameIds) q = q.in("applicant_id", nameIds);
 
-  const { data: apps, count } = await q.returns<ReceivedBase[]>();
+  const { data: apps, count, error } = await q.returns<ReceivedBase[]>();
+  // 🔴 삼키면 안 된다. 소유 병원 필터를 **질의 문자열**(job.hospital_id 임베드 필터)로 걸었으므로,
+  //    문법이 틀리는 순간 화면이 조용히 "지원자 0명" 이 된다 — 지원자가 실제로 있는데도.
+  if (error) console.error("getReceivedApplications failed:", error.message);
   if (!apps || apps.length === 0) return { rows: [], total: count ?? 0, counts, searchTruncated };
 
   // 이력서 카드 항목과 메모를 한 번씩만 더 조회한다(행마다 부르면 25번 왕복한다).
@@ -291,16 +330,23 @@ export async function getReceivedApplications(
   };
 }
 
-// 병원 — 지원자 1건(이력서 인쇄·다운로드용). 소유 공고가 아니면 RLS가 막는다.
+// 병원 — 지원자 1건(이력서 인쇄·다운로드용).
+// 🔴 목록과 같은 이유로 소유 병원을 직접 확인한다 — RLS 는 관리자에게 전부 열려 있어,
+//    주소만 알면 관리자가 남의 병원 지원자 이력서를 「내 지원자」 화면으로 열 수 있었다.
 export async function getReceivedApplication(id: string): Promise<ReceivedApplication | null> {
   const user = await getSessionUser();
   if (!user) return null;
+  const hospitalIds = await myHospitalIds();
+  if (hospitalIds.length === 0) return null;
   const supabase = await createClient();
-  const { data: app } = await supabase
+  const { data: app, error } = await supabase
     .from("applications")
     .select(APP_COLS)
     .eq("id", id)
+    .in("job.hospital_id", hospitalIds)
     .maybeSingle<ReceivedBase>();
+  // 조회가 실패하면 "권한 없음" 과 구분되지 않는다 — 인쇄 화면이 빈 페이지가 되는 이유를 남긴다.
+  if (error) console.error("getReceivedApplication failed:", error.message);
   if (!app) return null;
   // 경력 상세가 없으면 "경력 5년"이 전부라 채용 판단이 안 된다 → 전문 조회에는 반드시 함께 싣는다.
   const [{ data: resume }, { data: work }] = await Promise.all([

@@ -96,17 +96,15 @@ export default async function AdReturnPage({
 
   return (
     <HospitalShell displayName={p.displayName} active="/mypage/jobs">
-      <div className="max-w-lg">
-        <h1 className="mt-3 text-2xl font-bold text-slate-900">{TITLE[outcome]}</h1>
-        <p className="mt-2 text-sm leading-relaxed text-slate-600">{BODY[outcome]}</p>
-        {/* 🔴 "주문번호와 함께 문의해 주세요" 라고 시키면서 그 번호를 안 보여주면, 손님은
-            시킨 대로 하려 해도 줄 수 있는 정보가 없다. */}
-        <p className="mt-2 text-xs text-slate-400">주문번호: {merchantUid}</p>
-        <p className="mt-4 flex flex-wrap gap-3 text-sm">
-          <Link href="/mypage/jobs/ad/orders" className={LINK_CLASS}>광고 결제 내역</Link>
-          <Link href="/mypage/jobs" className={LINK_CLASS}>공고 관리</Link>
-        </p>
-      </div>
+      <h1 className="mt-3 text-2xl font-bold text-slate-900">{TITLE[outcome]}</h1>
+      <p className="mt-2 text-sm leading-relaxed text-slate-600">{BODY[outcome]}</p>
+      {/* 🔴 "주문번호와 함께 문의해 주세요" 라고 시키면서 그 번호를 안 보여주면, 손님은
+          시킨 대로 하려 해도 줄 수 있는 정보가 없다. */}
+      <p className="mt-2 text-xs text-slate-400">주문번호: {merchantUid}</p>
+      <p className="mt-4 flex flex-wrap gap-3 text-sm">
+        <Link href="/mypage/jobs/ad/orders" className={LINK_CLASS}>광고 결제 내역</Link>
+        <Link href="/mypage/jobs" className={LINK_CLASS}>공고 관리</Link>
+      </p>
     </HospitalShell>
   );
 }

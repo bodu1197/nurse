@@ -159,11 +159,13 @@ function nurseItems(resume: ResumeWithWork | null, counts: { applied: number; sa
 }
 
 // 관리자 화면은 네비 없이 헤더만 — 도구 목록이라 오갈 곳이 없다.
+// 🔴 폭은 병원·간호사 셸과 **같은 1280px** 이다. 여기만 max-w-4xl 이면 같은 마이페이지인데
+//    역할을 바꿀 때마다 본문 폭이 널뛴다(오너 지적 2026-08-06: "보디 영역이 전부 좁다").
 function AdminShell({ displayName, children }: Readonly<{ displayName: string; active: string; children: React.ReactNode }>) {
   return (
     <>
       <SiteHeader user={{ displayName }} />
-      <main className="mx-auto w-full max-w-4xl flex-1 px-4 py-8">{children}</main>
+      <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6">{children}</main>
     </>
   );
 }
