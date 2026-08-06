@@ -13,13 +13,13 @@ import {
 } from "@/lib/data/talent";
 
 /**
- * 개인 이력서 상세 — **색인한다**(오너 확정 2026-07-30, 근거는 /talent 목록 주석 참고:
- * 구 널스넷이 `/job/person/view/{id}` 3,544건을 사이트맵에 싣고 robots 메타 없이 운영해 왔다).
+ * 개인 이력서 상세 — **색인하지 않는다**(오너 확정 2026-08-06, 근거는 /talent 목록 주석).
+ * 남의 이력서다. 목록만 막고 상세를 열어두면 정작 개인정보가 든 쪽이 그대로 남는다.
  *
  * 제목에는 이름을 넣지 않는다 — 이름은 광고 중인 병원에만 보이는 값이라, 제목·OG 로 새어 나가면
- * 그 게이트가 무의미해진다(색인 허용과 별개로 이 규칙은 그대로다).
- * canonical 은 쿼리스트링 없는 주소로 못 박는다 — 검색조건이 붙은 URL 이 따로 색인되면
- * 같은 이력서가 조합 수만큼 중복 색인된다.
+ * 그 게이트가 무의미해진다(색인 여부와 별개로 이 규칙은 그대로다).
+ * canonical 은 남겨둔다 — 색인은 안 해도 크롤러가 같은 이력서의 여러 주소를 한 곳으로 모아
+ * noindex 를 한 번만 읽게 하는 편이 낫다.
  */
 export async function generateMetadata({ params }: Readonly<{ params: Promise<{ id: string }> }>): Promise<Metadata> {
   const { id } = await params;
@@ -36,6 +36,7 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
     description: desc || "이력서를 공개한 간호사 인재 정보입니다.",
     alternates: { canonical: `/talent/${id}` },
     openGraph: { type: "profile", locale: "ko_KR", siteName: "널스넷", url: `/talent/${id}`, title, description: desc },
+    robots: { index: false },
   };
 }
 

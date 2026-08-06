@@ -228,7 +228,7 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
     .order("posted_at", { ascending: false })
     // 🔴 유일 키를 마지막 정렬 키로 둔다. 워크넷 일괄수집분은 posted_at 이 같은 행이 수백 건이라
     //    쪽마다 별개 질의인 페이지네이션에서 **행이 중복되거나 누락된다**(20건 경계가 동률 한가운데
-    //    떨어진다). getMatchCandidates·getSitemapTalent 가 같은 이유로 이미 2차 키를 갖고 있는데
+    //    떨어진다). getMatchCandidates 가 같은 이유로 이미 2차 키를 갖고 있는데
     //    목록에만 없었다 — /review8 이 잡았다.
     .order("id", { ascending: false })
     .range(from, from + PER_PAGE - 1);
@@ -333,7 +333,7 @@ export async function getMatchCandidates(sidoIn: readonly string[]): Promise<Mat
       .order("posted_at", { ascending: false })
       // 🔴 유일 키를 마지막 정렬 키로 둔다. 페이지마다 별개 쿼리라 동률(워크넷 일괄수집분은
       //    posted_at 이 같은 행이 수백 건이다)이 있으면 1000행 경계에서 **행이 중복되거나 누락된다**
-      //    — 중복되면 화면의 key 도 깨진다. getSitemapTalent 가 같은 이유로 2차 키를 갖고 있다.
+      //    — 중복되면 화면의 key 도 깨진다. 인재 목록 조회도 같은 이유로 2차 키를 갖고 있다.
       .order("id", { ascending: false })
       .range(from, from + PAGE - 1)
       .returns<MatchJob[]>();
@@ -417,7 +417,7 @@ export async function getSitemapJobs(): Promise<{ id: string; updated_at: string
       .eq(LIVE, true)
       .order("posted_at", { ascending: false })
       // 🔴 유일 키 2차 정렬 — 워크넷 일괄수집분은 posted_at 동률이 수백 건이라, 없으면 1000행
-      //    경계에서 URL 이 중복·누락된다(getSitemapTalent 가 같은 이유로 profile_id 를 쓴다).
+      //    경계에서 URL 이 중복·누락된다(인재 목록 조회도 같은 이유로 profile_id 를 2차 키로 쓴다).
       .order("id", { ascending: false })
       .range(from, from + PAGE - 1);
 

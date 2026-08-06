@@ -69,8 +69,9 @@ type ResumePublicPick = Pick<ResumeRow, (typeof PUBLIC_FIELDS)[number]>;
  *
  * 🔴 왜 필요한가: 이름·연락처는 광고 중인 병원에만 보이게 막아뒀는데(revealContacts),
  *    정작 본인이 "안녕하세요 김민수입니다" 라고 적어두면 그 게이트가 무의미해진다.
- *    인재정보를 검색엔진에 열면서(2026-07-30) 그 이름이 검색결과에 그대로 뜬다.
  *    실측: 공개 이력서 7,257건 중 제목에 219건, 자기소개에 235건.
+ *    🔴 검색엔진에서 인재정보를 뺐다고(2026-08-06 noindex) 이 마스킹을 걷지 말 것 —
+ *       가리는 대상은 검색엔진이 아니라 **로그인만 하면 목록을 보는 사람 전부**다.
  *
  * 성(첫 글자)만 남기는 것은 구 널스넷 카드 표기와 같은 방식이다.
  * 2글자 미만 이름은 건드리지 않는다 — 한 글자를 치환하면 엉뚱한 단어까지 깨진다.
@@ -86,7 +87,8 @@ function maskName(text: string | null, name: string | null): string | null {
  *
  * 🔴 전화·이메일은 광고 중인 병원에만 보이도록 막아뒀는데(revealContacts), 자기소개에
  *    "연락처: 010-…" 이라고 적어두면 그 게이트가 그냥 뚫린다. 실측: 공개 이력서 중 휴대폰 7건·이메일 1건.
- *    인재정보를 검색엔진에 열면서(2026-07-30) 그 번호가 검색결과에 남는다 — 되돌릴 수 없다.
+ *    🔴 검색엔진에서 뺐다고(2026-08-06 noindex) 걷지 말 것 — 로그인만 하면 목록을 보는
+ *       사람 전부가 대상이고, 한 번 새어 나간 번호는 되돌릴 수 없다.
  *
  * ⚠️ 여기서 못 잡는 것도 있다(생년월일 18건·집주소 6건·국적/비자 5건). 자유서술이라 규칙으로
  *    전부 걸러낼 수 없다 — 그건 작성자에게 알리고 고치게 하는 쪽이 맞다(오너 판단 대기).
@@ -324,53 +326,4 @@ export async function revealContacts(profileIds: readonly string[]): Promise<Map
     const avatarUrl = signed.get((r.profile?.avatar_url ?? "").trim()) ?? null;
     return [r.profile_id, { name: r.name, phone: r.phone, email: r.email, avatarUrl }];
   }));
-}
-
-
-/**
- * 사이트맵용 공개 이력서 목록(profile_id + updated_at 만).
- *
- * 🔴 인재정보를 색인한다(오너 확정 2026-07-30). 근거: 구 널스넷이 이미 그렇게 운영해 왔다 —
- *    robots.txt 전면 allow, `/job/person/list`·`/job/person/view/{id}` 모두 robots 메타 없음(색인 허용),
- *    사이트맵에 상세 3,544건이 실려 있다(실측, docs/legacy-urls.txt). 새 사이트만 닫으면 그 유입을 버린다.
- *    이름·휴대폰·이메일·사진은 여전히 광고 중인 병원에만 보인다(revealContacts) — 그 게이트는 그대로다.
- *
- * 🔴 anon 클라이언트로는 안 된다. resumes 는 RLS 로 잠겨 있어 anon 이 읽으면 **0건**이 나온다
- *    (사이트맵이 조용히 비는 방식으로 실패한다 — 실측으로 확인했다).
- *    그래서 여기만 admin 을 쓴다. 대신 **id 와 시각 두 컬럼만** 뽑는다 — PII 는 애초에 실리지 않는다.
- *
- * ⚠️ 빌드 시점에 service_role 키가 없으면 createAdminClient 가 던져 빌드를 깨뜨린다.
- *    사이트맵은 일부만 나가도 사이트가 죽지 않으므로, 키가 없으면 조용히 비우고 넘어간다.
- */
-export async function getSitemapTalent(): Promise<{ profile_id: string; updated_at: string }[]> {
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    console.error("getSitemapTalent: service_role 키 없음 — 인재 URL 을 사이트맵에서 생략한다");
-    return [];
-  }
-  const supabase = createAdminClient();
-
-  // 🔴 PostgREST 의 max_rows(1000)는 하드 상한이라 .limit() 으로 못 넘는다 → range 로 나눠 받는다.
-  //    목록과 **같은 술어**를 쓴다(is_public + 이름 있음) — 어긋나면 사이트맵이 404 를 가리킨다.
-  const PAGE = 1000;
-  const out: { profile_id: string; updated_at: string }[] = [];
-  for (let from = 0; from < 50_000; from += PAGE) {
-    const { data, error } = await supabase
-      .from("resumes")
-      .select("profile_id, updated_at")
-      .eq("is_public", true)
-      .not("name", "is", null)
-      .order("updated_at", { ascending: false })
-      // 🔴 2차 키 — 이관분이 같은 배치 시각이라 1000행 경계 7곳이 전부 동률 그룹 한가운데 떨어진다.
-      //    페이지마다 별개 쿼리라 순서가 흔들리면 사이트맵이 URL 을 누락·중복시킨다(목록과 같은 규칙).
-      .order("profile_id", { ascending: false })
-      .range(from, from + PAGE - 1);
-
-    if (error) {
-      console.error("getSitemapTalent failed:", error.message);
-      return out; // 일부만 나가도 사이트는 죽지 않는다
-    }
-    out.push(...(data ?? []));
-    if (!data || data.length < PAGE) break;
-  }
-  return out;
 }

@@ -62,10 +62,12 @@ export const COMPANY = {
 //  · /terms·/privacy·/contact — 색인 가치가 없어 noindex
 //  · /ads·/customer·/faq·/notice·/event — 구 널스넷 고객센터·상품안내를 옮긴 것(2026-07-30).
 //    특히 /ads(광고 상품 안내)는 병원이 "간호사 채용광고" 로 찾아 들어오는 길이라 색인한다.
-//  · /talent — **색인한다**(오너 확정 2026-07-30). 구 널스넷이 인재 목록·상세를 이미 색인시켜
-//    왔고(robots 메타 없음 + 사이트맵에 상세 3,544건), 도메인을 이어받으며 그 유입을 버리지 않는다.
-//    이름·연락처·사진은 여전히 광고 중인 병원에만 보인다 — 그 게이트는 그대로다.
-export const PUBLIC_ROUTES = ["/", "/hospital", "/talent", "/match", "/ads", "/customer", "/faq", "/notice", "/event"] as const;
+//  · /talent — **색인하지 않는다**(오너 확정 2026-08-06). 목록도 상세도 noindex 이고 사이트맵에서 뺐다.
+//    🔴 전에는 색인했다. 그건 우리가 원해서가 아니라 **구 널스넷이 이미 그러고 있어서 따라간 것**이다
+//       (오너 확인 2026-08-06: "레거시부터 노출되고 있어서 따라한 거다"). 도메인을 이어받은 지금은
+//       따라갈 이유가 없다 — 남의 이력서를 검색결과에 올려두는 쪽이 손해가 크다.
+//    포기하는 것: 이력서 상세로 들어오던 검색 유입. 그래도 /jobs 는 그대로 색인한다.
+export const PUBLIC_ROUTES = ["/", "/hospital", "/match", "/ads", "/customer", "/faq", "/notice", "/event"] as const;
 
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://nurse-app-nine.vercel.app";

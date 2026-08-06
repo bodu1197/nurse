@@ -9,8 +9,13 @@ import { SITE_URL } from "@/lib/constants";
  * 크롤러가 아예 못 들어오면 noindex 태그를 읽지 못해, 외부 링크가 하나라도 있으면
  * "제목 없음" 상태의 URL 만 검색결과에 남는다(구글 문서화된 동작).
  *
- * 검색엔진에 여는 것은 채용공고와 인재정보다(오너 확정 2026-07-30 — 구 널스넷과 같은 방침).
+ * 검색엔진에 여는 것은 **채용공고**다. 인재정보(/talent)는 색인하지 않는다(오너 확정 2026-08-06).
  * 그 범위는 sitemap 과 각 페이지 noindex 로 통제한다.
+ *
+ * 🔴 그렇다고 여기에 `Disallow: /talent` 를 넣으면 **역효과**다. 그동안 사이트맵으로 내보낸
+ *    `/talent/{id}` 가 이미 색인돼 있는데, 크롤러를 막으면 그 주소들의 noindex 를 못 읽어
+ *    "제목 없음" 으로 검색결과에 그대로 남는다. 빠지게 하려면 오히려 들어와서 noindex 를 보게 해야 한다.
+ *    (레거시 `/job/person/view/{id}` 3,544건은 308 로 /talent 에 접히므로 별개다.)
  */
 export default function robots(): MetadataRoute.Robots {
   return {
