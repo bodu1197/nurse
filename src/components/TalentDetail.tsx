@@ -1,5 +1,7 @@
 import Link from "next/link";
 import IdPhoto from "@/components/IdPhoto";
+import { SaveIcon } from "@/components/JobDetail";
+import { toggleSaveTalent } from "@/app/talent/actions";
 import { careerSummary } from "@/lib/resumeOptions";
 import { fmtDay } from "@/lib/date";
 import type { PublicTalentDetail } from "@/lib/data/talent";
@@ -26,17 +28,40 @@ export default function TalentDetail({
   contact,
   contactGated,
   asH1,
-}: Readonly<{ t: PublicTalentDetail; contact: Contact; contactGated: boolean; asH1?: boolean }>) {
+  canSave,
+  saved,
+  selfHref,
+}: Readonly<{
+  t: PublicTalentDetail; contact: Contact; contactGated: boolean; asH1?: boolean;
+  /** 병원 회원일 때만 찜 버튼을 그린다 — 간호사에게 "인재 찜" 은 뜻이 없다. */
+  canSave?: boolean;
+  saved?: boolean;
+  /** 찜한 뒤 돌아올 자리(검색 조건이 붙은 지금 주소). 공고 상세와 같은 계약. */
+  selfHref?: string;
+}>) {
   // 단독 상세(/talent/[id])에선 h1, 목록 안에선 h2 (문서 헤딩 계층 유지) — JobDetail과 동일 패턴.
   const Heading = asH1 ? "h1" : "h2";
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-6">
+    <article className="relative rounded-lg border border-slate-200 bg-white p-6">
+      {/* 💾 찜 — 공고 상세의 저장 버튼과 같은 자리·같은 모양이다(오너 지시 2026-08-07:
+          "인재정보에는 저장 기능이 없다"). 담아 두는 것에는 광고 자격을 걸지 않는다 —
+          연락처를 여는 것과 다른 일이고, 후보를 모아 두고 그다음에 결제하는 것이 자연스럽다. */}
+      {canSave && (
+        <form action={toggleSaveTalent} className="absolute right-4 top-4">
+          <input type="hidden" name="talent_id" value={t.profile_id} />
+          <input type="hidden" name="next" value={selfHref ?? `/talent/${t.profile_id}`} />
+          <button type="submit" aria-label={saved ? "찜 해제" : "찜하기"}
+            className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${saved ? "border-teal-200 bg-teal-50 text-teal-700" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+            <SaveIcon filled={!!saved} /> {saved ? "찜함" : "찜하기"}
+          </button>
+        </form>
+      )}
       {/* 🔴 머리말에는 **가려야 할 것을 두지 않는다.** 예전에는 이름이 제목 자리에, 사진이 그 옆에
           따로 있어서 가리는 곳이 세 군데(이름·사진·연락처)로 흩어졌다 — 한 곳만 놓치면 새는 구조다.
           이름·사진·전화·이메일은 전부 아래 '연락' 한 블록으로 모아 **한 번에** 잠근다.
           머리말은 이력서 제목(무엇을 하는 사람인가)이 대신한다 — 병원이 목록에서 찾는 것도 그쪽이다. */}
       <div className="min-w-0">
-        <Heading className="text-2xl font-bold leading-snug text-slate-900">{t.resume_title ?? "간호사 인재"}</Heading>
+        <Heading className={`text-2xl font-bold leading-snug text-slate-900 ${canSave ? "pr-28" : ""}`}>{t.resume_title ?? "간호사 인재"}</Heading>
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
           {t.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{t.license_type}</span>}
           <span className="text-slate-600">{careerSummary(t.career_level, t.experience_years)}</span>

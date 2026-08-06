@@ -13,6 +13,10 @@ const NAV = [
   { href: "/mypage/alerts", label: "저장한 검색" },
   { href: "/mypage/account", label: "내 정보 · 계정" },
   { href: "/jobs", label: "채용공고 찾기" },
+  // 🤖 헤더 'AI 자동매치'와 **같은 화면**(/match)이다. 그 화면이 보는 사람에 따라 갈리므로
+  //    (이력서 등록 간호사 → 내 조건에 맞는 공고) 마이페이지용 복제본을 만들지 않는다 —
+  //    '인재 검색'이 복제본이었다가 빈약해서 되돌린 전례가 있다(/mypage/talent).
+  { href: "/match", label: "AI 자동매치" },
 ];
 
 export default async function NurseShell({ displayName, active, children }: Readonly<{ displayName: string; active: string; children: ReactNode }>) {

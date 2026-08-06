@@ -10,6 +10,11 @@ const NAV = [
   { href: "/mypage/applicants", label: "받은 지원자" },
   // 헤더 '인재정보'와 **같은** 화면을 가리킨다 — 예전엔 필터가 3개뿐인 복제본(/mypage/talent)이었다.
   { href: "/talent", label: "인재 검색" },
+  // 💾 검색 도중 담아 둔 후보. 여기만 마이페이지 안에 있다 — 내 것이라 남의 화면에 없다.
+  { href: "/mypage/saved-talent", label: "찜한 간호사" },
+  // 🤖 자동매치도 같은 규칙으로 **하나뿐인 화면**(/match)을 가리킨다. 그 화면이 이미 보는 사람에
+  //    따라 갈린다(광고 중인 병원 → 맞는 인재 / 이력서 등록 간호사 → 맞는 공고)라 복제본이 필요 없다.
+  { href: "/match", label: "AI 자동매치" },
   { href: "/mypage/jobs/ad/orders", label: "결제 내역" },
   { href: "/mypage/verify", label: "사업자 인증" },
   { href: "/mypage/account", label: "내 정보 · 계정" },

@@ -5,11 +5,11 @@ import SiteHeader from "@/components/SiteHeader";
 import TalentDetail from "@/components/TalentDetail";
 import TalentCard from "@/components/TalentCard";
 import { Pager } from "@/components/MasterDetail";
-import { getMyProfile } from "@/lib/data/user";
+import { getMyProfile, viewAsRole } from "@/lib/data/user";
 import { careerSummary } from "@/lib/resumeOptions";
 import { socialMeta } from "@/lib/constants";
 import {
-  getPublicTalent, revealContacts, canRevealContacts,
+  getPublicTalent, revealContacts, canRevealContacts, getSavedTalentIds,
   searchPublicTalent, talentFilterQs, TALENT_PER_PAGE, type RevealedContact,
 } from "@/lib/data/talent";
 
@@ -79,6 +79,11 @@ export default async function TalentDetailPage({
   const sideHref = (pid: string) => `/talent/${pid}` + (searchQs ? `?${searchQs}` : "");
   const pageHref = (toPage: number) => { const s = qsFor(toPage); return `/talent/${id}` + (s ? `?${s}` : ""); };
 
+  // 지금 보고 있는 주소 그대로(검색 조건 포함) — 찜한 뒤 이 자리로 되돌아온다.
+  const selfHref = `/talent/${id}` + (searchQs ? `?${searchQs}` : "");
+  // 💾 찜은 **병원 회원**만. 관리자가 병원 보기로 들어온 경우도 포함된다(viewAsRole 은 액션이 다시 본다).
+  const canSave = (await viewAsRole(p?.role ?? "nurse")) === "hospital";
+
   // 서로 의존하지 않는 조회는 함께 보낸다. 열람 자격 판정과 목록은 독립.
   const [canSeeContacts, side] = await Promise.all([
     canRevealContacts(p), // 광고 병원(또는 관리자)만 이름·전화
@@ -90,7 +95,10 @@ export default async function TalentDetailPage({
   const totalPages = Math.max(1, Math.ceil(side.total / TALENT_PER_PAGE));
 
   const contactIds = [t.profile_id, ...sidebar.map((r) => r.profile_id)];
-  const contacts = canSeeContacts ? await revealContacts(contactIds) : new Map<string, RevealedContact>();
+  const [contacts, savedIds] = await Promise.all([
+    canSeeContacts ? revealContacts(contactIds) : Promise.resolve(new Map<string, RevealedContact>()),
+    canSave ? getSavedTalentIds(contactIds) : Promise.resolve(new Set<string>()),
+  ]);
   const contact = contacts.get(t.profile_id);
 
   // 제목: 조건이 걸려 있으면 "검색 결과", 아니면 그냥 목록이다. 건수는 항상 총계(side.total)를 쓴다.
@@ -100,14 +108,21 @@ export default async function TalentDetailPage({
     <>
       <SiteHeader user={p ? { displayName: p.displayName } : null} />
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-6">
-        {/* 되돌아갈 곳도 조건을 유지한다 — 안 그러면 목록으로 돌아가는 순간 필터가 풀린다 */}
-        <Link href={backHref} className="mb-3 inline-block text-sm text-teal-700 hover:underline">← 인재정보 목록</Link>
+        {/* 되돌아갈 곳도 조건을 유지한다 — 안 그러면 목록으로 돌아가는 순간 필터가 풀린다.
+            🔴 닫기(X)를 오른쪽에 둔다. 공고 상세에는 있는데 여기엔 없어서, 병원이 후보를 하나
+               열어 본 뒤 나가려면 뒤로가기밖에 없었고 그러면 검색 첫 화면으로 튀어 **처음부터
+               다시 검색**해야 했다(오너 지적 2026-08-07). 둘 다 같은 backHref 로 간다. */}
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <Link href={backHref} className="inline-block text-sm text-teal-700 hover:underline">← {hasFilter ? "검색 결과로" : "인재정보 목록"}</Link>
+          <Link href={backHref} aria-label="닫기" className="grid h-11 w-11 place-items-center rounded-full text-lg leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">✕</Link>
+        </div>
 
         {/* 사이드바에 보일 게 있을 때만 2열. 없으면 상세만 읽기 좋은 폭으로. */}
         <div className="lg:grid lg:grid-cols-[minmax(0,320px)_1fr] lg:items-start lg:gap-6">
           {/* 상세 — 모바일에선 먼저, 데스크톱에선 오른쪽 */}
           <div className="lg:col-start-2 lg:row-start-1 lg:max-w-3xl">
-            <TalentDetail t={t} contact={contact} contactGated={!canSeeContacts} asH1 />
+            <TalentDetail t={t} contact={contact} contactGated={!canSeeContacts} asH1
+              canSave={canSave} saved={savedIds.has(t.profile_id)} selfHref={selfHref} />
           </div>
 
           {/* 목록 — 모바일에선 상세 아래, 데스크톱에선 왼쪽 사이드바 */}

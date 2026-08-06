@@ -1,5 +1,7 @@
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/data/user";
 import type { Role } from "@/lib/data/user";
 import { getMembership } from "@/lib/data/membership";
 import { signAvatarPaths } from "@/lib/data/avatar";
@@ -326,4 +328,103 @@ export async function revealContacts(profileIds: readonly string[]): Promise<Map
     const avatarUrl = signed.get((r.profile?.avatar_url ?? "").trim()) ?? null;
     return [r.profile_id, { name: r.name, phone: r.phone, email: r.email, avatarUrl }];
   }));
+}
+
+// ── 💾 찜한 간호사(병원) ────────────────────────────────────
+//
+// 간호사가 공고를 찜하는 것(saved_jobs)의 반대 방향이다. 오너 지시 2026-08-07:
+// "검색 도중 후보군을 저장해서 마이페이지에서 검토할 수 있어야 한다."
+// 🔴 자격 게이트를 여기 두지 않는다 — **담아 두는 것**은 연락처를 여는 것과 다른 일이다.
+//    광고가 끝난 병원도 후보 목록은 지키고, 연락처만 다시 잠긴다(revealContacts 가 그때 판정).
+
+/** 지금 화면에 그릴 카드 중 내가 찜한 것 — 하트를 채울지 정한다(공고의 getSavedJobIds 와 같은 역할). */
+export async function getSavedTalentIds(profileIds: readonly string[]): Promise<Set<string>> {
+  if (profileIds.length === 0) return new Set();
+  const user = await getSessionUser();
+  if (!user) return new Set();
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("saved_talents").select("talent_id")
+    .eq("profile_id", user.id).in("talent_id", [...profileIds])
+    .returns<{ talent_id: string }[]>();
+  // 🔴 삼키면 찜해 둔 카드가 전부 빈 하트로 보이고, 누르면 "해제" 가 아니라 다시 찜이 된다.
+  if (error) console.error("getSavedTalentIds failed:", error.message);
+  return new Set((data ?? []).map((r) => r.talent_id));
+}
+
+export type SavedTalentRow = {
+  talentId: string;
+  savedAt: string;
+  /** 병원이 쓴 메모. 상대가 이력서를 내려도 이건 병원 자신의 기록이라 남는다. */
+  memo: string | null;
+  /** 지금도 인재정보에 올라 있는가. false 면 talent 은 null 이다. */
+  active: boolean;
+  talent: PublicTalent | null;
+};
+
+/** 한 번에 읽어오는 찜 상한. 넘으면 화면이 그 사실을 말한다(조용히 자르지 않는다). */
+const SAVED_TALENT_LIMIT = 500;
+
+/**
+ * 마이페이지 「찜한 간호사」 — 찜한 순서(최신순)로, 제목·지역·부서·내 메모로 좁혀서.
+ *
+ * 🔴 검색은 **찜한 것 안에서만** 한다. 전체 인재를 뒤진 뒤 교집합을 내면 상한이 남의 이력서로 차서
+ *    정작 내가 찜한 사람이 조용히 빠진다(지원자 검색이 같은 이유로 같은 방법을 쓴다).
+ * 🔴 **공개 중인 이력서만 내용을 읽는다**(is_public + 이름 있음 — 목록·상세와 같은 술어).
+ *    이 술어가 없으면 비공개로 내린 사람의 제목·경력·희망근무지가 병원 화면에 그대로 남는다.
+ *    이름이 빈 이력서도 뺀다 — 제목·자기소개의 실명 마스킹(maskName)이 이름을 알아야 돌기 때문에,
+ *    이름이 없으면 본인이 적어 둔 실명이 가려지지 않은 채 나간다.
+ */
+export async function getSavedTalents(
+  q = "",
+): Promise<{ rows: SavedTalentRow[]; closed: number; truncated: boolean }> {
+  const empty = { rows: [], closed: 0, truncated: false };
+  const user = await getSessionUser();
+  if (!user) return empty;
+  const supabase = await createClient();
+  const { data: saved, error } = await supabase
+    .from("saved_talents").select("talent_id,memo,created_at")
+    .eq("profile_id", user.id).order("created_at", { ascending: false }).limit(SAVED_TALENT_LIMIT)
+    .returns<{ talent_id: string; memo: string | null; created_at: string }[]>();
+  if (error) {
+    console.error("getSavedTalents failed:", error.message);
+    return empty;
+  }
+  const saves = saved ?? [];
+  if (saves.length === 0) return empty;
+  const truncated = saves.length >= SAVED_TALENT_LIMIT;
+
+  // 이력서 본문은 RLS 로 잠겨 있어 목록과 같은 admin 클라이언트로 읽는다(searchPublicTalent 와 같은 이유).
+  // 여는 범위는 **내가 찜한 사람 + 지금 공개 중** 으로 두 번 좁혀져 있고, 이름·연락처는
+  // 화면이 자격(canRevealContacts)을 본 뒤 revealContacts 로 따로 붙인다.
+  const admin = createAdminClient();
+  const { data: resumes, error: rErr } = await admin
+    .from("resumes").select(PUBLIC_COLS)
+    .in("profile_id", saves.map((r) => r.talent_id))
+    .eq("is_public", true).not("name", "is", null)
+    .returns<(PublicTalent & { name: string | null; profile: ProfileBits | null })[]>();
+  // 🔴 삼키면 살아 있는 후보 전원이 "이력서를 내렸다" 로 보인다 — 정반대의 거짓말이다.
+  if (rErr) {
+    console.error("getSavedTalents(resumes) failed:", rErr.message);
+    return empty;
+  }
+  const byId = new Map((resumes ?? []).map((r) => [r.profile_id, flattenProfile(r)]));
+
+  const needle = q.trim().toLowerCase();
+  const rows: SavedTalentRow[] = [];
+  let closed = 0;
+  for (const s of saves) {
+    const t = byId.get(s.talent_id) ?? null;
+    if (!t) closed += 1;
+    if (needle) {
+      // 🔴 내린 사람은 **메모로만** 찾는다. 이력서 내용으로 찾게 두면 감춰 놓고 검색으로 되짚는 셈이다.
+      const hay = t
+        ? [t.resume_title, t.desired_location, t.residence_region, t.license_type, t.career_level, s.memo,
+           ...(t.specialties ?? []), ...(t.desired_hospital_types ?? [])]
+        : [s.memo];
+      if (!hay.filter(Boolean).join(" ").toLowerCase().includes(needle)) continue;
+    }
+    rows.push({ talentId: s.talent_id, savedAt: s.created_at, memo: s.memo, active: !!t, talent: t });
+  }
+  return { rows, closed, truncated };
 }

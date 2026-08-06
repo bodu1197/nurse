@@ -163,7 +163,7 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
         <form action={toggleSaveJob} className="absolute right-4 top-4">
           <input type="hidden" name="job_id" value={job.id} />
           <input type="hidden" name="next" value={selfHref} />
-          <button type="submit" aria-label={saved ? "저장 해제" : "저장"} className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${saved ? "border-teal-200 bg-teal-50 text-teal-700" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
+          <button type="submit" aria-label={saved ? "저장 해제" : "저장"} className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${saved ? "border-teal-200 bg-teal-50 text-teal-700" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}>
             <SaveIcon filled={saved} /> {saved ? "저장됨" : "저장"}
           </button>
         </form>

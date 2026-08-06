@@ -989,6 +989,46 @@ export type Database = {
           },
         ]
       }
+      /** 💾 찜한 간호사(병원 → 인재). saved_jobs 의 반대 방향(20260807100000). */
+      saved_talents: {
+        Row: {
+          created_at: string
+          id: string
+          memo: string | null
+          profile_id: string
+          talent_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          memo?: string | null
+          profile_id: string
+          talent_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          memo?: string | null
+          profile_id?: string
+          talent_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saved_talents_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saved_talents_talent_id_fkey"
+            columns: ["talent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       saved_jobs: {
         Row: {
           created_at: string

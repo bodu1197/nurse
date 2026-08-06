@@ -15,11 +15,15 @@ export default function TalentCard({
   contactName,
   contactAvatar,
   compact = false,
+  reserveAction = false,
 }: Readonly<{
   t: PublicTalent;
   contactName?: string | null;
   contactAvatar?: string | null;
   compact?: boolean;
+  /** 카드 오른쪽 아래에 찜 버튼이 겹쳐 놓일 때 그만큼 자리를 비운다(JobCard 와 같은 계약).
+      없으면 좁은 화면에서 버튼이 "n일 전" 을 덮는다. */
+  reserveAction?: boolean;
 }>) {
   // compact: 인재 상세의 좁은 사이드바(약 320px)용. 자기소개·경과시간을 빼고 메타도 둘만 남긴다.
   const meta: { label: string; value: string }[] = (
@@ -83,7 +87,7 @@ export default function TalentCard({
             메타와 경과시간은 형제로 두고 메타만 줄바꿈시킨다(한 흐름이면 메타가 2줄일 때
             경과시간만 혼자 새 줄 오른쪽 끝에 떨어져 붕 뜬다). */}
         <div className="mt-2">
-          <div className="flex items-start justify-between gap-3 border-t border-slate-100 pt-2">
+          <div className={`flex items-start justify-between gap-3 border-t border-slate-100 pt-2 ${reserveAction ? "pb-9 sm:pb-0 sm:pr-32" : ""}`}>
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               {meta.map((m) => (
                 <span key={m.label} className="text-xs text-slate-600">

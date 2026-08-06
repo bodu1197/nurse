@@ -4,11 +4,13 @@ import { Pager } from "@/components/MasterDetail";
 import TalentCard from "@/components/TalentCard";
 import TalentSearchBar from "@/components/TalentSearchBar";
 import { redirect } from "next/navigation";
-import { getMyProfile } from "@/lib/data/user";
+import { getMyProfile, viewAsRole } from "@/lib/data/user";
 import {
   searchPublicTalent, revealContacts, canRevealContacts, TALENT_PER_PAGE, talentFilterQs,
-  getTalentSidoList, getTalentSigunguList, getTalentFacets, type RevealedContact,
+  getTalentSidoList, getTalentSigunguList, getTalentFacets, getSavedTalentIds, type RevealedContact,
 } from "@/lib/data/talent";
+import { toggleSaveTalent } from "@/app/talent/actions";
+import { SaveIcon } from "@/components/JobDetail";
 import { chipClass as chip } from "@/lib/chip";
 import { socialMeta } from "@/lib/constants";
 
@@ -92,6 +94,11 @@ export default async function TalentPage({
 
   // 카드 → 상세로 들고 갈 조건(현재 페이지 포함). 상세의 왼쪽 목록이 이 조건으로 다시 검색한다.
   const detailQs = talentFilterQs({ q: kw, dept: department, cat, sido: sd, sigungu: sgg, years: minYears }, pageNum);
+  // 💾 찜은 병원 회원만. 찜한 뒤에는 **보던 검색 결과 그 자리**로 되돌아온다 —
+  //    한 명 담을 때마다 목록 1페이지로 튀면 후보를 모을 수가 없다.
+  const listHref = "/talent" + (detailQs ? `?${detailQs}` : "");
+  const canSave = (await viewAsRole(p?.role ?? "nurse")) === "hospital";
+  const savedIds = canSave ? await getSavedTalentIds(rows.map((r) => r.profile_id)) : new Set<string>();
 
   // 검색 조건 유지 URL. 한 곳에서 직렬화해 목록 이동·칩 전환이 같은 조건을 따라간다.
   // 🔴 직렬화는 talentFilterQs 한 곳만 쓴다. 빌더가 두 벌이면 같은 조건인데 URL 문자열이 달라져
@@ -169,7 +176,7 @@ export default async function TalentPage({
             {/* 구 널스넷처럼 한 줄에 하나씩 — 사진·제목·자기소개·메타를 한눈에 훑는 목록이라 2열로 쪼개면 좁아진다. */}
             <ul className="mt-4 flex flex-col gap-2">
               {rows.map((t) => (
-                <li key={t.profile_id}>
+                <li key={t.profile_id} className="relative">
                   {/* 목록 행은 훑어보는 화면이라 들어올림(translate) 없이 테두리·그림자만 바뀐다.
                       카드 전체가 링크라 aria-label 이 없으면 스크린리더가 제목·자기소개·메타를 통째로 낭독한다
                       → 링크 이름을 "이름 · 제목" 으로 줄여 목록을 링크 단위로 훑을 수 있게 한다. */}
@@ -180,8 +187,21 @@ export default async function TalentPage({
                     aria-label={`${contacts.get(t.profile_id)?.name ?? "간호사 회원"} · ${t.resume_title ?? "간호사 인재"}`}
                     className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 sm:p-4"
                   >
-                    <TalentCard t={t} contactName={contacts.get(t.profile_id)?.name} contactAvatar={contacts.get(t.profile_id)?.avatarUrl} />
+                    <TalentCard t={t} contactName={contacts.get(t.profile_id)?.name} contactAvatar={contacts.get(t.profile_id)?.avatarUrl} reserveAction={canSave} />
                   </a>
+                  {/* 💾 찜 — 검색을 하다 말고 상세로 들어가지 않아도 담을 수 있어야 한다.
+                      카드 전체가 링크라 폼을 **밖에** 겹쳐 둔다(링크 안에 버튼을 넣으면 눌렀을 때
+                      둘 다 반응한다). 공고 목록 카드가 같은 방식으로 저장 버튼을 얹는다. */}
+                  {canSave && (
+                    <form action={toggleSaveTalent} className="absolute bottom-3 right-3">
+                      <input type="hidden" name="talent_id" value={t.profile_id} />
+                      <input type="hidden" name="next" value={listHref} />
+                      <button type="submit" aria-label={savedIds.has(t.profile_id) ? "찜 해제" : "찜하기"}
+                        className={`inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2 ${savedIds.has(t.profile_id) ? "border-teal-200 bg-teal-50 text-teal-700" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"}`}>
+                        <SaveIcon filled={savedIds.has(t.profile_id)} /> {savedIds.has(t.profile_id) ? "찜함" : "찜하기"}
+                      </button>
+                    </form>
+                  )}
                 </li>
               ))}
             </ul>
