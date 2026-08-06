@@ -2,7 +2,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
-import { LINK_CLASS } from "@/lib/constants";
+import { LINK_CLASS, socialMeta } from "@/lib/constants";
 import { AD_PRODUCTS, AD_WEEK_PRICE, won } from "@/lib/ads";
 import { RESUME_PUBLIC_SCOPE } from "@/lib/resumeOptions";
 
@@ -29,7 +29,7 @@ export const metadata = {
   title: TITLE,
   description: DESC,
   alternates: { canonical: "/ads" },
-  openGraph: { type: "website", locale: "ko_KR", siteName: "널스넷", url: "/ads", title: TITLE, description: DESC },
+  ...socialMeta({ url: "/ads", title: TITLE, description: DESC }),
 };
 
 /** 광고를 하면 실제로 달라지는 것 — 코드에 있는 기능만 적는다. */

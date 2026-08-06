@@ -2,7 +2,7 @@ import Link from "next/link";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import { getMyProfile } from "@/lib/data/user";
-import { LINK_CLASS } from "@/lib/constants";
+import { LINK_CLASS, socialMeta } from "@/lib/constants";
 import { AD_WEEK_PRICE, won } from "@/lib/ads";
 
 const HOSP_TITLE = "병원 서비스 — 간호사 채용공고 등록 | 널스넷";
@@ -13,8 +13,7 @@ export const metadata = {
   title: HOSP_TITLE,
   description: HOSP_DESC,
   alternates: { canonical: "/hospital" },
-  openGraph: { type: "website", locale: "ko_KR", siteName: "널스넷", url: "/hospital", title: HOSP_TITLE, description: HOSP_DESC },
-  twitter: { card: "summary_large_image", title: HOSP_TITLE, description: HOSP_DESC },
+  ...socialMeta({ url: "/hospital", title: HOSP_TITLE, description: HOSP_DESC }),
 };
 
 const STEPS = [

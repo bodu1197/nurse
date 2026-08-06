@@ -7,6 +7,7 @@ import TalentCard from "@/components/TalentCard";
 import { Pager } from "@/components/MasterDetail";
 import { getMyProfile } from "@/lib/data/user";
 import { careerSummary } from "@/lib/resumeOptions";
+import { socialMeta } from "@/lib/constants";
 import {
   getPublicTalent, revealContacts, canRevealContacts,
   searchPublicTalent, talentFilterQs, TALENT_PER_PAGE, type RevealedContact,
@@ -35,7 +36,7 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
     title,
     description: desc || "이력서를 공개한 간호사 인재 정보입니다.",
     alternates: { canonical: `/talent/${id}` },
-    openGraph: { type: "profile", locale: "ko_KR", siteName: "널스넷", url: `/talent/${id}`, title, description: desc },
+    ...socialMeta({ type: "profile", url: `/talent/${id}`, title, description: desc }),
     robots: { index: false },
   };
 }

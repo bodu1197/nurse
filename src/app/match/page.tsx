@@ -10,6 +10,7 @@ import { getMyResume, type ResumeWithWork } from "@/lib/data/resume";
 import { getMatchCandidates, getMyAdConditions, type MatchJob } from "@/lib/data/jobs";
 import { searchPublicTalent, revealContacts, canRevealContacts } from "@/lib/data/talent";
 import { canMatch, candidateSidos, evaluateMatch, shortSidos, talentSpecialtyFilter } from "@/lib/match";
+import { socialMeta } from "@/lib/constants";
 
 /**
  * 🤖 AI 자동매치 — dolpagu(https://dolpagu.com/match) 이식.
@@ -50,9 +51,10 @@ export async function generateMetadata({
   return {
     title: MATCH_TITLE,
     description: MATCH_DESC,
-    alternates: { canonical: "/match" },
-    openGraph: { type: "website", locale: "ko_KR", siteName: "널스넷", url: "/match", title: MATCH_TITLE, description: MATCH_DESC },
-    ...(page ? { robots: { index: false } } : {}),
+    ...socialMeta({ url: "/match", title: MATCH_TITLE, description: MATCH_DESC }),
+    // 🔴 canonical 과 noindex 를 함께 내지 않는다 — 서로 모순된 지시라 noindex 가 정본(/match)으로
+    //    전파될 수 있다. /jobs 와 같은 규칙(app/jobs/page.tsx 의 같은 자리 주석 참고).
+    ...(page ? { robots: { index: false } } : { alternates: { canonical: "/match" } }),
   };
 }
 

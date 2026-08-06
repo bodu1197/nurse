@@ -10,6 +10,7 @@ import {
   getTalentSidoList, getTalentSigunguList, getTalentFacets, type RevealedContact,
 } from "@/lib/data/talent";
 import { chipClass as chip } from "@/lib/chip";
+import { socialMeta } from "@/lib/constants";
 
 /**
  * 🔴 인재정보를 **색인하지 않는다**(오너 확정 2026-08-06). 목록·상세 모두 noindex 이고
@@ -34,7 +35,8 @@ export async function generateMetadata(): Promise<Metadata> {
     title: TALENT_TITLE,
     description: TALENT_DESC,
     alternates: { canonical: "/talent" },
-    openGraph: { type: "website", locale: "ko_KR", siteName: "널스넷", url: "/talent", title: TALENT_TITLE, description: TALENT_DESC },
+    // noindex 라도 og 는 필요하다 — 공유 카드는 색인이 아니라 **사람**이 본다(카카오톡 공유).
+    ...socialMeta({ url: "/talent", title: TALENT_TITLE, description: TALENT_DESC }),
     // 🔴 검색조건이 붙었든 아니든 전부 noindex 다. 종전에는 필터가 걸렸을 때만 막았다.
     //    follow 는 막지 않는다 — 크롤러가 상세로 넘어가 거기 걸린 noindex 도 읽어야
     //    이미 색인된 이력서 주소들이 빠진다.

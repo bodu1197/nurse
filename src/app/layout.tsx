@@ -35,6 +35,18 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
   },
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
+  // 🔴 **레거시 널스넷(라이믹스)에 실제로 붙어 있던 소유확인 값이다** — 새로 발급받은 것이 아니다.
+  //    라이믹스에서 이 앱으로 갈아타면서 이 두 줄이 함께 사라졌고, 그 순간 구글 서치콘솔·네이버
+  //    서치어드바이저의 사이트 소유확인이 풀렸다(둘 다 인증 수단이 메타태그였다).
+  //    확인이 풀리면 **사이트맵 제출·수집 요청·색인 현황 조회가 전부 막힌다** — 주소 6,209개가
+  //    통째로 바뀐 직후라 하필 그 창구가 가장 필요한 시점이었다.
+  //    출처: web.archive.org 의 https://nursenet.co.kr/ 스냅샷(2024·2025) <head>.
+  //    같은 스냅샷의 keywords·description 이 위 KEYWORDS·DESCRIPTION 과 일치해 같은 사이트임을 확인했다.
+  //    🔴 값을 바꾸지 말 것 — 바꾸면 기존 등록이 다시 풀린다. 계정에서 재발급한 경우에만 함께 바꾼다.
+  verification: {
+    google: "ubQPnHaMacORSSmfMR79X9Ri6sUs9vtAFIL4g6eVJQU",
+    other: { "naver-site-verification": "1c1001e8838a069c82c3f556799f9cd84e9b87d0" },
+  },
 };
 
 // 모바일 주소창 색을 파비콘·로고와 하나로 맞춘다(오너 확정 2026-08-05 — 레거시 파랑 #0044ff 에서

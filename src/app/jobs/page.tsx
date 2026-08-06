@@ -9,7 +9,7 @@ import JobSearchBar from "@/components/JobSearchBar";
 import { getJobs, getSavedJobIds, getJobSidoList, getJobSigunguList, getJobFacets, jobFilterQs, PER_PAGE, UNSET } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
 import { parseRadius, JOB_NEAR_RADIUS } from "@/lib/location/radius";
-import { EMPLOYMENT_TYPES } from "@/lib/constants";
+import { EMPLOYMENT_TYPES, socialMeta } from "@/lib/constants";
 import { chipClass as chip } from "@/lib/chip";
 import { saveSearch, toggleSaveJob } from "./actions";
 
@@ -59,6 +59,20 @@ function ChipRow({ label, allHref, active, items }: Readonly<{
   );
 }
 
+/**
+ * /jobs 가 받는 쿼리 파라미터 — **이 목록 하나가 정본이다.**
+ *
+ * 🔴 색인 판정(generateMetadata 의 filtered)과 화면(JobsPage 의 searchParams)이 **같은 목록에서 파생**된다.
+ *    종전에는 두 곳에 손으로 나눠 적었고, 그래서 lat·lng·r·saved·j 가 색인 판정에서만 빠져
+ *    **사용자 GPS 좌표가 박힌 `/jobs?lat=37.5665&lng=126.9780&r=5000` 이 색인 허용 상태**였다(실측 2026-08-06).
+ *    파라미터를 늘릴 일이 생기면 여기에만 추가한다 — 한쪽만 늘어 조용히 새는 일이 구조적으로 불가능해진다.
+ */
+const JOB_QUERY_KEYS = [
+  "q", "l", "sido", "sigungu", "j", "saved",
+  "spec", "fac", "cat", "et", "page", "lat", "lng", "r",
+] as const;
+type JobSearchParams = Partial<Record<(typeof JOB_QUERY_KEYS)[number], string>>;
+
 const JOBS_TITLE = "간호사 채용공고 검색 — 널스넷";
 const JOBS_DESC = "간호사·간호조무사 채용공고를 지역·진료과·근무형태로 검색하세요. 전국 병원 채용정보를 한곳에서.";
 
@@ -70,21 +84,27 @@ const JOBS_DESC = "간호사·간호조무사 채용공고를 지역·진료과�
  */
 export async function generateMetadata({
   searchParams,
-}: Readonly<{ searchParams: Promise<Record<string, string | undefined>> }>): Promise<Metadata> {
+}: Readonly<{ searchParams: Promise<JobSearchParams> }>): Promise<Metadata> {
   const sp = await searchParams;
-  const filtered = !!(sp.q || sp.l || sp.sido || sp.sigungu || sp.spec || sp.fac || sp.cat || sp.et || sp.page);
+  // 화면을 좁히는 파라미터가 하나라도 붙으면 검색결과 화면이다 → 색인하지 않는다.
+  // 목록은 JOB_QUERY_KEYS 한 곳에서 온다(위 주석 참고) — 여기에 손으로 나열하지 않는다.
+  const filtered = JOB_QUERY_KEYS.some((k) => sp[k]);
   return {
     title: JOBS_TITLE,
     description: JOBS_DESC,
-    alternates: { canonical: "/jobs" },
-    openGraph: { type: "website", locale: "ko_KR", siteName: "널스넷", url: "/jobs", title: JOBS_TITLE, description: JOBS_DESC },
-    ...(filtered ? { robots: { index: false } } : {}),
+    ...socialMeta({ url: "/jobs", title: JOBS_TITLE, description: JOBS_DESC }),
+    // 🔴 canonical 과 noindex 를 **같은 페이지에서 함께 내지 않는다.** 둘은 서로 모순된 지시다 —
+    //    canonical 은 "이 URL 의 신호를 /jobs 로 합쳐라", noindex 는 "이 URL 을 색인에서 빼라".
+    //    구글이 합치는 쪽을 먼저 처리하면 noindex 가 정본(/jobs)에 전파돼 **목록 본체가 통째로
+    //    검색결과에서 빠질 수 있다.** 실측(2026-08-06) `/jobs?page=2` 가 두 태그를 같은 head 에 내고 있었다.
+    //    위 주석의 의도("검색결과 화면은 색인하지 않는다")는 noindex 하나로 100% 달성된다.
+    ...(filtered ? { robots: { index: false } } : { alternates: { canonical: "/jobs" } }),
   };
 }
 
 export default async function JobsPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; l?: string; sido?: string; sigungu?: string; j?: string; saved?: string; spec?: string; fac?: string; cat?: string; et?: string; page?: string; lat?: string; lng?: string; r?: string }> }>) {
+}: Readonly<{ searchParams: Promise<JobSearchParams> }>) {
   const { q, l, sido, sigungu, j, saved, spec, fac, cat, et, page, lat, lng, r } = await searchParams;
   // 예전 마스터-디테일의 ?j= 링크(저장·지원 내역 등)는 단독 상세로 넘긴다.
   if (j) redirect(`/jobs/${encodeURIComponent(j)}`);

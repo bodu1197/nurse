@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import Logo from "@/components/Logo";
 import { HEADER_MENU } from "@/lib/constants";
 import { signOut } from "@/app/(auth)/actions";
@@ -15,6 +15,30 @@ import { signOut } from "@/app/(auth)/actions";
  */
 const TAB_CLASS =
   "flex h-14 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600";
+
+/**
+ * 누른 메뉴 글자를 깜빡여 "눌렸다"를 알린다. 이동이 끝나면 저절로 멈춘다.
+ *
+ * 🔴 왜 필요한가: `app/jobs/loading.tsx` 와 `app/jobs/[id]/loading.tsx` 를 지웠기 때문이다(2026-08-06).
+ *    그 파일들은 **페이지 전체를 Suspense 로 감싸서**, 초기 HTML 에는 「채용공고를 불러오는 중입니다」만
+ *    담기고 공고 본문·`<h1>`·JobPosting 구조화 데이터는 전부 `<div hidden>` 안으로 들어갔다.
+ *    JS 를 실행하지 않는 크롤러(네이버 Yeti · GPTBot · ClaudeBot · PerplexityBot)에게는 공고 1,345건이
+ *    통째로 빈 페이지였고, 없는 공고가 404 대신 200 을 돌려줬다(셸이 먼저 나가 상태코드가 굳는다).
+ *    그래서 지웠는데, 그러면 loading.tsx 가 해 주던 "눌렀다"는 신호까지 함께 사라진다
+ *    (원래 주석: "로딩 경계가 없으면 헤더 '채용공고'를 눌러도 보던 화면이 그대로 멈춰 있어 다시 누르게 된다").
+ *
+ * `useLinkStatus` 는 **Suspense 경계를 만들지 않으므로 초기 HTML 이 그대로다** — 크롤러가 보는 것은
+ * 하나도 안 바뀐 채 그 신호만 되살린다. 덤으로 INP(클릭 → 다음 페인트)가 짧아진다(Core Web Vitals 항목).
+ *
+ * 🔴 아이콘까지 감싸지 말 것 — 하단 탭은 `flex-col` 이라 svg 와 글자가 각각 flex 아이템이어야 한다.
+ *    둘을 한 span 으로 묶으면 아이콘과 글자가 가로로 붙는다.
+ */
+function LinkPending({ children }: Readonly<{ children: React.ReactNode }>) {
+  const { pending } = useLinkStatus();
+  // 🔴 motion-safe: — 느린 회선에서는 이동이 끝날 때까지 몇 초씩 깜빡인다. 전정 장애 등으로
+  //    모션에 민감한 사람에게는 그게 고통이다. Tailwind 기본 variant 라 CSS 추가는 필요 없다.
+  return <span className={pending ? "motion-safe:animate-pulse" : undefined}>{children}</span>;
+}
 
 const BOTTOM_TABS = [
   { href: "/", label: "홈", icon: <path d="M3 10l9-7 9 7v10a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1z" /> },
@@ -73,7 +97,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
             햄버거 메뉴(HEADER_MENU, AI 자동매치 포함)가 같은 곳을 전부 담는다. */}
         <nav className="ml-7 hidden items-center gap-5 text-sm font-medium text-slate-600 lg:flex">
           {[["/jobs", "채용공고"], ["/match", "AI 자동매치"], ["/talent", "인재정보"], ["/reviews", "리뷰"], ["/board", "게시판"]].map(([href, label]) => (
-            <Link key={href} href={href} className="rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">{label}</Link>
+            <Link key={href} href={href} className="rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"><LinkPending>{label}</LinkPending></Link>
           ))}
         </nav>
 
@@ -143,7 +167,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
                 autoFocus={i === 0}
                 className="block px-4 py-3 text-sm text-slate-700 hover:bg-slate-50 hover:text-teal-700 focus-visible:bg-slate-50 focus-visible:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600"
               >
-                {m.label}
+                <LinkPending>{m.label}</LinkPending>
               </Link>
             ))}
           </nav>
@@ -161,7 +185,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
         {BOTTOM_TABS.map(({ href, label, icon }) => (
           <Link key={href} href={href} className={TAB_CLASS}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>{icon}</svg>
-            {label}
+            <LinkPending>{label}</LinkPending>
           </Link>
         ))}
         {/* 마지막 칸만 로그인 여부에 따라 뜻이 바뀐다 — 자리는 그대로다. */}
@@ -169,7 +193,7 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 4-6 8-6s8 2 8 6" />
           </svg>
-          {user ? "마이페이지" : "로그인"}
+          <LinkPending>{user ? "마이페이지" : "로그인"}</LinkPending>
         </Link>
       </nav>
     </header>

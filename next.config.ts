@@ -31,7 +31,34 @@ const nextConfig: NextConfig = {
    */
   async redirects() {
     const to = (source: string, destination: string) => ({ source, destination, permanent: true });
+    // 🔴 **호스트 규칙이 맨 앞이어야 한다.** 아래 레거시 규칙이 먼저 걸리면 들어온 호스트를 그대로
+    //    유지한 채 접혀서, www 로 들어온 사람이 영영 www 안에 갇힌다(실측 2026-08-06:
+    //    www.nursenet.co.kr/community_board/20113 → www.nursenet.co.kr/board?p=… — route.ts 가
+    //    request 의 origin 을 그대로 쓰기 때문이다).
+    // 🔴 **`/api` 는 반드시 제외한다.** 호스트 정규화는 크롤러가 보는 *문서* 경로에만 필요한데,
+    //    `/:path*` 로 두면 빌드된 정규식이 `^(?!/_next)…` 라 `/_next` 만 빠지고 `/api/*` 가 통째로 걸린다
+    //    (.next/routes-manifest.json 으로 확인). 그러면 두 가지가 조용히 죽는다:
+    //     · vercel.json 의 크론 3개 — Vercel 은 크론을 배포 URL(…vercel.app)로 호출하는데, 308 만 받고
+    //       라우트에 닿지 못한다. 3xx 는 실패가 아니라 **크론 로그에는 성공처럼 남는다.**
+    //       그중 guard-avatars-bucket 은 avatars 버킷을 비공개로 되돌리는 **유일한 강제 장치**다
+    //       (간호사 얼굴 사진 1,487장). sync-worknet 이 멈추면 /jobs 데이터가 굳는다.
+    //     · 포트원 웹훅(/api/iamport/webhook, POST) — 웹훅 발신자는 3xx 를 따라가지 않는 경우가 흔하다.
+    //       그 라우트가 "복귀 화면을 놓친 손님에게는 광고를 켜는 유일한 경로" 다.
+    const canonicalHost = (host: string) => ({
+      source: "/:path((?!api/).*)",
+      has: [{ type: "host" as const, value: host }],
+      destination: `https://nursenet.co.kr/:path`,
+      permanent: true,
+    });
     return [
+      // 🔴 정본 호스트는 nursenet.co.kr 하나다. 실측(2026-08-06) 세 호스트가 전부 200 을 돌려주고 있었다 —
+      //    apex · www · nurse-app-nine.vercel.app. canonical 태그는 **힌트일 뿐**이라 크롤러는 세 벌을
+      //    다 가져간 뒤에야 그걸 읽고, 무시하면 vercel.app 이 브랜드 도메인 대신 검색결과에 뜬다.
+      //    (네이버는 canonical 처리가 구글보다 약해 위험이 더 크다.)
+      //    🔴 값을 정확히 적는다 — `nurse-app-nine.vercel.app` 만 잡고 `nurse-app-*.vercel.app` 형태의
+      //       **미리보기 배포는 건드리지 않는다.** 넓게 잡으면 미리보기가 전부 운영으로 튕겨 못 쓰게 된다.
+      canonicalHost("www.nursenet.co.kr"),
+      canonicalHost("nurse-app-nine.vercel.app"),
       // 목록·정적 — 실제로 대응하는 화면이 있다
       to("/job/job/list", "/jobs"),
       to("/job/person/list", "/talent"),

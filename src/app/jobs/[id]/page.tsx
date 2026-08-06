@@ -7,6 +7,7 @@ import { getMyProfile } from "@/lib/data/user";
 import { getCommunityAccess } from "@/lib/data/community";
 import { myApplication } from "@/lib/data/applications";
 import { daysAgo, nowMs, listingEnd } from "@/lib/date";
+import { socialMeta } from "@/lib/constants";
 import { isOpenToSeekers } from "@/lib/jobState";
 
 // 노출이 끝난 공고(직접등록 기간 만료 · 마감일 경과)는 없는 것과 같이 다룬다.
@@ -40,8 +41,9 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
     title: `${job.title} — ${job.hospital?.name ?? job.company_name ?? "병원"} | 널스넷`,
     description,
     alternates: { canonical: `/jobs/${job.id}` },
-    // 자식이 openGraph를 선언하면 루트 값이 통째로 대체된다 → siteName·locale을 여기서 다시 준다.
-    openGraph: { type: "website", siteName: "널스넷", locale: "ko_KR", title: job.title, description, url: `/jobs/${job.id}` },
+    // 자식이 openGraph를 선언하면 루트 값이 통째로 대체된다 — siteName·locale 뿐 아니라
+    // opengraph-image.tsx 가 넣어 주던 images 까지 사라진다. socialMeta 가 그 셋을 한 번에 낸다.
+    ...socialMeta({ url: `/jobs/${job.id}`, title: job.title, description }),
   };
 }
 

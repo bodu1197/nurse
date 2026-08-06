@@ -56,6 +56,43 @@ export const COMPANY = {
   jobInfoNo: "J1513020210002",
 } as const;
 
+/**
+ * 페이지 공용 소셜 메타(openGraph + twitter). **openGraph 를 손으로 적지 말고 이걸 쓴다.**
+ *
+ * 🔴 왜 함수인가: 페이지가 `openGraph` 를 직접 선언하면 루트에서 물려받은 값이 **통째로 대체된다** —
+ *    `app/opengraph-image.tsx` 가 자동으로 넣어 주던 `images` 까지 함께 사라진다. 실측(2026-08-06):
+ *    /jobs · /jobs/[id] · /hospital · /match · /ads 다섯 곳이 정확히 그렇게 og:image 를 잃어,
+ *    사이트맵 1,354개 중 **1,349개(99.6%)가 그림 없는 공유 카드**였다. 국내 유입의 큰 몫이
+ *    카카오톡 공유인데 돈이 들어오는 페이지(공고·광고안내·병원서비스)가 전부 여기 해당됐다.
+ *    twitter 도 같은 이유로 함께 낸다 — 안 적으면 루트(홈) 문구가 그대로 상속돼 공고 페이지가
+ *    "널스넷 - 간호사 간호조무사 병원 구인 구직 NO.1" 이라는 홈 제목으로 공유됐다.
+ *
+ * 크기·alt 는 app/opengraph-image.tsx 의 `size`·`alt` 와 같은 값이다(카카오는 크기를 함께 봐야
+ * 큰 카드로 그린다). 그 파일을 바꾸면 여기도 같이 바꾼다.
+ */
+export const socialMeta = ({
+  type = "website",
+  ...o
+}: {
+  url: string;
+  title: string;
+  description: string;
+  /** 인재 상세만 "profile" 을 쓴다. 나머지는 기본값. */
+  type?: "website" | "profile";
+}) => ({
+  openGraph: {
+    type,
+    locale: "ko_KR",
+    siteName: "널스넷",
+    // 🔴 `?v=` 는 캐시 무효화용이다. 카카오·페북은 og:image 를 **URL 단위로 캐시하고 스스로 갱신하지 않는다** —
+    //    이 값을 안 올리면 opengraph-image.tsx 디자인을 바꿔도 공유 카드에 옛 그림이 영구히 남는다.
+    //    (파일기반 자동주입은 Next 가 내용 해시를 붙여 주지만, 여기서는 직접 적으므로 우리가 올려야 한다.)
+    images: [{ url: "/opengraph-image?v=1", width: 1200, height: 630, alt: "널스넷 — 간호사 채용" }],
+    ...o,
+  },
+  twitter: { card: "summary_large_image" as const, title: o.title, description: o.description },
+});
+
 // sitemap 용 — 실제 색인(index) 대상만. noindex 페이지를 여기 넣으면 "색인해달라"와 "하지 마라"를
 // 동시에 말하는 꼴이라 반드시 같이 관리한다.
 //  · /board·/reviews — 이력서 등록한 간호사 회원 전용(noindex)
@@ -69,8 +106,13 @@ export const COMPANY = {
 //    포기하는 것: 이력서 상세로 들어오던 검색 유입. 그래도 /jobs 는 그대로 색인한다.
 export const PUBLIC_ROUTES = ["/", "/hospital", "/match", "/ads", "/customer", "/faq", "/notice", "/event"] as const;
 
+// 🔴 기본값은 **정본 도메인**이다. 종전 기본값은 nurse-app-nine.vercel.app 이었는데, 이 값 하나가
+//    canonical(layout.tsx metadataBase) · sitemap.xml 1,354개 URL · robots.txt 를 전부 만든다 —
+//    운영에서 NEXT_PUBLIC_SITE_URL 이 빠지는 순간 사이트가 통째로 "정본은 vercel.app 이다" 라고
+//    선언하게 된다. 기본값을 정본으로 두면 그 사고가 아예 성립하지 않는다(미리보기 배포는 Vercel 이
+//    noindex 를 걸어 주므로 색인 사고로 이어지지 않는다).
 export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://nurse-app-nine.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://nursenet.co.kr";
 
 /** 비밀번호 최소 길이 — 검증(서버)과 안내 문구·input minLength가 같은 값을 쓴다. */
 export const MIN_PASSWORD = 8;
