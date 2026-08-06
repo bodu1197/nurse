@@ -241,13 +241,18 @@ export default async function AdminStatsPage({
                 <Empty>아직 방문 기록이 없습니다.</Empty>
               ) : (
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  {/* 🔴 높이를 **li 자신**에 준다. 종전에는 li 안의 span 에 `height: %` 를 줬는데,
+                      li 는 items-end 라 높이가 auto 라서 기준이 없다 — 그러면 백분율이 0 으로
+                      접혀 막대가 통째로 안 보인다(오너 화면에서 실제로 그랬다. 브라우저에 따라
+                      갈리는 자리라 헤드리스 크로미움에서는 멀쩡히 그려져 재현이 한 번 빗나갔다).
+                      li 의 기준은 ul 이고 ul 은 h-28 로 높이가 확정돼 있어 어디서나 계산된다.
+                      🔴 0 은 0 으로 그린다. 최소 높이를 주면 "조금 왔다" 는 거짓말이 된다. */}
                   <ul className="flex h-28 items-end gap-px">
                     {t.hours.map((h) => (
-                      <li key={h.hour} className="min-w-0 flex-1" aria-label={`${h.hour}시 ${h.visits.toLocaleString()}회`} title={`${h.hour}시 · ${h.visits.toLocaleString()}회`}>
-                        {/* 🔴 0 은 0 으로 그린다. 최소 높이를 주면 "조금 왔다" 는 거짓말이 된다. */}
-                        <span className="block rounded-t-sm bg-teal-500"
-                          style={{ height: h.visits === 0 ? 0 : `${Math.max(4, pct(h.visits, maxHour))}%` }} />
-                      </li>
+                      <li key={h.hour} className="min-w-0 flex-1 rounded-t-sm bg-teal-500"
+                        style={{ height: h.visits === 0 ? 0 : `${Math.max(4, pct(h.visits, maxHour))}%` }}
+                        aria-label={`${h.hour}시 ${h.visits.toLocaleString()}회`}
+                        title={`${h.hour}시 · ${h.visits.toLocaleString()}회`} />
                     ))}
                   </ul>
                   <div className="mt-1 flex justify-between text-[10px] text-slate-500" aria-hidden>

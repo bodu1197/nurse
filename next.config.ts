@@ -56,6 +56,11 @@ const nextConfig: NextConfig = {
       //    308 로 굳혀두면 그 페이지가 영원히 안 열린다(브라우저가 308 을 무기한 캐시한다).
       //    실제로 /notice 가 그렇게 됐다 — 307 로 둔 덕분에 지금 공지사항 페이지를 열 수 있었다.
       { source: "/schedule", destination: "/", permanent: false },
+      // 🔴 하위 경로도 잡는다. 위 규칙은 **정확히 /schedule 만** 맞아서
+      //    /schedule/selected_month/:id/selected_day/:id/insert 같은 구 널스넷 주소가 404 였다.
+      //    접속 통계의 봇 칸이 이걸 드러냈다 — 30일간 봇 5,869회 + 사람 155회가 없는 페이지로 갔다
+      //    (2026-08-06 실측). 크롤러가 404 를 계속 긁으면 색인 예산만 태운다.
+      { source: "/schedule/:path*", destination: "/", permanent: false },
       // 공지·이벤트는 글이 몇 건뿐이라 목록에서 본문까지 보여준다 → 옛 상세 주소는 목록으로.
       // /notice 자체는 리다이렉트가 없다 — 같은 주소에 실제 페이지가 생겼다.
       { source: "/notice/:id", destination: "/notice", permanent: false },
