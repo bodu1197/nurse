@@ -16,7 +16,7 @@ export default async function MypageLayout({ children }: Readonly<{ children: Re
   return (
     <>
       {testing && (
-        <form action={setViewAs} className="flex flex-wrap items-center justify-center gap-x-3 bg-slate-800 px-4 py-1.5 text-center text-sm font-semibold text-white">
+        <form action={setViewAs} className="flex flex-wrap items-center justify-center gap-x-3 bg-slate-800 px-4 py-1.5 text-center text-base font-semibold text-white">
           <span>관리자 테스트: {ROLE_LABEL[p.role]} 화면</span>
           {/* 링크가 아니라 제출 버튼 — /mypage로 이동만 하면 전환이 풀리지 않는다 */}
           <button type="submit" name="role" value="admin"

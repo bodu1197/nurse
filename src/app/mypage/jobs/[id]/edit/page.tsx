@@ -32,7 +32,7 @@ export default async function EditJobPage({
       <p className="mt-1 text-sm text-slate-500">병원: <b className="text-slate-700">{job.hospital?.name ?? "-"}</b></p>
 
       {error && (
-        <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-base text-red-700">
           {ERR[error] ?? "오류가 발생했습니다."}
         </div>
       )}

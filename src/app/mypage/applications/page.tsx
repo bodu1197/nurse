@@ -20,9 +20,9 @@ export default async function ApplicationsPage({
         <h1 className="mt-3 text-2xl font-bold text-slate-900">지원 내역</h1>
         <p className="mt-1 text-sm text-slate-500">병원이 이력서를 열람하거나 결과를 남기면 여기 상태가 바뀝니다.</p>
 
-        {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">지원이 완료되었습니다.</div>}
-        {ok === "cancel" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">지원을 취소했습니다. 같은 공고에 다시 지원할 수 있습니다.</div>}
-        {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
+        {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base text-teal-800">지원이 완료되었습니다.</div>}
+        {ok === "cancel" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base text-teal-800">지원을 취소했습니다. 같은 공고에 다시 지원할 수 있습니다.</div>}
+        {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-base text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
 
         {apps.length === 0 ? (
           <p className="py-20 text-center text-slate-500">
@@ -49,7 +49,7 @@ export default async function ApplicationsPage({
                   <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_TONE[a.status]}`}>{STATUS_LABEL[a.status]}</span>
                 </div>
 
-                {a.message && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-sm text-slate-600">내가 보낸 메시지: {a.message}</p>}
+                {a.message && <p className="mt-2 rounded-lg bg-slate-50 p-2 text-base text-slate-600">내가 보낸 메시지: {a.message}</p>}
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   {a.status !== "submitted" && (
@@ -74,7 +74,7 @@ export default async function ApplicationsPage({
           </ul>
         )}
         {apps.length === LIST_LIMIT && (
-          <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-600">
             최근 {LIST_LIMIT}건만 표시했습니다.
           </p>
         )}

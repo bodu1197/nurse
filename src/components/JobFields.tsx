@@ -23,7 +23,7 @@ export type JobDefaults = {
 };
 
 const field = "h-12 w-full rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40";
-const label = "text-sm font-medium text-slate-700";
+const label = "text-base font-medium text-slate-700";
 const TYPES = ["정규직", "계약직", "파트타임", "인턴"];
 const SHIFTS = ["협의", "3교대", "2교대", "낮번 전담", "야간 전담", "평일 주간"];
 

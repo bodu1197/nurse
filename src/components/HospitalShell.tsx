@@ -27,7 +27,7 @@ export default async function HospitalShell({ displayName, active, children }: R
             <div className="flex items-center gap-2.5">
               <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-teal-50 text-base font-bold text-teal-700" aria-hidden>{displayName.slice(0, 1)}</span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-slate-900">{displayName}</p>
+                <p className="truncate text-base font-bold text-slate-900">{displayName}</p>
                 {/* 역할이 아니라 **등급**을 보여준다 — 회원이 자기가 왜 막혔는지 알아야 한다.
                     이력서(간호사)·광고(병원)를 올리면 여기 이름이 바뀐다. */}
                 <span className={`text-xs font-semibold ${upgrade ? "text-slate-500" : "text-teal-700"}`}>{membership.label}</span>
@@ -41,14 +41,14 @@ export default async function HospitalShell({ displayName, active, children }: R
           </div>
           <nav className="mt-3 space-y-1 rounded-2xl border border-slate-200 bg-white p-2">
             {NAV.map((n) => (
-              <a key={n.href} href={n.href} className={`block rounded-lg px-3 py-2 text-sm ${n.href === active ? "bg-teal-50 font-semibold text-teal-700" : "text-slate-600 hover:bg-slate-50"}`}>{n.label}</a>
+              <a key={n.href} href={n.href} className={`block rounded-lg px-3 py-2 text-base ${n.href === active ? "bg-teal-50 font-semibold text-teal-700" : "text-slate-600 hover:bg-slate-50"}`}>{n.label}</a>
             ))}
           </nav>
         </aside>
 
         <nav className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 lg:hidden">
           {NAV.map((n) => (
-            <a key={n.href} href={n.href} className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${n.href === active ? "border-teal-500 bg-teal-50 font-semibold text-teal-700" : "border-slate-300 text-slate-600"}`}>{n.label}</a>
+            <a key={n.href} href={n.href} className={`shrink-0 rounded-full border px-3 py-1.5 text-base ${n.href === active ? "border-teal-500 bg-teal-50 font-semibold text-teal-700" : "border-slate-300 text-slate-600"}`}>{n.label}</a>
           ))}
         </nav>
 

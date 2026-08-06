@@ -42,7 +42,7 @@ export default async function SavedPage() {
                   {/* 마감 공고는 지우는 것 말고 할 게 없다 → 같은 조건으로 다시 찾을 길을 준다 */}
                   {!open && (
                     <Link href={`/jobs?${new URLSearchParams({ ...(j.specialty ? { q: j.specialty } : {}), ...(j.location ? { l: j.location } : {}) })}`}
-                      prefetch={false} className="mt-1 inline-block text-sm font-semibold text-teal-700 hover:underline">
+                      prefetch={false} className="mt-1 inline-block text-base font-semibold text-teal-700 hover:underline">
                       비슷한 공고 찾기 →
                     </Link>
                   )}

@@ -114,7 +114,7 @@ export default function HospitalPicker({
       )}
 
       {selected && (
-        <div className="mt-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-sm">
+        <div className="mt-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-base">
           <span className="font-semibold text-teal-800">{selected.name}</span>
           {selected.address && <span className="block text-xs text-teal-700">{selected.address}</span>}
           <button type="button" aria-label="병원 선택 취소" onClick={() => { setSelected(null); setQ(""); }} className="mt-1 text-xs text-teal-700 underline">

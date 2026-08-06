@@ -141,7 +141,7 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
           <label className="col-span-2 sm:col-span-1">
             <input type="radio" name="weeks" value={FREE} checked={weeks === FREE} onChange={() => setWeeks(FREE)} className="peer sr-only" />
             {/* peer-focus-visible: 라디오가 sr-only 라 키보드로 옮겨도 어디에 있는지 안 보였다 — 테두리를 준다. */}
-            <span className="relative flex h-full min-h-44 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-dashed border-slate-400 px-2 py-4 text-sm text-slate-600 peer-checked:border-solid peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
+            <span className="relative flex h-full min-h-44 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-dashed border-slate-400 px-2 py-4 text-base text-slate-600 peer-checked:border-solid peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
               <span className="absolute -top-2.5 rounded-full bg-slate-700 px-2 py-0.5 text-xs font-bold text-white">병원당 1회</span>
               <b className="text-base">{FREE_WEEK_DAYS}일 무료</b>
               <span className="text-lg font-bold">0원</span>
@@ -159,7 +159,7 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
         {AD_PRODUCTS.map((p) => (
           <label key={p.weeks}>
             <input type="radio" name="weeks" value={p.weeks} checked={weeks === p.weeks} onChange={() => setWeeks(p.weeks)} className="peer sr-only" />
-            <span className="relative flex h-full min-h-44 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-slate-300 px-2 py-4 text-sm text-slate-600 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
+            <span className="relative flex h-full min-h-44 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-slate-300 px-2 py-4 text-base text-slate-600 peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
               {/* 🔴 할인 폭을 칸 안에 박아 둔다 — 고를 때 보이지 않으면 길게 살 이유가 안 보인다. */}
               {p.saved > 0 && (
                 <span className="absolute -top-2.5 rounded-full bg-teal-600 px-2 py-0.5 text-xs font-bold text-white">{p.offPct}% 할인</span>
@@ -180,7 +180,7 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
         ))}
       </div>
 
-      <dl className="mt-5 space-y-1 rounded-[12px] border border-slate-200 bg-slate-50 p-4 text-sm">
+      <dl className="mt-5 space-y-1 rounded-[12px] border border-slate-200 bg-slate-50 p-4 text-base">
         <div className="flex justify-between"><dt className="text-slate-500">노출 기간</dt><dd className="font-medium text-slate-800">{isFree ? FREE_WEEK_DAYS : product.days}일</dd></div>
         {isFree ? (
           <>
@@ -221,13 +221,13 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
       </p>
 
       {cutShort && (
-        <p role="alert" className="mt-3 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-800">
+        <p role="alert" className="mt-3 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-base leading-relaxed text-amber-800">
           이 공고는 <b>{deadlineText} 마감</b>이라 광고를 사도 <b>{daysToDeadline >= 1 ? `${daysToDeadline}일 뒤` : "24시간 안에"}</b> 노출이 멈춥니다
           (남은 기간은 환불되지 않습니다). 기간을 다 쓰시려면 <b>공고 수정</b>에서 마감일을 먼저 늘려 주세요.
         </p>
       )}
 
-      {err && <p role="alert" className="mt-3 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{err}</p>}
+      {err && <p role="alert" className="mt-3 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-base text-red-700">{err}</p>}
 
       <Button type="button" onClick={isFree ? claimFree : pay} disabled={busy} size="lg" className="mt-4 w-full">
         {busy ? (isFree ? "적용 중…" : "결제 진행 중…") : isFree ? "무료 1주 올리기" : `${won(payable)} 결제하기`}

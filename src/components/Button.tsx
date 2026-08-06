@@ -1,7 +1,11 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from "react";
 
 // 공용 버튼 — 모서리·높이·색을 한 곳에서 관리(인라인 클래스 흩어짐 방지).
-// 높이 티어: lg=h-12/text-base, md=h-11/text-sm, sm=h-9/text-xs. 같은 size = 같은 높이.
+// 높이 티어: lg=h-12, md=h-11, sm=h-9. 같은 size = 같은 높이.
+// 🔴 글자는 본문(text-base)에서 한 단계씩 내려간다 — 종전에는 두 단계 아래에서 시작해
+//    sm 버튼이 12px(데스크톱에서도 13.5px)이었다. "다른 병원으로 바꾸기" 같은 **문장 길이의
+//    버튼 라벨이 화면에서 가장 작은 글자**가 되는 셈이라, 누르라고 만든 것을 못 읽었다
+//    (오너 지적 2026-08-06: "폰트 사이즈만 유독 작다"). lg 는 그대로 — 이미 본문 크기다.
 export type Variant = "primary" | "outline" | "ghost" | "danger";
 export type Size = "lg" | "md" | "sm";
 
@@ -10,8 +14,8 @@ const BASE =
 
 const SIZES: Record<Size, string> = {
   lg: "h-12 px-7 text-base font-bold",
-  md: "h-11 px-5 text-sm",
-  sm: "h-9 px-3 text-xs",
+  md: "h-11 px-5 text-base",
+  sm: "h-9 px-3 text-sm",
 };
 
 const VARIANTS: Record<Variant, string> = {

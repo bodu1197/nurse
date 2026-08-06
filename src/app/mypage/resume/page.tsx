@@ -24,7 +24,7 @@ import FormDraft from "@/components/FormDraft";
 
 export const metadata = { title: "내 이력서 — 널스넷", robots: { index: false } };
 
-const label = "text-sm font-medium text-slate-700";
+const label = "text-base font-medium text-slate-700";
 const req = <><span className="text-red-500" aria-hidden>*</span><span className="sr-only">(필수)</span></>;
 
 const SAVE_ERRORS: Record<string, string> = {
@@ -61,7 +61,7 @@ function CheckGroup({ name, options, checked }: Readonly<{ name: string; options
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1">
       {options.map((o) => (
-        <label key={o} className="flex min-h-11 items-center gap-2 text-sm text-slate-700">
+        <label key={o} className="flex min-h-11 items-center gap-2 text-base text-slate-700">
           <input type="checkbox" name={name} value={o} defaultChecked={checked.includes(o)}
             className="h-4 w-4 rounded border-slate-300 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600" />
           {o}
@@ -79,9 +79,9 @@ function YesNo({ name, text, value }: Readonly<{ name: string; text: string; val
   const current = value === null ? "" : value ? "yes" : "no";
   return (
     <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-1">
-      <legend className="text-sm text-slate-700">{text}</legend>
+      <legend className="text-base text-slate-700">{text}</legend>
       {[["yes", "예"], ["no", "아니오"], ["", "해당 없음"]].map(([v, t]) => (
-        <label key={v} className="flex min-h-11 items-center gap-1.5 text-sm text-slate-700">
+        <label key={v} className="flex min-h-11 items-center gap-1.5 text-base text-slate-700">
           <input type="radio" name={name} value={v} defaultChecked={current === v}
             className="h-4 w-4 border-slate-300 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600" />
           {t}
@@ -120,7 +120,7 @@ function DesiredLocationField({ saved }: Readonly<{ saved: readonly string[] }>)
   const leftovers = saved.filter((v) => !known.has(v));
 
   const box = "h-4 w-4 rounded border-slate-300 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600";
-  const item = "flex min-h-11 items-center gap-2 text-sm text-slate-700";
+  const item = "flex min-h-11 items-center gap-2 text-base text-slate-700";
 
   return (
     <div className="mt-1 flex flex-col gap-1">
@@ -141,7 +141,7 @@ function DesiredLocationField({ saved }: Readonly<{ saved: readonly string[] }>)
         return (
           // open — 이미 고른 게 있는 도는 펼쳐둔다. 접혀 있으면 저장된 선택이 안 보여 "안 골랐나?" 싶어진다.
           <details key={sido} open={picked > 0} className="group rounded-lg border border-slate-200 has-[input:checked]:border-teal-300">
-            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm [&::-webkit-details-marker]:hidden">
+            <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 px-3 text-base [&::-webkit-details-marker]:hidden">
               {/* 기본 삼각형 마커를 지웠으므로 대체 마커가 열림/닫힘을 나타내야 한다(안 그러면 접힌 도와 펼친 도가 똑같아 보인다). */}
               <span aria-hidden className="text-slate-400 transition-transform group-open:rotate-90">▸</span>
               <span className="font-medium text-slate-800">{sido}</span>
@@ -270,7 +270,7 @@ function VisibilitySwitch({ isPublic, hasName }: Readonly<{ isPublic: boolean; h
               실제 인재정보 목록(/talent)은 로그인하지 않은 사람에게도 열려 있다(레거시 널스넷과
               같은 정책). 고지와 실제가 다르면 동의를 받은 것이 아니다 → 두 단계로 나눠 적는다.
               공개 범위를 바꾸면 여기 문구도 반드시 함께 바꾼다. */}
-          <p className="mt-1 text-sm text-slate-700">
+          <p className="mt-1 text-base text-slate-700">
             {isPublic
               ? "누구나 볼 수 있는 상태입니다. 이 버튼으로 언제든 즉시 멈출 수 있습니다."
               // 🔴 "아무도 볼 수 없습니다" 만 적으면 **자동매치도 멈춘 줄로 읽힌다.** 비공개는
@@ -355,7 +355,7 @@ function ResumeView({ r, photoUrl }: Readonly<{ r: ResumeWithWork; photoUrl: str
 
       <div className="mt-4 flex gap-4">
         {/* dt 는 모바일에서 한 칸 좁힌다 — 사진이 옆에 붙으면서 값(dd) 자리가 90px 남짓으로 눌린다. */}
-        <dl className="grid min-w-0 flex-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+        <dl className="grid min-w-0 flex-1 gap-x-6 gap-y-2 text-base sm:grid-cols-2">
           {rows.map(([k, v]) => (
             <div key={k} className="flex gap-2">
               <dt className="w-20 shrink-0 text-slate-500 sm:w-24">{k}</dt>
@@ -368,7 +368,7 @@ function ResumeView({ r, photoUrl }: Readonly<{ r: ResumeWithWork; photoUrl: str
       </div>
 
       {r.work.length > 0 && (
-        <ul className="mt-4 space-y-1 border-t border-slate-100 pt-4 text-sm">
+        <ul className="mt-4 space-y-1 border-t border-slate-100 pt-4 text-base">
           {r.work.map((w) => (
             <li key={w.id} className="text-slate-700">
               <b className="text-slate-900">{w.hospital_name}</b>
@@ -381,7 +381,7 @@ function ResumeView({ r, photoUrl }: Readonly<{ r: ResumeWithWork; photoUrl: str
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         <Button href="/mypage/resume/print" variant="outline" size="sm" className="min-h-11">이력서 인쇄 · PDF 저장</Button>
-        <span className="text-xs text-slate-600">아래에서 고친 뒤 저장하면 이 내용이 바뀝니다.</span>
+        <span className="text-sm text-slate-600">아래에서 고친 뒤 저장하면 이 내용이 바뀝니다.</span>
       </div>
     </section>
   );
@@ -416,13 +416,13 @@ export default async function ResumePage({
         나머지는 채울수록 병원 눈에 잘 띕니다.
       </p>
 
-      {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서가 저장되었습니다.</div>}
-      {ok === "deleted" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 삭제했습니다.</div>}
-      {ok === "photo" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">사진을 저장했습니다.</div>}
-      {ok === "photo_deleted" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">사진을 삭제했습니다.</div>}
-      {ok === "public" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">이력서를 공개했습니다. 연락처를 뺀 내용은 누구나 볼 수 있고, {RESUME_PUBLIC_SCOPE.advertiser}은 {RESUME_PUBLIC_SCOPE.advertiserWho}만 봅니다.</div>}
-      {ok === "private" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-sm text-slate-800">이력서를 비공개로 바꿨습니다. 이제 병원의 인재 검색에는 나오지 않습니다 — <b>AI 자동매치 공고 추천은 그대로 받습니다.</b> 위 버튼으로 언제든 다시 공개할 수 있습니다.</div>}
-      {messageFor(SAVE_ERRORS, error) && <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{messageFor(SAVE_ERRORS, error)}</div>}
+      {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base text-teal-800">이력서가 저장되었습니다.</div>}
+      {ok === "deleted" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base text-teal-800">이력서를 삭제했습니다.</div>}
+      {ok === "photo" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base text-teal-800">사진을 저장했습니다.</div>}
+      {ok === "photo_deleted" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-base text-slate-800">사진을 삭제했습니다.</div>}
+      {ok === "public" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base text-teal-800">이력서를 공개했습니다. 연락처를 뺀 내용은 누구나 볼 수 있고, {RESUME_PUBLIC_SCOPE.advertiser}은 {RESUME_PUBLIC_SCOPE.advertiserWho}만 봅니다.</div>}
+      {ok === "private" && <div role="status" className="mt-4 rounded-lg border border-slate-300 bg-slate-50 px-4 py-3 text-base text-slate-800">이력서를 비공개로 바꿨습니다. 이제 병원의 인재 검색에는 나오지 않습니다 — <b>AI 자동매치 공고 추천은 그대로 받습니다.</b> 위 버튼으로 언제든 다시 공개할 수 있습니다.</div>}
+      {messageFor(SAVE_ERRORS, error) && <div role="alert" aria-live="assertive" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-base text-red-700">{messageFor(SAVE_ERRORS, error)}</div>}
 
       {/* 공개 스위치는 이력서보다 먼저 — 회원이 가장 급하게 찾는 것이라 스크롤 없이 보여야 한다. */}
       {r && <div className="mt-6"><VisibilitySwitch isPublic={r.is_public} hasName={!!r.name?.trim()} /></div>}
@@ -430,12 +430,12 @@ export default async function ResumePage({
       {r && <div className="mt-4"><ResumeView r={r} photoUrl={photoUrl} /></div>}
 
       {backTo && (
-        <p className="mt-6 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
+        <p className="mt-6 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base text-teal-800">
           이름과 휴대폰 번호를 채우고 저장하면 보던 공고로 돌아가 바로 지원할 수 있습니다.
         </p>
       )}
 
-      <h2 className="mt-8 text-sm font-semibold text-slate-600">{r ? "이력서 수정" : "이력서 작성"}</h2>
+      <h2 className="mt-8 text-base font-semibold text-slate-600">{r ? "이력서 수정" : "이력서 작성"}</h2>
 
       <form action={saveResume} className="mt-3 flex flex-col gap-4">
         {/* 필수 체크박스 그룹을 제출 전에 막는다 — 서버에서 걸리면 화면을 떠나며 입력이 전부 날아간다.
@@ -606,13 +606,13 @@ export default async function ResumePage({
               둘 다 두면: 스위치로 비공개로 바꾼 뒤, 열어둔 다른 탭이나 뒤로가기로 되살아난 낡은 폼을
               저장하는 순간 체크된 채 남아 있던 이 체크박스가 조용히 다시 공개로 돌려놓는다. */}
           {r ? (
-            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-base text-slate-700">
               공개 여부는 <b className="text-slate-900">이 화면 맨 위</b>에서 바꿉니다 — 지금은{" "}
               <b className={r.is_public ? "text-teal-700" : "text-slate-900"}>{r.is_public ? "공개 중" : "비공개"}</b>입니다.
               여기서 저장해도 공개 여부는 바뀌지 않습니다.
             </p>
           ) : (
-            <label className="flex items-start gap-2 text-sm text-slate-700">
+            <label className="flex items-start gap-2 text-base text-slate-700">
               {/* 이 필드가 함께 올 때만 서버가 공개 여부를 받아들인다(saveResume) */}
               <input type="hidden" name="visibility_field" value="1" />
               <input type="checkbox" name="is_public" defaultChecked={false}
@@ -636,7 +636,7 @@ export default async function ResumePage({
       {r && (
         <div className="mt-8 rounded-2xl border border-red-200 bg-red-50/50 p-5">
           <h3 className="font-bold text-slate-900">이력서 삭제</h3>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-base text-slate-600">
             이력서와 경력 내용이 모두 지워집니다. 이미 지원한 공고의 기록은 병원에 남습니다.
           </p>
           <form action={deleteResume} className="mt-3">
@@ -647,7 +647,7 @@ export default async function ResumePage({
         </div>
       )}
 
-      <p className="mt-6 text-center text-sm text-slate-600">
+      <p className="mt-6 text-center text-base text-slate-600">
         <Link href="/jobs" className={LINK_CLASS}>채용공고 보러 가기</Link>
       </p>
     </NurseShell>

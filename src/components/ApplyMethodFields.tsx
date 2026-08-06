@@ -40,7 +40,7 @@ export default function ApplyMethodFields({ methods, email, detail }: Readonly<{
           <textarea id="apply_detail" name="apply_detail" rows={3} defaultValue={detail} placeholder="예: 이력서를 본원 간호부로 우편 접수 / 방문 접수 / 전화 문의 후 제출" className="rounded-xl border border-slate-300 p-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
         </div>
       )}
-      <p className="mt-2 text-xs text-slate-400">간편지원=이 사이트에서 접수(받은 지원자에서 확인). 이메일·우편은 지원자가 직접 보냄. 연락처·이메일은 로그인한 지원자에게만 보입니다.</p>
+      <p className="mt-2 text-sm text-slate-500">간편지원=이 사이트에서 접수(받은 지원자에서 확인). 이메일·우편은 지원자가 직접 보냄. 연락처·이메일은 로그인한 지원자에게만 보입니다.</p>
     </fieldset>
   );
 }

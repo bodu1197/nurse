@@ -26,7 +26,7 @@ export default function WorkExperienceFields({ initial }: Readonly<{ initial: re
     <div className="flex flex-col gap-4">
       {rows.map((w, i) => (
         <fieldset key={w.key} className="rounded-xl border border-slate-200 p-4">
-          <legend className="px-1 text-sm font-semibold text-slate-700">경력 {i + 1}</legend>
+          <legend className="px-1 text-base font-semibold text-slate-700">경력 {i + 1}</legend>
 
           {/* 이름(name)은 줄 순서를 세는 기준이라 모든 줄에 반드시 있어야 한다 */}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -87,13 +87,13 @@ export default function WorkExperienceFields({ initial }: Readonly<{ initial: re
           </div>
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <label className="flex min-h-11 items-center gap-2 text-sm text-slate-700">
+            <label className="flex min-h-11 items-center gap-2 text-base text-slate-700">
               <input type="checkbox" name={`w_is_current_${i}`} defaultChecked={w.is_current ?? false}
                 className="h-4 w-4 rounded border-slate-300 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600" />
               현재 재직중
             </label>
             <button type="button" onClick={() => remove(w.key)} disabled={rows.length === 1}
-              className="min-h-11 rounded-[12px] px-3 text-sm font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+              className="min-h-11 rounded-[12px] px-3 text-base font-semibold text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
               이 경력 삭제
             </button>
           </div>
@@ -101,7 +101,7 @@ export default function WorkExperienceFields({ initial }: Readonly<{ initial: re
       ))}
 
       <button type="button" onClick={add}
-        className="min-h-11 rounded-[12px] border border-dashed border-slate-300 px-4 text-sm font-semibold text-teal-700 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+        className="min-h-11 rounded-[12px] border border-dashed border-slate-300 px-4 text-base font-semibold text-teal-700 hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
         + 경력 추가
       </button>
     </div>

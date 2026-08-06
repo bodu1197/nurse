@@ -46,12 +46,12 @@ export default async function AccountPage({
     <>
       <h1 className="text-2xl font-bold text-slate-900">내 정보 · 계정</h1>
 
-      {messageFor(OK, ok) && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">{messageFor(OK, ok)}</div>}
-      {messageFor(MESSAGES, error) && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{messageFor(MESSAGES, error)}</div>}
+      {messageFor(OK, ok) && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base text-teal-800">{messageFor(OK, ok)}</div>}
+      {messageFor(MESSAGES, error) && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-base text-red-700">{messageFor(MESSAGES, error)}</div>}
 
       <div className="mt-6 flex flex-col gap-4">
         <Card title="가입 정보">
-          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          <dl className="grid gap-x-6 gap-y-2 text-base sm:grid-cols-2">
             {[["아이디", p.username ?? "-"], ["이메일", p.email], ["회원 유형", ROLE_LABEL[p.role]]].map(([k, v]) => (
               <div key={k} className="flex gap-2">
                 <dt className="w-20 shrink-0 text-slate-500">{k}</dt>
@@ -61,7 +61,7 @@ export default async function AccountPage({
           </dl>
           {p.role === "nurse" && (
             // 오너 확정: 간호사의 실명·연락처는 이력서가 원본이다. 두 곳에 두면 반드시 어긋난다.
-            <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+            <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-600">
               병원에 보이는 <b className="text-slate-800">이름과 연락처는 이력서</b>에 있습니다.{" "}
               <Link href="/mypage/resume" className={LINK_CLASS}>이력서에서 수정</Link>
             </p>
@@ -79,15 +79,15 @@ export default async function AccountPage({
         <Card title="비밀번호 변경" hint="현재 비밀번호를 확인한 뒤 바꿉니다.">
           <form action={changePassword} className="flex flex-col gap-3 sm:max-w-md">
             <div className="flex flex-col gap-1">
-              <label htmlFor="current_password" className="text-sm font-medium text-slate-700">현재 비밀번호</label>
+              <label htmlFor="current_password" className="text-base font-medium text-slate-700">현재 비밀번호</label>
               <input id="current_password" name="current_password" type="password" autoComplete="current-password" required className={INPUT_CLASS} />
             </div>
             <div className="flex flex-col gap-1">
-              <label htmlFor="new_password" className="text-sm font-medium text-slate-700">새 비밀번호 <span className="text-slate-500">({MIN_PASSWORD}자 이상)</span></label>
+              <label htmlFor="new_password" className="text-base font-medium text-slate-700">새 비밀번호 <span className="text-slate-500">({MIN_PASSWORD}자 이상)</span></label>
               <input id="new_password" name="new_password" type="password" autoComplete="new-password" minLength={MIN_PASSWORD} required className={INPUT_CLASS} />
             </div>
             <div className="flex flex-col gap-1">
-              <label htmlFor="new_password_confirm" className="text-sm font-medium text-slate-700">새 비밀번호 확인</label>
+              <label htmlFor="new_password_confirm" className="text-base font-medium text-slate-700">새 비밀번호 확인</label>
               <input id="new_password_confirm" name="new_password_confirm" type="password" autoComplete="new-password" minLength={MIN_PASSWORD} required className={INPUT_CLASS} />
             </div>
             <SubmitButton pendingText="변경 중…">비밀번호 바꾸기</SubmitButton>
@@ -104,17 +104,17 @@ export default async function AccountPage({
         >
           <form action={deleteAccount} className="flex flex-col gap-3 sm:max-w-md">
             <div className="flex flex-col gap-1">
-              <label htmlFor="confirm" className="text-sm font-medium text-slate-700">확인을 위해 <b>탈퇴</b> 두 글자를 입력해 주세요</label>
+              <label htmlFor="confirm" className="text-base font-medium text-slate-700">확인을 위해 <b>탈퇴</b> 두 글자를 입력해 주세요</label>
               <input id="confirm" name="confirm" required autoComplete="off" className={INPUT_CLASS} />
             </div>
             {/* 서버(deleteAccount)가 이 계정에 비밀번호 로그인이 있는지 보고 요구 여부를 정한다.
                 소셜 전용 계정이면 비워도 통과하고, 이메일 가입자는 비우면 되돌려 보낸다. */}
             <div className="flex flex-col gap-1">
-              <label htmlFor="del_password" className="text-sm font-medium text-slate-700">현재 비밀번호 <span className="text-slate-500">(소셜 로그인만 쓰면 비워두세요)</span></label>
+              <label htmlFor="del_password" className="text-base font-medium text-slate-700">현재 비밀번호 <span className="text-slate-500">(소셜 로그인만 쓰면 비워두세요)</span></label>
               <input id="del_password" name="password" type="password" autoComplete="current-password" className={INPUT_CLASS} />
             </div>
             {/* confirm 입력 자체가 1차 방어라 여기서는 별도 confirm() 창을 겹치지 않는다 */}
-            <button type="submit" className="min-h-11 self-start rounded-[12px] px-4 text-sm font-semibold text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
+            <button type="submit" className="min-h-11 self-start rounded-[12px] px-4 text-base font-semibold text-red-600 hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500">
               회원 탈퇴
             </button>
           </form>

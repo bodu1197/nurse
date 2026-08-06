@@ -24,7 +24,7 @@ const VIEW_OPTS = ["admin", "hospital", "nurse"] as const satisfies readonly Rol
 function ViewAsSwitch({ current }: Readonly<{ current: MyProfile["role"] }>) {
   return (
     <form action={setViewAs} role="group" aria-labelledby="viewas-title" className="mb-5 flex flex-wrap items-center gap-2 rounded-2xl border border-slate-300 bg-slate-100 px-4 py-3">
-      <span id="viewas-title" className="mr-1 text-sm font-semibold text-slate-800">관리자 테스트 — 보기 전환</span>
+      <span id="viewas-title" className="mr-1 text-base font-semibold text-slate-800">관리자 테스트 — 보기 전환</span>
       {VIEW_OPTS.map((v) => (
         // disabled 대신 aria-current만 — 비활성화하면 탭 순서에서 빠져 현재 상태를 알 수 없다(재제출은 무해).
         <Button key={v} type="submit" name="role" value={v} size="md" className="focus-visible:ring-offset-slate-100"
@@ -32,7 +32,8 @@ function ViewAsSwitch({ current }: Readonly<{ current: MyProfile["role"] }>) {
           {ROLE_LABEL[v]}{current === v && <span aria-hidden> ✓</span>}
         </Button>
       ))}
-      <span className="w-full text-xs text-slate-600">전환해도 보이는 데이터는 이 계정 것뿐입니다. 전환 중에는 화면 맨 위에 안내 띠가 표시됩니다.</span>
+      {/* 🔴 한 문장이면 캡션 크기(text-xs)로 두지 않는다 — 읽으라고 쓴 글이다. */}
+      <span className="w-full text-sm text-slate-600">전환해도 보이는 데이터는 이 계정 것뿐입니다. 전환 중에는 화면 맨 위에 안내 띠가 표시됩니다.</span>
     </form>
   );
 }
@@ -43,7 +44,7 @@ const endMs = (j: MyJob, now: number) => (isLive(jobState(j, now)) ? listingEnd(
 
 function DeniedNotice({ message }: Readonly<{ message: string }>) {
   return (
-    <div role="status" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+    <div role="status" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-base text-amber-800">
       {message}
     </div>
   );
@@ -52,7 +53,8 @@ function DeniedNotice({ message }: Readonly<{ message: string }>) {
 function Widget({ label, value, accent }: Readonly<{ label: string; value: string; accent?: string }>) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <p className="text-xs text-slate-500">{label}</p>
+      {/* 숫자 위 라벨은 캡션이 아니라 그 숫자가 무엇인지 말하는 이름이다 — 본문 한 단계 아래까지. */}
+      <p className="text-sm text-slate-500">{label}</p>
       <p className={`mt-1 text-2xl font-bold ${accent ?? "text-slate-900"}`}>{value}</p>
     </div>
   );
@@ -73,7 +75,7 @@ function HospitalDashboard({ profile, jobs, notice }: Readonly<{ profile: MyProf
       <h1 className="text-2xl font-bold text-slate-900">대시보드</h1>
 
       {!profile.businessVerified && (
-        <a href="/mypage/verify" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm">
+        <a href="/mypage/verify" className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-base">
           <span className="text-amber-800">공고를 등록하려면 사업자 인증이 필요합니다.</span>
           <span className="font-semibold text-amber-900">인증하기 →</span>
         </a>
@@ -93,7 +95,7 @@ function HospitalDashboard({ profile, jobs, notice }: Readonly<{ profile: MyProf
         </div>
         {jobs.length === 0 ? (
           <div className="mt-3 rounded-xl border border-dashed border-slate-300 p-10 text-center">
-            <p className="text-sm text-slate-500">아직 등록한 공고가 없습니다.</p>
+            <p className="text-base text-slate-500">아직 등록한 공고가 없습니다.</p>
             <a href="/mypage/jobs/new" className="mt-2 inline-block font-semibold text-teal-700 hover:underline">첫 공고 등록하기 →</a>
           </div>
         ) : (
@@ -107,8 +109,12 @@ function HospitalDashboard({ profile, jobs, notice }: Readonly<{ profile: MyProf
                   {e > 0
                     ? <a href={`/jobs/${j.id}`} className="min-w-0 flex-1 truncate font-medium text-slate-800 hover:text-teal-700">{j.title}</a>
                     : <span className="min-w-0 flex-1 truncate font-medium text-slate-600">{j.title}</span>}
-                  {e > 0 && <span className="shrink-0 text-xs text-slate-500">~{fmtDate(e)}까지</span>}
+                  {/* 한 줄 안의 메타(마감일·지원자 수)는 같은 크기여야 한다 — 하나만 작으면
+                      덜 중요해 보이는 게 아니라 그냥 안 읽힌다. */}
+                  {e > 0 && <span className="shrink-0 text-sm text-slate-500">~{fmtDate(e)}까지</span>}
                   <a href={`/mypage/applicants?job_id=${j.id}`} className="shrink-0 text-sm text-slate-500 hover:text-teal-700">지원자 <b className="text-slate-700">{j.applicant_count}</b>명</a>
+                  {/* 조치 링크도 같은 줄의 메타와 같은 크기다 — 한 줄에 두 크기가 섞이면
+                      위계로 읽히는 게 아니라 그냥 들쭉날쭉해 보인다. */}
                   <span className="flex shrink-0 items-center gap-3 text-sm">
                     <a href={`/mypage/jobs/${j.id}/edit`} className="text-teal-700 hover:underline">수정</a>
                     <a href={`/mypage/jobs/${j.id}/ad`} className="font-semibold text-violet-700 hover:underline">광고</a>
@@ -235,9 +241,9 @@ export default async function MyPage({
             </div>
           </div>
         </section>
-        <h2 className="mt-8 text-sm font-semibold text-slate-500">{profile.role === "admin" ? "관리자 도구" : "구직 활동"}</h2>
+        <h2 className="mt-8 text-base font-semibold text-slate-500">{profile.role === "admin" ? "관리자 도구" : "구직 활동"}</h2>
         {items.length === 0 ? (
-          <p className="mt-3 rounded-xl border border-dashed border-slate-300 px-4 py-6 text-sm text-slate-500">
+          <p className="mt-3 rounded-xl border border-dashed border-slate-300 px-4 py-6 text-base text-slate-500">
             표시할 항목이 없습니다.
           </p>
         ) : (

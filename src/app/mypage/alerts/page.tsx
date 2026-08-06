@@ -31,7 +31,7 @@ export default async function AlertsPage({
     <NurseShell displayName={p.displayName} active="/mypage/alerts">
         <h1 className="mt-3 text-2xl font-bold text-slate-900">저장한 검색</h1>
         <p className="mt-1 text-sm text-slate-500">검색 조건을 저장해두면 같은 조건으로 빠르게 다시 찾을 수 있습니다. 새 공고 이메일 알림은 곧 제공됩니다.</p>
-        {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">삭제에 실패했습니다. 다시 시도해 주세요.</div>}
+        {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-base text-red-700">삭제에 실패했습니다. 다시 시도해 주세요.</div>}
 
         {searches.length === 0 ? (
           <p className="py-20 text-center text-slate-500">

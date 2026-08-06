@@ -44,12 +44,12 @@ export default async function AdPage({ params, searchParams }: Readonly<{ params
       <p className="mt-1 text-sm text-slate-500">공고: <b className="text-slate-700">{job.title}</b> · 기간을 선택해 결제하면 상단에 노출됩니다.</p>
       {/* 광고가 끝난 공고에서 「다시 게시」를 누르면 여기로 온다 — 무료로 되살리는 길은 없다. */}
       {error === "expired" && (
-        <p role="alert" className="mt-3 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <p role="alert" className="mt-3 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-base text-amber-800">
           광고 기간이 끝난 공고입니다. 기간을 선택해 결제하시면 다시 노출됩니다.
         </p>
       )}
       {adCash > 0 && (
-        <p className="mt-3 text-sm text-slate-600">보유 광고 캐시 <b className="text-teal-700">{won(adCash)}</b> — 결제할 때 먼저 차감됩니다.</p>
+        <p className="mt-3 text-base text-slate-600">보유 광고 캐시 <b className="text-teal-700">{won(adCash)}</b> — 결제할 때 먼저 차감됩니다.</p>
       )}
 
       {/* 🔴 마감일이 지난 공고에는 광고를 팔지 않는다. 결제해도 노출 판정(is_live)이 마감일로
@@ -57,7 +57,7 @@ export default async function AdPage({ params, searchParams }: Readonly<{ params
           「다시 게시」가 마감일 지난 공고도 이 화면으로 보내기 때문에 여기서 반드시 막아야 한다.
           서버(prepareAdOrder)도 같은 검사를 한다 — 조작된 POST 로 이 화면을 건너뛸 수 있다. */}
       {expiredDeadline ? (
-        <div className="mt-6 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-relaxed text-amber-900">
+        <div className="mt-6 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-4 text-base leading-relaxed text-amber-900">
           <b>마감일({job.deadline ? fmtDay(job.deadline) : "-"})이 이미 지났습니다.</b> 지금 결제해도 이 공고는 목록에 나오지 않습니다.
           먼저 <Link href={`/mypage/jobs/${job.id}/edit`} className={LINK_CLASS}>공고 수정</Link>에서 마감일을
           오늘 이후로 바꾸신 뒤 결제해 주세요.
@@ -65,7 +65,7 @@ export default async function AdPage({ params, searchParams }: Readonly<{ params
       ) : ready ? (
         <AdPurchase jobId={job.id} initialWeeks={initialWeeks} adCash={adCash} freeAvailable={freeAvailable} deadlineText={job.deadline ? fmtDay(job.deadline) : null} daysToDeadline={daysToDeadline} impCode={process.env.NEXT_PUBLIC_IAMPORT_CODE ?? ""} pg={process.env.NEXT_PUBLIC_IAMPORT_PG ?? "html5_inicis"} />
       ) : (
-        <div className="mt-6 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-800">
+        <div className="mt-6 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-4 text-base text-amber-800">
           광고 결제는 준비 중입니다(도메인 연결 후 오픈).{job.status === "draft" ? " 이 공고는 결제 시 게시됩니다 — 그전까지 '결제 대기' 상태로 보관됩니다." : ""}
         </div>
       )}
@@ -75,8 +75,8 @@ export default async function AdPage({ params, searchParams }: Readonly<{ params
       {p.isAdmin && !expiredDeadline && (
         <form action={activateAdFree} className="mt-6 rounded-[12px] border border-slate-300 bg-slate-100 p-4">
           <input type="hidden" name="job_id" value={job.id} />
-          <p className="text-sm font-semibold text-slate-800">관리자 테스트 — 결제 없이 광고 적용</p>
-          <p className="mt-0.5 text-xs text-slate-600">노출기간·영수증까지 실제와 동일하게 생성됩니다. 매출 오염 방지를 위해 주문 금액은 0원으로 기록됩니다.</p>
+          <p className="text-base font-semibold text-slate-800">관리자 테스트 — 결제 없이 광고 적용</p>
+          <p className="mt-0.5 text-sm text-slate-600">노출기간·영수증까지 실제와 동일하게 생성됩니다. 매출 오염 방지를 위해 주문 금액은 0원으로 기록됩니다.</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {AD_PRODUCTS.map((pr) => (
               <ConfirmSubmit key={pr.weeks} name="weeks" value={pr.weeks} size="md" variant="outline" className="focus-visible:ring-offset-slate-100"

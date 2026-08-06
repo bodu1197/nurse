@@ -65,11 +65,11 @@ export default function PhotoPicker({ hasPhoto }: Readonly<{ hasPhoto: boolean }
       <input
         ref={inputRef} id="photo" type="file" name="photo" accept={AVATAR_ACCEPT} required
         onChange={onPick}
-        className="min-w-0 flex-1 text-sm file:mr-3 file:min-h-11 file:rounded-lg file:border file:border-slate-300 file:bg-white file:px-3 file:text-sm file:font-medium file:text-slate-700"
+        className="min-w-0 flex-1 text-base file:mr-3 file:min-h-11 file:rounded-lg file:border file:border-slate-300 file:bg-white file:px-3 file:text-base file:font-medium file:text-slate-700"
       />
       <button
         type="submit" disabled={busy || pending}
-        className="inline-flex min-h-11 items-center rounded-lg bg-teal-600 px-4 text-sm font-bold text-white transition hover:bg-teal-700 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+        className="inline-flex min-h-11 items-center rounded-lg bg-teal-600 px-4 text-base font-bold text-white transition hover:bg-teal-700 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
       >
         {busy ? "사진 줄이는 중…" : pending ? "올리는 중…" : hasPhoto ? "사진 교체" : "사진 등록"}
       </button>

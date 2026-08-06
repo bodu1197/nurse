@@ -12,7 +12,7 @@ export default function PrintSheet({
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-        <Link href={backHref} className="rounded text-sm text-teal-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">← {backLabel}</Link>
+        <Link href={backHref} className="rounded text-base text-teal-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">← {backLabel}</Link>
         <PrintButton />
       </div>
       <div className="mt-4 rounded-2xl border border-slate-200 shadow-sm print:mt-0 print:rounded-none print:border-0 print:shadow-none">

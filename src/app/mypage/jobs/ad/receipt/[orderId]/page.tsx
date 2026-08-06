@@ -43,7 +43,7 @@ export default async function ReceiptPage({ params }: Readonly<{ params: Promise
             <p className="mt-2 inline-block rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold text-white">관리자 테스트 — 실제 결제 아님</p>
           )}
         </div>
-        <dl className="mt-6 space-y-2 text-sm">
+        <dl className="mt-6 space-y-2 text-base">
           <div className="flex justify-between"><dt className="text-slate-500">공고</dt><dd className="font-medium text-slate-800">{o.job?.title ?? "-"}</dd></div>
           <div className="flex justify-between"><dt className="text-slate-500">광고 기간</dt><dd>{o.days}일</dd></div>
           <div className="flex justify-between"><dt className="text-slate-500">주문번호</dt><dd className="text-slate-600">{o.merchant_uid}</dd></div>
@@ -62,7 +62,7 @@ export default async function ReceiptPage({ params }: Readonly<{ params: Promise
           <div className="flex justify-between"><dt className="text-slate-500">부가세(10%)</dt><dd>{won(o.vat)}</dd></div>
           <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-bold text-slate-900"><dt>결제금액</dt><dd className="text-teal-700">{won(o.amount)}</dd></div>
         </dl>
-        <p className="mt-6 text-center text-xs text-slate-400">{o.cash_used > 0 && "광고 캐시는 널스넷이 무상 지급한 적립금이며 공급가액에서 차감(에누리)됩니다 — 세금계산서는 실제 결제하신 금액으로 발행됩니다. "}광고는 결제 후 환불되지 않습니다(이용약관 제9조). 정식 세금계산서가 필요하시면 {COMPANY.email} 로 요청해 주세요.</p>
+        <p className="mt-6 text-center text-sm text-slate-500">{o.cash_used > 0 && "광고 캐시는 널스넷이 무상 지급한 적립금이며 공급가액에서 차감(에누리)됩니다 — 세금계산서는 실제 결제하신 금액으로 발행됩니다. "}광고는 결제 후 환불되지 않습니다(이용약관 제9조). 정식 세금계산서가 필요하시면 {COMPANY.email} 로 요청해 주세요.</p>
       </div>
     </HospitalShell>
   );

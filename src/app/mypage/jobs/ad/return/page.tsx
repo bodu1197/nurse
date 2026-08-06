@@ -97,10 +97,11 @@ export default async function AdReturnPage({
   return (
     <HospitalShell displayName={p.displayName} active="/mypage/jobs">
       <h1 className="mt-3 text-2xl font-bold text-slate-900">{TITLE[outcome]}</h1>
+      {/* 화면 제목 바로 아래 한 줄 설명 — 다른 마이페이지 화면의 부제와 같은 크기(text-sm). */}
       <p className="mt-2 text-sm leading-relaxed text-slate-600">{BODY[outcome]}</p>
       {/* 🔴 "주문번호와 함께 문의해 주세요" 라고 시키면서 그 번호를 안 보여주면, 손님은
           시킨 대로 하려 해도 줄 수 있는 정보가 없다. */}
-      <p className="mt-2 text-xs text-slate-400">주문번호: {merchantUid}</p>
+      <p className="mt-2 text-sm text-slate-500">주문번호: {merchantUid}</p>
       <p className="mt-4 flex flex-wrap gap-3 text-sm">
         <Link href="/mypage/jobs/ad/orders" className={LINK_CLASS}>광고 결제 내역</Link>
         <Link href="/mypage/jobs" className={LINK_CLASS}>공고 관리</Link>

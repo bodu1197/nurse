@@ -231,7 +231,7 @@ export default function FormDraft({
   return (
     <div ref={anchor}>
       {restored ? (
-        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-base text-amber-900">
           <span>
             <b className="font-semibold">쓰던 내용을 불러왔습니다.</b> 이어서 작성하시고 저장을 눌러 주세요.
             {note && <b className="ml-1 font-semibold">{note}</b>}

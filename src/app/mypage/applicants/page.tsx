@@ -92,7 +92,7 @@ function Applicant({ a, view, photoUrl }: Readonly<{ a: ApplicantListItem; view:
   return (
     <li className={`overflow-hidden rounded-xl border bg-white ${a.status === "submitted" ? "border-amber-300" : "border-slate-200"}`}>
       <details className="group">
-        <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-sm [&::-webkit-details-marker]:hidden">
+        <summary className="flex min-h-14 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-base [&::-webkit-details-marker]:hidden">
           {/* 기본 마커를 지웠으므로 대체 마커가 열림/닫힘을 나타내야 한다. */}
           <span aria-hidden className="text-slate-400 transition-transform group-open:rotate-90">▸</span>
           <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${TONE[a.status]}`}>{STATUS_LABEL[a.status]}</span>
@@ -111,7 +111,7 @@ function Applicant({ a, view, photoUrl }: Readonly<{ a: ApplicantListItem; view:
         <div className="border-t border-slate-100 px-4 pb-4 pt-3">
           <p className="text-xs text-slate-500">{a.job?.title ?? "공고"}</p>
 
-          <div className="mt-2 rounded-lg bg-slate-50 p-3 text-sm">
+          <div className="mt-2 rounded-lg bg-slate-50 p-3 text-base">
             {!r ? (
               <div className="text-slate-500">이력서 정보를 불러올 수 없습니다.</div>
             ) : (
@@ -145,7 +145,7 @@ function Applicant({ a, view, photoUrl }: Readonly<{ a: ApplicantListItem; view:
             )}
           </div>
 
-          {a.message && <p className="mt-2 text-sm text-slate-600">지원 메시지: {a.message}</p>}
+          {a.message && <p className="mt-2 text-base text-slate-600">지원 메시지: {a.message}</p>}
 
           {/* 병원이 지원자를 볼 때 가장 먼저 하는 행동 = 이력서 전문 열기.
               전화·문자·합격/불합격은 이력서를 읽은 다음이므로, 이 버튼을 크게 따로 빼서 섞이지 않게 한다.
@@ -154,11 +154,11 @@ function Applicant({ a, view, photoUrl }: Readonly<{ a: ApplicantListItem; view:
             <form action={openApplicantResume} className="mt-3">
               <input type="hidden" name="application_id" value={a.id} />
               <ViewFields v={view} />
-              <button type="submit" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[12px] bg-teal-600 px-4 text-sm font-bold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
+              <button type="submit" className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[12px] bg-teal-600 px-4 text-base font-bold text-white transition hover:bg-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></svg>
                 이력서 전문 보기 · 인쇄
               </button>
-              <p className="mt-1 text-center text-xs text-slate-500">경력 상세 · 학력 · 자격증 · 희망조건 전체와 인쇄용 서식이 여기 있습니다</p>
+              <p className="mt-1 text-center text-sm text-slate-500">경력 상세 · 학력 · 자격증 · 희망조건 전체와 인쇄용 서식이 여기 있습니다</p>
             </form>
           )}
 
@@ -173,7 +173,7 @@ function Applicant({ a, view, photoUrl }: Readonly<{ a: ApplicantListItem; view:
             <div className="mt-1 flex flex-wrap gap-2">
               <textarea id={`memo-${a.id}`} name="memo" rows={2} maxLength={1000} defaultValue={a.memo}
                 placeholder="예: 10/12 통화, 야간 가능 확인. 다음 주 면접 조율 예정."
-                className="min-w-0 flex-1 resize-y rounded-[12px] border border-slate-300 p-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
+                className="min-w-0 flex-1 resize-y rounded-[12px] border border-slate-300 p-2 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
               <Button type="submit" variant="outline" size="sm" className={`${TAP} self-start`}>메모 저장</Button>
             </div>
             <p className="mt-1 text-xs text-slate-400">
@@ -296,20 +296,20 @@ export default async function ApplicantsPage({
         {st && <input type="hidden" name="status" value={st} />}
         <input type="search" name="q" defaultValue={kw} placeholder="지원자 이름으로 찾기"
           aria-label="지원자 이름 검색"
-          className="min-w-0 flex-1 rounded-[12px] border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
+          className="min-w-0 flex-1 rounded-[12px] border border-slate-300 px-3 py-2 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40" />
         <Button type="submit" variant="outline" size="sm" className={TAP}>검색</Button>
         {kw && <Button href={viewHref(view, { q: "", page: "" })} variant="outline" size="sm" className={TAP}>지우기</Button>}
       </form>
 
       {searchTruncated && (
-        <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div role="status" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-base text-amber-800">
           이름이 너무 흔해 일부만 찾았습니다. 성까지 넣어 다시 검색해 주세요.
         </div>
       )}
-      {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">처리되었습니다.</div>}
-      {ok === "memo" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">메모를 저장했습니다.</div>}
-      {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
-      {error === "noresume" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">지원자가 이력서를 삭제해 열람할 수 없습니다. 연락처도 확인할 수 없습니다.</div>}
+      {ok === "1" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base text-teal-800">처리되었습니다.</div>}
+      {ok === "memo" && <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base text-teal-800">메모를 저장했습니다.</div>}
+      {error === "1" && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-base text-red-700">처리에 실패했습니다. 다시 시도해 주세요.</div>}
+      {error === "noresume" && <div role="alert" className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-base text-amber-800">지원자가 이력서를 삭제해 열람할 수 없습니다. 연락처도 확인할 수 없습니다.</div>}
 
       {rows.length === 0 ? (
         <div className="py-20 text-center">
