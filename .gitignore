@@ -63,3 +63,4 @@ supabase/.temp/*
 /scripts/legacy-data/*
 !/scripts/legacy-data/bhjob_codes.json
 !/scripts/legacy-data/area_codes.json
+.gstack/

@@ -1,4 +1,4 @@
-import { getTraffic } from "@/lib/data/adminLists";
+import { getTraffic, type Traffic } from "@/lib/data/adminLists";
 import { PageTitle, Tabs, Stat, Section, TableWrap, TH, TD, Empty } from "@/components/admin/Ui";
 
 export const metadata = { title: "접속자 통계 — 관리자" };
@@ -20,6 +20,9 @@ const REF_LABEL: Record<string, string> = {
 };
 
 const DEVICE_LABEL: Record<string, string> = { mobile: "휴대폰 · 태블릿", desktop: "PC" };
+
+/** 0~23 을 "오전 9시" 처럼. 광고 시간을 정하는 화면이라 오전·오후가 갈리면 뜻이 통째로 달라진다. */
+const ampm = (h: number) => (h < 12 ? `오전 ${h === 0 ? 12 : h}시` : `오후 ${h === 12 ? 12 : h - 12}시`);
 
 const pct = (part: number, whole: number) => (whole > 0 ? (part / whole) * 100 : 0);
 /** 🔴 분모가 0이면 "0.0%" 가 아니라 "—" 다. 0% 라고 쓰면 잴 수 없는 것을 쟀다고 말하는 셈이다. */
@@ -84,6 +87,11 @@ export default async function AdminStatsPage({
   const perVisit = visits > 0 ? (pages / visits).toFixed(1) : "—";
 
   const maxHour = Math.max(1, ...t.hours.map((h) => h.visits));
+  // 가장 붐비는 시각. 값이 하나도 없으면 undefined — 그때는 그래프 대신 "기록 없음" 을 띄운다.
+  const peak = t.hours.reduce<Traffic["hours"][number] | undefined>(
+    (best, h) => (h.visits > 0 && (!best || h.visits > best.visits) ? h : best),
+    undefined,
+  );
   const maxRef = Math.max(1, ...t.refs.map((r) => r.visits));
   const maxDevice = Math.max(1, ...t.devices.map((d) => d.visits));
   const firstUniqueDay = uvDays ? t.days[t.days.length - uvDays]?.day : undefined;
@@ -225,20 +233,35 @@ export default async function AdminStatsPage({
 
             <section>
               <h2 className="mb-3 text-sm font-semibold text-slate-500">몇 시에 오나 (한국시간)</h2>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                <ul className="flex h-28 items-end gap-px">
-                  {t.hours.map((h) => (
-                    <li key={h.hour} className="min-w-0 flex-1" aria-label={`${h.hour}시 ${h.visits.toLocaleString()}회`} title={`${h.hour}시 · ${h.visits.toLocaleString()}회`}>
-                      <span className="block rounded-t-sm bg-teal-500"
-                        style={{ height: `${Math.max(2, pct(h.visits, maxHour))}%` }} />
-                    </li>
-                  ))}
-                </ul>
-                <div className="mt-1 flex justify-between text-[10px] text-slate-500" aria-hidden>
-                  <span>0시</span><span>6시</span><span>12시</span><span>18시</span><span>23시</span>
+              {/* 🔴 값이 하나도 없으면 **빈 상태를 말한다.** 종전에는 0일 때도 높이 2% 짜리
+                  보이지 않는 막대 24개를 그려서, 화면상으로는 그냥 빈 상자였다 —
+                  오너가 "아무것도 표시가 안 된다" 고 한 것이 이것이다(2026-08-06).
+                  이 페이지의 다른 칸은 전부 "아직 기록이 없습니다" 라고 말한다. 여기만 안 말했다. */}
+              {peak === undefined ? (
+                <Empty>아직 방문 기록이 없습니다.</Empty>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <ul className="flex h-28 items-end gap-px">
+                    {t.hours.map((h) => (
+                      <li key={h.hour} className="min-w-0 flex-1" aria-label={`${h.hour}시 ${h.visits.toLocaleString()}회`} title={`${h.hour}시 · ${h.visits.toLocaleString()}회`}>
+                        {/* 🔴 0 은 0 으로 그린다. 최소 높이를 주면 "조금 왔다" 는 거짓말이 된다. */}
+                        <span className="block rounded-t-sm bg-teal-500"
+                          style={{ height: h.visits === 0 ? 0 : `${Math.max(4, pct(h.visits, maxHour))}%` }} />
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-1 flex justify-between text-[10px] text-slate-500" aria-hidden>
+                    <span>0시</span><span>6시</span><span>12시</span><span>18시</span><span>23시</span>
+                  </div>
+                  {/* 🔴 숫자를 글로도 준다. 막대에는 값이 안 적혀 있고 휴대폰에는 마우스오버가
+                      없어서(title 이 안 뜬다), 그래프만 두면 눌러도 아무것도 안 나온다. */}
+                  <p className="mt-3 text-sm text-slate-700">
+                    가장 많이 들어오는 시각 <b className="text-teal-700">{ampm(peak.hour)}</b>
+                    <span className="text-slate-500"> · {peak.visits.toLocaleString()}회(전체의 {pct1(peak.visits, visits)})</span>
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">그날 <b>처음 들어온 시각</b> 기준입니다. 광고를 언제 올릴지 정할 때 봅니다.</p>
                 </div>
-                <p className="mt-3 text-xs text-slate-500">그날 <b>처음 들어온 시각</b> 기준입니다. 광고를 언제 올릴지 정할 때 봅니다.</p>
-              </div>
+              )}
             </section>
           </div>
 
