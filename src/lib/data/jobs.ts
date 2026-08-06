@@ -36,13 +36,27 @@ export type JobRow = Omit<Pick<JobsRow, (typeof JOB_FIELDS)[number]>, "source" |
   hospital: { name: string; rating_avg: number; rating_count: number } | null;
 };
 
+/**
+ * 공고가 어디서 왔는가 — **화면에는 이 라벨만 쓴다.** DB 값(partner·worknet)을 그대로 찍지 말 것.
+ *
+ * 🔴 `partner` 를 "제휴" 라고 적어 뒀던 것을 바로잡는다. 제휴처에서 받아오는 공고가 아니라
+ *    **구 널스넷에서 옮겨 온 1,444건**이다(오너 지적 2026-08-07: "partner 의미가 뭐야?").
+ *    이 라벨은 만들어만 두고 아무도 안 써서, 관리자 화면에 영문 코드가 그대로 나가고 있었다.
+ */
 export const SOURCE_LABEL: Record<JobSource, string> = {
-  direct: "병원 직접",
-  worknet: "워크넷",
+  direct: "병원 직접 등록",
+  worknet: "워크넷 수집",
   public_data: "공공데이터",
-  partner: "제휴",
+  partner: "구 널스넷 이관",
   crawl: "수집",
 };
+
+/**
+ * 화면용 출처 라벨. DB 에서 온 값은 타입이 string 이라 그냥 색인하면 단언(as)이 필요해진다 —
+ * 여기서 한 번만 넓혀 두고, 모르는 값이 오면 원문을 그대로 돌려준다(빈칸보다 낫다).
+ */
+const SOURCE_LABELS: Record<string, string> = SOURCE_LABEL;
+export const sourceLabel = (source: string): string => SOURCE_LABELS[source] ?? source;
 
 const SELECT = `${JOB_FIELDS.join(",")},hospital:hospitals(name,rating_avg,rating_count)`;
 

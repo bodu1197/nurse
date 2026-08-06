@@ -4,6 +4,7 @@ import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { fmtDay, fmtDate, listingEnd, remain } from "@/lib/date";
 import { won } from "@/lib/ads";
 import { getAdList, PER_PAGE, isAdScope, type AdScope } from "@/lib/data/adminLists";
+import { sourceLabel } from "@/lib/data/jobs";
 import { PageTitle, Tabs, SearchBox, TableWrap, TH, TD, EmptyOrFailed, Notice } from "@/components/admin/Ui";
 import { extendAd, endAd } from "@/app/admin/actions";
 
@@ -113,7 +114,9 @@ export default async function AdminAdsPage({
                         : a.status === "draft" ? "결제 전"
                         : a.status === "closed" ? "종료"
                         : r.ended ? "노출 종료" : "게시중"}
-                      {a.source !== "direct" && ` · ${a.source}`}
+                      {/* 🔴 DB 값(partner·worknet)을 그대로 찍지 않는다 — 관리자도 그게 뭔지 모른다
+                          (오너 지적 2026-08-07: "partner 의미가 뭐야?"). 라벨은 sourceLabel 한 곳에서 온다. */}
+                      {a.source !== "direct" && ` · ${sourceLabel(a.source)}`}
                     </span>
                   </TD>
                   <TD className="whitespace-nowrap text-right">
