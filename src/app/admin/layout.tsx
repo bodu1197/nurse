@@ -28,6 +28,8 @@ const NAV: readonly NavGroup[] = [
       // 🔴 "공고 관리" 다. 유료든 무료든 광고를 안 냈든 **공고는 공고다**(오너 확정 2026-08-04).
       //    "광고 관리" 라고 적어놨더니 광고를 안 낸 공고를 찾을 곳이 없어 보였다.
       { href: "/admin/ads", label: "공고 관리" },
+      // 이관 때 이름 자리에 아이디가 들어간 병원 — 구직자 화면에 그대로 나가므로 눈에 띄는 곳에 둔다.
+      { href: "/admin/hospitals", label: "병원명 확인" },
       { href: "/admin/orders", label: "결제 내역" },
       { href: "/admin/invoices", label: "세금계산서" },
     ],

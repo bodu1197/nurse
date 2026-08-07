@@ -648,3 +648,97 @@ export async function getResumeForAdmin(profileId: string) {
   return { resume: data as unknown as ResumeSheetFields & { is_public: boolean; updated_at: string },
            work: (work ?? []) as unknown as WorkExperience[] };
 }
+
+// ── 🏥 병원명 확인 필요 ────────────────────────────────────
+//
+// 구 널스넷 이관 때 **병원 이름 자리에 회원 아이디**가 들어간 곳이 141곳 있었다
+// (`eyessg2022` · `hama` · `김원장` · `행정부장` · `010-5054-1454`). 구직자 화면에
+// "hama에서 간호조무사를 구합니다" 로 나간다. 주소·공고 제목으로 44곳은 자동으로 바로잡았고,
+// 나머지는 사람이 봐야 한다 — 같은 건물에 병원이 여럿이거나(주소만으로는 못 고른다)
+// 산후조리원처럼 심사평가원 명부에 아예 없다.
+
+/** 병원 이름에 들어갈 법한 말. 하나도 없으면 "이름이 아닌 것" 으로 본다. */
+const HOSPITAL_WORDS =
+  "병원|의원|클리닉|센터|한의원|치과|약국|요양원|보건|의료|재활|정신|산부인과|안과|피부과|정형외과|" +
+  "내과|외과|소아|이비인후|비뇨|성형|검진|투석|주간보호|조리원|너싱홈|실버|요양";
+
+export type HospitalToFix = {
+  id: string;
+  name: string;
+  address: string | null;
+  region: string | null;
+  /** 이 병원이 올린 공고 제목 — 대개 여기에 진짜 병원 이름이 들어 있다. */
+  jobTitles: string[];
+  /** 같은 주소(도로명+번호)의 심사평가원 명부 병원들. 눌러서 바로 고르게 한다. */
+  candidates: string[];
+  /** 관리자 테스트용 계정인가 — 고칠 대상이 아니다. */
+  isTest: boolean;
+};
+
+/**
+ * '경기도 고양시 덕양구 충장로 126, 6층 (행신동)' → '충장로 126' (명부와 대조할 열쇠)
+ *
+ * 🔴 도로명 **안에 숫자가 들어간다**(오목로205번길 · 선릉로152길 · 강남대로53길). 첫 글자만
+ *    한글로 두고 그 뒤에 숫자를 허용해야 한다. `[가-힣]+` 로만 두면 '오목로205번길 22' 가
+ *    '번길 22' 로 잘려 **엉뚱한 병원이 후보로 올라오고**(실측: 산후조리원에 한림대성심병원),
+ *    '선릉로152길 32' 는 아예 못 읽어 후보가 사라진다.
+ */
+function roadOf(address: string | null): string | null {
+  if (!address) return null;
+  const head = address.split(",")[0].replace(/\(.*?\)/g, "").trim();
+  return /([가-힣][가-힣0-9]*(?:대로|번길|로|길)\s*\d+(?:-\d+)?)\s*$/.exec(head)?.[1] ?? null;
+}
+
+export async function getHospitalsToFix(
+  { q = "", page = 1 }: { q?: string; page?: number },
+): Promise<Page<HospitalToFix>> {
+  await requireAdmin();
+  const supabase = await createClient();
+  const { from, to } = range(page);
+
+  let query = supabase
+    .from("hospitals")
+    .select("id,name,address,region,is_test", { count: "exact" })
+    .not("owner_profile_id", "is", null)
+    // 🔴 이름에 병원스러운 말이 하나도 없는 것만. not.imatch 는 PostgREST 의 정규식 부정 필터다.
+    .not("name", "imatch", `(${HOSPITAL_WORDS})`);
+  if (q.trim()) query = query.ilike("name", `%${likeSafe(q)}%`);
+  const { data, count, error } = await query
+    .order("name")
+    .range(from, to)
+    .returns<{ id: string; name: string; address: string | null; region: string | null; is_test: boolean }[]>();
+  if (error) {
+    console.error("getHospitalsToFix:", error.message);
+    return failed();
+  }
+  const rows = data ?? [];
+  if (rows.length === 0) return { rows: [], total: count ?? 0 };
+
+  // 공고 제목과 명부 후보를 한 번씩만 더 읽는다(행마다 부르면 30번 왕복한다).
+  const roads = [...new Set(rows.map((r) => roadOf(r.address)).filter((v): v is string => !!v))];
+  const [{ data: jobs }, { data: reg }] = await Promise.all([
+    supabase.from("jobs").select("hospital_id,title").in("hospital_id", rows.map((r) => r.id))
+      .returns<{ hospital_id: string; title: string }[]>(),
+    roads.length
+      ? supabase.from("hospitals").select("name,address").is("owner_profile_id", null)
+          .or(roads.map((rd) => `address.ilike.%${likeSafe(rd)}%`).join(","))
+          .limit(500).returns<{ name: string; address: string | null }[]>()
+      : Promise.resolve({ data: [] as { name: string; address: string | null }[] }),
+  ]);
+  const titlesBy = new Map<string, string[]>();
+  for (const j of jobs ?? []) titlesBy.set(j.hospital_id, [...(titlesBy.get(j.hospital_id) ?? []), j.title]);
+  const regBy = new Map<string, string[]>();
+  for (const r of reg ?? []) {
+    const rd = roadOf(r.address);
+    if (rd) regBy.set(rd, [...(regBy.get(rd) ?? []), r.name]);
+  }
+
+  return {
+    rows: rows.map((r) => ({
+      id: r.id, name: r.name, address: r.address, region: r.region, isTest: r.is_test,
+      jobTitles: (titlesBy.get(r.id) ?? []).slice(0, 3),
+      candidates: [...new Set(regBy.get(roadOf(r.address) ?? "") ?? [])].slice(0, 6),
+    })),
+    total: count ?? 0,
+  };
+}

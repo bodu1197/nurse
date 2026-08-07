@@ -318,3 +318,44 @@ export async function saveInquiry(formData: FormData) {
   if (!data?.length) redirect(backTo(back, "error", "target"));
   redirect(backTo(back, "ok"));
 }
+
+// ── 🏥 병원 이름 정정 ──────────────────────────────────────
+
+/**
+ * 이관 때 아이디·직함이 들어간 병원 이름을 바로잡는다(오너 지시 2026-08-07).
+ *
+ * 🔴 jobs.company_name 은 **건드리지 않는다.** 명부에 연결된 공고는 화면 어디서도 그 값을 쓰지
+ *    않는다 — 목록·상세·구조화데이터·관리자 화면이 전부 `hospital.name ?? company_name` 이라
+ *    병원이 있으면 병원 이름이 이긴다(company_name 은 워크넷처럼 명부에 없는 광고용이다).
+ *    같은 사실을 두 곳에 적어 두면 한쪽만 바뀌는 날이 오고, 그때 화면마다 다른 이름이 나온다.
+ *    (실제로 authenticated 는 jobs 의 status 칸만 쓸 수 있어 이 갱신은 권한 오류로 조용히 실패했다.)
+ * 🔴 service_role 을 쓰지 않는다 — 20260807110000 이 관리자에게 UPDATE 정책을 열어 뒀고,
+ *    컬럼 grant 가 이름·주소·지역만 쓰게 좁혀 둔다(방어선을 게이트 한 줄에 몰지 않는다).
+ */
+export async function renameHospital(formData: FormData) {
+  await requireAdmin();
+  const id = field(formData, "id");
+  // 직접 입력이 있으면 그것이 이긴다 — 후보를 고른 뒤 고쳐 적는 것이 "이 이름으로" 라는 뜻이다.
+  const name = (field(formData, "typed") || field(formData, "name")).slice(0, 100);
+  const back = field(formData, "back") || "/admin/hospitals";
+
+  if (!UUID_RE.test(id)) redirect(backTo(back, "error", "target"));
+  // 두 글자 미만은 이름이 아니다 — 빈칸으로 지워 화면에서 병원이 사라지는 것을 막는다.
+  if (name.length < 2) redirect(backTo(back, "error", "name"));
+
+  const supabase = await createClient();
+  const { data: before } = await supabase.from("hospitals").select("name").eq("id", id).maybeSingle();
+  if (!before) redirect(backTo(back, "error", "target"));
+
+  const { data, error } = await supabase.from("hospitals").update({ name }).eq("id", id).select("id");
+  if (error || !data?.length) {
+    console.error("renameHospital:", error?.message ?? "no row");
+    redirect(backTo(back, "error", "save"));
+  }
+  await logAdmin({
+    action: "hospital.rename", targetTable: "hospitals", targetId: id,
+    reason: `${before.name} → ${name}`,
+  });
+  revalidatePath("/jobs");
+  redirect(backTo(back, "ok"));
+}
