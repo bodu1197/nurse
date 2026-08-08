@@ -15,34 +15,43 @@ import { chipClass as chip } from "@/lib/chip";
 import { socialMeta } from "@/lib/constants";
 
 /**
- * 🔴 인재정보를 **색인하지 않는다**(오너 확정 2026-08-06). 목록·상세 모두 noindex 이고
- *    사이트맵에서도 뺐다(app/sitemap.ts, lib/constants.ts PUBLIC_ROUTES).
+ * 🔴 인재정보를 **색인한다**(오너 지시 2026-08-08). 2026-08-06 에 걸었던 noindex 를 되돌린다.
+ *    근거: "개인정보를 닫아두고 있기 때문에 무해하다" — 이름·휴대폰·이메일·증명사진은
+ *    **광고 중인 병원에만** 붙고(revealContacts), 본인이 제목·자기소개에 적어 둔 실명·전화도
+ *    서버에서 가려서 내보낸다(lib/maskPii 의 maskFree).
+ *    크롤러는 로그인하지 않으므로 색인되는 것은 제목·소개·경력·희망조건·성별·나이뿐이다.
  *
- * 전에는 색인했다. 그건 우리가 원해서가 아니라 **구 널스넷이 이미 그러고 있어서 따라간 것**이다
- * (오너 확인 2026-08-06: "레거시부터 노출되고 있어서 따라한 거다"). 남의 이력서를 검색결과에
- * 올려두는 쪽이 잃는 게 크다고 판단해 되돌린다. 포기하는 것: 이력서 상세로 들어오던 검색 유입.
- *
- * 🔴 robots.txt 에 Disallow 를 넣지 말 것(app/robots.ts 주석 참고). 크롤러가 못 들어오면
- *    이 noindex 를 **읽지 못해**, 이미 색인된 주소가 "제목 없음" 으로 검색결과에 남는다.
- *    지우려면 오히려 들어와서 noindex 를 보게 해야 한다.
- *
- * 이름·휴대폰·이메일·증명사진은 원래도 **광고 중인 병원에만** 보인다(revealContacts) —
- * 그 게이트는 이 변경과 무관하게 그대로다. 사이트 안에서 인재정보는 계속 정상으로 보인다.
+ * 🔴 다시 막아야 할 일이 생기면 robots.txt Disallow 가 아니라 **여기 noindex** 로 막는다
+ *    (app/robots.ts 주석 참고 — 크롤러가 못 들어오면 noindex 를 못 읽어 오히려 안 빠진다).
  */
 const TALENT_TITLE = "간호사 인재정보 — 널스넷";
 const TALENT_DESC = "이력서를 공개한 간호사 인재를 지역·근무부서·직종·경력으로 검색하세요.";
 
-export async function generateMetadata(): Promise<Metadata> {
+/**
+ * /talent 가 받는 쿼리 파라미터 — **이 목록 하나가 정본이다**(/jobs 의 JOB_QUERY_KEYS 와 같은 계약).
+ *
+ * 🔴 색인 판정(아래 filtered)과 화면(TalentPage 의 searchParams)이 **같은 목록에서 파생**된다.
+ *    두 곳에 손으로 나눠 적으면 한쪽만 늘어난 날 조용히 샌다 — /jobs 에서 정확히 그 사고가 났다
+ *    (lat·lng·r 이 색인 판정에서만 빠져 사용자 GPS 좌표가 박힌 주소가 색인 허용이었다, 실측 2026-08-06).
+ *    파라미터를 늘릴 일이 생기면 여기에만 추가한다.
+ */
+const TALENT_QUERY_KEYS = ["q", "dept", "cat", "spec", "sido", "sigungu", "loc", "years", "page", "t"] as const;
+type TalentSearchParams = Partial<Record<(typeof TALENT_QUERY_KEYS)[number], string>>;
+
+export async function generateMetadata({
+  searchParams,
+}: Readonly<{ searchParams: Promise<TalentSearchParams> }>): Promise<Metadata> {
+  const sp = await searchParams;
+  // 🔴 page=1 은 조건이 아니다 — 목록 첫 쪽과 같은 화면이다. 이걸 '좁힌 화면'으로 치면
+  //    `/talent?page=1` 이 noindex 이면서 canonical 도 없는 고아가 된다(레거시 링크가 정본으로 안 접힌다).
+  const filtered = TALENT_QUERY_KEYS.some((k) => (k === "page" ? Number(sp.page) > 1 : !!sp[k]));
   return {
     title: TALENT_TITLE,
     description: TALENT_DESC,
-    alternates: { canonical: "/talent" },
-    // noindex 라도 og 는 필요하다 — 공유 카드는 색인이 아니라 **사람**이 본다(카카오톡 공유).
     ...socialMeta({ url: "/talent", title: TALENT_TITLE, description: TALENT_DESC }),
-    // 🔴 검색조건이 붙었든 아니든 전부 noindex 다. 종전에는 필터가 걸렸을 때만 막았다.
-    //    follow 는 막지 않는다 — 크롤러가 상세로 넘어가 거기 걸린 noindex 도 읽어야
-    //    이미 색인된 이력서 주소들이 빠진다.
-    robots: { index: false },
+    // 🔴 canonical 과 noindex 를 같은 head 에 함께 내지 않는다 — 서로 모순된 지시라 noindex 가
+    //    정본(/talent)으로 전파돼 목록 본체가 통째로 빠질 수 있다(/jobs 주석에 실측 사례).
+    ...(filtered ? { robots: { index: false } } : { alternates: { canonical: "/talent" } }),
   };
 }
 
@@ -50,7 +59,7 @@ const YEARS = [1, 3, 5, 10] as const;
 
 export default async function TalentPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ q?: string; dept?: string; cat?: string; spec?: string; sido?: string; sigungu?: string; loc?: string; years?: string; page?: string; t?: string }> }>) {
+}: Readonly<{ searchParams: Promise<TalentSearchParams> }>) {
   const [{ q, dept, cat, spec, sido, sigungu, loc, years, page, t: selectedId }, p] =
     await Promise.all([searchParams, getMyProfile()]);
   // 예전 마스터-디테일의 ?t= 링크(공유 주소)는 단독 상세로 넘긴다(/jobs의 ?j= 처리와 동일).

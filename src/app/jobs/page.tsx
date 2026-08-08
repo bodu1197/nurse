@@ -14,7 +14,7 @@ import { chipClass as chip } from "@/lib/chip";
 import { saveSearch, toggleSaveJob } from "./actions";
 
 // 실데이터(워크넷 수집 + 병원 직접등록) 운영 중이라 색인 대상이다.
-// 이 사이트에서 검색엔진에 여는 건 채용공고뿐이다 — 인재정보(/talent)·게시판(/board)·리뷰(/reviews)는 noindex.
+// 검색엔진에 여는 건 채용공고와 인재정보(/talent)다 — 게시판(/board)·리뷰(/reviews)는 회원 전용이라 noindex.
 /**
  * 필터 칩 한 줄. 네 축(진료과·기관종별·직종·근무형태)이 같은 모양이어야 사용자가 규칙을 한 번만 배운다.
  * cnt 가 있으면 건수를 함께 보여준다 — 누르기 전에 몇 건인지 알 수 있어야 헛클릭이 준다.

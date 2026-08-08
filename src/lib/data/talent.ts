@@ -1,3 +1,4 @@
+import "server-only"; // 이 파일은 마스킹 전 원문·연락처를 다룬다 — 클라이언트 번들에 섞이면 안 된다
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -5,6 +6,7 @@ import { getSessionUser } from "@/lib/data/user";
 import type { Role } from "@/lib/data/user";
 import { getMembership } from "@/lib/data/membership";
 import { signAvatarPaths } from "@/lib/data/avatar";
+import { maskDeep } from "@/lib/maskPii";
 import { todayKst, nowMs } from "@/lib/date";
 import type { Database } from "@/types/database";
 
@@ -67,48 +69,22 @@ function ageOf(birthday: string | null): number | null {
  */
 type ResumePublicPick = Pick<ResumeRow, (typeof PUBLIC_FIELDS)[number]>;
 /**
- * 자유서술(제목·자기소개) 안에 적힌 **본인 실명**을 가린다. "김민수" → "김○○".
+ * 자유서술 마스킹은 lib/maskPii 한 곳에 있다 — **server-only 인 이 파일에서는 검사를 못 붙이기 때문**이다.
+ * 되돌릴 수 없는 실수가 나는 자리라 순수 함수로 떼어 테스트(lib/maskPii.test.ts)로 지킨다.
  *
- * 🔴 왜 필요한가: 이름·연락처는 광고 중인 병원에만 보이게 막아뒀는데(revealContacts),
- *    정작 본인이 "안녕하세요 김민수입니다" 라고 적어두면 그 게이트가 무의미해진다.
- *    실측: 공개 이력서 7,257건 중 제목에 219건, 자기소개에 235건.
- *    🔴 검색엔진에서 인재정보를 뺐다고(2026-08-06 noindex) 이 마스킹을 걷지 말 것 —
- *       가리는 대상은 검색엔진이 아니라 **로그인만 하면 목록을 보는 사람 전부**다.
- *
- * 성(첫 글자)만 남기는 것은 구 널스넷 카드 표기와 같은 방식이다.
- * 2글자 미만 이름은 건드리지 않는다 — 한 글자를 치환하면 엉뚱한 단어까지 깨진다.
+ * 실측 근거: 공개 이력서 7,257건 중 제목에 219건, 자기소개에 235건의 본인 실명이 적혀 있었고
+ * 휴대폰 7건·이메일 1건이 자유서술에 들어 있었다. 이름·연락처를 광고 병원에만 여는 게이트가
+ * 이 마스킹 없이는 그냥 뚫린다.
  */
-function maskName(text: string | null, name: string | null): string | null {
-  const n = (name ?? "").trim();
-  if (!text || n.length < 2) return text;
-  return text.split(n).join(n[0] + "○".repeat(n.length - 1));
-}
-
-/**
- * 자유서술 안에 적힌 **휴대폰·이메일**을 가린다.
- *
- * 🔴 전화·이메일은 광고 중인 병원에만 보이도록 막아뒀는데(revealContacts), 자기소개에
- *    "연락처: 010-…" 이라고 적어두면 그 게이트가 그냥 뚫린다. 실측: 공개 이력서 중 휴대폰 7건·이메일 1건.
- *    🔴 검색엔진에서 뺐다고(2026-08-06 noindex) 걷지 말 것 — 로그인만 하면 목록을 보는
- *       사람 전부가 대상이고, 한 번 새어 나간 번호는 되돌릴 수 없다.
- *
- * ⚠️ 여기서 못 잡는 것도 있다(생년월일 18건·집주소 6건·국적/비자 5건). 자유서술이라 규칙으로
- *    전부 걸러낼 수 없다 — 그건 작성자에게 알리고 고치게 하는 쪽이 맞다(오너 판단 대기).
- */
-const PHONE_RE = /01[016-9][-. ]?\d{3,4}[-. ]?\d{4}/g;
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-function maskContacts(text: string | null): string | null {
-  if (!text) return text;
-  return text.replace(PHONE_RE, "010-****-****").replace(EMAIL_RE, "***@***");
-}
 
 function flattenProfile(row: ResumePublicPick & { name?: string | null; profile?: ProfileBits | null }): PublicTalent {
   // name 은 여기서 소비하고 **버린다** — 반환 타입(PublicTalent)에 없으므로 밖으로 나가지 않는다.
   const { profile, name, ...rest } = row;
+  const n = name ?? null;
+  // 🔴 컬럼을 골라서 가리지 않는다. 공개로 나가는 **문자열 전부**를 관문에 통과시킨다 —
+  //    골라서 가리면 컬럼이 늘어난 날 그 하나가 빠지고, 그게 실제로 일어났다(lib/maskPii 주석 참고).
   return {
-    ...rest,
-    resume_title: maskContacts(maskName(rest.resume_title, name ?? null)),
-    intro: maskContacts(maskName(rest.intro, name ?? null)),
+    ...maskDeep(rest, n),
     gender: profile?.gender ?? null,
     age: ageOf(profile?.birthday ?? null),
   };
@@ -137,7 +113,11 @@ export async function getPublicTalent(profileId: string): Promise<PublicTalentDe
   const { data: work } = await admin
     .from("work_experiences").select(WORK_PUBLIC_FIELDS.join(",")).eq("resume_id", profileId)
     .order("sort_order").returns<PublicWork[]>();
-  return { ...flattenProfile(resume), work: work ?? [] };
+  // 경력도 같은 관문을 통과시킨다 — duties(담당업무)는 최대 1,000자 자유서술이고 상세가 통째로 찍는다.
+  // 병원명·부서·직위도 사람이 타이핑하는 칸이라 "○○병원 010-…" 이 들어올 수 있다.
+  // 🔴 여기서도 컬럼을 고르지 않는다(위 flattenProfile 과 같은 이유).
+  const masked = (work ?? []).map((w) => maskDeep(w, resume.name));
+  return { ...flattenProfile(resume), work: masked };
 }
 
 // 광고 노출 중인 공고가 하나라도 있으면 열람 가능.
@@ -299,6 +279,63 @@ export async function searchPublicTalent(
   return { rows: (data ?? []).map(flattenProfile), total: withCount ? (count ?? 0) : (data?.length ?? 0) };
 }
 
+/**
+ * sitemap 에 실을 공개 이력서. **searchPublicTalent 와 같은 술어**(is_public + 이름 있음)를 쓴다 —
+ * 어긋나면 사이트맵에 올린 주소가 상세에서 404 로 떨어져, 검색엔진에 "없는 페이지를 색인하라"고
+ * 시키는 꼴이 된다(getSitemapJobs 와 같은 이유·같은 방식).
+ *
+ * 🔴 anon 으로는 못 읽는다 — resumes 는 RLS 로 광고 병원에만 열려 있어 목록이 통째로 빈다.
+ *    그래서 admin 클라이언트를 쓰되 **id 와 시각만** 꺼낸다(PII 는 애초에 select 하지 않는다).
+ * 🔴 키가 없으면 던지지 않고 빈 배열을 준다 — 사이트맵 전체(공고 1,300여 건)를 인재 때문에 잃지 않는다.
+ *    (미리보기 배포처럼 service_role 키가 없는 환경에서 빌드가 통째로 깨지지 않게.)
+ *
+ * 반환 필드를 `updated_at` 이라 부르지 않는다 — 값의 출처가 `resumes.updated_at` 이 아니라
+ * `last_edited_at ?? created_at` 이다(updated_at 은 이관 배치가 8,070건을 오늘로 밀어놔 못 쓴다,
+ * searchPublicTalent 주석 참고). 이름을 컬럼명과 같게 두면 다음 사람이 그 컬럼이라고 믿는다.
+ */
+const SITEMAP_FIELDS = ["profile_id", "last_edited_at", "created_at"] as const satisfies readonly (keyof ResumeRow)[];
+
+export async function getSitemapTalent(): Promise<{ id: string; lastModified: string }[]> {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("getSitemapTalent: Supabase admin 환경변수 누락");
+    return [];
+  }
+  const admin = createAdminClient();
+  // PostgREST 는 max_rows(1000)를 하드 상한으로 걸어 .limit 을 줘도 조용히 잘린다 → range 로 나눠 받는다.
+  // 상한 50,000 은 사이트맵 파일 하나의 URL 상한과 같은 수다(그 위로는 실어봐야 무시된다).
+  const PAGE = 1000;
+  const out: { id: string; lastModified: string }[] = [];
+  for (let from = 0; from < 50_000; from += PAGE) {
+    const { data, error } = await admin
+      .from("resumes").select(SITEMAP_FIELDS.join(","))
+      .eq("is_public", true).not("name", "is", null)
+      // profile_id 는 resumes 의 PK 라 정렬키가 유일하다 — 쪽 경계에서 행이 겹치거나 빠지지 않는다.
+      .order("profile_id", { ascending: true })
+      .range(from, from + PAGE - 1)
+      .returns<Pick<ResumeRow, (typeof SITEMAP_FIELDS)[number]>[]>();
+    if (error) {
+      console.error("getSitemapTalent failed:", error.message);
+      // 🔴 **던지지 않는다.** sitemap.ts 는 이 함수를 getSitemapJobs 와 Promise.all 로 묶어 부르고,
+      //    sitemap 라우트는 빌드 시점에 미리 만들어진다 — 여기서 던지면 DB 가 잠깐 흔들린 것만으로
+      //    공고 1,300건까지 함께 날아가고 **배포 자체가 깨진다.** 사이트맵에서 URL 이 빠지는 것은
+      //    "색인에서 빼라" 는 신호가 아니라 발견 힌트가 줄어드는 것뿐이라(구글 문서화된 동작),
+      //    한 시간 뒤 다음 재검증에서 회복된다. 배포를 막을 만한 사고가 아니다.
+      //    받은 데까지 내보낸다 — getSitemapJobs 도 같은 방식이다.
+      break;
+    }
+    const rows = data ?? [];
+    for (const r of rows) {
+      // 목록 카드가 보여주는 시각과 같은 것을 쓴다(사람이 마지막으로 저장한 날).
+      const at = r.last_edited_at ?? r.created_at;
+      // 값이 없거나 파싱이 안 되는 행은 그냥 뺀다 — Invalid Date 가 사이트맵 XML 에 들어가면
+      // <lastmod> 가 깨져 그 파일 전체를 크롤러가 버릴 수 있다.
+      if (at && !Number.isNaN(Date.parse(at))) out.push({ id: r.profile_id, lastModified: at });
+    }
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
 // 인재 상세 좌측 사이드바 — 관련 인재(같은 희망 근무지 우선, 없으면 최근)로 왼쪽이 절대 비지 않게 한다.
 export type RevealedContact = { name: string | null; phone: string | null; email: string | null; avatarUrl: string | null };
 
@@ -372,7 +409,7 @@ const SAVED_TALENT_LIMIT = 500;
  *    정작 내가 찜한 사람이 조용히 빠진다(지원자 검색이 같은 이유로 같은 방법을 쓴다).
  * 🔴 **공개 중인 이력서만 내용을 읽는다**(is_public + 이름 있음 — 목록·상세와 같은 술어).
  *    이 술어가 없으면 비공개로 내린 사람의 제목·경력·희망근무지가 병원 화면에 그대로 남는다.
- *    이름이 빈 이력서도 뺀다 — 제목·자기소개의 실명 마스킹(maskName)이 이름을 알아야 돌기 때문에,
+ *    이름이 빈 이력서도 뺀다 — 제목·자기소개의 실명 마스킹(maskFree)이 이름을 알아야 돌기 때문에,
  *    이름이 없으면 본인이 적어 둔 실명이 가려지지 않은 채 나간다.
  */
 export async function getSavedTalents(

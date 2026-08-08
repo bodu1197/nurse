@@ -27,9 +27,6 @@ export default async function Home({
     // 홈에서 본 카드가 목록 첫 페이지와 어긋나지 않는다.
     // withCount=true — 제목 옆 건수를 여기서 받는다(오너 지시 2026-07-30). 카드는 10장만 받고
     // 개수는 전체를 센다. /talent 목록이 보여주는 총계와 같은 함수·같은 조건이라 숫자가 어긋나지 않는다.
-    // ponytail: 비로그인이면 10장을 받아 안 쓰고 버린다. 로그인 여부를 먼저 알려면 getMyProfile 을
-    //   따로 await 해야 하는데(세션 검증은 인증서버 왕복이다), 홈에서 가장 많이 타는 길을
-    //   직렬로 만드는 값이 더 크다. 받은 행은 서버에서 버려지고 HTML 로는 안 나간다.
     searchPublicTalent({}, 1, true, HOME_TALENT),
   ]);
   const latest = jobs.slice(0, 6);
@@ -210,17 +207,16 @@ export default async function Home({
 
         <div className="mx-auto max-w-[1280px] px-4">
           {/* ── 구직 현황 ─────────────────────
-              🔴 카드는 **로그인한 사람에게만** 그린다(오너 확정 2026-08-06).
-                 인재정보는 이제 색인하지 않는다(/talent 목록·상세 모두 noindex). 그런데 홈은
-                 색인 대상(priority 1)이라, 여기에 카드를 그대로 두면 **같은 이력서 내용이
-                 홈을 통해 그대로 색인된다** — 제목·자기소개·성별·나이·지역이 다 실린다.
-                 특징적인 자기소개 한 줄로 검색하면 홈이 걸리므로 /talent 만 막아서는 소용이 없다.
-              🔴 크롤러는 로그인하지 않으므로 이 한 줄로 홈에서 이력서 텍스트가 사라진다.
-                 로그인 여부로 가르는 것은 구글이 허용하는 방식이다(클로킹이 아니다 —
-                 "구글봇인가" 가 아니라 "로그인했는가" 로 가른다).
-              🔴 비로그인 사람이 잃는 것은 거의 없다 — /talent 는 사람에게 그대로 열려 있어
-                 '전체 보기' 한 번이면 같은 목록을 본다. 색인만 막는 것이지 화면을 막는 게 아니다.
-              이름·연락처·사진은 로그인해도 광고 중인 병원에만 보인다(그 게이트는 그대로). */}
+              🔴 **로그인 전·후가 같은 화면이다**(오너 지시 2026-08-08). 로그인 여부로 가르지 않는다 —
+                 종전에는 비로그인에게 카드 대신 안내 상자를 놓아서, 홈에 온 병원이 "구직중 7,770명"
+                 이라는 숫자만 보고 사람은 한 명도 못 본 채 떠났다.
+                 🔴 여기에 다시 `!profile` 분기를 넣지 말 것. 이 화면의 게이트는 로그인이 아니라
+                    **광고 여부** 하나뿐이다(아래 canRevealContacts) — 로그인해도 광고를 안 낸
+                    병원은 이름·연락처·사진을 못 본다. 로그인 전과 정확히 같은 것을 본다.
+              홈은 색인 대상(priority 1)이라 이력서 텍스트가 검색엔진에 실린다 — 그래도 된다
+              (오너 지시 2026-08-08: 인재정보는 이제 /talent 목록·상세도 색인한다). 실명·전화·이메일은
+              서버에서 가려진 값이라(lib/maskPii 의 maskFree) 색인되는 것은
+              제목·소개·경력·희망조건뿐이다. */}
           <section className="mt-12 pb-16">
             <div className="flex items-end justify-between">
               <h2 className="text-xl font-bold text-slate-900">
@@ -230,23 +226,6 @@ export default async function Home({
             </div>
             {seekers.length === 0 ? (
               <p className="mt-6 rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-400">등록된 이력서가 곧 올라옵니다.</p>
-            ) : !profile ? (
-              /* 비로그인 — 이력서 내용만 빼고 목록으로 보낸다.
-                 🔴 "로그인해야 볼 수 있다" 고 쓰지 말 것. 바로 위 '전체 보기 →' 로 비로그인도
-                    /talent 에서 같은 목록을 그대로 본다 — 게이트가 아닌 것을 게이트라고 하면 거짓말이다.
-                    여기서 감추는 것은 **검색엔진에 색인되는 홈 본문에 이력서 텍스트를 싣지 않는 것**뿐이다.
-                 🔴 건수를 다시 쓰지 않는다. 바로 위 제목이 이미 "총 N건" 을 말하고 있고,
-                    한쪽은 '건' 한쪽은 '명' 이라 같은 숫자가 두 단위로 보인다. */
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-white px-6 py-10 text-center">
-                <p className="text-lg font-bold text-slate-900">이력서를 공개한 간호사를 조건으로 찾아보세요</p>
-                <p className="mt-2 text-sm text-slate-600">
-                  경력 · 희망부서 · 희망근무지역으로 추릴 수 있습니다. 이름·연락처는 광고 중인 병원에만 표시됩니다.
-                </p>
-                <div className="mt-6 flex flex-col justify-center gap-2.5 sm:flex-row">
-                  <Button href="/talent" size="lg">인재정보 보기 →</Button>
-                  <Button href="/hospital" variant="outline" size="lg" className="bg-white">병원 회원가입 →</Button>
-                </div>
-              </div>
             ) : (
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                 {seekers.map((r) => (
@@ -257,10 +236,14 @@ export default async function Home({
                   //    안쪽에 min-w-0 이 있어도 이 칸에 없으면 소용없다 — 여기서 사슬이 끊긴다.
                   <li key={r.profile_id} className="min-w-0">
                     {/* relative + overflow-hidden — 리본이 카드 모서리를 벗어나지 않게 */}
+                    {/* 카드 전체가 링크라 aria-label 이 없으면 스크린리더가 제목·소개·메타를 통째로 낭독한다
+                        → /talent 목록과 **같은 규칙**으로 "이름 · 제목" 만 링크 이름으로 준다.
+                        비로그인 방문자가 이제 이 링크를 처음으로 만나는 자리다(종전에는 안내 상자였다). */}
                     <Link
                       href={`/talent/${r.profile_id}`}
                       prefetch={false}
-                      className="relative block h-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md"
+                      aria-label={`${contacts.get(r.profile_id)?.name ?? "간호사 회원"} · ${r.resume_title ?? "간호사 인재"}`}
+                      className="relative block h-full overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
                     >
                       {/* 구직중 리본 — 오른쪽 위 모서리를 45도로 가로지른다.
                           띠를 카드 밖으로 충분히 빼야(-right-12) 글자가 모서리에 끼이지 않고
@@ -281,8 +264,10 @@ export default async function Home({
               </ul>
             )}
             {/* 카드가 있을 때만 다는 주석 — 카드가 없는데 "이름·연락처는…" 이라고 하면 무엇에 대한 말인지 모른다. */}
-            {profile && seekers.length > 0 && (
-              <p className="mt-4 text-center text-xs text-slate-400">이력서를 공개한 간호사 회원입니다. 이름·연락처는 광고 중인 병원에만 표시됩니다.</p>
+            {seekers.length > 0 && (
+              // 🔴 "사진" 도 적는다 — 카드에 실루엣이 뜨는 이유가 이것이다. 이름·연락처만 적어두면
+              //    비로그인 첫 방문자는 사진이 왜 없는지 알 수 없다(/talent 목록은 이미 셋 다 적고 있다).
+              <p className="mt-4 text-center text-xs text-slate-400">이력서를 공개한 간호사 회원입니다. 이름·연락처·사진은 광고 중인 병원에만 표시됩니다.</p>
             )}
           </section>
         </div>

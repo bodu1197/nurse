@@ -28,14 +28,24 @@ export function ListCard({ href, on, children }: Readonly<{ href: string; on: bo
 }
 
 // 목록 하단 페이지 나누기 — 세 화면이 같은 모양.
-export function Pager({ page, totalPages, href }: Readonly<{ page: number; totalPages: number; href: (n: number) => string }>) {
+export function Pager({ page, totalPages, href, nofollow = false }: Readonly<{
+  page: number;
+  totalPages: number;
+  href: (n: number) => string;
+  /** 크롤러가 이 쪽 넘김을 따라가지 않게 한다. **색인 대상 페이지에 붙은 곁다리 페이저**용.
+      예: /talent/{id} 의 왼쪽 사이드바 — 이력서 7,770건 × 389쪽 ≈ 300만 주소가 생긴다.
+      canonical 이 색인은 막아주지만 크롤 예산과 매 요청의 count 쿼리는 그대로 나간다.
+      사람은 그대로 누를 수 있다(nofollow 는 크롤러에게만 하는 말이다). */
+  nofollow?: boolean;
+}>) {
   if (totalPages <= 1) return null;
   const link = "inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-3 text-sm text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600";
+  const rel = nofollow ? "nofollow" : undefined;
   return (
     <nav className="mt-4 flex items-center justify-center gap-3 text-sm" aria-label="페이지">
-      {page > 1 ? <a href={href(page - 1)} className={link}>← 이전</a> : <span />}
+      {page > 1 ? <a href={href(page - 1)} rel={rel} className={link}>← 이전</a> : <span />}
       <span className="text-slate-500">{page} / {totalPages}</span>
-      {page < totalPages ? <a href={href(page + 1)} className={link}>다음 →</a> : <span />}
+      {page < totalPages ? <a href={href(page + 1)} rel={rel} className={link}>다음 →</a> : <span />}
     </nav>
   );
 }

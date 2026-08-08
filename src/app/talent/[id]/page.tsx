@@ -14,13 +14,11 @@ import {
 } from "@/lib/data/talent";
 
 /**
- * 개인 이력서 상세 — **색인하지 않는다**(오너 확정 2026-08-06, 근거는 /talent 목록 주석).
- * 남의 이력서다. 목록만 막고 상세를 열어두면 정작 개인정보가 든 쪽이 그대로 남는다.
+ * 개인 이력서 상세 — **색인한다**(오너 지시 2026-08-08, 근거는 /talent 목록 주석).
  *
- * 제목에는 이름을 넣지 않는다 — 이름은 광고 중인 병원에만 보이는 값이라, 제목·OG 로 새어 나가면
- * 그 게이트가 무의미해진다(색인 여부와 별개로 이 규칙은 그대로다).
- * canonical 은 남겨둔다 — 색인은 안 해도 크롤러가 같은 이력서의 여러 주소를 한 곳으로 모아
- * noindex 를 한 번만 읽게 하는 편이 낫다.
+ * 🔴 제목·설명에 **이름을 넣지 않는다.** 이름은 광고 중인 병원에만 보이는 값이라, 제목·OG 로
+ *    새어 나가면 그 게이트가 통째로 무의미해진다 — 색인을 열든 막든 이 규칙은 그대로다.
+ *    아래 title·desc 가 쓰는 값은 전부 마스킹을 거친 공개 필드다(getPublicTalent).
  */
 export async function generateMetadata({ params }: Readonly<{ params: Promise<{ id: string }> }>): Promise<Metadata> {
   const { id } = await params;
@@ -37,7 +35,6 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
     description: desc || "이력서를 공개한 간호사 인재 정보입니다.",
     alternates: { canonical: `/talent/${id}` },
     ...socialMeta({ type: "profile", url: `/talent/${id}`, title, description: desc }),
-    robots: { index: false },
   };
 }
 
@@ -149,7 +146,10 @@ export default async function TalentDetailPage({
                 ))}
               </ul>
               {/* 페이지네이션 — 같은 상세에 머물며 사이드바 페이지만 넘긴다(공고 상세와 같은 방식). */}
-              {totalPages > 1 && <Pager page={pageNum} totalPages={totalPages} href={pageHref} />}
+              {/* nofollow — 상세는 이제 색인 대상이라, 이 페이저를 크롤러가 따라가면
+                  이력서 7,770건 × 389쪽 ≈ 300만 주소를 긁는다(봇 요청은 이미 하루 12만 건이다).
+                  사람에게는 그대로 동작한다. */}
+              {totalPages > 1 && <Pager page={pageNum} totalPages={totalPages} href={pageHref} nofollow />}
           </aside>
         </div>
       </main>
