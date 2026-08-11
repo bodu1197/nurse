@@ -8,6 +8,8 @@ import { LIST_LIMIT } from "@/lib/data/applications";
 
 import type { JobStatus } from "@/lib/jobState";
 import { DEPT_ANY } from "@/lib/resumeOptions";
+// 🔴 칩 순서를 등록 폼과 맞추려고 **같은 상수**를 쓴다. 여기 목록을 따로 적으면 둘이 갈라진다.
+import { FACILITY_TYPES } from "@/lib/jobTaxonomy";
 import type { Database } from "@/types/database";
 
 export type JobSource = "direct" | "worknet" | "public_data" | "partner" | "crawl";
@@ -189,7 +191,9 @@ export async function getJobFacets(f: JobFilters & { keyword?: string; location?
   // 진료과는 칩으로 안 그린다(오너 결정 2026-07-29) — 검색어가 그 역할을 한다.
   // RPC 는 여전히 department 를 내려주지만 여기서 버린다: 되살릴 때 RPC 를 안 건드려도 되고,
   // 이미 materialize 된 CTE 위의 group by 하나라 비용이 없다.
-  return { facilities: pick("facility"), categories: pick("category") };
+  // 🔴 기관 종별만 **등록 폼과 같은 규모 순**으로 다시 세운다(byFacilityOrder 주석 참고).
+  //    직종은 종류가 적고 공고 수 순이 자연스러워 그대로 둔다.
+  return { facilities: tailLast(byFacilityOrder(pick("facility"))), categories: pick("category") };
 }
 
 /**
@@ -203,6 +207,22 @@ export async function getJobFacets(f: JobFilters & { keyword?: string; location?
 const TAIL_LAST = new Set<string>(["기타", "의료기타", DEPT_ANY, UNSET]);
 const tailLast = (rows: JobRegionNode[]): JobRegionNode[] =>
   [...rows].sort((a, b) => Number(TAIL_LAST.has(a.name)) - Number(TAIL_LAST.has(b.name)));
+
+/**
+ * 🗂 기관 종별 칩은 **공고 등록 폼과 같은 순서**로 그린다(오너 지적 2026-08-12).
+ *
+ * 종전에는 RPC 가 준 공고 수 내림차순이라 「요양원·주간보호 → 요양병원 → 의원 …」 이었다.
+ * 그런데 등록 폼(JobFields)의 드롭다운은 FACILITY_TYPES 순서, 즉 **상급종합 → 종합 → 병원 →
+ * 요양병원 …** 규모 순이다. 같은 목록이 화면마다 다른 순서로 나오면 병원이 자기가 고른 값을
+ * 목록에서 못 찾는다.
+ *
+ * 🔴 규모 순은 **읽는 사람에게 뜻이 있는 순서**다(3차 → 2차 → 1차). 공고 수 순은 그날그날
+ *    바뀌어서 같은 칩이 어제와 다른 자리에 있다 — 자주 쓰는 사람일수록 헷갈린다.
+ * 🔴 표에 없는 값(미지정 등)은 뒤로 보낸다. 그다음 tailLast 가 '기타'·'미지정'을 다시 맨 뒤로 민다.
+ */
+const FACILITY_ORDER = new Map(FACILITY_TYPES.map((n, i) => [n as string, i]));
+const byFacilityOrder = (rows: JobRegionNode[]): JobRegionNode[] =>
+  [...rows].sort((a, b) => (FACILITY_ORDER.get(a.name) ?? 999) - (FACILITY_ORDER.get(b.name) ?? 999));
 
 /**
  * 🗂 **"지금 구직자에게 보이는 공고인가"의 단일 정의는 DB 에 있다** — `jobs_listed.is_live`
