@@ -115,6 +115,50 @@ export const SITES: readonly Site[] = [
     idParams: ["idx"],
   },
   {
+    key: "dkuh",
+    hospital: "단국대학교의과대학부속병원",
+    display: "단국대학교병원",
+    // 오너가 찾아 줬다(2026-08-12) — 홈에서는 링크가 안 보인다.
+    listUrl: "https://www.dkuh.co.kr/board5/bbs/board?bo_table=01_03_05",
+    linkPattern: /[^"']*bo_table=01_03_05[^"']*wr_id=\d+[^"']*/,
+    idParams: ["wr_id"],
+  },
+  {
+    key: "damc",
+    hospital: "동아대학교병원",
+    listUrl: "https://www.damc.or.kr/05/03_2017.php",
+    linkPattern: /03_2017_view\.php\?hire_web_sqno=\d+[^"']*/,
+    idParams: ["hire_web_sqno"],
+  },
+  {
+    key: "amc",
+    hospital: "재단법인아산사회복지재단 서울아산병원",
+    display: "서울아산병원",
+    listUrl: "https://recruit.amc.seoul.kr/",
+    // 링크가 href 가 아니라 onclick 에 있다: `onclick="fnDetail('5411', '20260299')"`.
+    linkPattern: /fnDetail\('\d+',\s*'\d+'\)/,
+    // 공고를 가리키는 값이 **둘**이다(seq + scheduleno) — 둘 다 잡아 '_' 로 잇는다.
+    idPattern: /fnDetail\('(\d+)',\s*'(\d+)'\)/,
+    idParams: [],
+    detailUrl: (id) => {
+      const [seq, sch] = id.split("_");
+      return `https://recruit.amc.seoul.kr/recruit/career/notice/view.do?seq=${seq}&scheduleno=${sch}`;
+    },
+  },
+  {
+    key: "snuh",
+    hospital: "서울대학교병원",
+    // 🔴 오너가 찾아 줬다(2026-08-12). 병원 홈(www.snuh.org)에는 채용 링크가 없고
+    //    **채용만 쓰는 별도 도메인**(recruit.snuh.org)에 있다 — 홈만 뒤져서는 영영 못 찾는다.
+    listUrl: "https://recruit.snuh.org/joining/recruit/list.do",
+    // 링크가 `href="javascript:viewPage('26102','E')"` 다. 🔴 값 안에 **작은따옴표**가 들어 있어
+    //    `[^"']*` 로 쓰면 하나도 안 잡힌다(실제로 0건이 나왔다) — 큰따옴표만 경계로 쓴다.
+    linkPattern: /javascript:viewPage\([^"]*\)/,
+    idPattern: /viewPage\('([^']+)'/,
+    idParams: [],
+    detailUrl: (id) => `https://recruit.snuh.org/joining/recruit/view.do?recruit_id=${id}`,
+  },
+  {
     key: "kuh",
     hospital: "건국대학교병원",
     // 🔴 홈(`/`)은 `location.href="main.do"` 만 든 리다이렉트 껍데기(286바이트)라 링크가 안 보였다.
@@ -212,13 +256,18 @@ const abs = (listUrl: string, link: string) => new URL(link, listUrl).toString()
  * 🔴 제목에 '간호' 가 있는 것만 담는다. 이 병원들은 목록에 직종 구분을 안 주는 곳이 많다.
  */
 export function parseSite(site: Site, html: string): SiteJob[] {
-  const re = new RegExp(`href=["'](${site.linkPattern.source})["'][^>]*>([\\s\\S]{0,800}?)</a>`, "g");
+  // 🔴 `href=` 안만 보지 않는다. 어떤 병원은 링크가 href 가 아니라 **onclick** 에 있다
+  //    (서울아산: `<a href="#" onclick="fnDetail('5411','20260299')">`). 앵커 태그 전체에서 찾는다.
+  const re = new RegExp(`<a\\s([^>]*?(${site.linkPattern.source})[^>]*?)>([\\s\\S]{0,800}?)</a>`, "g");
   const out: SiteJob[] = [];
   const seen = new Set<string>();
   for (const m of html.matchAll(re)) {
-    const text = anchorText(m[2]);
+    const link = m[2];
+    const text = anchorText(m[3]);
     if (!/간호/.test(text)) continue;
-    const sn = site.idPattern ? m[1].match(site.idPattern)?.[1] ?? null : idFromLink(m[1], site.idParams);
+    // 공고를 가리키는 값이 둘 이상인 사이트가 있다(서울아산: seq + scheduleno) — 잡힌 그룹을 다 잇는다.
+    const caught = site.idPattern ? link.match(site.idPattern) : null;
+    const sn = caught ? caught.slice(1).filter(Boolean).join("_") || null : idFromLink(link, site.idParams);
     if (!sn) continue;
     const id = `${site.key}-${sn}`;
     if (seen.has(id)) continue;
@@ -236,7 +285,7 @@ export function parseSite(site: Site, html: string): SiteJob[] {
       displayName: branch ?? site.display ?? site.hospital,
       jobCategory: jobCategoryOf(text, null),
       deadline: lastDate(text),
-      url: site.detailUrl ? site.detailUrl(sn) : abs(site.listUrl, m[1]),
+      url: site.detailUrl ? site.detailUrl(sn) : abs(site.listUrl, link),
     });
   }
   return out;
