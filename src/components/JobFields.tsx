@@ -1,4 +1,5 @@
 import ApplyMethodFields from "@/components/ApplyMethodFields";
+import AddressSearch from "@/components/AddressSearch";
 import { JOB_DEPARTMENTS, FACILITY_TYPES, JOB_CATEGORIES } from "@/lib/jobTaxonomy";
 
 // 공고 입력 필드 — 등록/수정/복제 폼이 공유(일관성 + 유지보수).
@@ -73,10 +74,9 @@ export default function JobFields({ d = {}, minDeadline }: { d?: JobDefaults; mi
             {TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
-        <div className="flex flex-col gap-1">
-          <label htmlFor="location" className={label}>근무지</label>
-          <input id="location" name="location" defaultValue={d.location ?? ""} placeholder="비우면 병원 지역으로 표시" className={field} />
-        </div>
+        {/* 🔴 자유 텍스트였다. "서울"·"본원 3층" 처럼 적으면 시군구가 안 잡혀 지역 필터에서
+            조용히 빠지고, 유료 광고가 지역 검색에 안 뜬다 → 주소 검색으로 바꿨다(막지는 않는다). */}
+        <AddressSearch name="location" defaultValue={d.location} />
         <div className="flex flex-col gap-1">
           <label htmlFor="salary_text" className={label}>급여</label>
           <input id="salary_text" name="salary_text" defaultValue={d.salary_text ?? ""} placeholder="예: 연 4,000~5,000만원 / 협의" className={field} />
