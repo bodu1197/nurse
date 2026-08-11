@@ -83,6 +83,12 @@ test("비정규직을 정규직으로 뒤집지 않는다", () => {
   assert.equal(employmentTypeOf("무기계약직"), "정규직"); // 정년 보장 자리를 계약직이라 적지 않는다
   assert.equal(employmentTypeOf("청년인턴"), "인턴");
   assert.equal(employmentTypeOf(""), null);
+  // 병원 ATS 쪽 표기 — '임시직' 과 '계약직'
+  assert.equal(employmentTypeOf("임시직"), "계약직");
+  assert.equal(employmentTypeOf("계약직"), "계약직");
+  // 🔴 실측(중앙대의료원): 계약직 공고인데 제목에 "정규직 전환 기회부여" 가 붙는다.
+  //    '정규직' 을 먼저 보면 계약직이 정규직으로 뒤집혀 간호사에게 거짓말이 된다.
+  assert.equal(employmentTypeOf("계약직 전담간호사 모집 (정규직 전환 기회부여)"), "계약직");
 });
 
 /**

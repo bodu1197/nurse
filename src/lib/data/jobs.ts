@@ -49,7 +49,8 @@ export const SOURCE_LABEL: Record<JobSource, string> = {
   // 잡알리오(job.alio.go.kr) 수집분 — 국립대병원·국립암센터·적십자사 등 공공기관 채용공고.
   public_data: "공공기관 채용(잡알리오)",
   partner: "구 널스넷 이관",
-  crawl: "수집",
+  // 대학병원 채용 ATS(리크루터) 수집분 — 세브란스·고대의료원·한양대 등 사립 상급종합.
+  crawl: "대학병원 채용사이트",
 };
 
 /**

@@ -74,9 +74,13 @@ export function ymd(s: string | null | undefined): string | null {
 }
 
 /**
- * 고용형태 → 우리 EMPLOYMENT_TYPES(lib/constants). '비정규직'은 우리 표에 없어 '계약직'으로 옮긴다.
- * 🔴 순서가 규칙이다: '비정규직' 이 '정규직' 을 **부분 문자열로 포함**한다. 정규직을 먼저 보면
- *    비정규직 공고가 전부 정규직으로 뒤집힌다 — 간호사에게 거짓말이 되는 종류의 버그다.
+ * 고용형태 → 우리 EMPLOYMENT_TYPES(lib/constants). 잡알리오·대학병원 ATS 가 같이 쓴다.
+ *
+ * 🔴 **순서가 전부다.** 서로가 서로의 부분 문자열이라 한 줄만 위로 올려도 값이 뒤집힌다:
+ *      '비정규직' ⊃ '정규직'      → 정규직을 먼저 보면 비정규직이 전부 정규직이 된다
+ *      '무기계약직' ⊃ '계약직'    → 계약직을 먼저 보면 정년 보장 자리가 계약직이 된다
+ *      "계약직 … (정규직 전환 기회부여)" → 계약을 먼저 봐야 계약직으로 남는다(실측: 중앙대의료원)
+ *    전부 간호사에게 거짓말이 되는 종류의 버그다.
  */
 export function employmentTypeOf(s: string | null | undefined): string | null {
   const v = (s ?? "").replace(/\s+/g, "");
@@ -84,6 +88,8 @@ export function employmentTypeOf(s: string | null | undefined): string | null {
   if (v.includes("인턴")) return "인턴";
   if (v.includes("비정규직")) return "계약직";
   if (v.includes("무기계약")) return "정규직"; // 정년이 보장되는 자리다 — 계약직으로 적으면 사실과 다르다
+  if (v.includes("임시")) return "계약직"; // 병원 ATS 의 '임시직'
+  if (v.includes("계약")) return "계약직";
   if (v.includes("정규직")) return "정규직";
   return null;
 }

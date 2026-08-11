@@ -52,7 +52,8 @@ export const JOB_SETTABLE = ["open", "closed"] as const satisfies readonly JobSt
  *   · 우리가 파는 자리가 아니라 배경 데이터라 **광고 기간 없이 항상 보인다**
  *   · 접수에 우리가 관여하지 않는다 → 간편지원을 받지 않고 원본으로 보낸다
  */
-export const COLLECTED_SOURCES = ["worknet", "public_data"] as const;
+// worknet=고용24 · public_data=잡알리오(공공기관) · crawl=대학병원 채용 ATS(리크루터)
+export const COLLECTED_SOURCES = ["worknet", "public_data", "crawl"] as const;
 export const isCollectedJob = (source: string): boolean =>
   (COLLECTED_SOURCES as readonly string[]).includes(source);
 

@@ -4,6 +4,7 @@
     { "path": "/api/cron/sync-hospitals", "schedule": "0 18 * * *" },
     { "path": "/api/cron/sync-worknet", "schedule": "30 3,9,15,21 * * *" },
     { "path": "/api/cron/sync-alio", "schedule": "0 22 * * *" },
+    { "path": "/api/cron/sync-ats", "schedule": "0 11,23 * * *" },
     { "path": "/api/cron/guard-avatars-bucket", "schedule": "*/10 * * * *" }
   ]
 }
