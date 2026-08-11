@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseSite, lastDate, idFromLink, anchorText, fetchNurseSiteJobs, SITES, type Site } from "./hospitalSites.ts";
+import { parseSite, lastDate, idFromLink, anchorText, cleanTitle, fetchNurseSiteJobs, SITES, type Site } from "./hospitalSites.ts";
 
 const site: Site = {
   key: "eumc",
@@ -85,6 +85,35 @@ test("자바스크립트 링크에서 id 를 뽑아 열리는 주소를 만든�
   assert.equal(rows[0].url, "https://www.paik.ac.kr/paik/user/job/view.do?menuNo=200041&jobId=1933");
   assert.equal(rows[0].jobCategory, "간호조무직");
   assert.equal(rows[1].hospital, "인제대학교 상계백병원", "제목의 병원명으로 형제 병원을 가른다");
+});
+
+/**
+ * 🔴 실제로 화면에 이렇게 나갔다(2026-08-12) — 목록 한 칸이 통째로 앵커라
+ *    병원명이 두 번 들어가고 마감일·D-day 까지 제목에 섞였다.
+ *    마감일도 병원명도 카드가 따로 보여 준다.
+ */
+test("제목에서 병원명·마감일·D-day 를 걷어낸다", () => {
+  assert.equal(
+    cleanTitle("한림 대학교성심병원 한림대학교성심병원 간호부 정규직 전담간호사 공개채용 공고 마감일 2026.08.31 D-19", "한림대학교성심병원"),
+    "간호부 정규직 전담간호사 공개채용 공고",
+  );
+  // 앞에 상태말이 붙는 사이트(고신대복음)
+  assert.equal(cleanTitle("모집중 [임시직] 간호사 모집공고", "고신대학교복음병원"), "[임시직] 간호사 모집공고");
+  // 접수기간이 뒤에 붙는 사이트(이대)
+  assert.equal(
+    cleanTitle("D-50 [서울병원] 간호부 계약직 기능원 공개채용 공고 2026-07-09 09:00:00 ~ 2026-09-30 17:00:00", "이화여자대학교의과대학부속서울병원"),
+    "[서울병원] 간호부 계약직 기능원 공개채용 공고",
+  );
+  // 병원명이 안 붙어 있으면 그대로 둔다
+  assert.equal(cleanTitle("심혈관조영UNIT 간호사 모집(한시직)", "강릉아산병원"), "심혈관조영UNIT 간호사 모집(한시직)");
+});
+
+/** 🔴 마감일은 **정리 전 원문**에서 뽑아야 한다 — 제목을 먼저 정리하면 날짜가 사라진다. */
+test("제목을 정리해도 마감일은 살아 있다", () => {
+  const html = `<a href="./view.do?bbs_no=1&x=1"><span>D-50</span>간호부 모집 2026-07-09 ~ 2026-09-30</a>`;
+  const [row] = parseSite(site, html);
+  assert.equal(row.deadline, "2026-09-30");
+  assert.doesNotMatch(row.title, /D-50|2026-09-30/);
 });
 
 test("태그를 걷어내고 한 줄로 만든다", () => {

@@ -152,6 +152,46 @@ const decode = (s: string) =>
 export const anchorText = (inner: string): string =>
   decode(inner.replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim();
 
+const noSpace = (s: string) => s.replace(/\s+/g, "");
+
+/**
+ * 카드에 보일 제목만 남긴다.
+ *
+ * 목록의 한 칸이 통째로 앵커라 **병원명·마감일·D-day 가 제목에 섞여 들어온다.**
+ * 실제로 화면에 이렇게 나갔다(2026-08-12):
+ *   "한림 대학교성심병원 한림대학교성심병원 간호부 정규직 전담간호사 공개채용 공고 마감일 2026.08.31 D-19"
+ * 마감일은 이미 카드가 따로 보여 주고, 병원명도 카드에 따로 있다 — 제목에서는 걷어낸다.
+ *
+ * 🔴 앞에 붙는 병원명은 **띄어쓰기가 목록마다 다르다**("한림 대학교성심병원" vs "한림대학교성심병원").
+ *    그래서 글자만 비교해서(공백 무시) 앞 토큰부터 갉아낸다.
+ */
+export function cleanTitle(text: string, hospital: string): string {
+  let t = text
+    .replace(/D-\s*\d+/g, " ")
+    .replace(/D-?DAY/gi, " ")
+    .replace(/마감일\s*\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}/g, " ")
+    .replace(/\d{4}[.\-/]\d{1,2}[.\-/]\d{1,2}[^~]{0,12}~[^,\n]{0,30}/g, " ")
+    .replace(/^\s*(?:공지|모집중|진행중|접수중|마감)\s+/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  // 앞머리에 병원명이 (띄어쓰기가 어긋난 채로) 최대 두 번까지 붙어 온다 — 붙은 만큼 떼어낸다.
+  const target = noSpace(hospital);
+  for (let round = 0; round < 2; round++) {
+    const words = t.split(" ");
+    let acc = "";
+    let used = 0;
+    for (const w of words) {
+      acc += noSpace(w);
+      used++;
+      if (acc === target) break;
+      if (!target.startsWith(acc)) { used = 0; break; }
+    }
+    if (used > 0 && acc === target) t = words.slice(used).join(" ").trim();
+    else break;
+  }
+  return t;
+}
+
 /** 텍스트에 든 날짜 중 **가장 뒤의 것**을 마감일로 본다("2026-07-09 ~ 2026-09-30" 형태를 그대로 흡수). */
 export function lastDate(text: string): string | null {
   const all = [...text.matchAll(/(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})/g)];
@@ -191,10 +231,14 @@ export function parseSite(site: Site, html: string): SiteJob[] {
     seen.add(id);
     // 지점이 걸리면 그 병원 이름을 화면에도 그대로 쓴다(지점명은 이미 읽을 만하다).
     const branch = site.branches?.find(([r]) => r.test(text))?.[1];
+    const hospital = branch ?? site.hospital;
+    // 🔴 마감일은 lastDate 가 **정리 전 원문**에서 뽑는다 — 제목에서 날짜를 걷어낸 뒤 찾으면 사라진다.
+    const title = cleanTitle(text, hospital);
+    if (!title) continue;
     out.push({
       id,
-      title: text.slice(0, 200),
-      hospital: branch ?? site.hospital,
+      title: title.slice(0, 200),
+      hospital,
       displayName: branch ?? site.display ?? site.hospital,
       jobCategory: jobCategoryOf(text, null),
       deadline: lastDate(text),
