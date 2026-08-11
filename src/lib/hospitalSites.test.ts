@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseSite, lastDate, idFromLink, anchorText, cleanTitle, fetchNurseSiteJobs, SITES, type Site } from "./hospitalSites.ts";
+import { TENANTS } from "./recruiterAts.ts";
 
 const site: Site = {
   key: "eumc",
@@ -140,6 +141,25 @@ test("SITES 의 key 에 하이픈이 없고 중복도 없다", () => {
   const keys = SITES.map((s) => s.key);
   assert.equal(new Set(keys).size, keys.length);
   for (const k of keys) assert.doesNotMatch(k, /-/);
+});
+
+/**
+ * 🔴 같은 병원을 두 수집기(공용 ATS · 자체 사이트)에 다 넣으면 external_id 가 달라
+ *    **같은 공고 카드가 두 번 뜬다.** 실제로 백병원이 양쪽에 있었다(2026-08-12).
+ *    한 병원은 한 수집기에서만 가져온다.
+ */
+test("같은 병원을 ATS 와 자체 사이트에 겹쳐 넣지 않는다", () => {
+  const atsNames = new Set<string>();
+  for (const t of TENANTS) {
+    atsNames.add(t.hospital);
+    for (const [, n] of t.branches ?? []) atsNames.add(n);
+  }
+  for (const s of SITES) {
+    assert.ok(!atsNames.has(s.hospital), `${s.key}: ${s.hospital} 이 ATS 에도 있다 — 카드가 두 번 뜬다`);
+    for (const [, n] of s.branches ?? []) {
+      assert.ok(!atsNames.has(n), `${s.key}: ${n} 이 ATS 에도 있다 — 카드가 두 번 뜬다`);
+    }
+  }
 });
 
 /**

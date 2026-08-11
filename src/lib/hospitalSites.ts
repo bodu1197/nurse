@@ -123,25 +123,10 @@ export const SITES: readonly Site[] = [
     linkPattern: /\/recruit\/apply\/noticeView\.do\?anc_seq=\d+[^"']*/,
     idParams: ["anc_seq"],
   },
-  {
-    key: "paik",
-    hospital: "인제대학교부산백병원",
-    // 백병원 그룹이 한 목록에 같이 나온다. 제목 앞에 병원명이 붙어 있어 그걸로 가른다.
-    listUrl: "https://www.paik.ac.kr/paik/user/job/list.do?menuNo=200041",
-    // 🔴 링크가 주소가 아니라 `href="javascript:view('1933');"` 다 — 그래서 종전 패턴에 안 걸렸다.
-    linkPattern: /javascript:view\('\d+'\)[^"']*/,
-    idPattern: /view\('(\d+)'\)/,
-    idParams: [],
-    // 상세는 폼 POST 지만 `jobId` 로 GET 도 열린다(실측: 104KB). 목록으로 보내지 않고 공고로 바로 보낸다.
-    detailUrl: (id) => `https://www.paik.ac.kr/paik/user/job/view.do?menuNo=200041&jobId=${id}`,
-    // 🔴 명부 표기가 형제 병원끼리도 제각각이다 — 상계·해운대는 공백이 있고 일산은 없다.
-    //    글자 그대로 옮기지 않으면 종별·지역이 안 붙는다. (서울백병원은 명부에 없다 — 넣지 않는다.)
-    branches: [
-      [/상계/, "인제대학교 상계백병원"],
-      [/일산/, "인제대학교일산백병원"],
-      [/해운대/, "인제대학교 해운대백병원"],
-    ],
-  },
+  // 🔴 백병원(paik)은 여기 있었는데 **뺐다.** 같은 병원이 마이다스인 ATS 에도 있고
+  //    (paik.recruiter.co.kr, 간호 7건 vs 자체 사이트 3건), 두 곳에서 담으면 external_id 가
+  //    달라 **같은 공고 카드가 두 번 뜬다.** 더 많이·더 정확히(마감일·고용형태) 주는 ATS 로 몰았다
+  //    — lib/recruiterAts 의 TENANTS 를 볼 것.
 ];
 
 export type SiteJob = {
