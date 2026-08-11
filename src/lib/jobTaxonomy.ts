@@ -95,6 +95,38 @@ const FACILITY_BY_NAME: ReadonlyArray<readonly [FacilityType, RegExp]> = [
   ["산후조리원", /산후\s*조리/],
 ];
 
+/**
+ * 🏥 심사평가원 종별(clCdNm) → 우리 기관 종별. **이게 정답 소스다** — 추정이 아니라 복지부 지정값이다.
+ *
+ * 산업분류(KSIC)로는 '상급종합' 을 절대 못 가려낸다(그 개념이 KSIC 에 없다). 그래서 FACILITY_TYPES 에
+ * '상급종합병원' 칸이 있는데도 0건이었고 칩이 화면에 안 그려졌다. 명부에 clCdNm 을 저장하면서 열린다.
+ *
+ * 🔴 순서가 규칙이다. '치과병원'·'한방병원'·'요양병원' 을 '병원' 보다 **먼저** 봐야 한다 —
+ *    아래로 내리면 전부 '병원' 으로 뭉개진다.
+ * 🔴 '정신병원' 은 우리 표에 칸이 없어 '병원' 으로 둔다. 새 칸을 만들면 이력서 쪽 HOSPITAL_TYPES 와
+ *    어긋나 인재↔공고 매칭이 깨진다(축 어휘를 공유하는 것이 이 파일의 설계다). 정신과 자리는
+ *    진료과(specialty) 축의 '정신과' 로 잡힌다.
+ * 🔴 표에 못 넣는 값은 **'기타' 가 아니라 null 이다.** '기타' 를 주면 부르는 쪽에서
+ *    `명부값 ?? 산업분류값` 순으로 고를 때 **덜 정확한 '기타' 가 더 정확한 산업분류 유도값을 이긴다**
+ *    (sync-worknet). null 이면 다음 후보로 자연히 내려간다.
+ */
+const FACILITY_BY_CL_CD: ReadonlyArray<readonly [FacilityType, RegExp]> = [
+  ["상급종합병원", /상급\s*종합/],
+  ["종합병원", /종합\s*병원/],
+  ["치과", /치과/],
+  ["한방병원", /한방\s*병원|한의원|한방/],
+  ["요양병원", /요양\s*병원/],
+  ["보건소", /보건소|보건지소|보건진료소|보건의료원/],
+  ["병원", /병원/], // 정신병원 포함(위에서 안 걸린 '○○병원' 전부)
+  ["의원", /의원/],
+];
+
+export function facilityFromClCd(clCdNm: string | null | undefined): FacilityType | null {
+  const s = (clCdNm ?? "").trim();
+  if (!s) return null;
+  return FACILITY_BY_CL_CD.find(([, re]) => re.test(s))?.[0] ?? null;
+}
+
 /** 회사명 + 산업분류로 기관 종별을 정한다. 이름이 확실하면 이름을, 아니면 산업분류를 쓴다. */
 export function facilityFor(
   companyName: string | null | undefined,

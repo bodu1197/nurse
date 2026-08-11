@@ -46,7 +46,8 @@ export type JobRow = Omit<Pick<JobsRow, (typeof JOB_FIELDS)[number]>, "source" |
 export const SOURCE_LABEL: Record<JobSource, string> = {
   direct: "병원 직접 등록",
   worknet: "워크넷 수집",
-  public_data: "공공데이터",
+  // 잡알리오(job.alio.go.kr) 수집분 — 국립대병원·국립암센터·적십자사 등 공공기관 채용공고.
+  public_data: "공공기관 채용(잡알리오)",
   partner: "구 널스넷 이관",
   crawl: "수집",
 };

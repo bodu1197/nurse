@@ -4,6 +4,7 @@ import { fetchNurseJobs, fetchDetails, inBatches } from "@/lib/worknet";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText, stillValid } from "@/lib/jobTaxonomy";
 import { geocodeAddress } from "@/lib/kakao";
+import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
 
 // 워크넷(고용24) 채용정보 "간호" 키워드 수집 → jobs upsert.
 // 워크넷 공고는 "구인 광고"다 — 병원 명부(hospitals, 심사평가원)와 다른 것이라 명부에 레코드를 만들지 않는다.
@@ -67,6 +68,12 @@ export async function GET(request: Request) {
     );
     const attempted = new Set(needCoords.map((j) => j.authNo));
 
+    // 🏥 회사명으로 심사평가원 명부를 찾아 기관 종별을 얻는다(동명이 갈리면 안 쓴다 — lib/hospitalRegistry).
+    //    실측 2026-08-11: 노출중 워크넷 공고 1,938건 중 932건(48%)이 명부와 이름이 정확히 일치한다.
+    // 🔴 실패해도 여기서 멈추지 않는다(BestEffort) — 종별은 보강값인데, 종전에는 이 조회 한 번이
+    //    실패하면 워크넷 공고 1,400건의 upsert·마감 처리가 통째로 502 였다.
+    const registry = await lookupHospitalsBestEffort(admin, jobs.map((j) => j.company));
+
     // 리스트 기본 직무설명(상세 미보강 공고용 임시).
     const listDesc = (j: (typeof jobs)[number]) =>
       [j.company, j.holidayTpNm && `근무형태: ${j.holidayTpNm}`, j.minEdubg && `학력: ${j.minEdubg}`, j.career && `경력: ${j.career}`, j.addr && `근무지: ${j.addr}`].filter(Boolean).join("\n");
@@ -108,10 +115,12 @@ export async function GET(request: Request) {
         hospital_id: null,
         title: finalTitle,
         specialty,
-        // 기관 종별·직종은 워크넷이 코드로 정확히 준다(누락 0건) — 추론이 아니라 정답이다.
-        // 다만 산업분류가 표에 없는 3.2% 는 유도가 null 이라, 그때는 저장값을 지키지 않으면
-        // 마이그레이션이 회사명으로 채워둔 값이 첫 동기화(6시간 내)에 통째로 날아간다.
-        facility_type: j.facilityType ?? s?.facility_type ?? null,
+        // 🏥 기관 종별은 **심사평가원 명부가 1순위**다(2026-08-11). 워크넷이 주는 것은 산업분류(KSIC)라
+        //    '상급종합' 이라는 개념이 없어 대학병원이 전부 '병원'·'종합병원' 으로 뭉개졌다 —
+        //    그래서 '상급종합병원' 칩이 0건이라 화면에 그려지지도 않았다.
+        //    명부에 이름이 같은 기관이 있으면 복지부 지정 등급을 그대로 쓰고(동명이 갈리면 안 쓴다),
+        //    없을 때만 종전대로 산업분류 유도 → 저장값 순으로 내려간다.
+        facility_type: registry.get(j.company)?.facilityType ?? j.facilityType ?? s?.facility_type ?? null,
         job_category: j.jobCategory ?? s?.job_category ?? null,
         employment_type: j.employmentType,
         location: j.region || null,
@@ -178,7 +187,7 @@ export async function GET(request: Request) {
 
     const enrichedRemaining = jobs.filter((j) => !stored.get(j.authNo)?.detail_fetched_at && !details.has(j.authNo)).length;
     const geocoded = [...coords.values()].filter(Boolean).length;
-    return NextResponse.json({ ok: true, fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, adsExpired: expiredAds?.length ?? 0, detailsFetched: details.size, enrichRemaining: enrichedRemaining, coordsGeocoded: geocoded, coordsAttempted: needCoords.length });
+    return NextResponse.json({ ok: true, fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, adsExpired: expiredAds?.length ?? 0, detailsFetched: details.size, enrichRemaining: enrichedRemaining, coordsGeocoded: geocoded, coordsAttempted: needCoords.length, registryMatched: registry.size });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "sync failed" }, { status: 502 });
   }

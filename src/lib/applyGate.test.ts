@@ -22,6 +22,15 @@ test("워크넷 수집 공고는 apply_methods 가 platform 이어도 막는다"
   assert.ok(!acceptsPlatformApply({ source: "worknet", apply_methods: ["platform", "email"] }));
 });
 
+/**
+ * 🔴 잡알리오 수집분도 같다 — 접수는 각 공공기관 채용시스템에서만 이뤄진다.
+ *    새 수집처를 COLLECTED_SOURCES 에 안 넣으면 여기가 열려, 간호사가 우리 사이트에서
+ *    「지원하기」를 눌러 놓고 **실제로는 아무 데도 지원되지 않은 상태**가 된다.
+ */
+test("잡알리오 수집 공고도 간편지원을 막는다", () => {
+  assert.ok(!acceptsPlatformApply({ source: "public_data", apply_methods: ["platform"] }));
+});
+
 test("간편지원을 안 받는 공고는 출처와 무관하게 막는다", () => {
   assert.ok(!acceptsPlatformApply({ source: "direct", apply_methods: ["email"] }));
   assert.ok(!acceptsPlatformApply({ source: "partner", apply_methods: ["offline"] }));

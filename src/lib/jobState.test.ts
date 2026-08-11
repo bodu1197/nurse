@@ -101,11 +101,24 @@ test("구 널스넷 이관 공고도 노출 기간 규칙을 받는다", () => {
   // 방금 올린 것도 광고가 없으면 안 보인다(2026-08-05: 무료 노출 창 폐지)
   assert.equal(isOpenToSeekers({ ...partner, posted_at: ago(1), featured_until: null }, NOW), false);
 
-  // 워크넷만 이 규칙을 안 받는다 — 우리가 파는 자리가 아니라 배경 데이터다
+  // 수집 공고만 이 규칙을 안 받는다 — 우리가 파는 자리가 아니라 배경 데이터다
   assert.equal(
     isOpenToSeekers({ status: "open", source: "worknet", posted_at: ago(400), featured_until: null, deadline: null }, NOW),
     true,
   );
+});
+
+/**
+ * 🔴 수집처를 늘릴 때 여기가 안 따라오면 **크론은 도는데 화면엔 아무것도 안 뜬다**.
+ *    수집 공고는 광고를 산 적이 없어 featured_until 이 null 이라, 예외 목록에서 빠지는 순간
+ *    전부 is_live=false 가 된다. 조용한 실패라 아무도 눈치채지 못한다.
+ *    DB 쪽 짝은 jobs_listed.is_live(마이그레이션 20260811150000) — 같이 고쳐야 한다.
+ */
+test("잡알리오 수집 공고도 광고 없이 보인다", () => {
+  const alio = { status: "open", source: "public_data", posted_at: ago(400), featured_until: null } as const;
+  assert.equal(isOpenToSeekers({ ...alio, deadline: null }, NOW), true);
+  assert.equal(isOpenToSeekers({ ...alio, deadline: "2026-07-23" }, NOW), true); // 마감 당일은 아직 유효
+  assert.equal(isOpenToSeekers({ ...alio, deadline: "2026-07-22" }, NOW), false); // 마감일은 수집분도 지킨다
 });
 
 /**

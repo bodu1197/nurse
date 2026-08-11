@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { departmentFromText, facilityFor, stillValid } from "./jobTaxonomy.ts";
+import { departmentFromText, facilityFor, facilityFromClCd, stillValid } from "./jobTaxonomy.ts";
 
 /**
  * 진료과 추론 회귀 테스트.
@@ -55,6 +55,40 @@ test("기관 종별 — 회사명이 산업분류를 이긴다", () => {
   assert.equal(facilityFor("덕인노인전문요양원", "노인 요양 복지시설 운영업"), "요양원·주간보호");
   assert.equal(facilityFor("의령군립노인전문병원", "요양 병원"), "요양병원");
   assert.equal(facilityFor(null, null), null);
+});
+
+/**
+ * 🔴 이 시험이 있는 이유: 이 표가 있기 전까지 '상급종합병원' 칩은 **0건이라 화면에 그려지지도 않았다.**
+ *    산업분류(KSIC)에는 '상급종합' 이라는 개념이 없어서 대학병원이 전부 '병원'·'종합병원' 으로 뭉개졌다.
+ *    순서를 잘못 바꾸면(예: '병원' 을 위로) 상급종합·종합·치과·한방이 전부 '병원' 이 되어
+ *    조용히 원래대로 돌아간다.
+ */
+test("심사평가원 종별을 우리 표로 옮긴다 — 순서가 규칙이다", () => {
+  assert.equal(facilityFromClCd("상급종합"), "상급종합병원");
+  assert.equal(facilityFromClCd("종합병원"), "종합병원");
+  assert.equal(facilityFromClCd("요양병원"), "요양병원"); // '병원' 보다 먼저 걸려야 한다
+  assert.equal(facilityFromClCd("치과병원"), "치과");
+  assert.equal(facilityFromClCd("치과의원"), "치과"); // '의원' 보다 먼저
+  assert.equal(facilityFromClCd("한방병원"), "한방병원");
+  assert.equal(facilityFromClCd("한의원"), "한방병원");
+  assert.equal(facilityFromClCd("병원"), "병원");
+  assert.equal(facilityFromClCd("의원"), "의원");
+  assert.equal(facilityFromClCd("보건소"), "보건소");
+  assert.equal(facilityFromClCd("보건의료원"), "보건소"); // '의원' 이 아니다
+  // 우리 표에 칸이 없는 값 — 이력서 HOSPITAL_TYPES 와 어휘를 맞춰야 해서 새 칸을 만들지 않는다.
+  assert.equal(facilityFromClCd("정신병원"), "병원");
+  assert.equal(facilityFromClCd(null), null);
+  assert.equal(facilityFromClCd(""), null);
+});
+
+/**
+ * 🔴 표에 못 넣는 값은 '기타' 가 아니라 **null** 이어야 한다.
+ *    부르는 쪽(sync-worknet)이 `명부값 ?? 산업분류값 ?? 저장값` 순으로 고르는데,
+ *    '기타' 를 돌려주면 **덜 정확한 값이 더 정확한 산업분류 유도값을 이긴다.**
+ */
+test("표에 없는 종별은 '기타' 로 뭉개지 않고 비운다", () => {
+  assert.equal(facilityFromClCd("조산원"), null); // 산후조리원이 아니다(분만 의료기관)
+  assert.equal(facilityFromClCd("약국"), null); // 심사평가원 종별이지만 우리 표에 칸이 없다
 });
 
 test("소스에 제어문자가 섞이지 않았다", async () => {

@@ -403,6 +403,8 @@ export type Database = {
       hospitals: {
         Row: {
           address: string | null
+          /** 심사평가원 종별(clCdNm): 상급종합·종합병원·병원·요양병원·의원… 원본 그대로(20260811180000). */
+          cl_cd_nm: string | null
           created_at: string
           id: string
           is_claimed: boolean
@@ -419,6 +421,7 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          cl_cd_nm?: string | null
           created_at?: string
           id?: string
           is_claimed?: boolean
@@ -435,6 +438,7 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          cl_cd_nm?: string | null
           created_at?: string
           id?: string
           is_claimed?: boolean

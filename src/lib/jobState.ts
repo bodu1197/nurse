@@ -38,6 +38,24 @@ export const isLive = (s: JobState) => s === "featured";
 /** 병원이 화면에서 바꿀 수 있는 공고 상태(게시/마감) */
 export const JOB_SETTABLE = ["open", "closed"] as const satisfies readonly JobStatus[];
 
+/**
+ * 우리가 **밖에서 모아 온** 공고인가 — 병원이 우리에게 올린 광고가 아니다.
+ *
+ * 🔴 이 개념이 `source === "worknet"` 이라는 문자열로 네 곳(노출 판정·간편지원·광고 목록·대시보드)에
+ *    손으로 적혀 있었다. 두 번째 수집처(잡알리오 = public_data)를 붙이는 순간 그 넷이 전부
+ *    어긋난다 — 수집은 되는데 목록에 안 뜨고(광고가 없으니), 간편지원 버튼은 열리고,
+ *    관리자 「광고 관리」에는 돈 안 낸 공공기관 공고가 섞여 든다.
+ *    그래서 여기 **한 줄**로 두고 넷이 같이 읽는다. 수집처가 늘면 이 배열만 고친다.
+ * 🔴 DB 쪽 짝은 `jobs_listed.is_live` 와 `admin_dashboard()` 다 — 같이 고쳐야 한다.
+ *
+ * 수집 공고의 성질(오너 확정 2026-07-30·08-04):
+ *   · 우리가 파는 자리가 아니라 배경 데이터라 **광고 기간 없이 항상 보인다**
+ *   · 접수에 우리가 관여하지 않는다 → 간편지원을 받지 않고 원본으로 보낸다
+ */
+export const COLLECTED_SOURCES = ["worknet", "public_data"] as const;
+export const isCollectedJob = (source: string): boolean =>
+  (COLLECTED_SOURCES as readonly string[]).includes(source);
+
 /** 폼 문자열을 그 둘로 좁힌다. some()만으로는 타입이 안 좁혀져 임의 문자열이 update로 넘어간다. */
 export const isSettableJobStatus = (s: string): s is (typeof JOB_SETTABLE)[number] =>
   JOB_SETTABLE.some((v) => v === s);
@@ -56,13 +74,12 @@ export function isOpenToSeekers(
   now: number,
 ): boolean {
   if (job.status !== "open") return false;
-  // 🔴 `source === "direct"` 가 아니라 **워크넷이 아닌 우리 공고 전부**다.
+  // 🔴 `source === "direct"` 가 아니라 **수집분이 아닌 우리 공고 전부**다.
   //    구 널스넷 이관분(partner)이 이 규칙 밖에 있어서, 광고가 끝나도 목록에 남고
   //    featured_until 값이 남은 탓에 정렬에서 워크넷(null)보다 위였다 —
   //    **돈 낸 광고가 끝났는데 계속 1페이지 상단을 차지**했다(실측: 8/19 시점 43건).
-  //    워크넷 수집분만 노출 기간 없이 항상 보인다 — 우리가 파는 자리가 아니라 배경 데이터다.
   // 🔴 우리 공고는 **광고가 살아 있을 때만** 보인다(무료 노출 창은 없앴다 — jobState 주석 참고).
-  //    워크넷 수집분만 기간 없이 항상 보인다 — 우리가 파는 자리가 아니라 배경 데이터다.
-  if (job.source !== "worknet" && !(job.featured_until && new Date(job.featured_until).getTime() > now)) return false;
+  //    수집분(COLLECTED_SOURCES)만 기간 없이 항상 보인다 — 우리가 파는 자리가 아니라 배경 데이터다.
+  if (!isCollectedJob(job.source) && !(job.featured_until && new Date(job.featured_until).getTime() > now)) return false;
   return !(job.deadline && job.deadline < todayKst(now));
 }

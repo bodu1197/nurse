@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { acceptsPlatformApply } from "@/lib/applyGate";
+import { isCollectedJob } from "@/lib/jobState";
 import Button from "@/components/Button";
 import ConfirmSubmit from "@/components/ConfirmSubmit";
 import { toggleSaveJob, applyToJob } from "@/app/jobs/actions";
@@ -198,8 +199,12 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
         )}
 
         <div className="mt-4">
-          {/* 판정은 lib/applyGate 한 곳 — 서버 액션(applyToJob)과 같은 함수를 써야 한다. */}
-          {job.source !== "worknet" ? (
+          {/* 🔴 여기 조건은 `job.source !== "worknet"` 이라고 **손으로 다시 적혀 있었다** — 바로 위
+              주석이 "판정은 applyGate 한 곳"이라고 말하면서 실제로는 아니었다. 그래서 잡알리오
+              수집분(public_data)을 붙이자마자 이 화면만 「간편지원하려면 로그인이 필요합니다」를
+              띄웠다(실측 2026-08-11). 접수를 우리가 하지도 않는 공고에 지원 버튼을 보이는 것은
+              간호사에게 거짓말이다 — 판정은 lib/jobState 의 isCollectedJob 하나만 쓴다. */}
+          {!isCollectedJob(job.source) ? (
             <div className="space-y-4 sm:max-w-md">
               {job.apply_methods.includes("platform") && (
                 !profile ? (
@@ -281,7 +286,7 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
               )}
             </div>
           ) : (
-            /* ── 워크넷 수집 공고 ──────────────────────────────────────
+            /* ── 수집 공고(워크넷·잡알리오) ────────────────────────────
                오너 확정 2026-07-30: 접수는 우리가 하지 않는다. 원본으로 보내는 것이 전부이고,
                이력서를 등록한 간호사 회원만 나갈 수 있다.
                🔴 2026-08-04: 설명 문구는 전부 뺐다. 버튼 글자가 다음에 할 일을 그대로 말한다. */

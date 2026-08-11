@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/data/admin";
 
 import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
 import { isAppStatus, type AppStatus } from "@/lib/data/applications";
+import { COLLECTED_SOURCES } from "@/lib/jobState";
 
 export const PER_PAGE = 30;
 
@@ -384,8 +385,10 @@ export async function getAdList(
   let query = supabase
     .from("jobs_listed")
     .select("id,title,company_name,ad_tier,featured_until,posted_at,deadline,status,source,hospital:hospitals(id,name)", { count: "exact" })
-    // 🔴 워크넷 공고는 우리가 파는 광고가 아니라 고용24에서 **수집한** 구인정보다(오너 지시 2026-08-04).
-    .neq("source", "worknet");
+    // 🔴 수집 공고(워크넷·잡알리오)는 우리가 파는 광고가 아니라 밖에서 모아 온 구인정보다(오너 지시 2026-08-04).
+    //    목록은 lib/jobState 의 COLLECTED_SOURCES 한 곳에서 온다 — 수집처가 늘 때 여기가 안 따라오면
+    //    돈 한 푼 안 낸 공공기관 공고가 「광고 관리」에 섞여 매출 화면을 오염시킨다.
+    .not("source", "in", `(${COLLECTED_SOURCES.join(",")})`);
 
   // 🔴 탭은 **지금 구직자에게 보이는가**로 나눈다. featured_until 유무로 나누면 안 된다.
   //    전에는 세 탭 모두 `.not("featured_until","is",null)` 을 걸어서 광고를 안 낸 공고가
