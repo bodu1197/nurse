@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchNurseAtsJobs, fetchAtsDescription, TENANTS } from "@/lib/recruiterAts";
+import { fetchNurseSiteJobs, SITES } from "@/lib/hospitalSites";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
@@ -29,7 +30,13 @@ export async function GET(request: Request) {
 
   try {
     const syncStart = new Date().toISOString();
-    const { jobs, failed } = await fetchNurseAtsJobs();
+    // 공용 ATS(20곳) + 자체 홈페이지(SITES) — 둘 다 source='crawl' 이라 같은 경로로 처리한다.
+    const [ats, sites] = await Promise.all([fetchNurseAtsJobs(), fetchNurseSiteJobs()]);
+    const jobs = [
+      ...ats.jobs.map((j) => ({ key: j.host, id: j.id, title: j.title, hospital: j.hospital, displayName: j.displayName, jobCategory: j.jobCategory, employmentType: j.employmentType, postedAt: j.postedAt, deadline: j.deadline, url: j.url, sn: j.sn as number | null })),
+      ...sites.jobs.map((j) => ({ key: j.id.split("-")[0], id: j.id, title: j.title, hospital: j.hospital, displayName: j.hospital, jobCategory: j.jobCategory, employmentType: null as string | null, postedAt: null as string | null, deadline: j.deadline, url: j.url, sn: null as number | null })),
+    ];
+    const failed = [...ats.failed, ...sites.failed];
     if (jobs.length === 0) return NextResponse.json({ ok: true, fetched: 0, jobsUpserted: 0, failedHosts: failed });
 
     const admin = createAdminClient();
@@ -52,11 +59,12 @@ export async function GET(request: Request) {
     }
 
     // 본문은 공고당 한 번만 받는다(내용이 바뀌면 병원이 새 공고를 낸다).
-    const need = jobs.filter((j) => !stored.get(j.id)?.detail_fetched_at);
+    // 본문은 ATS 공고만 받는다(자체 홈페이지는 사이트마다 상세 구조가 달라 아직 제목·링크만 쓴다).
+    const need = jobs.filter((j) => j.sn !== null && !stored.get(j.id)?.detail_fetched_at);
     const bodies = new Map<string, string>();
     for (let i = 0; i < need.length; i += 6) {
       const got = await Promise.all(
-        need.slice(i, i + 6).map(async (j) => [j.id, await fetchAtsDescription(j.host, String(j.sn))] as const),
+        need.slice(i, i + 6).map(async (j) => [j.id, await fetchAtsDescription(j.key, String(j.sn))] as const),
       );
       for (const [id, body] of got) if (body) bodies.set(id, body);
     }
@@ -107,7 +115,7 @@ export async function GET(request: Request) {
     //    한 곳이 점검 중일 때 source='crawl' 전체를 닫으면, 멀쩡한 나머지 19곳 덕분에
     //    `failed.length === 0` 같은 전역 가드를 통과해 버리고 **그 병원 공고만 통째로 사라진다.**
     //    external_id 가 `{host}-{공고번호}` 라 호스트 접두로 범위를 정확히 좁힐 수 있다.
-    const alive = TENANTS.map((t) => t.host).filter((h) => !failed.includes(h));
+    const alive = [...TENANTS.map((t) => t.host), ...SITES.map((s) => s.key)].filter((h) => !failed.includes(h));
     let closed = 0;
     for (const host of alive) {
       const { data: closedRows, error: closeErr } = await admin
@@ -122,6 +130,9 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ok: true,
       tenants: TENANTS.length,
+      sites: SITES.length,
+      fetchedAts: ats.jobs.length,
+      fetchedSites: sites.jobs.length,
       fetched: jobs.length,
       jobsUpserted: upserted,
       jobsClosed: closed,
