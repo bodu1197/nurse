@@ -62,6 +62,31 @@ test("공고를 가리키는 파라미터로만 id 를 만든다", () => {
   assert.equal(idFromLink("/view.do", ["bbs_no"]), null);
 });
 
+/**
+ * 🔴 어떤 병원은 링크가 주소가 아니라 `href="javascript:view('1933')"` 다. 그대로 두면
+ *    간호사가 눌렀을 때 아무 일도 안 일어난다 — id 를 뽑아 **열리는 주소**를 만들어 준다.
+ */
+test("자바스크립트 링크에서 id 를 뽑아 열리는 주소를 만든다", () => {
+  const js: Site = {
+    key: "paik",
+    hospital: "인제대학교부산백병원",
+    listUrl: "https://www.paik.ac.kr/paik/user/job/list.do?menuNo=200041",
+    linkPattern: /javascript:view\('\d+'\)[^"']*/,
+    idPattern: /view\('(\d+)'\)/,
+    idParams: [],
+    detailUrl: (id) => `https://www.paik.ac.kr/paik/user/job/view.do?menuNo=200041&jobId=${id}`,
+    branches: [[/상계/, "인제대학교 상계백병원"]],
+  };
+  const html = `<td><a href="javascript:view('1933');">[부산백병원] 건강관리과 계약직 간호조무사 채용공고 2026-08-06 ~ 채용시까지</a></td>
+                <td><a href="javascript:view('1900');">[상계백병원] 간호사 채용공고 2026-08-01 ~ 2026-08-20</a></td>`;
+  const rows = parseSite(js, html);
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].id, "paik-1933");
+  assert.equal(rows[0].url, "https://www.paik.ac.kr/paik/user/job/view.do?menuNo=200041&jobId=1933");
+  assert.equal(rows[0].jobCategory, "간호조무직");
+  assert.equal(rows[1].hospital, "인제대학교 상계백병원", "제목의 병원명으로 형제 병원을 가른다");
+});
+
 test("태그를 걷어내고 한 줄로 만든다", () => {
   assert.equal(anchorText("<span>D-50</span>간호부  모집\n공고"), "D-50 간호부 모집 공고");
 });
@@ -97,7 +122,10 @@ test("SITES 의 병원명이 비어 있거나 앞뒤 공백이 있지 않다", (
   for (const s of SITES) {
     assert.equal(s.hospital, s.hospital.trim(), `${s.key} 병원명에 앞뒤 공백`);
     assert.ok(s.hospital.length > 0, `${s.key} 병원명 없음`);
-    assert.ok(s.idParams.length > 0, `${s.key} idParams 없음 — 공고를 가릴 수 없다`);
+    // 공고를 가릴 수단이 둘 중 하나는 있어야 한다(쿼리 파라미터 또는 JS 링크에서 뽑는 패턴).
+    assert.ok(s.idParams.length > 0 || s.idPattern, `${s.key} 공고 식별 수단 없음`);
+    // JS 링크를 쓰면 눌러서 열리는 주소를 만들 방법도 반드시 있어야 한다.
+    if (s.idPattern) assert.ok(s.detailUrl, `${s.key} idPattern 만 있고 detailUrl 이 없다 — 링크가 안 열린다`);
     for (const [, name] of s.branches ?? []) {
       assert.equal(name, name.trim(), `${s.key} 지점명에 앞뒤 공백`);
       assert.ok(name.length > 0);

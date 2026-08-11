@@ -30,6 +30,14 @@ export type Site = {
    *    그래서 무엇이 공고를 가리키는지 사이트마다 못 박는다.
    */
   idParams: readonly string[];
+  /**
+   * 링크가 URL 이 아니라 `href="javascript:view('1933')"` 인 사이트용.
+   * 캡처 1번이 공고 id 이고, 그 id 로 detailUrl 이 실제 주소를 만든다.
+   * 🔴 이런 사이트는 상세가 **POST 폼**인 경우가 있다 — GET 으로 열리는 주소를 반드시 확인하고 적을 것.
+   *    안 열리는 주소를 넣으면 간호사가 눌렀을 때 빈 화면을 본다.
+   */
+  idPattern?: RegExp;
+  detailUrl?: (id: string) => string;
   /** 제목으로 병원을 가르는 규칙(한 사이트가 여러 병원일 때). 위에서부터 첫 매칭. */
   branches?: ReadonlyArray<readonly [RegExp, string]>;
 };
@@ -106,6 +114,25 @@ export const SITES: readonly Site[] = [
     linkPattern: /\/service\/service_3\.php\?boardid=recruit[^"']*mode=view[^"']*idx=\d+/,
     idParams: ["idx"],
   },
+  {
+    key: "paik",
+    hospital: "인제대학교부산백병원",
+    // 백병원 그룹이 한 목록에 같이 나온다. 제목 앞에 병원명이 붙어 있어 그걸로 가른다.
+    listUrl: "https://www.paik.ac.kr/paik/user/job/list.do?menuNo=200041",
+    // 🔴 링크가 주소가 아니라 `href="javascript:view('1933');"` 다 — 그래서 종전 패턴에 안 걸렸다.
+    linkPattern: /javascript:view\('\d+'\)[^"']*/,
+    idPattern: /view\('(\d+)'\)/,
+    idParams: [],
+    // 상세는 폼 POST 지만 `jobId` 로 GET 도 열린다(실측: 104KB). 목록으로 보내지 않고 공고로 바로 보낸다.
+    detailUrl: (id) => `https://www.paik.ac.kr/paik/user/job/view.do?menuNo=200041&jobId=${id}`,
+    // 🔴 명부 표기가 형제 병원끼리도 제각각이다 — 상계·해운대는 공백이 있고 일산은 없다.
+    //    글자 그대로 옮기지 않으면 종별·지역이 안 붙는다. (서울백병원은 명부에 없다 — 넣지 않는다.)
+    branches: [
+      [/상계/, "인제대학교 상계백병원"],
+      [/일산/, "인제대학교일산백병원"],
+      [/해운대/, "인제대학교 해운대백병원"],
+    ],
+  },
 ];
 
 export type SiteJob = {
@@ -157,7 +184,7 @@ export function parseSite(site: Site, html: string): SiteJob[] {
   for (const m of html.matchAll(re)) {
     const text = anchorText(m[2]);
     if (!/간호/.test(text)) continue;
-    const sn = idFromLink(m[1], site.idParams);
+    const sn = site.idPattern ? m[1].match(site.idPattern)?.[1] ?? null : idFromLink(m[1], site.idParams);
     if (!sn) continue;
     const id = `${site.key}-${sn}`;
     if (seen.has(id)) continue;
@@ -171,7 +198,7 @@ export function parseSite(site: Site, html: string): SiteJob[] {
       displayName: branch ?? site.display ?? site.hospital,
       jobCategory: jobCategoryOf(text, null),
       deadline: lastDate(text),
-      url: abs(site.listUrl, m[1]),
+      url: site.detailUrl ? site.detailUrl(sn) : abs(site.listUrl, m[1]),
     });
   }
   return out;
