@@ -115,6 +115,15 @@ export const SITES: readonly Site[] = [
     idParams: ["idx"],
   },
   {
+    key: "kuh",
+    hospital: "건국대학교병원",
+    // 🔴 홈(`/`)은 `location.href="main.do"` 만 든 리다이렉트 껍데기(286바이트)라 링크가 안 보였다.
+    //    JS 앱이 아니라 그냥 한 단계 더 들어가야 하는 사이트였다.
+    listUrl: "https://www.kuh.ac.kr/recruit/apply/noticeList.do",
+    linkPattern: /\/recruit\/apply\/noticeView\.do\?anc_seq=\d+[^"']*/,
+    idParams: ["anc_seq"],
+  },
+  {
     key: "paik",
     hospital: "인제대학교부산백병원",
     // 백병원 그룹이 한 목록에 같이 나온다. 제목 앞에 병원명이 붙어 있어 그걸로 가른다.
