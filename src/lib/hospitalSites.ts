@@ -99,6 +99,13 @@ export const SITES: readonly Site[] = [
     idParams: ["noticeId"],
     branches: [[/부여/, "학교법인 건양교육재단 건양대학교부여병원"]],
   },
+  {
+    key: "kosin",
+    hospital: "고신대학교복음병원",
+    listUrl: "https://www.kosinmed.or.kr/service/service_3.php",
+    linkPattern: /\/service\/service_3\.php\?boardid=recruit[^"']*mode=view[^"']*idx=\d+/,
+    idParams: ["idx"],
+  },
 ];
 
 export type SiteJob = {
