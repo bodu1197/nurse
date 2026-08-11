@@ -42,6 +42,14 @@ const NAV: readonly NavGroup[] = [
       { href: "/admin/moderation", label: "리뷰 · 게시판 관리" },
     ],
   },
+  {
+    title: "시스템",
+    items: [
+      // 공고를 어디서 긁어오는지와, 그게 지금도 도는지. 수집기는 조용히 죽는다 —
+      // 실제로 병원 명부 수집이 몇 달 동안 매주 실패했는데 아무도 몰랐다(2026-08-11).
+      { href: "/admin/collectors", label: "데이터 수집 모니터링" },
+    ],
+  },
 ];
 
 export default async function AdminLayout({ children }: Readonly<{ children: ReactNode }>) {

@@ -353,6 +353,38 @@ export type Database = {
           },
         ]
       }
+      /** 🔍 수집 크론 실행 기록 — /admin/collectors 가 "언제 마지막으로 성공했나"를 읽는다(20260812120000). */
+      collector_runs: {
+        Row: {
+          collector: string
+          duration_ms: number | null
+          error: string | null
+          failed: string[]
+          id: number
+          ok: boolean
+          ran_at: string
+          stats: Json
+        }
+        Insert: {
+          collector: string
+          duration_ms?: number | null
+          error?: string | null
+          failed?: string[]
+          ok: boolean
+          ran_at?: string
+          stats?: Json
+        }
+        Update: {
+          collector?: string
+          duration_ms?: number | null
+          error?: string | null
+          failed?: string[]
+          ok?: boolean
+          ran_at?: string
+          stats?: Json
+        }
+        Relationships: []
+      }
       board_posts: {
         Row: {
           author_id: string | null

@@ -4,6 +4,7 @@ import { fetchNursePublicJobs, publicJobUrl } from "@/lib/alio";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
+import { recordRun } from "@/lib/collectorLog";
 
 /**
  * 공공기관 채용정보(잡알리오) 간호 공고 수집 → jobs upsert(source='public_data').
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const startedAt = Date.now(); // catch 에서도 써야 해서 try 밖에 둔다
   try {
     const syncStart = new Date().toISOString(); // 이번 실행 이전 갱신분 = 목록 이탈분 판별 기준
     const jobs = await fetchNursePublicJobs();
@@ -116,6 +118,9 @@ export async function GET(request: Request) {
       .select("id");
     if (closeErr) return NextResponse.json({ error: `jobs close: ${closeErr.message}`, upserted }, { status: 500 });
 
+    const stats = { fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, registryMatched: registry.size };
+    await recordRun(admin, { collector: "alio", ok: true, stats, startedAt });
+
     return NextResponse.json({
       ok: true,
       fetched: jobs.length,
@@ -125,6 +130,8 @@ export async function GET(request: Request) {
       registryMatched: registry.size,
     });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "sync failed" }, { status: 502 });
+    const msg = e instanceof Error ? e.message : "sync failed";
+    await recordRun(createAdminClient(), { collector: "alio", ok: false, error: msg, startedAt });
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

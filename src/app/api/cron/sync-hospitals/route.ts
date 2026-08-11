@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { inBatches } from "@/lib/worknet"; // 동시 실행 수 제한 — 이미 있는 것을 쓴다
+import { recordRun } from "@/lib/collectorLog";
 
 // HIRA 병원정보서비스 재수집 후 ykiho 기준 upsert(신규 추가 + 변경 반영).
 // 폐업 기관 삭제는 생략(getHospBasisList는 활성 기관만 반환 + reviews FK 고아 위험). 필요 시 개폐업 API로 별도.
@@ -73,6 +74,7 @@ export async function GET(request: Request) {
   const key = process.env.DATA_GO_KR_API_KEY;
   if (!key) return NextResponse.json({ error: "missing DATA_GO_KR_API_KEY" }, { status: 500 });
 
+  const startedAt = Date.now(); // catch 에서도 써야 해서 try 밖에 둔다
   try {
     // 1) 1페이지로 totalCount 확보
     const firstPage = await fetchPage(key, 1);
@@ -94,8 +96,17 @@ export async function GET(request: Request) {
       upserted += chunk.length;
     }
 
+    await recordRun(admin, {
+      collector: "hospitals", ok: true, startedAt,
+      stats: { total: firstPage.total, pages: pageCount, upserted, graded: rows.filter((r) => r.cl_cd_nm).length },
+    });
+
     return NextResponse.json({ ok: true, total: firstPage.total, pages: pageCount, upserted });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "sync failed" }, { status: 502 });
+    const msg = e instanceof Error ? e.message : "sync failed";
+    // 🔴 이 크론은 실제로 몇 달 동안 매주 실패하고 있었는데 아무도 몰랐다(2026-08-11 발견).
+    //    그래서 실패를 반드시 남긴다 — 화면에 "며칠째 실패 중"이 뜨게.
+    await recordRun(createAdminClient(), { collector: "hospitals", ok: false, error: msg, startedAt });
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

@@ -5,6 +5,7 @@ import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText, stillValid } from "@/lib/jobTaxonomy";
 import { geocodeAddress } from "@/lib/kakao";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
+import { recordRun } from "@/lib/collectorLog";
 
 // 워크넷(고용24) 채용정보 "간호" 키워드 수집 → jobs upsert.
 // 워크넷 공고는 "구인 광고"다 — 병원 명부(hospitals, 심사평가원)와 다른 것이라 명부에 레코드를 만들지 않는다.
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  const startedAt = Date.now(); // catch 에서도 써야 해서 try 밖에 둔다
   try {
     const syncStart = new Date().toISOString(); // 이번 실행 이전 갱신분 = 목록 이탈분 판별 기준
     const jobs = await fetchNurseJobs();
@@ -187,8 +189,15 @@ export async function GET(request: Request) {
 
     const enrichedRemaining = jobs.filter((j) => !stored.get(j.authNo)?.detail_fetched_at && !details.has(j.authNo)).length;
     const geocoded = [...coords.values()].filter(Boolean).length;
+    await recordRun(admin, {
+      collector: "worknet", ok: true, startedAt,
+      stats: { fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, registryMatched: registry.size, detailsFetched: details.size },
+    });
+
     return NextResponse.json({ ok: true, fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, adsExpired: expiredAds?.length ?? 0, detailsFetched: details.size, enrichRemaining: enrichedRemaining, coordsGeocoded: geocoded, coordsAttempted: needCoords.length, registryMatched: registry.size });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "sync failed" }, { status: 502 });
+    const msg = e instanceof Error ? e.message : "sync failed";
+    await recordRun(createAdminClient(), { collector: "worknet", ok: false, error: msg, startedAt });
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

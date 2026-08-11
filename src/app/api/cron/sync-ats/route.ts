@@ -5,6 +5,7 @@ import { fetchNurseSiteJobs, SITES } from "@/lib/hospitalSites";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
+import { recordRun } from "@/lib/collectorLog";
 
 /**
  * 대학병원 채용 ATS(마이다스인 「리크루터」) 간호 공고 수집 → jobs upsert(source='crawl').
@@ -28,6 +29,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  // 🔴 try 밖에 둔다 — catch 에서도 실행 시간을 남겨야 한다.
+  const startedAt = Date.now();
   try {
     const syncStart = new Date().toISOString();
     // 공용 ATS(20곳) + 자체 홈페이지(SITES) — 둘 다 source='crawl' 이라 같은 경로로 처리한다.
@@ -127,6 +130,13 @@ export async function GET(request: Request) {
       closed += closedRows?.length ?? 0;
     }
 
+    const stats = {
+      tenants: TENANTS.length, sites: SITES.length,
+      fetchedAts: ats.jobs.length, fetchedSites: sites.jobs.length,
+      jobsUpserted: upserted, jobsClosed: closed, registryMatched: registry.size,
+    };
+    await recordRun(admin, { collector: "ats", ok: failed.length === 0, stats, failed, startedAt });
+
     return NextResponse.json({
       ok: true,
       tenants: TENANTS.length,
@@ -142,6 +152,9 @@ export async function GET(request: Request) {
       failedHosts: failed,
     });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "sync failed" }, { status: 502 });
+    const msg = e instanceof Error ? e.message : "sync failed";
+    // 🔴 실패도 반드시 남긴다 — 성공만 기록하면 "며칠째 실패 중"을 영영 알 수 없다.
+    await recordRun(createAdminClient(), { collector: "ats", ok: false, error: msg, startedAt });
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }
