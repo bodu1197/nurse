@@ -87,3 +87,20 @@ test("SITES 의 key 에 하이픈이 없고 중복도 없다", () => {
   assert.equal(new Set(keys).size, keys.length);
   for (const k of keys) assert.doesNotMatch(k, /-/);
 });
+
+/**
+ * 🔴 병원명은 심사평가원 명부와 **글자 그대로** 같아야 종별·지역이 붙는다. 공백 하나만 달라도
+ *    매칭이 통째로 실패한다 — 실제로 '한림대학교 강남성심병원'(명부는 공백 있음)을 붙여 써서 틀렸었다.
+ *    설정에 빈 이름·앞뒤 공백이 섞이지 않았는지라도 여기서 잡는다.
+ */
+test("SITES 의 병원명이 비어 있거나 앞뒤 공백이 있지 않다", () => {
+  for (const s of SITES) {
+    assert.equal(s.hospital, s.hospital.trim(), `${s.key} 병원명에 앞뒤 공백`);
+    assert.ok(s.hospital.length > 0, `${s.key} 병원명 없음`);
+    assert.ok(s.idParams.length > 0, `${s.key} idParams 없음 — 공고를 가릴 수 없다`);
+    for (const [, name] of s.branches ?? []) {
+      assert.equal(name, name.trim(), `${s.key} 지점명에 앞뒤 공백`);
+      assert.ok(name.length > 0);
+    }
+  }
+});

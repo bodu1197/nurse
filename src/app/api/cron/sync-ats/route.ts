@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     const [ats, sites] = await Promise.all([fetchNurseAtsJobs(), fetchNurseSiteJobs()]);
     const jobs = [
       ...ats.jobs.map((j) => ({ key: j.host, id: j.id, title: j.title, hospital: j.hospital, displayName: j.displayName, jobCategory: j.jobCategory, employmentType: j.employmentType, postedAt: j.postedAt, deadline: j.deadline, url: j.url, sn: j.sn as number | null })),
-      ...sites.jobs.map((j) => ({ key: j.id.split("-")[0], id: j.id, title: j.title, hospital: j.hospital, displayName: j.hospital, jobCategory: j.jobCategory, employmentType: null as string | null, postedAt: null as string | null, deadline: j.deadline, url: j.url, sn: null as number | null })),
+      ...sites.jobs.map((j) => ({ key: j.id.split("-")[0], id: j.id, title: j.title, hospital: j.hospital, displayName: j.displayName, jobCategory: j.jobCategory, employmentType: null as string | null, postedAt: null as string | null, deadline: j.deadline, url: j.url, sn: null as number | null })),
     ];
     const failed = [...ats.failed, ...sites.failed];
     if (jobs.length === 0) return NextResponse.json({ ok: true, fetched: 0, jobsUpserted: 0, failedHosts: failed });

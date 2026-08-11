@@ -17,6 +17,8 @@ export type Site = {
   key: string;
   /** 심사평가원 명부의 정확한 이름(기본) — 종별·지역이 여기서 붙는다. */
   hospital: string;
+  /** 화면에 보일 이름. 명부명에 법인명이 붙어 카드에 못 쓸 때만 적는다. */
+  display?: string;
   listUrl: string;
   /** 상세 링크 정규식(따옴표 안의 href 값). 캡처 없이 전체가 링크가 되게 쓴다. */
   linkPattern: RegExp;
@@ -41,10 +43,13 @@ export const SITES: readonly Site[] = [
     // 공고를 가리키는 건 (지점, 연도, 회차) 셋의 조합이다. adoptcnt 만 쓰면 해가 바뀔 때 겹친다.
     idParams: ["locate", "adoptyy", "adoptcnt"],
     // 한 페이지에 평촌·동탄·춘천·강남이 섞여 나온다. 명부에 따로 있는 곳만 갈라 준다.
+    // 🔴 명부 표기를 **글자 그대로** 옮긴다. '강남성심'·'한강성심'은 명부에 공백이 들어 있어
+    //    붙여 쓰면 매칭이 안 되고 종별·지역이 통째로 비어 버린다.
     branches: [
       [/동탄/, "한림대학교동탄성심병원"],
       [/춘천/, "한림대학교춘천성심병원"],
-      [/강남/, "한림대학교강남성심병원"],
+      [/강남/, "한림대학교 강남성심병원"],
+      [/한강/, "한림대학교 한강성심병원"],
     ],
   },
   {
@@ -63,12 +68,44 @@ export const SITES: readonly Site[] = [
     linkPattern: /\/kor\/CMS\/RecruitMgr\/view\.do\?[^"']*recruit_seq=\d+/,
     idParams: ["recruit_seq"],
   },
+  {
+    key: "cmcism",
+    hospital: "가톨릭대학교인천성모병원",
+    listUrl: "https://www.cmcism.or.kr/center/recruit_list",
+    // href 끝에 `&` 가 붙어 오므로 `seq=\d+` 로 끊으면 안 된다 — 뒤를 열어 둔다.
+    linkPattern: /\/center\/recruit_view\?seq=\d+[^"']*/,
+    idParams: ["seq"],
+  },
+  {
+    key: "dsmc",
+    hospital: "계명대학교동산병원",
+    listUrl: "https://www.dsmc.or.kr/content/01dsmc/07_03.php",
+    linkPattern: /\/content\/01dsmc\/07_03\.php\?proc_type=view[^"']+/,
+    // b_num 이 공고를 가른다(a_num 은 게시판 번호라 모든 행이 같다).
+    idParams: ["b_num"],
+    branches: [
+      [/대구동산/, "계명대학교대구동산병원"],
+      [/경주동산/, "계명대학교 경주동산병원"],
+    ],
+  },
+  {
+    key: "kyuh",
+    hospital: "학교법인 건양교육재단 건양대학교병원",
+    display: "건양대학교병원",
+    // 🔴 `/prog/recruitNotice/list.do` 는 직종 필터를 붙여도 **0건**이 온다(실측) — 목록이
+    //    JS 로 그려진다. 반면 `/recruit/index.do` 는 서버가 공고를 박아서 준다.
+    listUrl: "https://www.kyuh.ac.kr/recruit/index.do",
+    linkPattern: /\/prog\/recruitNotice\/view\.do\?noticeId=[^"']+/,
+    idParams: ["noticeId"],
+    branches: [[/부여/, "학교법인 건양교육재단 건양대학교부여병원"]],
+  },
 ];
 
 export type SiteJob = {
   id: string; // `${key}-${상세링크에서 뽑은 번호}`
   title: string;
-  hospital: string;
+  hospital: string; // 명부 매칭용
+  displayName: string; // 화면용(jobs.company_name)
   jobCategory: "간호직" | "간호조무직";
   deadline: string | null;
   url: string;
@@ -118,10 +155,13 @@ export function parseSite(site: Site, html: string): SiteJob[] {
     const id = `${site.key}-${sn}`;
     if (seen.has(id)) continue;
     seen.add(id);
+    // 지점이 걸리면 그 병원 이름을 화면에도 그대로 쓴다(지점명은 이미 읽을 만하다).
+    const branch = site.branches?.find(([r]) => r.test(text))?.[1];
     out.push({
       id,
       title: text.slice(0, 200),
-      hospital: site.branches?.find(([r]) => r.test(text))?.[1] ?? site.hospital,
+      hospital: branch ?? site.hospital,
+      displayName: branch ?? site.display ?? site.hospital,
       jobCategory: jobCategoryOf(text, null),
       deadline: lastDate(text),
       url: abs(site.listUrl, m[1]),
