@@ -5,6 +5,8 @@ import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
 import { recordRun } from "@/lib/collectorLog";
+import { geocodeAddress } from "@/lib/kakao";
+import { inBatches } from "@/lib/worknet";
 
 /**
  * 공공기관 채용정보(잡알리오) 간호 공고 수집 → jobs upsert(source='public_data').
@@ -48,16 +50,25 @@ export async function GET(request: Request) {
     // 🔴 기존 저장값을 읽어 둔다. 명부 조회가 실패하면(BestEffort → 빈 Map) 아래 upsert 가
     //    **이미 맞게 채워져 있던 종별·지역을 null 로 덮어쓴다.** 일시적 실패 한 번에 데이터가
     //    지워지고, 다음 실행에 다시 채워지는 진동이 생긴다. 못 찾았으면 옛 값을 지킨다.
-    type Stored = { external_id: string; facility_type: string | null; location: string | null };
+    type Stored = { external_id: string; facility_type: string | null; location: string | null; lat: number | null; lng: number | null; geocoded_at: string | null };
     const stored = new Map<string, Stored>();
     for (let from = 0; ; from += 1000) {
       const { data: page, error } = await admin
-        .from("jobs").select("external_id,facility_type,location")
-        .eq("source", "public_data").range(from, from + 999);
+        .from("jobs").select("external_id,facility_type,location,lat,lng,geocoded_at")
+        .eq("source", "public_data").order("external_id").range(from, from + 999);
       if (error) return NextResponse.json({ error: `jobs select: ${error.message}` }, { status: 500 });
       for (const r of page ?? []) if (r.external_id) stored.set(r.external_id, r as Stored);
       if (!page || page.length < 1000) break;
     }
+
+    // 📍 좌표 — 「내 주변 채용」이 이걸 본다. API 근무지는 시도까지뿐이라 예전엔 비워 뒀는데,
+    //    이제 **명부에서 진짜 주소**를 받으므로 그걸 지오코딩한다. geocoded_at 마커로 한 번만 시도한다
+    //    (실패한 주소를 매일 다시 두드리지 않으려고 — 워크넷과 같은 계약).
+    const needGeo = jobs.filter((j) => !stored.get(j.id)?.geocoded_at && registry.get(j.org)?.address);
+    const coords = new Map(
+      await inBatches(needGeo, 6, async (j) => [j.id, await geocodeAddress(registry.get(j.org)!.address!)] as const),
+    );
+    const geoTried = new Set(needGeo.map((j) => j.id));
 
     const rows = jobs.map((j) => {
       const reg = registry.get(j.org);
@@ -87,8 +98,11 @@ export async function GET(request: Request) {
         location: [region.sido, region.sigungu].filter(Boolean).join(" ") || j.location,
         sido: region.sido,
         sigungu: region.sigungu,
-        // 🔴 좌표는 안 넣는다. API 의 근무지역은 "서울"·"전남광주" 처럼 **시도까지만** 이라
-        //    지오코딩하면 시청 좌표가 찍히고, 「내 주변 채용」이 그 공고를 시청 옆이라고 거짓말한다.
+        // 🔴 지오코딩은 **명부 주소로만** 한다. API 근무지("서울")를 그대로 넣으면 시청 좌표가 찍혀
+        //    「내 주변」이 그 공고를 시청 옆이라고 거짓말한다. 주소를 못 얻으면 좌표 없이 둔다.
+        lat: coords.get(j.id)?.lat ?? s?.lat ?? null,
+        lng: coords.get(j.id)?.lng ?? s?.lng ?? null,
+        geocoded_at: geoTried.has(j.id) ? syncStart : (s?.geocoded_at ?? null),
         description: j.description,
         recruit_count: j.recruitCount,
         apply_detail: j.applyDetail,

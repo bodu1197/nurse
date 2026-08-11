@@ -6,6 +6,8 @@ import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
 import { recordRun } from "@/lib/collectorLog";
+import { geocodeAddress } from "@/lib/kakao";
+import { inBatches } from "@/lib/worknet";
 
 /**
  * 대학병원 채용 ATS(마이다스인 「리크루터」) 간호 공고 수집 → jobs upsert(source='crawl').
@@ -49,11 +51,11 @@ export async function GET(request: Request) {
 
     // 기존 저장값 — 명부 조회가 실패했거나 상세를 못 받았을 때 옛 값을 지킨다.
     // (BestEffort 가 빈 Map 을 돌려줄 수 있는데, 그때 이미 맞던 종별·지역을 null 로 덮으면 안 된다.)
-    type Stored = { external_id: string; facility_type: string | null; location: string | null; description: string | null; detail_fetched_at: string | null; posted_at: string | null };
+    type Stored = { external_id: string; facility_type: string | null; location: string | null; description: string | null; detail_fetched_at: string | null; posted_at: string | null; lat: number | null; lng: number | null; geocoded_at: string | null };
     const stored = new Map<string, Stored>();
     for (let from = 0; ; from += 1000) {
       const { data: page, error } = await admin
-        .from("jobs").select("external_id,facility_type,location,description,detail_fetched_at,posted_at")
+        .from("jobs").select("external_id,facility_type,location,description,detail_fetched_at,posted_at,lat,lng,geocoded_at")
         // 🔴 정렬이 없으면 페이지 경계에서 행이 새거나 겹친다(Postgres 는 순서를 보장하지 않는다).
         .eq("source", "crawl").order("external_id").range(from, from + 999);
       if (error) return NextResponse.json({ error: `jobs select: ${error.message}` }, { status: 500 });
@@ -71,6 +73,14 @@ export async function GET(request: Request) {
       );
       for (const [id, body] of got) if (body) bodies.set(id, body);
     }
+
+    // 📍 좌표 — 「내 주변 채용」이 이걸 본다. 이 사이트들은 근무지를 아예 안 주므로
+    //    **명부 주소**를 지오코딩한다. geocoded_at 마커로 공고당 한 번만 시도한다.
+    const needGeo = jobs.filter((j) => !stored.get(j.id)?.geocoded_at && registry.get(j.hospital)?.address);
+    const coords = new Map(
+      await inBatches(needGeo, 6, async (j) => [j.id, await geocodeAddress(registry.get(j.hospital)!.address!)] as const),
+    );
+    const geoTried = new Set(needGeo.map((j) => j.id));
 
     const rows = jobs.map((j) => {
       const reg = registry.get(j.hospital);
@@ -92,6 +102,11 @@ export async function GET(request: Request) {
         location: [region.sido, region.sigungu].filter(Boolean).join(" ") || s?.location || null,
         sido: region.sido,
         sigungu: region.sigungu,
+        // 🔴 명부 주소로만 지오코딩한다 — 주소를 못 얻은 공고는 좌표 없이 둔다.
+        //    엉뚱한 좌표를 찍느니 「내 주변」에서 빠지는 편이 낫다.
+        lat: coords.get(j.id)?.lat ?? s?.lat ?? null,
+        lng: coords.get(j.id)?.lng ?? s?.lng ?? null,
+        geocoded_at: geoTried.has(j.id) ? syncStart : (s?.geocoded_at ?? null),
         description,
         apply_detail: null,
         source: "crawl" as const,
