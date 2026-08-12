@@ -293,6 +293,10 @@ export function extractBody(html: string): string | null {
   // 채용 본문은 "채용개요"·"모집" 부터가 알맹이다. 못 찾으면 전체에서 앞뒤 군더더기만 덜어낸다.
   const start = lines.findIndex((l) => /채용개요|모집부문|모집분야|지원자격/.test(l));
   const body = (start >= 0 ? lines.slice(Math.max(0, start - 2)) : lines).join("\n").trim();
+  // 🔴 알맹이 표시를 못 찾은 짧은 글은 **본문이 아니다.** 일부 테넌트는 상세를 자바스크립트로
+  //    그려서 받아 온 HTML 에 공고 내용이 아예 없다 — 그때 남는 건 목록 UI 뿐이라
+  //    "10개씩 보기 20개씩 보기 … 검색" 이 상세 내용으로 카드에 찍혔다(실측 caumc·yuhs, 43자).
+  if (start < 0 && body.length < 300) return null;
   if (body.length < 20) return null;
   // 🔴 자를 때는 **잘랐다고 말한다.** 아무 말 없이 끊으면 간호사가 그게 공고 전문인 줄 알고
   //    뒤에 있는 접수기간·제출서류를 못 본다. 원본 링크는 카드·상세에 이미 있다.

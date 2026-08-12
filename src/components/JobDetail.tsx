@@ -350,10 +350,20 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
           </>
         )}
 
-        {job.description && (
+        {job.description ? (
           <>
             <h3 className="mt-5 font-bold text-slate-900">상세 직무 내용</h3>
             <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-700">{job.description}</p>
+          </>
+        ) : (
+          /* 🔴 본문이 없으면 **없다고 말한다.** 아무것도 안 그리면 화면이 그냥 비어 보여서
+             간호사가 "정보가 이게 다인가" 하고 만다(오너 신고 2026-08-12). 병원이 공고를
+             이미지로 올렸거나 자바스크립트로 그려 우리가 글자를 못 얻는 경우다. */
+          <>
+            <h3 className="mt-5 font-bold text-slate-900">상세 직무 내용</h3>
+            <p className="mt-2 rounded-lg bg-slate-50 px-3 py-2.5 text-sm leading-relaxed text-slate-600">
+              이 공고는 병원이 올린 원문에서 상세를 확인해야 합니다. 아래 지원하기로 원문 공고로 이동할 수 있습니다.
+            </p>
           </>
         )}
 

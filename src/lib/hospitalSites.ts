@@ -48,6 +48,10 @@ export type Site = {
    *    안 보인다(오너 신고 2026-08-12: "페이지에 보이는 게 이게 전부다").
    *    사이트마다 마크업이 달라 한 벌로는 안 되므로 사이트별로 적는다. 접수기간까지 들어오게
    *    범위를 잡으면 마감일도 같이 얻는다.
+   * 🔴 **끝 마커를 반드시 넣는다** — `([\s\S]{0,60000})` 처럼 시작만 잡고 길이로 열어 두면
+   *    본문이 짧은 공고에서 **푸터·진료과 메뉴가 통째로 딸려온다**(오너 신고 2026-08-12:
+   *    건국대병원 공고에 진료과·전문센터·특수클리닉 목록과 사업자등록번호까지 찍혔다).
+   *    `([\s\S]*?)<끝나는 지점>` 형태로 쓸 것 — 아래 테스트가 이걸 강제한다.
    */
   detailBody?: RegExp;
 };
@@ -69,7 +73,7 @@ export const SITES: readonly Site[] = [
       [/강남/, "한림대학교 강남성심병원"],
       [/한강/, "한림대학교 한강성심병원"],
     ],
-    detailBody: /<div class="context">([\s\S]{0,60000})/,
+    detailBody: /<div class="context">([\s\S]*?)<div class="btn_area"/,
   },
   {
     key: "eumc",
@@ -79,7 +83,7 @@ export const SITES: readonly Site[] = [
     // 🔴 pageIndex 는 넣지 않는다 — 공고가 2페이지로 밀리면 id 가 바뀌어 같은 공고가 새로 들어온다.
     idParams: ["bbs_no"],
     branches: [[/서울병원/, "이화여자대학교의과대학부속서울병원"]],
-    detailBody: /<div class="board-body">([\s\S]{0,60000})/,
+    detailBody: /<div class="board-body">([\s\S]*?)<div class="board-pagi"/,
   },
   {
     key: "gnah",
@@ -100,7 +104,7 @@ export const SITES: readonly Site[] = [
     idParams: ["seq"],
     // 이 사이트는 본문이 아래아한글에서 붙여넣은 인라인 스타일 덩어리라 시작점이 불분명하다.
     // '모집부문' 표가 실제 알맹이라 그 제목부터 잡는다.
-    detailBody: /(<h2 class="wx140 noimg"[\s\S]{0,60000})/,
+    detailBody: /(<h2 class="wx140 noimg"[\s\S]*?)<div id="btm"/,
   },
   {
     key: "dsmc",
@@ -131,7 +135,7 @@ export const SITES: readonly Site[] = [
     listUrl: "https://www.kosinmed.or.kr/service/service_3.php",
     linkPattern: /\/service\/service_3\.php\?boardid=recruit[^"']*mode=view[^"']*idx=\d+/,
     idParams: ["idx"],
-    detailBody: /<div class="brd-view">([\s\S]{0,60000})/,
+    detailBody: /<div class="brd-view">([\s\S]*?)<div class="prevnext"/,
   },
   {
     key: "dkuh",
@@ -186,7 +190,7 @@ export const SITES: readonly Site[] = [
     idPattern: /viewPage\('([^']+)'/,
     idParams: [],
     detailUrl: (id) => `https://recruit.snuh.org/joining/recruit/view.do?recruit_id=${id}`,
-    detailBody: /<div class="boardView">([\s\S]{0,60000})/,
+    detailBody: /<div class="boardView">([\s\S]*?)<div class="viewNavWrap"/,
   },
   {
     key: "kuh",
@@ -197,7 +201,7 @@ export const SITES: readonly Site[] = [
     linkPattern: /\/recruit\/apply\/noticeView\.do\?anc_seq=\d+[^"']*/,
     idParams: ["anc_seq"],
     // 접수기간·모집분야·지원자격이 이 안의 목록에 있다.
-    detailBody: /<div class="body">([\s\S]{0,60000})/,
+    detailBody: /<div class="body">([\s\S]*?)<div class="btnWrap"/,
   },
   // 🔴 백병원(paik)은 여기 있었는데 **뺐다.** 같은 병원이 마이다스인 ATS 에도 있고
   //    (paik.recruiter.co.kr, 간호 7건 vs 자체 사이트 3건), 두 곳에서 담으면 external_id 가

@@ -48,6 +48,9 @@ export type CollectorCard = {
 
 export type SourceRow = { name: string; live: number; updatedAt: string | null; empty: number };
 
+/** 이 길이 이하면 "본문이 없다" 로 친다 — 제목·모집분야 몇 줄만 남은 상태. */
+const MIN_BODY = 80;
+
 export type CollectorsView = {
   cards: CollectorCard[];
   /** 수집 원천별 현황(대학병원 ATS·자체 사이트·잡알리오). 0건이면 화면이 표시한다. */
@@ -108,7 +111,9 @@ export async function getCollectors(): Promise<CollectorsView> {
       .returns<{ company_name: string | null; updated_at: string; description: string | null }[]>();
     for (const j of page ?? []) {
       const name = j.company_name ?? "(이름 없음)";
-      const empty = j.description ? 0 : 1;
+      // 🔴 "비었다" 를 null 로만 재면 **잘려서 짧아진 본문**을 못 잡는다. 끝 마커를 잘못 잡아
+      //    지원자격 앞에서 끊기면 "짧지만 비지 않은" 글이 남아 화면에는 고장이 안 보인다.
+      const empty = (j.description?.length ?? 0) > MIN_BODY ? 0 : 1;
       const cur = byName.get(name);
       if (cur) {
         cur.live++;
