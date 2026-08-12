@@ -254,13 +254,18 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   // 🔴 ad_paid 를 맨 앞에 둔 이유(오너 확정 2026-08-06: "섞지 않고 유료만 위로 올린다"):
   //    무료 1주도 featured_until 을 쓰므로 ad_live 가 true 다. 그것만으로 줄을 세우면
   //    **공짜 광고가 돈 낸 광고와 같은 칸에 선다** — 그러면 5만원을 낼 이유가 없어진다.
+  //
+  // 🔴 2순위는 **상급종합병원**이다(오너 확정 2026-08-12). 그리고 정렬에서 **ad_live 를 뺐다** —
+  //    무료 1주가 참이라 공짜 광고가 일반 공고 전체보다 위에 섰는데, 오너 지시가
+  //    "무료광고는 일반 순서에 그냥 둬라, 공고에 파묻혀도 된다" 다.
+  //    → 돈 낸 광고 → 상급종합병원 → 최신순. 무료는 최신순 무리 안에 그냥 섞인다.
   let query = supabase
     .from("jobs_listed")
     .select(SELECT, withCount ? { count: "exact" } : undefined)
     // 노출 판정은 뷰가 한다(is_live) — status·광고기간·마감일을 그 안에서 함께 본다.
     .eq(LIVE, true)
     .order("ad_paid", { ascending: false })
-    .order("ad_live", { ascending: false })
+    .order("is_tertiary", { ascending: false })
     .order("posted_at", { ascending: false })
     // 🔴 유일 키를 마지막 정렬 키로 둔다. 워크넷 일괄수집분은 posted_at 이 같은 행이 수백 건이라
     //    쪽마다 별개 질의인 페이지네이션에서 **행이 중복되거나 누락된다**(20건 경계가 동률 한가운데
