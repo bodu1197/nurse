@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchNurseAtsJobs, fetchAtsDescription, TENANTS } from "@/lib/recruiterAts";
 import { fetchNurseSiteJobs, SITES } from "@/lib/hospitalSites";
-import { fetchBoardJobs, BOARDS } from "@/lib/jobBoards";
+import { fetchBoardJobs, fetchBoardDetail, BOARDS } from "@/lib/jobBoards";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
@@ -65,11 +65,11 @@ export async function GET(request: Request) {
 
     // 기존 저장값 — 명부 조회가 실패했거나 상세를 못 받았을 때 옛 값을 지킨다.
     // (BestEffort 가 빈 Map 을 돌려줄 수 있는데, 그때 이미 맞던 종별·지역을 null 로 덮으면 안 된다.)
-    type Stored = { external_id: string; facility_type: string | null; location: string | null; description: string | null; detail_fetched_at: string | null; posted_at: string | null; lat: number | null; lng: number | null; geocoded_at: string | null };
+    type Stored = { external_id: string; facility_type: string | null; location: string | null; description: string | null; detail_fetched_at: string | null; posted_at: string | null; lat: number | null; lng: number | null; geocoded_at: string | null; employment_type: string | null; salary_text: string | null; deadline: string | null };
     const stored = new Map<string, Stored>();
     for (let from = 0; ; from += 1000) {
       const { data: page, error } = await admin
-        .from("jobs").select("external_id,facility_type,location,description,detail_fetched_at,posted_at,lat,lng,geocoded_at")
+        .from("jobs").select("external_id,facility_type,location,description,detail_fetched_at,posted_at,lat,lng,geocoded_at,employment_type,salary_text,deadline")
         // 🔴 정렬이 없으면 페이지 경계에서 행이 새거나 겹친다(Postgres 는 순서를 보장하지 않는다).
         .eq("source", "crawl").order("external_id").range(from, from + 999);
       if (error) return NextResponse.json({ error: `jobs select: ${error.message}` }, { status: 500 });
@@ -88,12 +88,31 @@ export async function GET(request: Request) {
       for (const [id, body] of got) if (body) bodies.set(id, body);
     }
 
+    // 🔴 집계 사이트는 **목록에 제목·회사명뿐**이라 상세를 안 받으면 카드가 텅 빈다
+    //    (오너 신고 2026-08-12: 「채용 상세 정보」에 지역 한 줄만 나왔다).
+    //    상세에는 급여·근무형태·마감일·근무지 주소·모집요강이 다 있다.
+    const boardKeys = new Set(BOARDS.map((b) => b.key));
+    // 🔴 한 번에 받는 수를 묶는다. 상세는 한 장이 2MB 라, 처음 도는 날처럼 대상이 많으면
+    //    maxDuration(300초)을 넘겨 **upsert 전에 죽고 그날 수집이 통째로 날아간다.**
+    //    남은 건 다음 크론이 가져간다(마커가 없으니 대상으로 계속 남는다).
+    const needDetail = jobs
+      .filter((j) => boardKeys.has(j.key) && !stored.get(j.id)?.detail_fetched_at)
+      .slice(0, 40);
+    const details = new Map(
+      (await inBatches(needDetail, 6, async (j) => [j.id, await fetchBoardDetail(j.url)] as const))
+        // 🔴 "받았다" 로 치는 기준은 **뭐라도 읽혔는가** 다. 마크업이 바뀌어 전부 null 인 객체가
+        //    와도 마커를 찍으면 그 공고는 영원히 다시 안 받는다 — 빈 카드가 굳어 버린다.
+        .flatMap(([id, d]) => (d && Object.values(d).some(Boolean) ? [[id, d] as const] : [])),
+    );
+
     // 📍 좌표 — 「내 주변 채용」이 이걸 본다. 이 사이트들은 근무지를 아예 안 주므로
     //    **명부 주소**를 지오코딩한다. geocoded_at 마커로 공고당 한 번만 시도한다.
     // 🔴 주소를 여기서 함께 뽑아 둔다 — 아래에서 `regOf(j)!.address!` 처럼 단언하면 필터 조건이
     //    바뀌는 순간 조용히 TypeError 가 나고 크론 전체가 502 로 죽는다. 타입이 보장하게 한다.
+    // 🔴 상세의 **근무지 주소**가 명부 주소보다 앞선다 — 실제로 일하는 곳이고, 명부에 아예 없는
+    //    병원(요양원·의원)도 이걸로 좌표를 얻는다. 명부 주소는 그게 없을 때의 폴백이다.
     const needGeo = jobs.flatMap((j) => {
-      const address = stored.get(j.id)?.geocoded_at ? null : (regOf(j)?.address ?? null);
+      const address = stored.get(j.id)?.geocoded_at ? null : (details.get(j.id)?.address ?? regOf(j)?.address ?? null);
       return address ? [{ id: j.id, address }] : [];
     });
     const coords = new Map(
@@ -104,10 +123,14 @@ export async function GET(request: Request) {
     const rows = jobs.map((j) => {
       const reg = regOf(j);
       const s = stored.get(j.id);
+      const d = details.get(j.id);
       // 명부 주소가 표준형이라 지역 축이 그대로 맞는다(HIRA 의 region 표기는 비표준 — sync-alio 주석 참고).
-      const loc = reg?.address ?? s?.location ?? null;
+      // 집계 사이트는 상세의 근무지 주소가 실제 근무지라 그쪽을 먼저 본다.
+      // 🔴 저장값이 명부보다 앞선다. 상세는 한 번만 받으므로 2회차부터 d 가 없는데, 명부를 먼저 보면
+      //    **좌표는 상세 주소로 찍히고 지역은 명부 주소로 바뀌어** 둘이 어긋난다.
+      const loc = d?.address ?? s?.location ?? reg?.address ?? null;
       const region = regionOfLocation(loc);
-      const description = bodies.get(j.id) ?? s?.description ?? null;
+      const description = bodies.get(j.id) ?? d?.description ?? s?.description ?? null;
       return {
         // 🔴 명부 매칭은 j.hospital(법인명 포함 정확명)로, **화면에는 부를 만한 이름**을 쓴다.
         //    안 그러면 카드에 "학교법인 고려중앙학원 고려대학교의과대학부속병원(안암병원)" 이 찍힌다.
@@ -117,7 +140,9 @@ export async function GET(request: Request) {
         specialty: departmentFromText(j.title, description),
         facility_type: reg?.facilityType ?? s?.facility_type ?? null,
         job_category: j.jobCategory,
-        employment_type: j.employmentType,
+        employment_type: j.employmentType ?? d?.employmentType ?? s?.employment_type ?? null,
+        // 급여는 상세에만 있다(목록에는 아예 없다). 없으면 화면이 "급여 협의" 로 받는다.
+        salary_text: d?.salaryText ?? s?.salary_text ?? null,
         location: [region.sido, region.sigungu].filter(Boolean).join(" ") || s?.location || null,
         sido: region.sido,
         sigungu: region.sigungu,
@@ -135,8 +160,11 @@ export async function GET(request: Request) {
         // 🔴 등록일이 없는 공고에 매번 syncStart 를 찍으면 **영원히 "오늘 등록"** 이 되어
         //    관리자 대시보드의 '오늘' 숫자를 부풀리고 목록 정렬도 계속 위로 올린다. 처음 본 날을 지킨다.
         posted_at: j.postedAt ? new Date(`${j.postedAt}T00:00:00+09:00`).toISOString() : (s?.posted_at ?? syncStart),
-        deadline: j.deadline,
-        detail_fetched_at: bodies.has(j.id) ? syncStart : (s?.detail_fetched_at ?? null),
+        // 목록에 마감일이 없는 출처(집계 사이트)는 상세의 접수 종료일을 쓴다.
+        // 🔴 저장값 폴백이 반드시 있어야 한다. 상세는 공고당 한 번만 받으므로 2회차부터 d 가 없고,
+        //    폴백이 없으면 **첫 실행에 채운 마감일이 매 실행 null 로 지워진다**(실측: 16건 → 0건).
+        deadline: j.deadline ?? d?.deadline ?? s?.deadline ?? null,
+        detail_fetched_at: bodies.has(j.id) || details.has(j.id) ? syncStart : (s?.detail_fetched_at ?? null),
       };
     });
 
@@ -172,6 +200,8 @@ export async function GET(request: Request) {
       tenants: TENANTS.length, sites: SITES.length, boards: BOARDS.length,
       fetchedAts: ats.jobs.length, fetchedSites: sites.jobs.length, fetchedBoards: boards.jobs.length,
       jobsUpserted: upserted, jobsClosed: closed, registryMatched,
+      // 상세 수집도 센다 — 이게 0 으로 굳으면 카드가 제목만 남는다(오너 신고 2026-08-12).
+      detailsFetched: bodies.size + details.size,
     };
     await recordRun(admin, { collector: "ats", ok: failed.length === 0, stats, failed, startedAt });
 
@@ -186,7 +216,7 @@ export async function GET(request: Request) {
       fetched: jobs.length,
       jobsUpserted: upserted,
       jobsClosed: closed,
-      descriptionsFetched: bodies.size,
+      descriptionsFetched: bodies.size + details.size,
       registryMatched,
       // 실패한 병원 사이트를 숨기지 않는다 — 계속 비어 있으면 그 테넌트 주소가 바뀐 것이다.
       failedHosts: failed,

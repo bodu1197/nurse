@@ -116,6 +116,11 @@ export default async function JobPage({
     validThrough: job.source === "direct" ? new Date(listingEnd(job)).toISOString() : job.deadline ?? undefined,
     employmentType: job.employment_type ? EMPLOYMENT_TYPE[job.employment_type] : undefined,
     hiringOrganization: { "@type": "Organization", name: job.hospital?.name ?? job.company_name ?? "병원" },
+    // 급여는 **금액이 적힌 공고만** 낸다. "회사내규에 따름" 같은 문구를 구조화 데이터에 넣으면
+    // 검색엔진이 급여를 못 읽고 리치 결과에서 오히려 감점된다.
+    ...(job.salary_text && /\d/.test(job.salary_text)
+      ? { baseSalary: { "@type": "MonetaryAmount", currency: "KRW", value: { "@type": "QuantitativeValue", value: job.salary_text } } }
+      : {}),
     jobLocation: {
       "@type": "Place",
       address: {

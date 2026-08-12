@@ -1,5 +1,5 @@
 // 🔴 `server-only` 를 안 붙인다 — 파서가 Node 시험에서 돌아야 한다(hospitalSites 와 같은 이유).
-import { jobCategoryOf } from "./alio.ts";
+import { jobCategoryOf, employmentTypeOf } from "./alio.ts";
 import { decodeEntities, readHtml } from "./html.ts";
 import { cleanTitle, lastDate } from "./hospitalSites.ts";
 
@@ -127,12 +127,127 @@ const NAME_MAX = 100;
 const TITLE_MAX = 200;
 
 const text = (s: string, max: number) =>
-  decodeEntities(s.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " "))
+  // 🔴 **먼저 자르고** 처리한다. 상세 본문은 실측 2MB 인데, 자르지 않고 넣으면 태그 제거·엔티티
+  //    해제를 전 길이로 돌린다. 특히 decodeEntities 는 "변할 때까지" 반복이라 중첩 엔티티가 많은
+  //    입력에서 2차로 커진다 — 한 페이지가 크론 전체(maxDuration 300초)를 잡아먹을 수 있다.
+  //    태그를 걷어내면 글자 수가 줄므로 넉넉히 4배를 남겨 자른다.
+  decodeEntities(
+    s.slice(0, max * 4)
+      // 주석을 **태그보다 먼저** 지운다. 나중에 지우면 `<!--` 만 태그로 먹히고 `-->` 가 본문에
+      // 그대로 남는다(실측: 모집요강 첫 줄이 "--> 모집부문" 으로 시작했다).
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " "),
+  )
     // 숫자 엔티티(&#39; 등)도 푼다 — 병원명에 작은따옴표·괄호가 섞여 온다.
-    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    // 🔴 코드포인트 범위를 확인한다. `&#1114112;` 같은 값에 fromCodePoint 는 **예외를 던지고**,
+    //    그러면 이 출처 수집이 통째로 실패한다.
+    .replace(/&#(\d+);/g, (_, d: string) => {
+      const n = Number(d);
+      return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : " ";
+    })
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, max);
+
+/**
+ * 상세 페이지에서 뽑는 것 — **목록에는 제목·회사명뿐이라 이게 없으면 카드가 텅 빈다.**
+ * (오너 신고 2026-08-12: 「채용 상세 정보」에 지역 한 줄만 나왔다.)
+ */
+export type BoardDetail = {
+  description: string | null;
+  salaryText: string | null;
+  employmentType: string | null;
+  deadline: string | null;
+  /** 근무지 주소 — 명부 주소보다 정확하다. 명부에 없는 병원도 이걸로 좌표를 얻는다. */
+  address: string | null;
+};
+
+/**
+ * 상세 HTML → 공고 알맹이.
+ *
+ * 마크업이 두 모양으로 섞여 있다(실측):
+ *   `<span class="lb">라벨</span> <span class="vl">값</span>`   ← 급여·근무형태·경력…
+ *   `<span class="lb">라벨</span> <div class="tx">값</div>`     ← 종료일·근무지 주소·전형절차…
+ * 🔴 다음 라벨을 만나기 전까지만 훑는다. 안 그러면 값이 빈 항목(담당업무 등)에서 **다음 항목의
+ *    값이 앞 라벨에 붙는다** — 급여 자리에 학력이 찍히는 종류의 버그다.
+ */
+export function parseMbankDetail(html: string): BoardDetail {
+  const fields = new Map<string, string>();
+  const re = /<span class="lb">([^<]{1,20})<\/span>(?:(?!<span class="lb">)[\s\S]){0,300}?<(?:span class="vl"|div class="tx")>([\s\S]*?)<\/(?:span|div)>/g;
+  for (const m of html.matchAll(re)) {
+    const v = text(m[2], FIELD_MAX);
+    // 같은 라벨이 위(공고)·아래(기업정보)에 두 번 나온다 — 먼저 나온 공고 쪽을 쓴다.
+    if (v && !fields.has(m[1].trim())) fields.set(m[1].trim(), v);
+  }
+
+  // 모집요강 본문. 에디터 산출물이라 태그·인라인 스타일 범벅이므로 글자만 남긴다.
+  // 🔴 끝 마커가 없을 때를 대비해 길이를 묶는다. `$` 로 열어 두면 마커 이름이 바뀌는 순간
+  //    **문서 끝까지(2MB)** 를 캡처한다.
+  const body = html.match(/id="custom_recruit"[\s\S]{0,80}?>([\s\S]{0,200000}?)(?:<!-- 템플릿 import : E -->|$)/);
+  const description = [
+    body ? cleanBody(text(body[1], BODY_MAX)) : "",
+    // 표에만 있고 본문에는 없는 조건들 — 간호사가 지원 전에 꼭 보는 것들이다.
+    ...["담당업무", "근무시간", "경력", "학력", "전형절차", "복리후생"].map((k) =>
+      fields.get(k) ? `${k}: ${fields.get(k)}` : "",
+    ),
+  ].filter(Boolean).join("\n\n").trim();
+
+  return {
+    description: description || null,
+    salaryText: salaryOf(fields.get("급여조건")),
+    employmentType: employmentTypeOf(fields.get("근무형태")),
+    deadline: ymdOf(fields.get("종료일")),
+    address: fields.get("근무지 주소") ?? null,
+  };
+}
+
+/** 상세 필드 훑는 폭·본문 상한. 값이 없는 항목이 다음 항목 값을 훔치지 않게 좁게 잡는다. */
+const FIELD_MAX = 500;
+const BODY_MAX = 3000;
+
+/**
+ * 원본 사이트의 **버튼 문구**를 걷어낸다.
+ * 🔴 태그만 벗기면 "사람인 입사지원 바로가기 click" 같은 남의 사이트 버튼이 글자로 남는다.
+ *    우리 화면에서는 눌리지도 않는 문구라, 간호사가 지원 방법을 찾다 헛돈다.
+ */
+const cleanBody = (s: string): string =>
+  s.replace(/[^.\n]{0,40}(바로가기|입사지원)\s*click[^.\n]{0,20}/gi, " ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+/**
+ * 급여 문구 — **껍데기는 버린다.**
+ * 🔴 사이트가 금액을 안 채우면 단위만 남은 `원 (월급)` 이 온다(실측). 그대로 저장하면 카드 급여
+ *    자리에 "원 (월급)" 이 찍혀 값을 적어 놓은 것처럼 보인다. 금액도 조건도 없으면 비워 두고
+ *    화면이 「급여 협의」로 받게 한다. 금액은 원문 그대로 쓴다 — 단위를 우리가 지어내지 않는다.
+ */
+const salaryOf = (s: string | undefined): string | null => {
+  const v = (s ?? "").trim();
+  if (!v) return null;
+  return /\d/.test(v) || /(내규|협의|면접|추후|따름|별도)/.test(v) ? v : null;
+};
+
+/** "2026년 8월 18일 (화)" → "2026-08-18". 못 읽으면 null(마감일을 지어내지 않는다). */
+const ymdOf = (s: string | undefined): string | null => {
+  const m = s?.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+  return m ? `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}` : null;
+};
+
+/** 상세 한 건. 실패해도 null — 목록만으로도 공고는 성립한다(ATS 와 같은 계약). */
+export async function fetchBoardDetail(url: string): Promise<BoardDetail | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; nurse-link-collector/1.0)", Accept: "text/html,*/*" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(25000),
+    });
+    if (!res.ok) return null;
+    return parseMbankDetail(await readHtml(res));
+  } catch {
+    return null;
+  }
+}
 
 async function fetchPage(board: Board, page: number): Promise<BoardJob[]> {
   const res = await fetch(board.pageUrl(page), {

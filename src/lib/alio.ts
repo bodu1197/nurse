@@ -89,6 +89,10 @@ export function employmentTypeOf(s: string | null | undefined): string | null {
   if (v.includes("비정규직")) return "계약직";
   if (v.includes("무기계약")) return "정규직"; // 정년이 보장되는 자리다 — 계약직으로 적으면 사실과 다르다
   if (v.includes("임시")) return "계약직"; // 병원 ATS 의 '임시직'
+  // 인재채움뱅크 근무형태의 '대체인력' — 휴직자가 돌아오면 끝나는 자리다(본문에도 "계약직(12개월)").
+  // 🔴 '대체' 만으로 보면 안 된다. 이 함수는 ATS 에서 **제목까지 붙여** 불리므로
+  //    "대체공휴일 근무" 같은 정규직 공고가 계약직으로 뒤집힌다.
+  if (v.includes("대체인력")) return "계약직";
   if (v.includes("계약")) return "계약직";
   if (v.includes("정규직")) return "정규직";
   return null;

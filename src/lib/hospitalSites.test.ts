@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseSite, lastDate, idFromLink, anchorText, cleanTitle, fetchNurseSiteJobs, SITES, type Site } from "./hospitalSites.ts";
 import { TENANTS } from "./recruiterAts.ts";
+import { BOARDS } from "./jobBoards.ts";
 
 const site: Site = {
   key: "eumc",
@@ -141,6 +142,18 @@ test("SITES 의 key 에 하이픈이 없고 중복도 없다", () => {
   const keys = SITES.map((s) => s.key);
   assert.equal(new Set(keys).size, keys.length);
   for (const k of keys) assert.doesNotMatch(k, /-/);
+});
+
+/**
+ * 🔴 수집기가 달라도 **키가 겹치면 안 된다.** external_id 가 `{키}-{번호}` 라 접두가 같으면
+ *    서로 다른 병원 공고가 한 범위로 묶인다 — 마감 처리 `like '{키}-%'` 가 남의 병원 공고까지
+ *    잡고, 한쪽이 실패하면 다른 쪽도 마감을 건너뛴다.
+ *    실제로 `amc` 가 안동의료원(ATS)과 서울아산병원(자체 사이트) 양쪽에 있었다(2026-08-12).
+ */
+test("수집기끼리 키가 겹치지 않는다 — external_id 접두가 곧 마감 범위다", () => {
+  const keys = [...TENANTS.map((t) => t.host), ...SITES.map((s) => s.key), ...BOARDS.map((b) => b.key)];
+  const dup = keys.filter((k, i) => keys.indexOf(k) !== i);
+  assert.deepEqual(dup, [], `키가 겹친다: ${dup.join(", ")}`);
 });
 
 /**

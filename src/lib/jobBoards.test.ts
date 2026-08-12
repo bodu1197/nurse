@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseMbank, fetchBoardJobs, labelOf, BOARDS, type Board } from "./jobBoards.ts";
+import { parseMbank, parseMbankDetail, fetchBoardJobs, labelOf, BOARDS, type Board } from "./jobBoards.ts";
 
 /** 실제 인재채움뱅크 목록 마크업(2026-08-12). 회사명과 제목이 **다른 블록**에 있다. */
 const HTML = `
@@ -134,6 +134,77 @@ test("마지막 쪽 다음의 빈 목록은 실패가 아니다", async () => {
   const { jobs, failed } = await fetchBoardJobs([b], async (_b, p) => (p === 1 ? parseMbank(HTML) : []));
   assert.equal(jobs.length, 2);
   assert.deepEqual(failed, [], "2쪽이 비었다고 실패로 올리면 안 된다");
+});
+
+/** 실제 상세 마크업(2026-08-12). 라벨 뒤 값이 `span.vl` 인 것과 `div.tx` 인 것이 섞여 있다. */
+const DETAIL = `
+<div class="tps"><span class="lb">급여조건</span><span class="vl">회사내규에 따름</span></div>
+<div class="tps"><span class="lb">근무형태</span><span class="vl">
+  대체인력 </span></div>
+<div class="tps"><span class="lb">담당업무</span><span class="vl"></span></div>
+<div class="tps"><span class="lb">경력</span><span class="vl">3년 이상</span></div>
+<div class="tps"><span class="lb">종료일</span><div class="tx">2026년 8월 18일 (화)</div></div>
+<div class="tps"><span class="lb">근무지 주소</span><div class="tx">서울 중구 을지로 245</div>
+  <a href="javascript:" class="lcbtn map"><span class="lbtx">지도</span></a></div>
+<div class="asdf" id="custom_recruit"><!-- 템플릿 import : S -->
+  <p><b>외상센터 간호사</b> 모집합니다.</p><!-- 템플릿 import : E --></div>
+<div class="tps"><span class="lb">급여조건</span><div class="tx">기업정보 쪽 중복 값</div></div>`;
+
+test("상세에서 급여·마감일·근무지 주소를 읽는다", () => {
+  const d = parseMbankDetail(DETAIL);
+  assert.equal(d.salaryText, "회사내규에 따름");
+  assert.equal(d.deadline, "2026-08-18", "「2026년 8월 18일 (화)」 를 날짜로 읽는다");
+  assert.equal(d.address, "서울 중구 을지로 245", "명부에 없는 병원도 이 주소로 좌표를 얻는다");
+});
+
+/** 🔴 값이 빈 항목(담당업무)에서 다음 항목 값이 앞 라벨에 붙으면 급여 자리에 학력이 찍힌다. */
+test("값이 빈 항목이 다음 항목 값을 훔치지 않는다", () => {
+  assert.match(parseMbankDetail(DETAIL).description ?? "", /경력: 3년 이상/);
+  assert.doesNotMatch(parseMbankDetail(DETAIL).description ?? "", /담당업무/);
+});
+
+/** 같은 라벨이 공고 위쪽과 기업정보 아래쪽에 두 번 나온다 — 공고 쪽(먼저 나온 것)을 쓴다. */
+test("같은 라벨이 두 번 나오면 공고 쪽을 쓴다", () => {
+  assert.equal(parseMbankDetail(DETAIL).salaryText, "회사내규에 따름");
+});
+
+/** 🔴 주석을 태그보다 먼저 지워야 한다 — 아니면 본문이 "--> 모집부문" 으로 시작한다(실측). */
+test("모집요강 본문에 HTML 주석 잔재가 남지 않는다", () => {
+  const body = parseMbankDetail(DETAIL).description ?? "";
+  assert.match(body, /외상센터 간호사 모집합니다/);
+  assert.doesNotMatch(body, /-->|템플릿 import/);
+});
+
+test("「대체인력」은 계약직으로 가른다 — 휴직자가 돌아오면 끝나는 자리다", () => {
+  assert.equal(parseMbankDetail(DETAIL).employmentType, "계약직");
+});
+
+/** 마감일을 지어내지 않는다 — "채용시 마감" 공고는 종료일이 없다. */
+/**
+ * 🔴 남의 사이트 버튼이 글자로 남으면, 우리 화면에서는 **눌리지도 않는 문구**가 된다 —
+ *    간호사가 지원 방법을 찾다 헛돈다.
+ */
+test("원본 사이트의 버튼 문구를 걷어낸다", () => {
+  const html = `<div id="custom_recruit"><p>병동 간호사 모집. 사람인 입사지원 바로가기 click</p></div>`;
+  const body = parseMbankDetail(html).description ?? "";
+  assert.match(body, /병동 간호사 모집/);
+  assert.doesNotMatch(body, /바로가기|click/i);
+});
+
+/** 🔴 잘못된 숫자 엔티티에 fromCodePoint 가 던지면 이 출처 수집이 통째로 실패한다. */
+test("범위를 벗어난 숫자 엔티티에도 던지지 않는다", () => {
+  const html = `<div id="custom_recruit"><p>간호사&#1114112;모집&#39;</p></div>`;
+  assert.match(parseMbankDetail(html).description ?? "", /간호사 ?모집'/);
+});
+
+/** 🔴 끝 마커가 없으면 문서 끝까지(2MB) 삼킨다 — 길이를 묶어 둔다. */
+test("끝 마커가 없어도 본문이 무한히 커지지 않는다", () => {
+  const html = `<div id="custom_recruit"><p>${"가".repeat(50000)}</p>`;
+  assert.ok((parseMbankDetail(html).description ?? "").length <= 3000);
+});
+
+test("종료일이 없으면 마감일은 null", () => {
+  assert.equal(parseMbankDetail(`<span class="lb">급여조건</span><span class="vl">면접 후 결정</span>`).deadline, null);
 });
 
 test("BOARDS 의 key 에 하이픈이 없다 — external_id 접두이자 마감 범위다", () => {

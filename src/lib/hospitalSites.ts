@@ -132,7 +132,10 @@ export const SITES: readonly Site[] = [
     idParams: ["hire_web_sqno"],
   },
   {
-    key: "amc",
+    // 🔴 키가 "amc" 면 안 된다 — 리크루터 ATS 의 `amc`(경상북도안동의료원)와 접두가 겹쳐
+    //    external_id 가 섞이고, 마감 처리 `like 'amc-%'` 가 **두 병원 공고를 함께 잡는다.**
+    //    key 는 화면·URL 과 무관한 내부 식별자라 바꿔도 수집은 그대로다.
+    key: "amcseoul",
     hospital: "재단법인아산사회복지재단 서울아산병원",
     display: "서울아산병원",
     listUrl: "https://recruit.amc.seoul.kr/",
@@ -141,9 +144,12 @@ export const SITES: readonly Site[] = [
     // 공고를 가리키는 값이 **둘**이다(seq + scheduleno) — 둘 다 잡아 '_' 로 잇는다.
     idPattern: /fnDetail\('(\d+)',\s*'(\d+)'\)/,
     idParams: [],
+    // 🔴 `/recruit/career/notice/view.do` 는 **틀린 경로였다.** 그 주소는 안내 이미지 한 장(254바이트)만
+    //    돌려줘서, 간호사가 카드를 눌러도 공고를 못 봤다(2026-08-12 실측). 목록의
+    //    `fnDetail()` 이 실제로 제출하는 경로는 `/recruit/career/view.do` 이고 GET 으로도 열린다.
     detailUrl: (id) => {
       const [seq, sch] = id.split("_");
-      return `https://recruit.amc.seoul.kr/recruit/career/notice/view.do?seq=${seq}&scheduleno=${sch}`;
+      return `https://recruit.amc.seoul.kr/recruit/career/view.do?seq=${seq}&scheduleno=${sch}`;
     },
   },
   {

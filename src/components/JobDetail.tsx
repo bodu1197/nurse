@@ -330,7 +330,9 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
         <dl className="mt-3 space-y-2 text-sm">
           {job.employment_type && (<div><dt className="text-slate-500">채용공고 유형</dt><dd className="mt-0.5"><span className="rounded bg-slate-100 px-2 py-0.5 text-slate-700">{job.employment_type}</span></dd></div>)}
           {job.specialty && (<div><dt className="text-slate-500">진료과</dt><dd className="mt-0.5 text-slate-800">{job.specialty}</dd></div>)}
-          {job.salary_text && (<div><dt className="text-slate-500">급여</dt><dd className="mt-0.5 font-medium text-slate-800">{job.salary_text}</dd></div>)}
+          {/* 🔴 급여는 **항상 보여 준다.** 목록 카드는 값이 없을 때 「급여 협의」로 받는데
+              상세만 행을 통째로 감추면, 카드에서 본 항목이 눌러 들어가면 사라진다. */}
+          <div><dt className="text-slate-500">급여</dt><dd className="mt-0.5 font-medium text-slate-800">{job.salary_text ?? "급여 협의"}</dd></div>
           {job.shift_type && (<div><dt className="text-slate-500">근무형태</dt><dd className="mt-0.5 text-slate-800">{job.shift_type}</dd></div>)}
           {job.recruit_count ? (<div><dt className="text-slate-500">모집인원</dt><dd className="mt-0.5 text-slate-800">{job.recruit_count}명</dd></div>) : null}
           {job.source === "direct"
