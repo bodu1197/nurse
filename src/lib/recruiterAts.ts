@@ -1,6 +1,6 @@
 // 🔴 `server-only` 를 안 붙인다 — 순수 파서·매핑이 Node 시험에서 돌아야 한다(alio.ts 와 같은 이유).
 //    이 파일에는 비밀이 없다(인증 없는 공개 채용 페이지).
-import { jobCategoryOf, employmentTypeOf } from "./alio.ts";
+import { jobCategoryOf, employmentTypeOf, isAnnouncementOnly } from "./alio.ts";
 import { readHtml } from "./html.ts";
 
 /**
@@ -161,7 +161,10 @@ export const atsUrl = (host: string, sn: number | string) =>
 
 /** 접수중인 간호 공고인가 — 제목만 본다(위 주석의 실측 근거). */
 export const isOpenNurse = (r: AtsRaw): boolean =>
-  r?.receiptState === "접수중" && /간호/.test(r.jobnoticeName ?? "");
+  r?.receiptState === "접수중" &&
+  /간호/.test(r.jobnoticeName ?? "") &&
+  // 합격자 발표·전형 일정 같은 안내글은 지원할 수 없다 — 채용 카드로 띄우면 헛걸음이다.
+  !isAnnouncementOnly(r.jobnoticeName ?? "");
 
 /** 목록 한 건 → 우리 모양. 공고번호·제목이 없으면 버린다. */
 export function toAtsJob(tenant: Tenant, r: AtsRaw): AtsJob | null {

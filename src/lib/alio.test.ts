@@ -1,6 +1,35 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toPublicJob, ymd, employmentTypeOf, isNursePublicJob, jobCategoryOf, fetchNursePublicJobs } from "./alio.ts";
+import { toPublicJob, ymd, employmentTypeOf, isNursePublicJob, jobCategoryOf, isAnnouncementOnly, fetchNursePublicJobs } from "./alio.ts";
+
+/**
+ * 🔴 채용 게시판에는 공고와 그 후속 안내가 섞여 올라온다. 안내글을 채용 카드로 띄우면
+ *    간호사가 눌러 들어가 지원하기를 찾다 헛걸음한다 — 이미 끝난 전형이라 지원이 불가능하다.
+ */
+test("합격자 발표·전형 일정 안내글은 채용공고가 아니다", () => {
+  assert.ok(isAnnouncementOnly("2026년도 서울대학교병원 간호직 직원 채용 4차 최종면접 합격자 발표 및 5차 신체검사 일정 공고"));
+  assert.ok(isAnnouncementOnly("간호사 서류전형 결과 안내"));
+  assert.ok(isAnnouncementOnly("2026 상반기 간호직 면접 일정 공지"));
+});
+
+/** 🔴 반대로 진짜 공고를 걸러 내면 공고가 사라진다 — 흔한 제목이 통과하는지 함께 못 박는다. */
+test("진짜 채용공고는 걸러지지 않는다", () => {
+  for (const t of [
+    "2026년도 신입 간호사 채용(기졸업자 전형)",
+    "간호부 임시직 외래간호사 채용 공고",
+    "[계약직] 간호간병통합서비스병동 간호조무사 채용",
+    "병동 간호사 대체인력 채용공고",
+    // 🔴 열려 있는 공고가 괄호로 전형 안내를 곁들이는 일이 흔하다 — 이걸로 거르면 안 된다.
+    "간호사 채용 공고(1차 서류전형 결과는 개별 통보)",
+    "간호직 신규 채용 [면접 일정 추후 안내]",
+  ]) assert.ok(!isAnnouncementOnly(t), t);
+});
+
+/** 고용형태 판정은 ATS 에서 **제목까지 붙여** 불린다 — 무관한 '대체' 문구에 뒤집히면 안 된다. */
+test("'대체공휴일' 같은 문구가 정규직을 계약직으로 뒤집지 않는다", () => {
+  assert.equal(employmentTypeOf("정규직 (대체공휴일 근무 있음)"), "정규직");
+  assert.equal(employmentTypeOf("대체인력"), "계약직");
+});
 
 /** 공공채용정보 오픈API 가 실제로 준 응답 한 건(2026-08-11, recrutPblntSn 303646). */
 const RAW = {

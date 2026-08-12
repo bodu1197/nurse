@@ -46,7 +46,7 @@ export type CollectorCard = {
   state: "ok" | "fail" | "stale" | "none";
 };
 
-export type SourceRow = { name: string; live: number; updatedAt: string | null };
+export type SourceRow = { name: string; live: number; updatedAt: string | null; empty: number };
 
 export type CollectorsView = {
   cards: CollectorCard[];
@@ -54,6 +54,13 @@ export type CollectorsView = {
   sources: SourceRow[];
   /** 우리가 아는 수집 대상 수 — 원천 표가 이보다 적으면 그만큼 공고가 하나도 없는 것이다. */
   expected: number;
+  /**
+   * 본문이 비어 있는 노출 공고 수.
+   * 🔴 이걸 안 보여 주면 **수집은 성공했는데 카드가 텅 빈 상태**를 아무도 모른다 —
+   *    실제로 24건이 제목·병원명뿐인 채로 노출되고 있었고, 오너가 화면에서 발견했다(2026-08-12).
+   *    상세 마크업이 바뀌면 조용히 이 숫자부터 올라간다.
+   */
+  emptyBodies: number;
 };
 
 export async function getCollectors(): Promise<CollectorsView> {
@@ -93,27 +100,32 @@ export async function getCollectors(): Promise<CollectorsView> {
   for (let from = 0; ; from += 1000) {
     const { data: page } = await supabase
       .from("jobs_listed")
-      .select("company_name,updated_at")
+      .select("company_name,updated_at,description")
       .in("source", ["crawl", "public_data"])
       .eq("is_live", true)
       .order("id")
       .range(from, from + 999)
-      .returns<{ company_name: string | null; updated_at: string }[]>();
+      .returns<{ company_name: string | null; updated_at: string; description: string | null }[]>();
     for (const j of page ?? []) {
       const name = j.company_name ?? "(이름 없음)";
+      const empty = j.description ? 0 : 1;
       const cur = byName.get(name);
       if (cur) {
         cur.live++;
+        cur.empty += empty;
         if (!cur.updatedAt || j.updated_at > cur.updatedAt) cur.updatedAt = j.updated_at;
-      } else byName.set(name, { name, live: 1, updatedAt: j.updated_at });
+      } else byName.set(name, { name, live: 1, updatedAt: j.updated_at, empty });
     }
     if (!page || page.length < 1000) break;
   }
 
+  const rows = [...byName.values()];
   return {
     cards,
-    sources: [...byName.values()].sort((a, b) => b.live - a.live || a.name.localeCompare(b.name, "ko")),
+    // 🔴 본문 없는 곳을 **맨 위로** 올린다. 고장을 알리는 화면이라 정상보다 이상이 먼저 보여야 한다.
+    sources: rows.sort((a, b) => b.empty - a.empty || b.live - a.live || a.name.localeCompare(b.name, "ko")),
     // 병원 하나가 여러 지점을 갖기도 해서 정확한 수가 아니라 **최소 기대치**다.
     expected: TENANTS.length + SITES.length,
+    emptyBodies: rows.reduce((n, r) => n + r.empty, 0),
   };
 }

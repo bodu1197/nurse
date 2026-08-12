@@ -1,5 +1,5 @@
 // 🔴 `server-only` 를 안 붙인다 — 파서가 Node 시험에서 돌아야 한다(hospitalSites 와 같은 이유).
-import { jobCategoryOf, employmentTypeOf } from "./alio.ts";
+import { jobCategoryOf, employmentTypeOf, isAnnouncementOnly } from "./alio.ts";
 import { decodeEntities, readHtml } from "./html.ts";
 import { cleanTitle, lastDate } from "./hospitalSites.ts";
 
@@ -97,7 +97,7 @@ export function parseMbank(html: string): BoardJob[] {
     const title = text(m[4], TITLE_MAX);
     const sn = m[3];
     // 사이트 필터가 원무·물리치료사를 섞어 보내므로 우리가 다시 거른다.
-    if (!company || !title || !/간호/.test(title)) continue;
+    if (!company || !title || !/간호/.test(title) || isAnnouncementOnly(title)) continue;
     const id = `mbank-${sn}`;
     if (seen.has(id)) continue;
     seen.add(id);
@@ -136,16 +136,8 @@ const text = (s: string, max: number) =>
       // 주석을 **태그보다 먼저** 지운다. 나중에 지우면 `<!--` 만 태그로 먹히고 `-->` 가 본문에
       // 그대로 남는다(실측: 모집요강 첫 줄이 "--> 모집부문" 으로 시작했다).
       .replace(/<!--[\s\S]*?-->/g, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/g, " "),
+      .replace(/<[^>]+>/g, " "),
   )
-    // 숫자 엔티티(&#39; 등)도 푼다 — 병원명에 작은따옴표·괄호가 섞여 온다.
-    // 🔴 코드포인트 범위를 확인한다. `&#1114112;` 같은 값에 fromCodePoint 는 **예외를 던지고**,
-    //    그러면 이 출처 수집이 통째로 실패한다.
-    .replace(/&#(\d+);/g, (_, d: string) => {
-      const n = Number(d);
-      return n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : " ";
-    })
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, max);

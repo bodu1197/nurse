@@ -2,11 +2,34 @@
 // ⚠️ 워크넷은 &amp; 를 **이중 인코딩**(&amp;amp;)해서 준다 — 한 번만 풀면 "신입&amp;경력"처럼
 // &amp; 가 그대로 남는다(실측). 그래서 변화가 없을 때까지 반복한다(N중 인코딩 안전).
 // &amp; 를 매 회 마지막에 풀어야 &amp;lt; → &lt; → < 처럼 중첩도 올바로 벗겨진다.
+/**
+ * 코드포인트 → 글자. 못 쓰는 값이면 원문을 그대로 돌려준다(정보를 지우지 않는다).
+ *
+ * 🔴 **고립 서로게이트(U+D800~DFFF)를 반드시 막는다.** `fromCodePoint` 는 이 범위에 예외를
+ *    던지지 않고 짝 없는 반쪽 글자를 만드는데, 그게 본문에 섞이면 **Postgres 가 upsert 를
+ *    거부해 크론 전체가 죽는다** — 공고 하나 때문에 그날 수집이 통째로 날아간다.
+ */
+const codePoint = (n: number, raw: string): string =>
+  n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : raw;
+
 export const decodeEntities = (s: string): string => {
   let prev = "";
-  while (s !== prev) {
+  // 🔴 반복 횟수를 묶는다. `&amp;#38;` 은 한 바퀴에 **한 겹**만 벗겨지므로, 남의 HTML 에
+  //    `&amp;#38;#38;#38;…` 이 길게 들어오면 길이에 비례해 바퀴가 돌아 크론이 통째로 멈춘다.
+  //    실제 문서의 중첩은 두 겹을 안 넘는다(워크넷의 `&amp;amp;` 가 최대) — 5 바퀴면 충분하다.
+  for (let pass = 0; s !== prev && pass < 5; pass++) {
     prev = s;
-    s = s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+    s = s
+      // 🔴 숫자 엔티티도 푼다. 병원 공고문은 아래아한글에서 붙여넣은 것이 많아 &#9312;(①) 같은
+      //    기호가 흔하다 — 안 풀면 지원자격 목록이 "&#9312; 간호사 면허증" 으로 보인다.
+      //    코드포인트 범위를 확인한다: fromCodePoint 는 범위를 넘으면 **예외를 던진다.**
+      .replace(/&#(\d{1,7});/g, (m, d) => codePoint(Number(String(d)), m))
+      .replace(/&#x([0-9a-f]{1,6});/gi, (m, h) => codePoint(parseInt(String(h), 16), m))
+      .replace(/&nbsp;/g, " ").replace(/&sim;/g, "~").replace(/&middot;/g, "·")
+      .replace(/&ldquo;|&rdquo;/g, '"').replace(/&lsquo;|&rsquo;/g, "'").replace(/&hellip;/g, "…")
+      .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+      .replace(/&#39;|&apos;/g, "'")
+      .replace(/&amp;/g, "&");
   }
   return s;
 };

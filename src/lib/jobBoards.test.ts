@@ -191,10 +191,14 @@ test("원본 사이트의 버튼 문구를 걷어낸다", () => {
   assert.doesNotMatch(body, /바로가기|click/i);
 });
 
-/** 🔴 잘못된 숫자 엔티티에 fromCodePoint 가 던지면 이 출처 수집이 통째로 실패한다. */
+/**
+ * 🔴 잘못된 숫자 엔티티에 fromCodePoint 가 던지면 이 출처 수집이 통째로 실패한다.
+ *    풀 수 없는 값은 원문 그대로 남기고(정보를 지우지 않는다), 멀쩡한 것만 푼다.
+ */
 test("범위를 벗어난 숫자 엔티티에도 던지지 않는다", () => {
-  const html = `<div id="custom_recruit"><p>간호사&#1114112;모집&#39;</p></div>`;
-  assert.match(parseMbankDetail(html).description ?? "", /간호사 ?모집'/);
+  const body = parseMbankDetail(`<div id="custom_recruit"><p>간호사&#1114112;모집&#39;&#9312;</p></div>`).description ?? "";
+  assert.match(body, /모집'①/, "멀쩡한 엔티티는 푼다");
+  assert.match(body, /간호사/);
 });
 
 /** 🔴 끝 마커가 없으면 문서 끝까지(2MB) 삼킨다 — 길이를 묶어 둔다. */

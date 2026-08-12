@@ -73,7 +73,7 @@ function Card({ c }: Readonly<{ c: CollectorCard }>) {
 }
 
 export default async function CollectorsPage() {
-  const { cards, sources, expected } = await getCollectors();
+  const { cards, sources, expected, emptyBodies } = await getCollectors();
   const broken = cards.filter((c) => c.state !== "ok");
 
   return (
@@ -91,6 +91,15 @@ export default async function CollectorsPage() {
       ) : (
         <p role="status" className="mb-4 rounded-xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-800">
           수집기 {cards.length}개 모두 정상입니다.
+        </p>
+      )}
+
+      {/* 🔴 수집은 성공했는데 **본문이 비는** 고장은 위 카드에 안 잡힌다 — 실제로 24건이 제목만
+          있는 채로 노출되고 있었고 오너가 화면에서 발견했다(2026-08-12). 숫자로 드러내 둔다. */}
+      {emptyBodies > 0 && (
+        <p role="alert" className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <b>본문이 빈 공고 {emptyBodies.toLocaleString()}건</b> — 눌러도 제목·병원명만 보인다.
+          해당 사이트의 상세 마크업이 바뀌었을 수 있다(아래 표에서 맨 위 기관부터 확인).
         </p>
       )}
 
@@ -114,6 +123,7 @@ export default async function CollectorsPage() {
               <tr>
                 <TH>기관</TH>
                 <TH>노출중 공고</TH>
+                <TH>본문 없음</TH>
                 <TH>마지막 갱신</TH>
               </tr>
             </thead>
@@ -122,6 +132,7 @@ export default async function CollectorsPage() {
                 <tr key={s.name}>
                   <TD>{s.name}</TD>
                   <TD>{s.live.toLocaleString()}건</TD>
+                  <TD>{s.empty > 0 ? <b className="text-amber-700">{s.empty}건</b> : "—"}</TD>
                   <TD>{ago(s.updatedAt)}</TD>
                 </tr>
               ))}

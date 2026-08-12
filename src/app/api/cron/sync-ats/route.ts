@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchNurseAtsJobs, fetchAtsDescription, TENANTS } from "@/lib/recruiterAts";
-import { fetchNurseSiteJobs, SITES } from "@/lib/hospitalSites";
+import { fetchNurseSiteJobs, fetchSiteDetail, SITES } from "@/lib/hospitalSites";
 import { fetchBoardJobs, fetchBoardDetail, BOARDS } from "@/lib/jobBoards";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
 import { regionOfLocation } from "@/lib/jobRegion";
@@ -79,31 +79,56 @@ export async function GET(request: Request) {
 
     // 본문은 공고당 한 번만 받는다(내용이 바뀌면 병원이 새 공고를 낸다).
     // 본문은 ATS 공고만 받는다(자체 홈페이지는 사이트마다 상세 구조가 달라 아직 제목·링크만 쓴다).
-    const need = jobs.filter((j) => j.sn !== null && !stored.get(j.id)?.detail_fetched_at);
+    // 🔴 상세를 **시도한** 공고는 성공·실패와 무관하게 표시해 둔다(아래 detail_fetched_at).
+    //    실패만 다시 노리면, 규칙이 빗나간 공고가 매 실행 앞자리를 차지해 **새 공고가 영영
+    //    본문을 못 받는다.** 대신 본문이 빈 공고 수를 관리자 화면(/admin/collectors)이 보여 준다.
+    const tried = new Set<string>();
+    // 🔴 시간 예산. 상세 요청 세 덩어리가 순차라 최악이 겹치면 maxDuration(300초)을 넘기고,
+    //    그러면 **upsert 전에 죽어 그날 수집이 통째로 날아간다.** 남은 건 다음 크론이 가져간다.
+    const outOfTime = () => Date.now() - startedAt > 200_000;
+
+    const need = jobs.filter((j) => j.sn !== null && !stored.get(j.id)?.detail_fetched_at).slice(0, 60);
     const bodies = new Map<string, string>();
-    for (let i = 0; i < need.length; i += 6) {
+    for (let i = 0; i < need.length && !outOfTime(); i += 6) {
+      const chunk = need.slice(i, i + 6);
       const got = await Promise.all(
-        need.slice(i, i + 6).map(async (j) => [j.id, await fetchAtsDescription(j.key, String(j.sn))] as const),
+        chunk.map(async (j) => [j.id, await fetchAtsDescription(j.key, String(j.sn))] as const),
       );
+      for (const j of chunk) tried.add(j.id);
       for (const [id, body] of got) if (body) bodies.set(id, body);
     }
 
     // 🔴 집계 사이트는 **목록에 제목·회사명뿐**이라 상세를 안 받으면 카드가 텅 빈다
     //    (오너 신고 2026-08-12: 「채용 상세 정보」에 지역 한 줄만 나왔다).
     //    상세에는 급여·근무형태·마감일·근무지 주소·모집요강이 다 있다.
-    const boardKeys = new Set(BOARDS.map((b) => b.key));
-    // 🔴 한 번에 받는 수를 묶는다. 상세는 한 장이 2MB 라, 처음 도는 날처럼 대상이 많으면
-    //    maxDuration(300초)을 넘겨 **upsert 전에 죽고 그날 수집이 통째로 날아간다.**
-    //    남은 건 다음 크론이 가져간다(마커가 없으니 대상으로 계속 남는다).
-    const needDetail = jobs
-      .filter((j) => boardKeys.has(j.key) && !stored.get(j.id)?.detail_fetched_at)
+    // 자체 홈페이지도 목록만으로는 제목뿐이다 — 사이트별 본문 규칙(detailBody)이 있는 곳만 받는다.
+    // 🔴 사이트를 여기서 짝지어 둔다. `has()` 로 거르고 `get()!` 로 꺼내면 TS 가 검증하지 못하는
+    //    단언이 남는다(같은 파일이 위에서 그 패턴을 없앤 참이다).
+    const siteByKey = new Map(SITES.filter((s) => s.detailBody).map((s) => [s.key, s]));
+    const needSite = jobs
+      .flatMap((j) => {
+        const site = siteByKey.get(j.key);
+        return site && !stored.get(j.id)?.detail_fetched_at ? [{ id: j.id, url: j.url, site }] : [];
+      })
       .slice(0, 40);
+    for (let i = 0; i < needSite.length && !outOfTime(); i += 6) {
+      const chunk = needSite.slice(i, i + 6);
+      const got = await Promise.all(chunk.map(async (n) => [n.id, await fetchSiteDetail(n.site, n.url)] as const));
+      for (const n of chunk) tried.add(n.id);
+      for (const [id, body] of got) if (body) bodies.set(id, body);
+    }
+
+    const boardKeys = new Set(BOARDS.map((b) => b.key));
+    // 상세 한 장이 실측 2MB 라 한 번에 받는 수를 묶는다 — 남은 건 다음 크론이 가져간다.
+    const needDetail = outOfTime()
+      ? []
+      : jobs.filter((j) => boardKeys.has(j.key) && !stored.get(j.id)?.detail_fetched_at).slice(0, 40);
     const details = new Map(
       (await inBatches(needDetail, 6, async (j) => [j.id, await fetchBoardDetail(j.url)] as const))
-        // 🔴 "받았다" 로 치는 기준은 **뭐라도 읽혔는가** 다. 마크업이 바뀌어 전부 null 인 객체가
-        //    와도 마커를 찍으면 그 공고는 영원히 다시 안 받는다 — 빈 카드가 굳어 버린다.
+        // 값으로 반영하는 건 **뭐라도 읽힌 것만** — 전부 null 인 객체로 기존 값을 덮지 않는다.
         .flatMap(([id, d]) => (d && Object.values(d).some(Boolean) ? [[id, d] as const] : [])),
     );
+    for (const j of needDetail) tried.add(j.id);
 
     // 📍 좌표 — 「내 주변 채용」이 이걸 본다. 이 사이트들은 근무지를 아예 안 주므로
     //    **명부 주소**를 지오코딩한다. geocoded_at 마커로 공고당 한 번만 시도한다.
@@ -164,7 +189,9 @@ export async function GET(request: Request) {
         // 🔴 저장값 폴백이 반드시 있어야 한다. 상세는 공고당 한 번만 받으므로 2회차부터 d 가 없고,
         //    폴백이 없으면 **첫 실행에 채운 마감일이 매 실행 null 로 지워진다**(실측: 16건 → 0건).
         deadline: j.deadline ?? d?.deadline ?? s?.deadline ?? null,
-        detail_fetched_at: bodies.has(j.id) || details.has(j.id) ? syncStart : (s?.detail_fetched_at ?? null),
+        // 🔴 **시도했으면** 찍는다(위 tried 주석). 성공만 찍으면 규칙이 빗나간 공고가 매 실행
+        //    앞자리를 차지해 새 공고가 영영 본문을 못 받는다.
+        detail_fetched_at: tried.has(j.id) ? syncStart : (s?.detail_fetched_at ?? null),
       };
     });
 

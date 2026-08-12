@@ -1,6 +1,6 @@
 // 🔴 `server-only` 를 안 붙인다 — 파서가 Node 시험에서 돌아야 한다(recruiterAts.ts 와 같은 이유).
-import { jobCategoryOf } from "./alio.ts";
-import { readHtml } from "./html.ts";
+import { jobCategoryOf, isAnnouncementOnly } from "./alio.ts";
+import { decodeEntities, readHtml } from "./html.ts";
 
 /**
  * 자체 채용 홈페이지를 쓰는 상급종합병원 수집.
@@ -41,6 +41,15 @@ export type Site = {
   detailUrl?: (id: string) => string;
   /** 제목으로 병원을 가르는 규칙(한 사이트가 여러 병원일 때). 위에서부터 첫 매칭. */
   branches?: ReadonlyArray<readonly [RegExp, string]>;
+  /**
+   * 상세 본문 영역(캡처 1번이 본문 HTML).
+   *
+   * 🔴 이게 없으면 카드가 **제목·병원명·지역뿐**이다 — 간호사가 눌러도 지원자격도 근무조건도
+   *    안 보인다(오너 신고 2026-08-12: "페이지에 보이는 게 이게 전부다").
+   *    사이트마다 마크업이 달라 한 벌로는 안 되므로 사이트별로 적는다. 접수기간까지 들어오게
+   *    범위를 잡으면 마감일도 같이 얻는다.
+   */
+  detailBody?: RegExp;
 };
 
 export const SITES: readonly Site[] = [
@@ -60,6 +69,7 @@ export const SITES: readonly Site[] = [
       [/강남/, "한림대학교 강남성심병원"],
       [/한강/, "한림대학교 한강성심병원"],
     ],
+    detailBody: /<div class="context">([\s\S]{0,60000})/,
   },
   {
     key: "eumc",
@@ -69,6 +79,7 @@ export const SITES: readonly Site[] = [
     // 🔴 pageIndex 는 넣지 않는다 — 공고가 2페이지로 밀리면 id 가 바뀌어 같은 공고가 새로 들어온다.
     idParams: ["bbs_no"],
     branches: [[/서울병원/, "이화여자대학교의과대학부속서울병원"]],
+    detailBody: /<div class="board-body">([\s\S]{0,60000})/,
   },
   {
     key: "gnah",
@@ -76,6 +87,9 @@ export const SITES: readonly Site[] = [
     listUrl: "https://www.gnah.co.kr/kor/CMS/RecruitMgr/list.do?mCode=MN122",
     linkPattern: /\/kor\/CMS\/RecruitMgr\/view\.do\?[^"']*recruit_seq=\d+/,
     idParams: ["recruit_seq"],
+    // 🔴 이 사이트는 공고문을 **이미지 한 장**으로 올린다(본문 텍스트가 없다). 그래서 머리의
+    //    모집분야·접수기간까지만 얻을 수 있다. 끝을 안 막으면 진료과 메뉴·푸터가 통째로 딸려온다.
+    detailBody: /<div class="board-view-head">([\s\S]*?)<div class="board-view-btns"/,
   },
   {
     key: "cmcism",
@@ -84,6 +98,9 @@ export const SITES: readonly Site[] = [
     // href 끝에 `&` 가 붙어 오므로 `seq=\d+` 로 끊으면 안 된다 — 뒤를 열어 둔다.
     linkPattern: /\/center\/recruit_view\?seq=\d+[^"']*/,
     idParams: ["seq"],
+    // 이 사이트는 본문이 아래아한글에서 붙여넣은 인라인 스타일 덩어리라 시작점이 불분명하다.
+    // '모집부문' 표가 실제 알맹이라 그 제목부터 잡는다.
+    detailBody: /(<h2 class="wx140 noimg"[\s\S]{0,60000})/,
   },
   {
     key: "dsmc",
@@ -114,6 +131,7 @@ export const SITES: readonly Site[] = [
     listUrl: "https://www.kosinmed.or.kr/service/service_3.php",
     linkPattern: /\/service\/service_3\.php\?boardid=recruit[^"']*mode=view[^"']*idx=\d+/,
     idParams: ["idx"],
+    detailBody: /<div class="brd-view">([\s\S]{0,60000})/,
   },
   {
     key: "dkuh",
@@ -130,6 +148,8 @@ export const SITES: readonly Site[] = [
     listUrl: "https://www.damc.or.kr/05/03_2017.php",
     linkPattern: /03_2017_view\.php\?hire_web_sqno=\d+[^"']*/,
     idParams: ["hire_web_sqno"],
+    // 제목·모집분야·접수기간·본문이 한 표에 들어 있다. 표 끝에서 끊어야 뒤의 스크립트가 안 딸려온다.
+    detailBody: /<table class="write"[\s\S]{0,200}?>([\s\S]*?)<\/table>/,
   },
   {
     // 🔴 키가 "amc" 면 안 된다 — 리크루터 ATS 의 `amc`(경상북도안동의료원)와 접두가 겹쳐
@@ -151,6 +171,8 @@ export const SITES: readonly Site[] = [
       const [seq, sch] = id.split("_");
       return `https://recruit.amc.seoul.kr/recruit/career/view.do?seq=${seq}&scheduleno=${sch}`;
     },
+    // 제목·접수기간·첨부·본문이 한 표에 있다. 표 전체를 잡아야 접수기간까지 들어온다.
+    detailBody: /<caption>상세페이지<\/caption>([\s\S]*?)<\/table>/,
   },
   {
     key: "snuh",
@@ -164,6 +186,7 @@ export const SITES: readonly Site[] = [
     idPattern: /viewPage\('([^']+)'/,
     idParams: [],
     detailUrl: (id) => `https://recruit.snuh.org/joining/recruit/view.do?recruit_id=${id}`,
+    detailBody: /<div class="boardView">([\s\S]{0,60000})/,
   },
   {
     key: "kuh",
@@ -173,6 +196,8 @@ export const SITES: readonly Site[] = [
     listUrl: "https://www.kuh.ac.kr/recruit/apply/noticeList.do",
     linkPattern: /\/recruit\/apply\/noticeView\.do\?anc_seq=\d+[^"']*/,
     idParams: ["anc_seq"],
+    // 접수기간·모집분야·지원자격이 이 안의 목록에 있다.
+    detailBody: /<div class="body">([\s\S]{0,60000})/,
   },
   // 🔴 백병원(paik)은 여기 있었는데 **뺐다.** 같은 병원이 마이다스인 ATS 에도 있고
   //    (paik.recruiter.co.kr, 간호 7건 vs 자체 사이트 3건), 두 곳에서 담으면 external_id 가
@@ -271,7 +296,8 @@ export function parseSite(site: Site, html: string): SiteJob[] {
   for (const m of html.matchAll(re)) {
     const link = m[2];
     const text = anchorText(m[3]);
-    if (!/간호/.test(text)) continue;
+    // 채용 게시판에는 공고와 그 후속 안내(합격자 발표·전형 일정)가 섞여 올라온다 — 안내글은 담지 않는다.
+    if (!/간호/.test(text) || isAnnouncementOnly(text)) continue;
     // 공고를 가리키는 값이 둘 이상인 사이트가 있다(서울아산: seq + scheduleno) — 잡힌 그룹을 다 잇는다.
     const caught = site.idPattern ? link.match(site.idPattern) : null;
     const sn = caught ? caught.slice(1).filter(Boolean).join("_") || null : idFromLink(link, site.idParams);
@@ -311,6 +337,55 @@ async function fetchSite(site: Site): Promise<SiteJob[]> {
   //    그 병원 공고를 전부 마감시킨다. 사이트 개편으로 마크업이 바뀌면 정확히 이 모양이 된다.
   if (!new RegExp(site.linkPattern.source).test(html)) throw new Error(`${site.key} 상세 링크를 못 찾았다 — 마크업이 바뀌었다`);
   return parseSite(site, html);
+}
+
+/**
+ * 상세 본문 → 읽을 수 있는 글자.
+ * 표(모집부문·자격·근무조건)가 대부분이라 **행·칸 경계를 줄바꿈으로 바꾼 뒤** 태그를 걷는다.
+ * 그냥 태그만 지우면 표가 한 줄로 뭉쳐 무엇이 어느 항목인지 알 수 없다.
+ */
+export function detailText(html: string, max = 3000): string {
+  return decodeEntities(
+    html
+      // 🔴 태그를 걷어낸 **뒤에** 자른다. 먼저 자르면 표 한가운데서 끊겨 알맹이를 잃는다
+      //    (마크업이 글자보다 훨씬 길다). 다만 상한은 둬야 거대 페이지가 크론을 잡아먹지 않는다.
+      .slice(0, 400_000)
+      .replace(/<!--[\s\S]*?-->/g, " ")
+      // 🔴 **행 끝에서만** 줄을 바꾼다. 칸마다 줄을 바꾸면 "모집 부서"·"간호부" 가 각각 한 줄이 되어
+      //    표의 머리글과 값이 짝을 잃는다 — 한 단어짜리 줄만 수십 개 나열돼 읽어도 뜻을 못 세운다.
+      .replace(/<\/(?:tr|p|div|li|h\d)>/gi, "\n")
+      .replace(/<\/t[dh]>/gi, " · ")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " "),
+  )
+    // 🔴 개행 정리에 \r 을 넣어야 한다. 안 넣으면 CRLF 사이에 \r 이 남아 규칙이 끊기고
+    //    **빈 줄이 그대로 쌓인다** — 화면이 whitespace-pre-line 이라 그대로 보인다.
+    .replace(/[^\S\r\n]{2,}/g, " ")
+    .replace(/[^\S\r\n]*[\r\n][\s]*/g, "\n")
+    // 빈 칸이 이어지면 " · · · " 만 남는다 — 하나로 접고 줄 끝의 구분자는 떼어낸다.
+    .replace(/(?: ?· ?){2,}/g, " · ")
+    .replace(/^ ?· ?| ?· ?$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+    .slice(0, max);
+}
+
+/** 상세 한 건. 실패하면 null — 목록만으로도 공고는 성립한다(ATS·집계 사이트와 같은 계약). */
+export async function fetchSiteDetail(site: Site, url: string): Promise<string | null> {
+  if (!site.detailBody) return null;
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; nurse-link-collector/1.0)", Accept: "text/html,*/*" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) return null;
+    const m = (await readHtml(res)).match(site.detailBody);
+    return m ? detailText(m[1]) || null : null;
+  } catch {
+    return null;
+  }
 }
 
 /** 사이트 하나가 죽어도 나머지는 살린다. 죽은 곳은 돌려줘야 부르는 쪽이 마감 처리를 건너뛴다. */
