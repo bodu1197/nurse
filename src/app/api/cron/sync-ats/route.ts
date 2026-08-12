@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchNurseAtsJobs, fetchAtsDescription, TENANTS } from "@/lib/recruiterAts";
 import { fetchNurseSiteJobs, SITES } from "@/lib/hospitalSites";
+import { fetchBoardJobs, BOARDS } from "@/lib/jobBoards";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
@@ -36,18 +37,31 @@ export async function GET(request: Request) {
   try {
     const syncStart = new Date().toISOString();
     // 공용 ATS(20곳) + 자체 홈페이지(SITES) — 둘 다 source='crawl' 이라 같은 경로로 처리한다.
-    const [ats, sites] = await Promise.all([fetchNurseAtsJobs(), fetchNurseSiteJobs()]);
+    const [ats, sites, boards] = await Promise.all([fetchNurseAtsJobs(), fetchNurseSiteJobs(), fetchBoardJobs()]);
     const jobs = [
-      ...ats.jobs.map((j) => ({ key: j.host, id: j.id, title: j.title, hospital: j.hospital, displayName: j.displayName, jobCategory: j.jobCategory, employmentType: j.employmentType, postedAt: j.postedAt, deadline: j.deadline, url: j.url, sn: j.sn as number | null })),
-      ...sites.jobs.map((j) => ({ key: j.id.split("-")[0], id: j.id, title: j.title, hospital: j.hospital, displayName: j.displayName, jobCategory: j.jobCategory, employmentType: null as string | null, postedAt: null as string | null, deadline: j.deadline, url: j.url, sn: null as number | null })),
+      ...ats.jobs.map((j) => ({ key: j.host, id: j.id, title: j.title, hospital: j.hospital, alt: null as string | null, displayName: j.displayName, jobCategory: j.jobCategory, employmentType: j.employmentType, postedAt: j.postedAt, deadline: j.deadline, url: j.url, sn: j.sn as number | null })),
+      ...sites.jobs.map((j) => ({ key: j.id.split("-")[0], id: j.id, title: j.title, hospital: j.hospital, alt: null as string | null, displayName: j.displayName, jobCategory: j.jobCategory, employmentType: null as string | null, postedAt: null as string | null, deadline: j.deadline, url: j.url, sn: null as number | null })),
+      // 집계 사이트(인재채움뱅크) — 병원이 행마다 다르다. 명부 매칭도 행마다 한다.
+      // 🔴 이름이 두 가지로 온다: 제목의 `[포항여성병원]`(label)과 등기명 `삼정의료재단포항여성병원`(company).
+      //    어느 쪽이 명부에 있는지는 병원마다 다르므로 **둘 다 조회**한다 — 하나만 보면 매칭이 반토막 난다.
+      ...boards.jobs.map((j) => ({ key: j.id.split("-")[0], id: j.id, title: j.title, hospital: j.label, alt: j.company as string | null, displayName: j.label, jobCategory: j.jobCategory, employmentType: null as string | null, postedAt: null as string | null, deadline: j.deadline, url: j.url, sn: null as number | null })),
     ];
-    const failed = [...ats.failed, ...sites.failed];
+    const failed = [...ats.failed, ...sites.failed, ...boards.failed];
     if (jobs.length === 0) return NextResponse.json({ ok: true, fetched: 0, jobsUpserted: 0, failedHosts: failed });
 
     const admin = createAdminClient();
 
     // 🏥 기관 종별·지역은 심사평가원 명부에서. ATS 목록에는 근무지가 아예 없다.
-    const registry = await lookupHospitalsBestEffort(admin, jobs.map((j) => j.hospital));
+    const registry = await lookupHospitalsBestEffort(admin, jobs.flatMap((j) => (j.alt ? [j.hospital, j.alt] : [j.hospital])));
+    // 🔴 둘 다 명부에 있으면 **주소가 있는 쪽**을 고른다. 그냥 `??` 로 두면 주소 없는 행이 먼저
+    //    걸려 좌표를 못 얻는다 = 「내 주변 채용」에서 빠진다(같은 병원이 명부에 여러 이름으로 있다).
+    const regOf = (j: { hospital: string; alt: string | null }) => {
+      const a = registry.get(j.hospital);
+      const b = j.alt ? registry.get(j.alt) : undefined;
+      if (a?.address) return a;
+      if (b?.address) return b;
+      return a ?? b;
+    };
 
     // 기존 저장값 — 명부 조회가 실패했거나 상세를 못 받았을 때 옛 값을 지킨다.
     // (BestEffort 가 빈 Map 을 돌려줄 수 있는데, 그때 이미 맞던 종별·지역을 null 로 덮으면 안 된다.)
@@ -76,14 +90,19 @@ export async function GET(request: Request) {
 
     // 📍 좌표 — 「내 주변 채용」이 이걸 본다. 이 사이트들은 근무지를 아예 안 주므로
     //    **명부 주소**를 지오코딩한다. geocoded_at 마커로 공고당 한 번만 시도한다.
-    const needGeo = jobs.filter((j) => !stored.get(j.id)?.geocoded_at && registry.get(j.hospital)?.address);
+    // 🔴 주소를 여기서 함께 뽑아 둔다 — 아래에서 `regOf(j)!.address!` 처럼 단언하면 필터 조건이
+    //    바뀌는 순간 조용히 TypeError 가 나고 크론 전체가 502 로 죽는다. 타입이 보장하게 한다.
+    const needGeo = jobs.flatMap((j) => {
+      const address = stored.get(j.id)?.geocoded_at ? null : (regOf(j)?.address ?? null);
+      return address ? [{ id: j.id, address }] : [];
+    });
     const coords = new Map(
-      await inBatches(needGeo, 6, async (j) => [j.id, await geocodeAddress(registry.get(j.hospital)!.address!)] as const),
+      await inBatches(needGeo, 6, async (g) => [g.id, await geocodeAddress(g.address)] as const),
     );
-    const geoTried = new Set(needGeo.map((j) => j.id));
+    const geoTried = new Set(needGeo.map((g) => g.id));
 
     const rows = jobs.map((j) => {
-      const reg = registry.get(j.hospital);
+      const reg = regOf(j);
       const s = stored.get(j.id);
       // 명부 주소가 표준형이라 지역 축이 그대로 맞는다(HIRA 의 region 표기는 비표준 — sync-alio 주석 참고).
       const loc = reg?.address ?? s?.location ?? null;
@@ -133,7 +152,8 @@ export async function GET(request: Request) {
     //    한 곳이 점검 중일 때 source='crawl' 전체를 닫으면, 멀쩡한 나머지 19곳 덕분에
     //    `failed.length === 0` 같은 전역 가드를 통과해 버리고 **그 병원 공고만 통째로 사라진다.**
     //    external_id 가 `{host}-{공고번호}` 라 호스트 접두로 범위를 정확히 좁힐 수 있다.
-    const alive = [...TENANTS.map((t) => t.host), ...SITES.map((s) => s.key)].filter((h) => !failed.includes(h));
+    const alive = [...TENANTS.map((t) => t.host), ...SITES.map((s) => s.key), ...BOARDS.map((b) => b.key)]
+      .filter((h) => !failed.includes(h));
     let closed = 0;
     for (const host of alive) {
       const { data: closedRows, error: closeErr } = await admin
@@ -145,10 +165,13 @@ export async function GET(request: Request) {
       closed += closedRows?.length ?? 0;
     }
 
+    // 🔴 이름 개수(registry.size)가 아니라 **명부에 붙은 공고 수**를 센다 —
+    //    집계 사이트는 이름을 둘씩 조회해서 registry.size 가 실제보다 부풀어 보인다.
+    const registryMatched = jobs.filter((j) => regOf(j)).length;
     const stats = {
-      tenants: TENANTS.length, sites: SITES.length,
-      fetchedAts: ats.jobs.length, fetchedSites: sites.jobs.length,
-      jobsUpserted: upserted, jobsClosed: closed, registryMatched: registry.size,
+      tenants: TENANTS.length, sites: SITES.length, boards: BOARDS.length,
+      fetchedAts: ats.jobs.length, fetchedSites: sites.jobs.length, fetchedBoards: boards.jobs.length,
+      jobsUpserted: upserted, jobsClosed: closed, registryMatched,
     };
     await recordRun(admin, { collector: "ats", ok: failed.length === 0, stats, failed, startedAt });
 
@@ -156,13 +179,15 @@ export async function GET(request: Request) {
       ok: true,
       tenants: TENANTS.length,
       sites: SITES.length,
+      boards: BOARDS.length,
       fetchedAts: ats.jobs.length,
       fetchedSites: sites.jobs.length,
+      fetchedBoards: boards.jobs.length,
       fetched: jobs.length,
       jobsUpserted: upserted,
       jobsClosed: closed,
       descriptionsFetched: bodies.size,
-      registryMatched: registry.size,
+      registryMatched,
       // 실패한 병원 사이트를 숨기지 않는다 — 계속 비어 있으면 그 테넌트 주소가 바뀐 것이다.
       failedHosts: failed,
     });

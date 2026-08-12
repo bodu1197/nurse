@@ -1,5 +1,6 @@
 // 🔴 `server-only` 를 안 붙인다 — 파서가 Node 시험에서 돌아야 한다(recruiterAts.ts 와 같은 이유).
 import { jobCategoryOf } from "./alio.ts";
+import { readHtml } from "./html.ts";
 
 /**
  * 자체 채용 홈페이지를 쓰는 상급종합병원 수집.
@@ -298,7 +299,8 @@ async function fetchSite(site: Site): Promise<SiteJob[]> {
     signal: AbortSignal.timeout(20000),
   });
   if (!res.ok) throw new Error(`${site.key} 목록 ${res.status}`);
-  const html = await res.text();
+  // 병원 자체 홈페이지에는 EUC-KR 이 섞여 있다 — 선언된 문자셋대로 읽는다(html.decodeHtml 주석 참고).
+  const html = await readHtml(res);
   // 🔴 링크가 하나도 안 잡히면 **실패로 친다.** 빈 배열로 넘기면 부르는 쪽이 "공고가 없구나" 로 읽고
   //    그 병원 공고를 전부 마감시킨다. 사이트 개편으로 마크업이 바뀌면 정확히 이 모양이 된다.
   if (!new RegExp(site.linkPattern.source).test(html)) throw new Error(`${site.key} 상세 링크를 못 찾았다 — 마크업이 바뀌었다`);

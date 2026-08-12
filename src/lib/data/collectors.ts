@@ -18,7 +18,8 @@ export const COLLECTORS = [
   { key: "hospitals", label: "병원 명부(심사평가원)", everyHours: 24, cron: "매일 03:00" },
   { key: "worknet", label: "워크넷(고용24)", everyHours: 6, cron: "6시간마다" },
   { key: "alio", label: "공공기관 채용(잡알리오)", everyHours: 24, cron: "매일 07:00" },
-  { key: "ats", label: "대학병원 채용사이트", everyHours: 12, cron: "매일 08:00·20:00" },
+  // 한 크론이 셋을 함께 돈다 — 병원 ATS·병원 자체 홈페이지·집계 사이트(인재채움뱅크).
+  { key: "ats", label: "병원 채용사이트·집계 사이트", everyHours: 12, cron: "매일 08:00·20:00" },
 ] as const;
 
 export type CollectorKey = (typeof COLLECTORS)[number]["key"];
@@ -85,21 +86,28 @@ export async function getCollectors(): Promise<CollectorsView> {
   });
 
   // 원천별 현황 — 수집 공고를 회사명으로 묶는다.
-  const { data: jobs } = await supabase
-    .from("jobs_listed")
-    .select("company_name,updated_at")
-    .in("source", ["crawl", "public_data"])
-    .eq("is_live", true)
-    .returns<{ company_name: string | null; updated_at: string }[]>();
-
+  // 🔴 페이지로 끝까지 읽는다. PostgREST 는 요청당 1000행에서 **조용히 자른다** — 잘리면 원천 표가
+  //    실제보다 적게 나와 멀쩡한 병원이 "0건(말랐음)" 으로 보인다. 고장을 알리는 화면이 거짓말을
+  //    하는 셈이라 여기서만은 전건을 읽는다(정렬이 없으면 페이지 경계에서 행이 새거나 겹친다).
   const byName = new Map<string, SourceRow>();
-  for (const j of jobs ?? []) {
-    const name = j.company_name ?? "(이름 없음)";
-    const cur = byName.get(name);
-    if (cur) {
-      cur.live++;
-      if (!cur.updatedAt || j.updated_at > cur.updatedAt) cur.updatedAt = j.updated_at;
-    } else byName.set(name, { name, live: 1, updatedAt: j.updated_at });
+  for (let from = 0; ; from += 1000) {
+    const { data: page } = await supabase
+      .from("jobs_listed")
+      .select("company_name,updated_at")
+      .in("source", ["crawl", "public_data"])
+      .eq("is_live", true)
+      .order("id")
+      .range(from, from + 999)
+      .returns<{ company_name: string | null; updated_at: string }[]>();
+    for (const j of page ?? []) {
+      const name = j.company_name ?? "(이름 없음)";
+      const cur = byName.get(name);
+      if (cur) {
+        cur.live++;
+        if (!cur.updatedAt || j.updated_at > cur.updatedAt) cur.updatedAt = j.updated_at;
+      } else byName.set(name, { name, live: 1, updatedAt: j.updated_at });
+    }
+    if (!page || page.length < 1000) break;
   }
 
   return {

@@ -1,6 +1,7 @@
 // 🔴 `server-only` 를 안 붙인다 — 순수 파서·매핑이 Node 시험에서 돌아야 한다(alio.ts 와 같은 이유).
 //    이 파일에는 비밀이 없다(인증 없는 공개 채용 페이지).
 import { jobCategoryOf, employmentTypeOf } from "./alio.ts";
+import { readHtml } from "./html.ts";
 
 /**
  * 대학병원 채용 ATS(마이다스인 「리크루터」) 수집 — **사립 상급종합병원**의 간호 공고.
@@ -80,7 +81,6 @@ export const TENANTS: readonly Tenant[] = [
   { host: "pnuh", hospital: "부산대학교병원" },
   { host: "pnuyh", hospital: "양산부산대학교병원" },
   { host: "snubh", hospital: "분당서울대학교병원" },
-  { host: "snudh", hospital: "서울대학교치과병원", branches: [[/관악/, "관악서울대학교치과병원"]] },
   { host: "wkuh", hospital: "원광대학교병원" },
   {
     host: "yuhs",
@@ -99,7 +99,11 @@ export const TENANTS: readonly Tenant[] = [
   //    막혔다고 적어 뒀던 인하대·울산대가 사실 이 ATS 에 있었다.
   { host: "inhauh", hospital: "인하대학교의과대학부속병원" },
   { host: "uuh", hospital: "학교법인 울산공업학원 울산대학교병원" },
-  { host: "nmc", hospital: "국립중앙의료원" },
+  // 🔴 국립중앙의료원(nmc)·서울대학교치과병원(snudh)은 **여기서 뺐다** — 잡알리오(source='public_data')가
+  //    같은 공고를 이미 준다. 둘 다 담으면 external_id 가 달라 **같은 공고가 카드 두 장**이 된다
+  //    (실측 2026-08-12: 노출 중 중복 5건이 전부 이 두 곳). 알리오 쪽이 더 많이 커버한다
+  //    (국립중앙의료원 34 vs 4, 치과병원 4 vs 1) — 공식 API 라 파서보다 덜 깨지기도 한다.
+  //    아래 국립암센터·성남시의료원은 **알리오에 없어서** 남긴다(확인함) — 빼면 공고를 잃는다.
   { host: "ncc", hospital: "국립암센터" },
   { host: "scmc", hospital: "성남시의료원" },
   {
@@ -265,7 +269,7 @@ export async function fetchAtsDescription(host: string, sn: string): Promise<str
       signal: AbortSignal.timeout(15000),
     });
     if (!res.ok) return null;
-    return extractBody(await res.text());
+    return extractBody(await readHtml(res));
   } catch {
     return null;
   }

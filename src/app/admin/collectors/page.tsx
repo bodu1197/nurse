@@ -29,7 +29,7 @@ const STATE = {
 function statLine(stats: RunRow["stats"]): string {
   if (!stats) return "";
   const L: Record<string, string> = {
-    fetched: "받음", fetchedAts: "ATS", fetchedSites: "자체사이트", jobsUpserted: "저장",
+    fetched: "받음", fetchedAts: "ATS", fetchedSites: "자체사이트", fetchedBoards: "집계사이트", jobsUpserted: "저장",
     jobsClosed: "마감", registryMatched: "명부매칭", detailsFetched: "상세", upserted: "저장",
     total: "전체", pages: "페이지", graded: "종별있음",
   };
@@ -102,8 +102,9 @@ export default async function CollectorsPage() {
 
       <Section title={`수집 원천 (${sources.length}곳)`}>
         <p className="mb-3 text-sm text-slate-500">
-          대학병원 채용사이트·잡알리오에서 지금 살아 있는 공고. 등록된 수집 대상은 {expected}곳이라,
-          여기 없는 곳은 <b>지금 열린 간호 공고가 없거나 수집이 막힌 것</b>이다.
+          병원 채용사이트·잡알리오·집계 사이트에서 지금 살아 있는 공고. 우리가 이름을 지정해 두고 도는
+          병원은 {expected}곳이고, 여기 없는 곳은 <b>지금 열린 간호 공고가 없거나 수집이 막힌 것</b>이다.
+          {" "}집계 사이트(인재채움뱅크)는 전국에서 모아 오므로 <b>{expected}곳에 없는 병원도 뜬다</b> — 정상이다.
         </p>
         {sources.length === 0 ? (
           <Empty>수집된 공고가 없습니다 — 수집기 상태를 먼저 확인하세요.</Empty>
