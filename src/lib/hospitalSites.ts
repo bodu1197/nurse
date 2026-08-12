@@ -1,6 +1,6 @@
 // 🔴 `server-only` 를 안 붙인다 — 파서가 Node 시험에서 돌아야 한다(recruiterAts.ts 와 같은 이유).
 import { jobCategoryOf, isAnnouncementOnly } from "./alio.ts";
-import { decodeEntities, readHtml } from "./html.ts";
+import { detailText, readHtml } from "./html.ts";
 
 /**
  * 자체 채용 홈페이지를 쓰는 상급종합병원 수집.
@@ -339,37 +339,6 @@ async function fetchSite(site: Site): Promise<SiteJob[]> {
   return parseSite(site, html);
 }
 
-/**
- * 상세 본문 → 읽을 수 있는 글자.
- * 표(모집부문·자격·근무조건)가 대부분이라 **행·칸 경계를 줄바꿈으로 바꾼 뒤** 태그를 걷는다.
- * 그냥 태그만 지우면 표가 한 줄로 뭉쳐 무엇이 어느 항목인지 알 수 없다.
- */
-export function detailText(html: string, max = 3000): string {
-  return decodeEntities(
-    html
-      // 🔴 태그를 걷어낸 **뒤에** 자른다. 먼저 자르면 표 한가운데서 끊겨 알맹이를 잃는다
-      //    (마크업이 글자보다 훨씬 길다). 다만 상한은 둬야 거대 페이지가 크론을 잡아먹지 않는다.
-      .slice(0, 400_000)
-      .replace(/<!--[\s\S]*?-->/g, " ")
-      // 🔴 **행 끝에서만** 줄을 바꾼다. 칸마다 줄을 바꾸면 "모집 부서"·"간호부" 가 각각 한 줄이 되어
-      //    표의 머리글과 값이 짝을 잃는다 — 한 단어짜리 줄만 수십 개 나열돼 읽어도 뜻을 못 세운다.
-      .replace(/<\/(?:tr|p|div|li|h\d)>/gi, "\n")
-      .replace(/<\/t[dh]>/gi, " · ")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;/g, " "),
-  )
-    // 🔴 개행 정리에 \r 을 넣어야 한다. 안 넣으면 CRLF 사이에 \r 이 남아 규칙이 끊기고
-    //    **빈 줄이 그대로 쌓인다** — 화면이 whitespace-pre-line 이라 그대로 보인다.
-    .replace(/[^\S\r\n]{2,}/g, " ")
-    .replace(/[^\S\r\n]*[\r\n][\s]*/g, "\n")
-    // 빈 칸이 이어지면 " · · · " 만 남는다 — 하나로 접고 줄 끝의 구분자는 떼어낸다.
-    .replace(/(?: ?· ?){2,}/g, " · ")
-    .replace(/^ ?· ?| ?· ?$/gm, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim()
-    .slice(0, max);
-}
 
 /** 상세 한 건. 실패하면 null — 목록만으로도 공고는 성립한다(ATS·집계 사이트와 같은 계약). */
 export async function fetchSiteDetail(site: Site, url: string): Promise<string | null> {

@@ -179,6 +179,16 @@ test("「대체인력」은 계약직으로 가른다 — 휴직자가 돌아오
   assert.equal(parseMbankDetail(DETAIL).employmentType, "계약직");
 });
 
+/**
+ * 🔴 한 칸에 여러 단계가 들어가는 항목은 줄바꿈을 살려야 한다. 한 줄로 접으면
+ *    "1차 서류전형 2차 면접전형" 처럼 어디까지가 한 단계인지 알 수 없다.
+ */
+test("전형절차 같은 여러 항목 칸은 줄이 살아 있다", () => {
+  const html = `<span class="lb">전형절차</span><div class="tx">1차 서류전형<br>2차 면접전형<br>3차 최종합격</div>`;
+  const body = parseMbankDetail(html).description ?? "";
+  assert.match(body, /전형절차: 1차 서류전형\n2차 면접전형\n3차 최종합격/);
+});
+
 /** 마감일을 지어내지 않는다 — "채용시 마감" 공고는 종료일이 없다. */
 /**
  * 🔴 남의 사이트 버튼이 글자로 남으면, 우리 화면에서는 **눌리지도 않는 문구**가 된다 —

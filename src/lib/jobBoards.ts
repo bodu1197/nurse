@@ -1,6 +1,6 @@
 // 🔴 `server-only` 를 안 붙인다 — 파서가 Node 시험에서 돌아야 한다(hospitalSites 와 같은 이유).
 import { jobCategoryOf, employmentTypeOf, isAnnouncementOnly } from "./alio.ts";
-import { decodeEntities, readHtml } from "./html.ts";
+import { decodeEntities, detailText, readHtml } from "./html.ts";
 import { cleanTitle, lastDate } from "./hospitalSites.ts";
 
 /**
@@ -168,9 +168,12 @@ export function parseMbankDetail(html: string): BoardDetail {
   const fields = new Map<string, string>();
   const re = /<span class="lb">([^<]{1,20})<\/span>(?:(?!<span class="lb">)[\s\S]){0,300}?<(?:span class="vl"|div class="tx")>([\s\S]*?)<\/(?:span|div)>/g;
   for (const m of html.matchAll(re)) {
-    const v = text(m[2], FIELD_MAX);
+    const label = m[1].trim();
+    // 🔴 여러 항목이 들어가는 칸은 줄바꿈을 살린다. 한 줄로 접으면 항목 경계가 공백 하나로 사라져
+    //    "1차 서류전형 2차 면접전형 3차 최종면접" 처럼 어디까지가 한 단계인지 알 수 없게 된다.
+    const v = MULTILINE_FIELDS.has(label) ? detailText(m[2], FIELD_MAX) : text(m[2], FIELD_MAX);
     // 같은 라벨이 위(공고)·아래(기업정보)에 두 번 나온다 — 먼저 나온 공고 쪽을 쓴다.
-    if (v && !fields.has(m[1].trim())) fields.set(m[1].trim(), v);
+    if (v && !fields.has(label)) fields.set(label, v);
   }
 
   // 모집요강 본문. 에디터 산출물이라 태그·인라인 스타일 범벅이므로 글자만 남긴다.
@@ -178,7 +181,9 @@ export function parseMbankDetail(html: string): BoardDetail {
   //    **문서 끝까지(2MB)** 를 캡처한다.
   const body = html.match(/id="custom_recruit"[\s\S]{0,80}?>([\s\S]{0,200000}?)(?:<!-- 템플릿 import : E -->|$)/);
   const description = [
-    body ? cleanBody(text(body[1], BODY_MAX)) : "",
+    // 🔴 본문은 `text()` 로 뭉개면 안 된다 — 그건 카드용이라 개행을 공백으로 압축한다.
+    //    1,300자가 한 줄이 되어 읽을 수 없었다(오너 신고 2026-08-12: "완전 떡이 되어 있다").
+    body ? cleanBody(detailText(body[1], BODY_MAX)) : "",
     // 표에만 있고 본문에는 없는 조건들 — 간호사가 지원 전에 꼭 보는 것들이다.
     ...["담당업무", "근무시간", "경력", "학력", "전형절차", "복리후생"].map((k) =>
       fields.get(k) ? `${k}: ${fields.get(k)}` : "",
@@ -198,6 +203,9 @@ export function parseMbankDetail(html: string): BoardDetail {
 const FIELD_MAX = 500;
 const BODY_MAX = 3000;
 
+/** 한 칸에 여러 항목이 들어가 줄바꿈을 살려야 하는 라벨. */
+const MULTILINE_FIELDS = new Set(["담당업무", "전형절차", "복리후생", "근무시간"]);
+
 /**
  * 원본 사이트의 **버튼 문구**를 걷어낸다.
  * 🔴 태그만 벗기면 "사람인 입사지원 바로가기 click" 같은 남의 사이트 버튼이 글자로 남는다.
@@ -205,7 +213,8 @@ const BODY_MAX = 3000;
  */
 const cleanBody = (s: string): string =>
   s.replace(/[^.\n]{0,40}(바로가기|입사지원)\s*click[^.\n]{0,20}/gi, " ")
-    .replace(/\s{2,}/g, " ")
+    // 🔴 `\s{2,}` 로 접으면 **줄바꿈까지 공백이 된다** — 본문이 통째로 한 줄이 된다.
+    .replace(/[^\S\r\n]{2,}/g, " ")
     .trim();
 
 /**
