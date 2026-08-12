@@ -18,6 +18,7 @@ import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { geocodeAddress } from "@/lib/kakao";
+import { addressMoved, keepOrReplaceCoords } from "@/lib/geoKeep";
 import { totalYears } from "@/lib/data/resume";
 import { CAREER_EXPERIENCED, DEPARTMENTS, JOB_CATEGORIES, RESUME_INTRO_MIN, RESUME_INTRO_MAX as INTRO_MAX } from "@/lib/resumeOptions";
 import { JOB_DEPARTMENTS, FACILITY_TYPES } from "@/lib/jobTaxonomy";
@@ -260,16 +261,25 @@ export async function updateJob(formData: FormData) {
   const methods = am.length ? am : ["platform"];
   const location = s("location") || hosp.region || null;
   const region = regionOfLocation(location);
-  const coords = location ? await geocodeAddress(location) : null;
+  // 🔴 주소가 안 바뀌었으면 **다시 지오코딩하지 않는다.**
+  //    종전에는 저장할 때마다 카카오를 부르고 `coords?.lat ?? null` 로 덮어썼다 —
+  //    제목만 고쳐 저장했는데 그 순간 지오코딩이 한 번 삐끗하면(한도·일시 오류)
+  //    **멀쩡하던 좌표가 지워져 그 공고가 「내 주변」에서 조용히 사라진다.**
+  //    주소가 바뀌었을 때만 다시 잡고, 그때 실패하면 비운다 — 옛 주소의 좌표를 새 주소에
+  //    남겨두는 것이 더 나쁜 거짓말이기 때문이다.
+  const moved = addressMoved(hosp.location, location);
+  const coords = moved && location ? await geocodeAddress(location) : null;
+  const geo = keepOrReplaceCoords(moved, coords, hosp);
   const { error } = await admin.from("jobs").update({
     title,
     ...jobAxes(s),
     location,
     sido: region.sido,
     sigungu: region.sigungu,
-    lat: coords?.lat ?? null,
-    lng: coords?.lng ?? null,
-    geocoded_at: location ? new Date().toISOString() : null,
+    lat: geo.lat,
+    lng: geo.lng,
+    // 시도 기록은 주소를 바꿨을 때만 갱신한다(안 바꿨으면 예전 시도 그대로).
+    ...(moved ? { geocoded_at: location ? new Date().toISOString() : null } : {}),
     employment_type: s("employment_type") || null,
     salary_text: s("salary_text") || null,
     description: s("description") || null,

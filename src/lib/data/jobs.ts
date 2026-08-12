@@ -743,9 +743,12 @@ export async function getSavedJobs(): Promise<JobRow[]> {
 // deadline 도 같이 실어 준다 — 광고 결제 경로가 마감일을 봐야 하는데, 따로 조회하면
 // 결제 준비마다 왕복이 하나 더 붙는다(같은 행을 두 번 읽는 셈이다).
 export async function ownedJobHospital(admin: ReturnType<typeof createAdminClient>, jobId: string, userId: string) {
-  const { data: job } = await admin.from("jobs").select("hospital_id, deadline").eq("id", jobId).maybeSingle();
+  // location·lat·lng 도 같이 읽는다 — 수정 저장이 "주소가 바뀌었는가" 를 알아야
+  // 안 바뀐 주소를 매번 다시 지오코딩하지 않고, 실패했을 때 멀쩡한 좌표를 지우지 않는다.
+  const { data: job } = await admin.from("jobs")
+    .select("hospital_id, deadline, location, lat, lng").eq("id", jobId).maybeSingle();
   if (!job?.hospital_id) return null; // 워크넷 광고 등 명부 미연결 공고는 소유 대상이 아니다.
   const { data: hosp } = await admin.from("hospitals").select("id, owner_profile_id, region").eq("id", job.hospital_id).maybeSingle();
   if (!hosp || hosp.owner_profile_id !== userId) return null;
-  return { ...hosp, deadline: job.deadline };
+  return { ...hosp, deadline: job.deadline, location: job.location, lat: job.lat, lng: job.lng };
 }
