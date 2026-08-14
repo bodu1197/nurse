@@ -76,9 +76,14 @@ export async function getCollectors(): Promise<CollectorsView> {
   const supabase = await createClient();
 
   // 최근 실행분만 읽어 수집기별로 가른다(수집기 4개 × 넉넉히).
+  // 🔴 **화면에 뜨는 수집기로 범위를 좁힌다.** 같은 표에 병원 검색의 즉시 조회 기록
+  //    ('hospitals_ondemand', 하루 최대 500행)이 함께 쌓인다. 안 좁히면 최근 200행이 그것들로
+  //    다 채워져 크론 4개의 마지막 실행이 창 밖으로 밀리고, 화면이 매일 "4개 수집기에 문제가
+  //    있습니다" 라는 **거짓 경고**를 낸다 — 고장을 알리라고 만든 화면이 거짓말하게 된다.
   const { data: runs } = await supabase
     .from("collector_runs")
     .select("collector,ran_at,ok,stats,failed,error,duration_ms")
+    .in("collector", COLLECTORS.map((c) => c.key))
     .order("ran_at", { ascending: false })
     .limit(200)
     .returns<RunRow[]>();

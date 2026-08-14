@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useHospitalSearch, type Hosp } from "./useHospitalSearch";
+import { useHospitalSearch, emptyMessage, type Hosp } from "./useHospitalSearch";
 
 // 병원 실시간 검색 → 고르면 그 병원 리뷰 화면(/reviews?hospital=id)으로 이동.
 // 부르는 규칙(디바운스·중단·지연안내)은 광고 등록의 HospitalPicker 와 **같은 훅**을 쓴다.
@@ -12,7 +12,7 @@ export default function HospitalSearchBox({ initialName = "" }: Readonly<{ initi
   const router = useRouter();
   const [q, setQ] = useState(initialName);
   const [open, setOpen] = useState(false);
-  const { results, loading, slow, skipped, search } = useHospitalSearch();
+  const { results, loading, slow, reason, search } = useHospitalSearch();
   const boxRef = useRef<HTMLDivElement>(null);
 
   // 바깥을 클릭하면 드롭다운을 닫는다.
@@ -73,19 +73,19 @@ export default function HospitalSearchBox({ initialName = "" }: Readonly<{ initi
           ))}
         </ul>
       )}
-      {/* 🔴 비로그인에게 "없습니다" 라고 **단정하지 않는다.** 서버는 비로그인일 때 심사평가원에
-          물어보지 않으므로(공공API 한도 보호), 새로 생긴 병원은 로그인해야 찾힌다. 그 사실을
-          숨기면 병원이 실재하지 않는다고 오해하고 떠난다. */}
+      {/* 🔴 "없습니다" 라고 **단정하지 않는다.** 못 찾아본 것을 없다고 하면 실재하는 병원을
+          없다고 말하는 셈이다 — 비로그인이면 애초에 원천에 안 물어봤고, 조회 상한에 걸렸으면
+          지금은 못 물어본 것이다. 서버가 헤더로 알려준 사유대로 말한다. */}
       {open && !loading && q.trim().length >= 2 && results.length === 0 && (
         <p className="mt-1 text-xs text-slate-500" role="status" aria-live="polite">
-          {skipped ? (
+          {reason === "skipped-anonymous" ? (
             <>
               등록된 병원 중에는 없습니다.{" "}
               <Link href="/login" className="font-medium text-teal-700 underline">로그인</Link>
               하시면 새로 문을 연 병원까지 찾아 드립니다.
             </>
           ) : (
-            "일치하는 병원이 없습니다."
+            emptyMessage(reason)
           )}
         </p>
       )}

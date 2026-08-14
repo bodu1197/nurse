@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useHospitalSearch, type Hosp } from "./useHospitalSearch";
+import { useHospitalSearch, emptyMessage, type Hosp } from "./useHospitalSearch";
 
 export default function HospitalPicker({
   initial,
@@ -44,7 +44,7 @@ export default function HospitalPicker({
     } catch { /* 위와 같음 */ }
   }, [draftKey, selected]);
   // 부르는 규칙(디바운스·요청순번·중단·지연안내)은 리뷰 검색의 HospitalSearchBox 와 **같은 훅**을 쓴다.
-  const { results, loading, slow, search, clear } = useHospitalSearch();
+  const { results, loading, slow, reason, search, clear } = useHospitalSearch();
 
   function onChange(v: string) {
     setQ(v);
@@ -78,10 +78,13 @@ export default function HospitalPicker({
       )}
 
       {/* 🔴 빈 결과 안내가 없어서, 검색이 끝났는지 아직 찾는 중인지 알 수 없었다.
-          같은 API 를 쓰는 HospitalSearchBox 와 빈 상태 처리를 맞춘다. */}
+          같은 API 를 쓰는 HospitalSearchBox 와 빈 상태 처리를 맞춘다 — 못 찾아본 경우를
+          "없습니다" 라고 단정하지 않는 것까지 같다(사유는 서버가 헤더로 준다).
+          이 화면은 로그인해야 들어오므로 비로그인 안내(skipped-anonymous)는 여기 안 온다. */}
       {!loading && !selected && q.trim().length >= 2 && results.length === 0 && (
         <p className="mt-1 text-xs text-slate-500" role="status" aria-live="polite">
-          일치하는 병원이 없습니다. 사업자등록증의 상호와 같은지 확인해 보세요.
+          {emptyMessage(reason)}
+          {reason === null && " 사업자등록증의 상호와 같은지 확인해 보세요."}
         </p>
       )}
 
