@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-type Hosp = { id: string; name: string; region: string | null; address: string | null };
+import { useEffect, useState } from "react";
+import { useHospitalSearch, type Hosp } from "./useHospitalSearch";
 
 export default function HospitalPicker({
   initial,
@@ -18,7 +17,6 @@ export default function HospitalPicker({
   draftKey?: string;
 }) {
   const [q, setQ] = useState(initial?.name ?? "");
-  const [results, setResults] = useState<Hosp[]>([]);
   const [selected, setSelected] = useState<Hosp | null>(initial ?? null);
 
   // 복원: 서버가 준 initial 이 없을 때만(저장된 연결이 있으면 그쪽이 우선이다).
@@ -45,40 +43,19 @@ export default function HospitalPicker({
       else localStorage.removeItem(draftKey);
     } catch { /* 위와 같음 */ }
   }, [draftKey, selected]);
-  const [loading, setLoading] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const seq = useRef(0); // 요청 순번 — 느린 이전 응답이 최신 결과를 덮어쓰지 않게
+  // 부르는 규칙(디바운스·요청순번·중단·지연안내)은 리뷰 검색의 HospitalSearchBox 와 **같은 훅**을 쓴다.
+  const { results, loading, slow, search, clear } = useHospitalSearch();
 
   function onChange(v: string) {
     setQ(v);
     setSelected(null);
-    clearTimeout(timer.current);
-    if (v.trim().length < 2) {
-      setResults([]);
-      return;
-    }
-    setLoading(true);
-    // 요청 순번 가드 — 먼저 보낸 느린 응답이 나중에 도착해 최신 결과를 덮어쓰면,
-    // 방금 지운 검색어의 병원이 목록에 남아 **엉뚱한 병원을 고를 수 있다**.
-    // 같은 API 를 쓰는 HospitalSearchBox 는 이미 이 가드를 가지고 있다.
-    const mine = ++seq.current;
-    timer.current = setTimeout(async () => {
-      try {
-        const r = await fetch(`/api/hospitals/search?q=${encodeURIComponent(v.trim())}`);
-        const data = r.ok ? await r.json() : [];
-        if (mine === seq.current) setResults(data);
-      } catch {
-        if (mine === seq.current) setResults([]);
-      } finally {
-        if (mine === seq.current) setLoading(false);
-      }
-    }, 250);
+    search(v);
   }
 
   function pick(h: Hosp) {
     setSelected(h);
-    setResults([]);
     setQ(h.name);
+    clear(); // 목록을 닫고, 돌아오는 중인 응답도 무시한다
   }
 
   return (
@@ -93,7 +70,20 @@ export default function HospitalPicker({
       />
       <input type="hidden" name="hospital_id" value={selected?.id ?? ""} />
 
-      {loading && !selected && <p className="mt-1 text-xs text-slate-400">검색 중…</p>}
+      {/* 🔴 aria-live 가 있어야 화면을 못 보는 사용자도 결과가 바뀐 것을 안다 — 여긴 최대 12초 침묵한다. */}
+      {loading && !selected && (
+        <p className="mt-1 text-xs text-slate-400" role="status" aria-live="polite">
+          {slow ? "명부에 없는 병원이라 심사평가원에서 찾는 중… (10초 정도 걸립니다)" : "검색 중…"}
+        </p>
+      )}
+
+      {/* 🔴 빈 결과 안내가 없어서, 검색이 끝났는지 아직 찾는 중인지 알 수 없었다.
+          같은 API 를 쓰는 HospitalSearchBox 와 빈 상태 처리를 맞춘다. */}
+      {!loading && !selected && q.trim().length >= 2 && results.length === 0 && (
+        <p className="mt-1 text-xs text-slate-500" role="status" aria-live="polite">
+          일치하는 병원이 없습니다. 사업자등록증의 상호와 같은지 확인해 보세요.
+        </p>
+      )}
 
       {results.length > 0 && !selected && (
         <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">

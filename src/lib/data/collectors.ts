@@ -13,9 +13,14 @@ import { SITES } from "@/lib/hospitalSites";
  *      전체는 성공했는데 병원 한 곳만 조용히 0건이 되는 것이 가장 놓치기 쉬운 고장이다.
  */
 
-/** 수집기별 기대 주기(시간). 이 시간을 넘겨 안 돌았으면 화면이 경고한다. */
+/**
+ * 수집기별 기대 주기(시간). 이 시간을 넘겨 안 돌았으면 화면이 경고한다.
+ * 🔴 `everyHours: null` = **정기 실행이 없다.** 병원 명부가 그렇다 — 병원은 매일 개원하지 않아서
+ *    전건 재수집 크론을 없앴다(오너 지시 2026-08-14). 여기에 24 를 남겨 두면 화면이 매일
+ *    "안 돌고 있음" 이라고 **거짓 경고**를 낸다.
+ */
 export const COLLECTORS = [
-  { key: "hospitals", label: "병원 명부(심사평가원)", everyHours: 24, cron: "매일 03:00" },
+  { key: "hospitals", label: "병원 명부(심사평가원)", everyHours: null, cron: "정기 수집 없음 · 검색에서 못 찾은 병원만 그때 받아옴" },
   { key: "worknet", label: "워크넷(고용24)", everyHours: 6, cron: "6시간마다" },
   { key: "alio", label: "공공기관 채용(잡알리오)", everyHours: 24, cron: "매일 07:00" },
   // 한 크론이 셋을 함께 돈다 — 병원 ATS·병원 자체 홈페이지·집계 사이트(인재채움뱅크).
@@ -85,11 +90,12 @@ export async function getCollectors(): Promise<CollectorsView> {
     const lastOk = mine.find((r) => r.ok) ?? null;
     // 🔴 판정 순서가 규칙이다. **실패가 먼저다** — 실패했는데 방금 돌았다고 'ok' 로 보이면
     //    화면이 고장을 숨기는 셈이다.
+    // 정기 실행이 없는 수집기(everyHours: null)는 오래됐다고 경고하지 않는다 — 원래 안 도는 게 정상이다.
     const state: CollectorCard["state"] = !last
       ? "none"
       : !last.ok
         ? "fail"
-        : now - new Date(last.ran_at).getTime() > c.everyHours * 3600_000 * 1.5
+        : c.everyHours && now - new Date(last.ran_at).getTime() > c.everyHours * 3600_000 * 1.5
           ? "stale"
           : "ok";
     return { key: c.key, label: c.label, cron: c.cron, last, lastOk, state };

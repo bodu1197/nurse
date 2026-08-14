@@ -72,8 +72,17 @@ export default async function AdminDashboard() {
               "오늘 등록 0" 이라 해놓고 노출중 전체(40건)가 나온다 — 카드 숫자와 도착지가 어긋나는
               것이 바로 "게시중 44 vs 노출중 40" 을 만든 그 함정이다(오너 지적 2026-08-05).
               목록은 최신순이라 오늘 것은 어차피 맨 위에 있다. */}
+          {/* 🔴 '등록' 과 '보임' 을 한 카드 안에서 같이 말한다. 등록 수만 있으면 화면이 거짓말을 한다 —
+              2026-08-13 실제로 3건 등록에 노출은 1건이었고(둘은 등록 직후 탈퇴, 하나는 결제 전),
+              오너가 목록을 뒤지다 못 찾았다. 안 보이는 몫은 어디서 확인하는지까지 적는다. */}
+          {/* 🔴 `?? 0` 은 군더더기가 아니다. RPC 응답에 타입만 씌워 쓰므로(adminLists.ts) DB 함수가
+              이 필드를 안 내보내면 실제로 undefined 이고, 그대로 부르면 대시보드 **전체가 500** 이다. */}
           <Stat label="오늘 등록 공고" value={d.jobs.today}
-            sub={`어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()} · 노출 여부 무관`} tone="good" />
+            sub={`그중 지금 노출 ${(d.jobs.today_live ?? 0).toLocaleString()}${
+              d.jobs.today > (d.jobs.today_live ?? 0)
+                ? ` · 나머지 ${(d.jobs.today - (d.jobs.today_live ?? 0)).toLocaleString()}건은 결제 전·마감(공고 관리 → 노출 마감)`
+                : ""
+            } · 어제 ${d.jobs.yesterday.toLocaleString()} · 최근 7일 ${d.jobs.d7.toLocaleString()}`} tone="good" />
           <Stat label="노출중 공고" value={d.jobs.open} sub="지금 구직자에게 보이는 것 · 워크넷 제외" href="/admin/ads?scope=live" />
           <Stat label="3일 내 마감" value={d.jobs.closing3} />
           {/* 누르면 "누가 어디에 지원했고 병원이 봤는지"까지 나온다. 여기 숫자와 그 화면의 누적치는

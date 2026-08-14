@@ -2,20 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useHospitalSearch, type Hosp } from "./useHospitalSearch";
 
 // 병원 실시간 검색 → 고르면 그 병원 리뷰 화면(/reviews?hospital=id)으로 이동.
-// 병원 광고 등록의 HospitalPicker와 같은 방식(/api/hospitals/search, 250ms 디바운스).
-type Hosp = { id: string; name: string; region: string | null; address: string | null };
+// 부르는 규칙(디바운스·중단·지연안내)은 광고 등록의 HospitalPicker 와 **같은 훅**을 쓴다.
 
 export default function HospitalSearchBox({ initialName = "" }: Readonly<{ initialName?: string }>) {
   const router = useRouter();
   const [q, setQ] = useState(initialName);
-  const [results, setResults] = useState<Hosp[]>([]);
-  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const { results, loading, slow, skipped, search } = useHospitalSearch();
   const boxRef = useRef<HTMLDivElement>(null);
-  const seq = useRef(0); // 요청 순번 — 느린 이전 응답이 최신 결과를 덮어쓰지 않게
 
   // 바깥을 클릭하면 드롭다운을 닫는다.
   useEffect(() => {
@@ -29,27 +27,8 @@ export default function HospitalSearchBox({ initialName = "" }: Readonly<{ initi
 
   function onChange(v: string) {
     setQ(v);
-    clearTimeout(timer.current);
-    if (v.trim().length < 2) {
-      setResults([]);
-      setOpen(false);
-      return;
-    }
-    setLoading(true);
-    setOpen(true);
-    // 타이핑하면 자동으로 병원이 필터링돼 뜬다(광고 등록과 동일).
-    const mine = ++seq.current;
-    timer.current = setTimeout(async () => {
-      try {
-        const r = await fetch(`/api/hospitals/search?q=${encodeURIComponent(v.trim())}`);
-        const data = r.ok ? await r.json() : [];
-        if (mine === seq.current) setResults(data); // 최신 요청의 응답만 반영
-      } catch {
-        if (mine === seq.current) setResults([]);
-      } finally {
-        if (mine === seq.current) setLoading(false);
-      }
-    }, 250);
+    setOpen(v.trim().length >= 2); // 타이핑하면 자동으로 병원이 필터링돼 뜬다(광고 등록과 동일).
+    search(v);
   }
 
   function pick(h: Hosp) {
@@ -70,7 +49,12 @@ export default function HospitalSearchBox({ initialName = "" }: Readonly<{ initi
         placeholder="병원 이름을 입력하세요 (2자 이상)"
         className="h-12 w-full rounded-xl border border-slate-300 px-4 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40"
       />
-      {loading && <p className="mt-1 text-xs text-slate-400">검색 중…</p>}
+      {/* 🔴 aria-live 가 있어야 화면을 못 보는 사용자도 결과가 바뀐 것을 안다 — 여긴 최대 12초 침묵한다. */}
+      {loading && (
+        <p className="mt-1 text-xs text-slate-400" role="status" aria-live="polite">
+          {slow ? "명부에 없는 병원이라 심사평가원에서 찾는 중… (10초 정도 걸립니다)" : "검색 중…"}
+        </p>
+      )}
 
       {open && results.length > 0 && (
         <ul className="absolute z-20 mt-1 max-h-80 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
@@ -89,8 +73,21 @@ export default function HospitalSearchBox({ initialName = "" }: Readonly<{ initi
           ))}
         </ul>
       )}
+      {/* 🔴 비로그인에게 "없습니다" 라고 **단정하지 않는다.** 서버는 비로그인일 때 심사평가원에
+          물어보지 않으므로(공공API 한도 보호), 새로 생긴 병원은 로그인해야 찾힌다. 그 사실을
+          숨기면 병원이 실재하지 않는다고 오해하고 떠난다. */}
       {open && !loading && q.trim().length >= 2 && results.length === 0 && (
-        <p className="mt-1 text-xs text-slate-500">일치하는 병원이 없습니다.</p>
+        <p className="mt-1 text-xs text-slate-500" role="status" aria-live="polite">
+          {skipped ? (
+            <>
+              등록된 병원 중에는 없습니다.{" "}
+              <Link href="/login" className="font-medium text-teal-700 underline">로그인</Link>
+              하시면 새로 문을 연 병원까지 찾아 드립니다.
+            </>
+          ) : (
+            "일치하는 병원이 없습니다."
+          )}
+        </p>
       )}
     </div>
   );

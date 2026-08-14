@@ -600,8 +600,51 @@ export async function deleteAccount(formData: FormData) {
     if (wrong) redirect("/mypage/account?error=wrong_password");
   }
 
-  // 병원 회원이면 소유 공고를 먼저 마감한다 — 계정만 지우면 연락 안 되는 공고가 목록에 남는다.
-  // owner_profile_id 가 set null 이라 나중엔 아무도 못 닫으므로, 조회 실패면 삭제를 멈춘다.
+  // 🗑 오너 지시 2026-08-13: **탈퇴자의 흔적은 DB 에서 전부 지운다.**
+  //    종전에는 공고를 'closed' 로 바꿔 두기만 해서, 탈퇴한 병원의 **담당자 이름·휴대폰·이메일**이
+  //    공고 안에 그대로 남아 있었다(실측: 그리니피부과 2건에 이름+010 번호가 남아 있었다).
+  //    아래는 **auth 계정 cascade 가 닿지 않는 것**만 지운다(FK 전수 조사 2026-08-13).
+  //    (이력서·지원·게시글·댓글·쪽지·저장함/저장검색은 profiles 에 cascade 로 묶여 deleteUser 가 함께 지운다.)
+  //
+  // 🔴 예외가 둘이다. **사람을 가리키지 않는 기록**은 남긴다 — 지우면 남이 손해를 본다:
+  //      · 결제 기록(ad_orders) — 법정 보존·정산 대사. 아래 주석 참고.
+  //      · 무료 1주 자물쇠(ad_free_used) — 지우면 재가입으로 또 받는다. 아래 주석 참고.
+  //    둘 다 사람과 잇는 고리(buyer_id·profile_id)는 FK 가 set null 이라 저절로 끊긴다.
+  const { error: inqErr } = await admin.from("inquiries").delete().eq("author_id", user.id);
+  if (inqErr) {
+    console.error("deleteAccount(inquiries) failed:", inqErr.message);
+    redirect("/mypage/account?error=save");
+  }
+
+  // 💳 결제 기록(ad_orders)은 **지우지 않는다.** 주문한 사람만 지우고 거래 자체는 남긴다.
+  //    이건 이미 20260724140000_ad_orders_keep_on_leave.sql 이 그러려고 만들어 둔 것이다 —
+  //    buyer_id FK 를 cascade 에서 **set null 로 바꿔** 탈퇴해도 거래가 남게 해 뒀다. 그 마이그레이션이
+  //    적어 둔 이유가 둘이다: ① 전자상거래법상 대금결제 기록은 5년 보존 대상 ② 포트원 정산 대사.
+  //    한때 여기서 행을 통째로 지웠는데, 그러면 앱 코드가 그 보호를 우회하는 셈이었다 —
+  //    개인정보처리방침 5조("주문자 식별정보는 분리·파기하고 **거래 기록만 보관**")와도 어긋났다.
+  // 🔴 그래서 여기서 할 일이 없다. 아래 deleteUser 가 buyer_id 를 set null 로 끊어 사람과의
+  //    연결을 없앤다 — 남는 것은 금액·거래번호·세금계산서 정보뿐이고 누구였는지는 안 남는다.
+  //    (매출·세금계산서 목록도 그대로 유지된다.)
+
+  // 🎁 무료 1주 자물쇠는 **사업자번호로 남긴다**(오너 지시 2026-08-14).
+  //    자물쇠는 사업자 단위다 — ad_free_used_business_uk(business_no where not null)의 유니크
+  //    충돌이 claim_free_week 에서 'already_used' 를 만든다. 행을 통째로 지우면 그 자물쇠가
+  //    풀려서 **탈퇴 → 재가입 → 무료 1주 또 받기**가 뚫린다(2026-08-06 에 계정 단위 자물쇠가
+  //    이렇게 뚫려서 사업자 단위로 옮긴 것인데, 8/13 전량 삭제가 그걸 되돌릴 뻔했다).
+  // 🔴 남는 것은 사업자등록번호와 받은 시각뿐이다. 사람과 잇는 고리(profile_id·job_id)는
+  //    둘 다 FK 가 on delete set null 이라 계정·공고가 지워질 때 **저절로 비워진다** —
+  //    여기서 따로 지울 게 없다. 그래서 흔적은 남지 않고 자물쇠만 남는다.
+  //    (profile_id 유니크는 NULL 을 서로 다른 값으로 보므로 탈퇴 행이 여럿이어도 안 부딪힌다.)
+  // 🔴 사업자번호가 없는 행(인증 안 한 이관 회원)은 잠글 대상이 없어 남겨 봐야 빈 행이라 지운다.
+  const { error: freeErr } = await admin
+    .from("ad_free_used").delete().eq("profile_id", user.id).is("business_no", null);
+  if (freeErr) {
+    console.error("deleteAccount(ad_free_used) failed:", freeErr.message);
+    redirect("/mypage/account?error=save");
+  }
+
+  // 병원 회원이면 소유 병원의 공고를 지운다 — 계정만 지우면 연락 안 되는 공고가 남는다.
+  // owner_profile_id 가 set null 이라 나중엔 아무도 손댈 수 없으므로, 조회 실패면 삭제를 멈춘다.
   const { data: hospitals, error: hErr } = await admin.from("hospitals").select("id").eq("owner_profile_id", user.id);
   if (hErr) {
     console.error("deleteAccount(hospitals) failed:", hErr.message);
@@ -609,10 +652,21 @@ export async function deleteAccount(formData: FormData) {
   }
   const hospitalIds = (hospitals ?? []).map((h) => h.id);
   if (hospitalIds.length > 0) {
-    // 공고 마감이 실패했는데 계정을 지우면 owner가 null이 되어 아무도 못 닫는 공고가 남는다 → 실패면 멈춘다.
-    const { error: jErr } = await admin.from("jobs").update({ status: "closed" }).in("hospital_id", hospitalIds);
+    // 공고 삭제가 실패했는데 계정을 지우면 owner가 null이 되어 아무도 못 지운다 → 실패면 멈춘다.
+    // 그 공고에 달린 지원 내역·지원자 메모·저장한 공고는 jobs 에 cascade 로 묶여 함께 사라진다.
+    const { error: jErr } = await admin.from("jobs").delete().in("hospital_id", hospitalIds);
     if (jErr) {
-      console.error("deleteAccount(close jobs) failed:", jErr.message);
+      console.error("deleteAccount(delete jobs) failed:", jErr.message);
+      redirect("/mypage/account?error=save");
+    }
+    // 🔴 병원 명부(hospitals) 행 자체는 **지우지 않는다.** 심평원 공공 명부 8만곳 중 하나이고
+    //    리뷰·검색·수집 공고가 그 행을 가리킨다 — 지우면 탈퇴한 계정이 아니라 **병원이 사라진다**
+    //    (리뷰도 cascade 로 함께 날아간다). 탈퇴로 없어져야 하는 것은 '내가 이 병원 주인' 이라는
+    //    표식뿐이다. is_claimed 를 true 로 남기면 주인 없는 '등록된 병원' 이 된다(실측 2026-08-13).
+    const { error: uErr } = await admin.from("hospitals")
+      .update({ owner_profile_id: null, is_claimed: false }).in("id", hospitalIds);
+    if (uErr) {
+      console.error("deleteAccount(unclaim hospitals) failed:", uErr.message);
       redirect("/mypage/account?error=save");
     }
   }
@@ -624,8 +678,10 @@ export async function deleteAccount(formData: FormData) {
   const { data: me } = await admin.from("profiles").select("avatar_url").eq("id", user.id).maybeSingle();
   const avatar = (me?.avatar_url ?? "").trim();
 
-  // profiles·resumes·applications 는 auth 사용자에 cascade 로 묶여 함께 지워진다.
-  // ad_orders.buyer_id 는 set null 이라 결제 기록은 남는다(전자상거래법 5년 보존).
+  // profiles·resumes·applications·게시글·댓글·쪽지·저장함은 auth 사용자에 cascade 로 묶여 함께 지워진다.
+  // 나머지(공고·문의·병원 소유표식)는 위에서 이미 지웠다 — 여기를 지나면 사람의 흔적이 없다.
+  // 🔴 이 deleteUser 가 마지막 고리를 끊는다 — ad_orders.buyer_id 와 ad_free_used.profile_id 가
+  //    set null 이 되어, 남는 것은 **거래 내역과 사업자등록번호뿐** 이고 누구였는지는 안 남는다.
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) {
     console.error("deleteAccount failed:", error.message);

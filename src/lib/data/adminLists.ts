@@ -62,8 +62,14 @@ export type Dashboard = {
    * 우리 공고 — 병원이 올린 것 + 구 널스넷 이관분(source='partner'). **워크넷 수집분은 빠져 있다**(오너 지시).
    * 🔴 `open` 만 노출 판정(jobs_listed.is_live)을 거친다. today/yesterday/d7 는 posted_at 기준이라
    *    **노출 여부와 무관**하다 — 그래서 화면에서 그 카드에는 목록 링크를 걸지 않는다(도착지와 숫자가 어긋난다).
+   * 🔴 `today_live` 는 오늘 등록분 중 **지금 실제로 보이는 것**이다. today 와 나란히 두지 않으면
+   *    "오늘 3건 등록" 을 보고 목록에서 1건만 찾게 된다(오너 지적 2026-08-13).
+   * 🔴 `today_live` 만 optional 이다. 이 타입은 RPC 응답에 **런타임 검증 없이** 씌우는 것이라
+   *    (아래 `as unknown as Dashboard`), DB 함수가 이 필드를 아직 안 내보내는 환경에서는
+   *    실제로 undefined 다. 필수로 적어 두면 화면이 `.toLocaleString()` 에서 터져
+   *    **대시보드 전체가 500** 이 된다 — 한 칸 때문에 화면을 통째로 잃지 않게 optional 로 둔다.
    */
-  jobs: { open: number; today: number; yesterday: number; d7: number; closing3: number };
+  jobs: { open: number; today: number; today_live?: number; yesterday: number; d7: number; closing3: number };
   /** 워크넷(고용24)에서 자동 수집한 구인정보 — 우리 공고가 아니라 수집 상태다. */
   collected: { open: number; today: number; last_sync: string | null };
   applications: { total: number; today: number; yesterday: number; d7: number };
