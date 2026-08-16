@@ -4,6 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 /**
  * 구 널스넷 게시글 주소(/community_board/{document_srl}) → 새 글.
  *
+ * 🔴 **지금 이 핸들러는 돌지 않는다**(2026-08-16~). 게시판을 사용자에게 닫으면서
+ *    next.config.ts 에 `/community_board/:path*` → `/customer` 307 을 뒀고, config redirects 는
+ *    파일시스템 라우트보다 먼저 돌기 때문이다. 게시판을 되살리면 그 규칙만 지우면 여기가 다시 산다.
+ *    (지우지 않고 남긴 이유: legacy_srl ↔ 새 글 id 매핑은 여기 말고 어디에도 없다.)
+ *
  * 🔴 next.config.ts 의 redirects 로는 이걸 못 한다 — 정적 규칙이라 DB 를 볼 수 없다.
  *    그래서 이 경로만 라우트 핸들러로 뺐다(나머지 레거시 경로는 config 규칙 그대로).
  *

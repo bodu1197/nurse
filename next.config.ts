@@ -82,6 +82,26 @@ const nextConfig: NextConfig = {
       //    만들 수 있는데, config redirects 는 파일시스템 라우트보다 **먼저** 돌아
       //    308 로 굳혀두면 그 페이지가 영원히 안 열린다(브라우저가 308 을 무기한 캐시한다).
       //    실제로 /notice 가 그렇게 됐다 — 307 로 둔 덕분에 지금 공지사항 페이지를 열 수 있었다.
+      // 🔴 게시판을 사용자에게 닫는다(오너 지시 2026-08-16). 글 2,857건 중 2,856건이 레거시
+      //    이관분 — 운영자가 지어 쓴 가짜 글이라 사람에게 보이면 안 된다. 메뉴에서 빼는 것만으로는
+      //    부족하다: 주소를 직접 치거나 옛 링크(/community_board/:id → /board?p=…, /information_share/:id,
+      //    /pic_board/:id, /video_board/:id 전부 /board 로 접힌다)로 들어오면 그대로 보인다.
+      //    글은 지우지 않는다 — 관리자는 /admin/moderation 에서 계속 본다.
+      //    307 이어야 한다(위 주석과 같은 이유).
+      // 🔴 되살릴 땐 **아래 규칙 3개를 전부** 지운다(/board · /board/:path* · /community_board/:path*)
+      //    + board/actions.ts 의 BOARD_CLOSED 를 false 로. 세 개 중 하나라도 남기면 그만큼이 계속 죽는다
+      //    (특히 /community_board/:path* 를 남기면 레거시 게시글 주소 2,245개가 글로 못 돌아간다).
+      { source: "/board", destination: "/customer", permanent: false },
+      { source: "/board/:path*", destination: "/customer", permanent: false },
+      // 🔴 레거시 게시글 주소도 여기서 끊는다. 이게 없으면 /community_board/:id 라우트 핸들러가
+      //    **요청마다 service-role 로 DB 를 뒤져** 글 id 를 찾은 뒤 /board?p=<uuid> 로 보내고,
+      //    그게 다시 위 규칙에 걸려 /customer?p=<uuid> 가 된다. 셋 다 손해다:
+      //     · 목적지가 닫혔는데 도는 무의미한 조회(레거시 URL 2,245개 + 봇 트래픽)
+      //     · 비인증 공개 엔드포인트가 글 존재 여부와 내부 UUID 를 알려준다
+      //     · 색인 대상인 /customer 에 ?p= 변종 주소가 최대 2,856개 생긴다
+      //    config redirects 는 파일시스템 라우트보다 먼저 돌아 핸들러를 통째로 가린다 —
+      //    그래서 route.ts 는 지우지 않고 남겨 둔다(되살릴 땐 이 규칙만 지우면 그대로 살아난다).
+      { source: "/community_board/:path*", destination: "/customer", permanent: false },
       { source: "/schedule", destination: "/", permanent: false },
       // 🔴 하위 경로도 잡는다. 위 규칙은 **정확히 /schedule 만** 맞아서
       //    /schedule/selected_month/:id/selected_day/:id/insert 같은 구 널스넷 주소가 404 였다.

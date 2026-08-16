@@ -25,7 +25,10 @@ export const HEADER_MENU: readonly MenuItem[] = [
   { label: "AI 자동매치", href: "/match" },
   { label: "인재정보", href: "/talent" },
   { label: "리뷰", href: "/reviews" },
-  { label: "게시판", href: "/board" },
+  // 🔴 게시판(/board)이 있던 자리다. 사용자에게 닫았다(오너 지시 2026-08-16) — 글 2,857건 중
+  //    2,856건이 레거시 이관분(운영자가 지어 쓴 가짜 글)이라 사람에게 보이면 안 된다.
+  //    주소도 next.config.ts 에서 307 로 /customer 에 접는다(메뉴만 빼면 옛 링크로 그대로 들어온다).
+  { label: "고객센터", href: "/customer" },
   { label: "회원가입", href: "/signup" },
   { label: "병원 공고등록", href: "/hospital" },
 ];
@@ -34,7 +37,6 @@ export const HEADER_MENU: readonly MenuItem[] = [
 export const FOOTER_NAV: readonly MenuItem[] = [
   { label: "채용공고 찾아보기", href: "/jobs" },
   { label: "인재정보", href: "/talent" },
-  { label: "간호사 게시판", href: "/board" },
   { label: "병원 리뷰", href: "/reviews" },
   { label: "병원 서비스", href: "/hospital" },
   // 광고 상품 안내 — 돈이 들어오는 길이라 푸터 어디서든 닿아야 한다(구 널스넷도 전 화면 메뉴에 뒀다)
@@ -95,7 +97,7 @@ export const socialMeta = ({
 
 // sitemap 용 — 실제 색인(index) 대상만. noindex 페이지를 여기 넣으면 "색인해달라"와 "하지 마라"를
 // 동시에 말하는 꼴이라 반드시 같이 관리한다.
-//  · /board·/reviews — 이력서 등록한 간호사 회원 전용(noindex)
+//  · /reviews — 이력서 등록한 간호사 회원 전용(noindex). /board 는 아예 닫혀 /customer 로 접힌다.
 //  · /terms·/privacy·/contact — 색인 가치가 없어 noindex
 //  · /ads·/customer·/faq·/notice·/event — 구 널스넷 고객센터·상품안내를 옮긴 것(2026-07-30).
 //    특히 /ads(광고 상품 안내)는 병원이 "간호사 채용광고" 로 찾아 들어오는 길이라 색인한다.

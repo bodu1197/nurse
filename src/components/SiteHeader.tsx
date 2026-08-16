@@ -95,9 +95,16 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
             이미 넘쳤으므로 항목 하나를 숨기는 식의 땜질로는 안 되고, "자리가 확실한 폭에서만 편다"
             로 규칙을 바꾼다. 그 아래에서는 하단 탭(홈·채용공고·인재정보·리뷰·마이페이지)과
             햄버거 메뉴(HEADER_MENU, AI 자동매치 포함)가 같은 곳을 전부 담는다. */}
-        <nav className="ml-7 hidden items-center gap-5 text-sm font-medium text-slate-600 lg:flex">
-          {[["/jobs", "채용공고"], ["/match", "AI 자동매치"], ["/talent", "인재정보"], ["/reviews", "리뷰"], ["/board", "게시판"]].map(([href, label]) => (
-            <Link key={href} href={href} className="rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"><LinkPending>{label}</LinkPending></Link>
+        {/* 🔴 whitespace-nowrap + gap-4 (2026-08-16, 1024px 실측). 로그인 상태(마이페이지+이름+로그아웃)에서
+            오른쪽 묶음이 505~526px 를 먹어 nav 가 눌리고, 「AI 자동매치」가 **두 줄로 접혔다**
+            (항목 높이 32px → 54px). "고객센터"(4자)로 바꾸기 전 "게시판"(3자)·gap-5 에서도 똑같이 접혔다 —
+            내 변경이 만든 게 아니라 원래 있던 눌림이다. 메뉴 글자는 접지 않고, 대신 이름 쪽이
+            줄어들게(max-w-[7rem] truncate) 둔다. 접히는 것은 메뉴가 아니라 이름이어야 한다.
+            gap 4px×4칸 = 16px 은 여유로 되돌려 놨다. 항목을 더 늘릴 거면 이 폭부터 다시 재라. */}
+        <nav className="ml-7 hidden items-center gap-4 text-sm font-medium text-slate-600 lg:flex">
+          {/* 게시판은 뺐다(오너 지시 2026-08-16 — 레거시 가짜 글). 자리는 고객센터가 받는다. */}
+          {[["/jobs", "채용공고"], ["/match", "AI 자동매치"], ["/talent", "인재정보"], ["/reviews", "리뷰"], ["/customer", "고객센터"]].map(([href, label]) => (
+            <Link key={href} href={href} className="whitespace-nowrap rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"><LinkPending>{label}</LinkPending></Link>
           ))}
         </nav>
 

@@ -1,8 +1,23 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { requireCommunityMember } from "@/lib/data/community";
+
+/**
+ * 🔴 게시판은 사용자에게 닫혀 있다(오너 지시 2026-08-16 — 글 2,857건 중 2,856건이 레거시 가짜 글).
+ *    화면은 next.config.ts 가 /board·/board/:path* 를 307 로 /customer 에 접어서 막는다.
+ *    그런데 **Server Action 은 페이지를 거치지 않고 POST 로 직접 불린다** — 닫혔다는 사실을
+ *    라우팅 한 겹에만 맡기면, 화면이 없는 채로 쓰기만 살아 있는 상태가 된다.
+ *    되살릴 때: 아래를 false 로 바꾸고, next.config.ts 의 리다이렉트 3개(/board · /board/:path* ·
+ *    /community_board/:path*)를 지운다. 게시판을 닫아 두는 곳은 그 두 파일뿐이다.
+ */
+const BOARD_CLOSED = true;
+
+async function requireBoardMember(next: string) {
+  if (BOARD_CLOSED) notFound();
+  return requireCommunityMember(next);
+}
 
 const TITLE_MAX = 100;
 const BODY_MAX = 5000;
@@ -10,7 +25,7 @@ const COMMENT_MAX = 1000;
 
 export async function createPost(formData: FormData) {
   // 게시판은 이력서를 등록한 간호사 회원만 — 폼이 게이트되지만 서버에서도 재확인.
-  const userId = await requireCommunityMember("/board/new");
+  const userId = await requireBoardMember("/board/new");
   const supabase = await createClient();
 
   const title = String(formData.get("title") ?? "").trim().slice(0, TITLE_MAX);
@@ -27,7 +42,7 @@ export async function createPost(formData: FormData) {
 }
 
 export async function deletePost(formData: FormData) {
-  await requireCommunityMember("/board");
+  await requireBoardMember("/board");
   const supabase = await createClient();
   const id = String(formData.get("post_id") ?? "");
   if (!id) redirect("/board");
@@ -39,7 +54,7 @@ export async function deletePost(formData: FormData) {
 
 export async function createComment(formData: FormData) {
   const postId = String(formData.get("post_id") ?? "");
-  const userId = await requireCommunityMember(postId ? `/board?p=${postId}` : "/board");
+  const userId = await requireBoardMember(postId ? `/board?p=${postId}` : "/board");
   const supabase = await createClient();
   const body = String(formData.get("body") ?? "").trim().slice(0, COMMENT_MAX);
   if (!postId || !body) redirect(`/board?p=${postId}&error=empty`);
@@ -53,7 +68,7 @@ export async function createComment(formData: FormData) {
 }
 
 export async function deleteComment(formData: FormData) {
-  const userId = await requireCommunityMember("/board");
+  const userId = await requireBoardMember("/board");
   const supabase = await createClient();
   const id = String(formData.get("comment_id") ?? "");
   const postId = String(formData.get("post_id") ?? "");
@@ -78,7 +93,7 @@ export async function deleteComment(formData: FormData) {
  * (RLS 에 막히면 0행인데 error 는 null 이라, 안 고쳐놓고 "수정했습니다"가 뜬다).
  */
 export async function updatePost(formData: FormData) {
-  await requireCommunityMember("/board");
+  await requireBoardMember("/board");
   const supabase = await createClient();
   const id = String(formData.get("post_id") ?? "");
   if (!id) redirect("/board");

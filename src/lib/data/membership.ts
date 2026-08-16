@@ -36,7 +36,7 @@ export const TIER_LABEL: Record<MemberTier, string> = {
 /** 등급을 올리려면 무엇을 해야 하는가 — 화면 안내와 게이트가 같은 문장을 쓴다. */
 export const TIER_UPGRADE: Partial<Record<MemberTier, { text: string; href: string; label: string }>> = {
   nurse_basic: {
-    text: "이력서를 등록하면 간호회원이 되어 리뷰·게시판을 이용할 수 있습니다.",
+    text: "이력서를 등록하면 간호회원이 되어 병원 리뷰를 이용할 수 있습니다.",
     href: "/mypage/resume",
     label: "이력서 등록하기",
   },

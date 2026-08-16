@@ -24,7 +24,7 @@ export default async function TermsPage() {
           </section>
           <section>
             <h2 className="font-bold text-slate-900">제2조 (정의)</h2>
-            <p className="mt-1">&quot;회원&quot;이란 본 약관에 동의하고 가입한 자로, 구직 활동을 하는 &quot;간호사 회원&quot;과 채용공고를 등록하는 &quot;병원 회원&quot;으로 구분합니다. &quot;게시물&quot;이란 회원이 등록한 채용공고, 이력서, 병원 리뷰, 게시판 글·댓글 등을 말합니다.</p>
+            <p className="mt-1">&quot;회원&quot;이란 본 약관에 동의하고 가입한 자로, 구직 활동을 하는 &quot;간호사 회원&quot;과 채용공고를 등록하는 &quot;병원 회원&quot;으로 구분합니다. &quot;게시물&quot;이란 회원이 등록한 채용공고, 이력서, 병원 리뷰 글·댓글 등을 말합니다.</p>
           </section>
           <section>
             <h2 className="font-bold text-slate-900">제3조 (약관의 효력 및 변경)</h2>
@@ -36,7 +36,7 @@ export default async function TermsPage() {
           </section>
           <section>
             <h2 className="font-bold text-slate-900">제5조 (서비스의 내용)</h2>
-            <p className="mt-1">회사는 채용공고 검색·지원, 인재 검색, 공고 등록·광고, 병원 리뷰, 간호사 게시판 기능을 제공합니다. 간호사 회원의 이력서 등록 및 공고 지원은 무료입니다. 병원 회원의 공고 등록은 사업자등록 진위확인을 거친 후 이용할 수 있습니다.</p>
+            <p className="mt-1">회사는 채용공고 검색·지원, 인재 검색, 공고 등록·광고, 병원 리뷰 기능을 제공합니다. 간호사 회원의 이력서 등록 및 공고 지원은 무료입니다. 병원 회원의 공고 등록은 사업자등록 진위확인을 거친 후 이용할 수 있습니다.</p>
           </section>
           <section>
             <h2 className="font-bold text-slate-900">제6조 (회원의 의무)</h2>

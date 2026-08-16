@@ -12,6 +12,11 @@ import { fmtDay } from "@/lib/date";
 import { messageFor } from "@/lib/constants";
 import { createComment, deleteComment, deletePost } from "./actions";
 
+// 🔴 이 화면은 **닫혀 있다**(오너 지시 2026-08-16 — 글 2,857건 중 2,856건이 레거시 가짜 글).
+//    next.config.ts 가 /board·/board/:path* 를 307 로 /customer 에 접어서 여기까지 오지 않는다.
+//    쓰기도 actions.ts 의 BOARD_CLOSED 가 막는다. 되살리려면 두 파일만 되돌린다 —
+//    next.config.ts 의 리다이렉트 3개(/board · /board/:path* · /community_board/:path*) + 그 상수 1개.
+//    코드를 남겨 둔 이유: 글·댓글·이미지는 DB 에 그대로 있고 관리자는 /admin/moderation 에서 계속 본다.
 // 이력서를 등록한 간호사 회원 전용(로그인 없이는 게이트만 보임) → 색인 제외.
 export const metadata = {
   title: "간호사 게시판 — 널스넷",

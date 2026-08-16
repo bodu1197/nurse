@@ -62,7 +62,7 @@ export const BOARD_PER_PAGE = 20;
  *
  * 🔴 숨김 제외를 RLS 에만 맡기지 않고 여기서도 건다. RLS(board_posts_read)는 관리자에게 숨긴 글을
  *    보여준다 — 모더레이션 화면이 그래야 하기 때문이다. 그 예외가 공개 목록에도 걸리면
- *    관리자가 글을 숨긴 뒤 /board 에서 그대로 보고 "안 먹었나" 하게 된다. 숨긴 것은 /admin/board 에서 본다.
+ *    관리자가 글을 숨긴 뒤 /board 에서 그대로 보고 "안 먹었나" 하게 된다. 숨긴 것은 /admin/moderation 에서 본다.
  */
 export async function getBoardPosts(page = 1): Promise<{ posts: BoardListItem[]; total: number }> {
   const supabase = await createClient();

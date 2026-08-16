@@ -3,12 +3,13 @@ import Button from "@/components/Button";
 import { getCurrentUser } from "@/lib/data/user";
 import type { CommunityDenied } from "@/lib/data/community";
 
-// 리뷰·게시판 접근이 막힌 사용자에게 사유별 안내를 보여주는 공용 화면.
+// 리뷰 접근이 막힌 사용자에게 사유별 안내를 보여주는 공용 화면.
+// (게시판도 같은 게이트를 쓰지만 2026-08-16 부터 사용자에게 닫혀 있어 문구에서 뺐다 — 없는 곳을 안내하면 거짓말이 된다.)
 // (이력서를 등록한 간호사 회원만 이용 가능 — 보기·읽기·작성 전부)
 const MSG: Record<CommunityDenied, { head: string; body: string; href: string; label: string }> = {
   guest: {
     head: "로그인이 필요합니다",
-    body: "리뷰와 게시판은 이력서를 등록한 간호사 회원만 이용할 수 있습니다.",
+    body: "병원 리뷰는 이력서를 등록한 간호사 회원만 이용할 수 있습니다.",
     href: "/login",
     label: "로그인",
   },
@@ -16,13 +17,13 @@ const MSG: Record<CommunityDenied, { head: string; body: string; href: string; l
     head: "간호사 회원 전용입니다",
     // 🔴 "간호사 회원만 볼 수 있습니다"라고만 적으면, 제목·"리뷰 작성" 버튼을 지금 보고 있는
     //    병원 회원에게는 화면과 문장이 바로 모순된다. 가려지는 것은 **글**임을 밝힌다.
-    body: "병원 리뷰 글과 간호사 게시판 글은 간호사 회원만 읽고 쓸 수 있습니다.",
+    body: "병원 리뷰 글은 간호사 회원만 읽고 쓸 수 있습니다.",
     href: "/",
     label: "홈으로",
   },
   no_resume: {
     head: "이력서를 먼저 등록해 주세요",
-    body: "리뷰와 게시판은 이력서를 등록한 간호사 회원 전용입니다. 이력서를 등록하면 바로 이용할 수 있습니다.",
+    body: "병원 리뷰는 이력서를 등록한 간호사 회원 전용입니다. 이력서를 등록하면 바로 이용할 수 있습니다.",
     href: "/mypage/resume",
     label: "이력서 등록하기",
   },

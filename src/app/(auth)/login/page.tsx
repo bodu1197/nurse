@@ -19,8 +19,10 @@ export default async function LoginPage({
     apply: "지원하려면 먼저 로그인하세요.",
     save: "관심 공고를 저장하려면 먼저 로그인하세요.",
     mypage: "마이페이지를 보려면 먼저 로그인하세요.",
+    // board 는 게시판이 닫힌 동안(2026-08-16~) 뜰 일이 없지만 지우지 않는다 —
+    // /board 화면이 아직 이 키를 넘긴다(board/page.tsx). 지우면 되살릴 때 안내만 조용히 사라진다.
     board: "게시판을 이용하려면 먼저 로그인하세요.",
-    community: "리뷰·게시판은 간호사 회원 전용입니다. 먼저 로그인하세요.",
+    community: "병원 리뷰는 간호사 회원 전용입니다. 먼저 로그인하세요.",
   };
   const noticeMsg = notice ? NOTICES[notice] ?? null : null;
 
