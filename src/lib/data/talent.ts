@@ -103,22 +103,33 @@ export type PublicTalentDetail = PublicTalent & { work: PublicWork[] };
 
 // 인재 상세(우측 패널) — 안전 컬럼만. 이름·전화는 여기서도 빼고, 광고 병원엔 revealContacts로 따로 붙인다.
 // work_experiences는 RLS가 광고 병원만 열어주므로 admin으로 조회하되(직무 이력=공개 이력서 내용) 이름·전화는 없다.
-export async function getPublicTalent(profileId: string): Promise<PublicTalentDetail | null> {
+// 🔴 cache(): generateMetadata 와 페이지 본문이 **같은 이력서를 각각 부른다** — 감싸지 않으면
+//    요청 한 건에 쿼리가 4회(이력서 2 + 경력 2) 나간다. 공고 쪽은 이미 이렇게 하고 있다
+//    (jobs.ts 의 getPublicJob). /talent/:id 는 이 사이트에서 가장 많이 열리는 주소라 차이가 크다.
+//    덤으로 제목과 본문이 **같은 스냅샷**을 쓴다 — 두 조회 사이에 이력서가 비공개로 바뀌면
+//    제목은 뜨는데 본문만 404 가 되는 어긋남이 사라진다.
+export const getPublicTalent = cache(async (profileId: string): Promise<PublicTalentDetail | null> => {
   if (!UUID_RE.test(profileId)) return null;
   const admin = createAdminClient();
-  const { data: resume } = await admin
+  const { data: resume, error: resumeErr } = await admin
     .from("resumes").select(PUBLIC_COLS).eq("profile_id", profileId).eq("is_public", true)
     .not("name", "is", null).maybeSingle<PublicTalent & { name: string | null; profile: ProfileBits | null }>();
+  // 🔴 오류를 삼키지 않는다. 삼키면 DB 장애·권한 변경이 **"그런 이력서 없음"(404)** 과 구분되지 않아,
+  //    사이트맵에 올린 주소가 통째로 404 가 돼도 로그에 아무것도 안 남는다.
+  if (resumeErr) console.error("getPublicTalent(resume) failed:", resumeErr.message, profileId);
   if (!resume) return null;
-  const { data: work } = await admin
+  const { data: work, error: workErr } = await admin
     .from("work_experiences").select(WORK_PUBLIC_FIELDS.join(",")).eq("resume_id", profileId)
     .order("sort_order").returns<PublicWork[]>();
+  // 경력 조회가 실패하면 경력이 **없는 것처럼** 보인다(빈 배열). 조용히 넘어가면
+  // "경력을 다 지웠나" 하는 문의로만 드러난다.
+  if (workErr) console.error("getPublicTalent(work) failed:", workErr.message, profileId);
   // 경력도 같은 관문을 통과시킨다 — duties(담당업무)는 최대 1,000자 자유서술이고 상세가 통째로 찍는다.
   // 병원명·부서·직위도 사람이 타이핑하는 칸이라 "○○병원 010-…" 이 들어올 수 있다.
   // 🔴 여기서도 컬럼을 고르지 않는다(위 flattenProfile 과 같은 이유).
   const masked = (work ?? []).map((w) => maskDeep(w, resume.name));
   return { ...flattenProfile(resume), work: masked };
-}
+});
 
 // 광고 노출 중인 공고가 하나라도 있으면 열람 가능.
 /**

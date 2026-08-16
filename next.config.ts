@@ -118,6 +118,25 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // 🔴 전 경로 보안 헤더. 실측(2026-08-17) 운영 응답에 붙어 있던 것은 Vercel 이 자동으로 넣는
+        //    Strict-Transport-Security **하나뿐**이었다 — 이력서 7,800건과 결제가 오가는 사이트인데
+        //    나머지가 비어 있었다. 여기 셋은 화면 동작을 바꾸지 않는 것들만 고른 것이다.
+        //    🔒 CSP(Content-Security-Policy)는 **일부러 넣지 않는다.** 요청마다 nonce 를 만들어야 해서
+        //       페이지를 캐시할 수 없게 되고(형제 프로젝트 dolpagu 가 정확히 그 이유로 전 라우트를
+        //       동적 렌더로 못 박았다 — 함수 비용의 근원), 지금 우리가 줄이려는 비용과 정반대다.
+        //       넣으려면 nonce 없이 쓰는 방법부터 정해야 한다.
+        source: "/:path*",
+        headers: [
+          // 브라우저가 Content-Type 을 무시하고 내용을 추측하지 못하게 — 업로드된 파일이
+          // 스크립트로 해석되는 경로를 막는다(이력서 사진·첨부가 있다).
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // 남의 사이트로 나갈 때 주소 전체를 넘기지 않는다(검색어·이력서 id 가 리퍼러로 샌다).
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // 우리 화면을 남의 페이지 안에 끼워 넣지 못하게 — 클릭재킹 방지.
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+        ],
+      },
+      {
         // public/ 은 Next 가 지문을 안 붙여 기본값이 `max-age=0` — 재방문마다 448KB 를
         // 다시 검증한다(옛 next/font 자리인 _next/static 은 1년 immutable 이었다).
         // 파일명에 내용 해시가 박혀 있으니(scripts/build-fonts.py) 폰트가 바뀌면 URL 이
