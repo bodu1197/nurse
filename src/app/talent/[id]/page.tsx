@@ -38,15 +38,36 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
   };
 }
 
-export default async function TalentDetailPage({
-  params,
-  searchParams,
-}: Readonly<{
+type TalentDetailProps = Readonly<{
   params: Promise<{ id: string }>;
   searchParams: Promise<{ q?: string; dept?: string; spec?: string; cat?: string; sido?: string; loc?: string; sigungu?: string; years?: string; page?: string }>;
-}>) {
+}>;
+
+export default async function TalentDetailPage(props: TalentDetailProps) {
+  return renderTalentDetail(props, { gated: true });
+}
+
+/**
+ * @param opts.gated 로그인 상태를 실제로 볼지. **false 면 세션을 아예 안 본다**(2026-08-17).
+ *
+ * 🔴 왜 필요한가: 이 화면은 이 사이트에서 가장 많이 열리는 주소다 — 7일 실측으로 **봇 1,244,902건 대
+ *    사람 1,008건(961:1)**. 그런데 `getMyProfile()` 이 쿠키를 읽는 순간 이 페이지는 **영원히 캐시가
+ *    안 되어**, 봇이 한 번 훑을 때마다 서버리스 함수가 그 횟수만큼 깨어난다.
+ * 🔒 **마스킹 계약은 그대로다.** gated=false 는 지금까지의 비로그인 화면과 **완전히 같은 값**을 쓴다 —
+ *    이름·전화·사진은 `canRevealContacts`(광고 중인 병원만)를 통과해야 붙는데, 여기선 그 판정을
+ *    아예 false 로 둔다. 즉 캐시에 굳는 HTML 에는 연락처가 애초에 없다.
+ *    로그인 사용자는 프록시가 이 동적 라우트로 그대로 보내므로 지금까지와 똑같이 받는다.
+ * 🔴 이 경로에 세션·개인화를 절대 넣지 마라. 넣는 순간 그 값이 CDN 에 굳어 **모두에게** 나간다.
+ */
+export async function renderTalentDetail(
+  { params, searchParams }: TalentDetailProps,
+  { gated = true }: { gated?: boolean } = {},
+) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
-  const [t, p] = await Promise.all([getPublicTalent(id), getMyProfile()]);
+  const [t, p] = await Promise.all([
+    getPublicTalent(id),
+    gated ? getMyProfile() : Promise.resolve(null),
+  ]);
   if (!t) notFound(); // 비공개·없는 이력서는 404 (getPublicTalent가 is_public=true만 반환)
 
   const kw = (sp.q ?? "").trim();
@@ -79,11 +100,12 @@ export default async function TalentDetailPage({
   // 지금 보고 있는 주소 그대로(검색 조건 포함) — 찜한 뒤 이 자리로 되돌아온다.
   const selfHref = `/talent/${id}` + (searchQs ? `?${searchQs}` : "");
   // 💾 찜은 **병원 회원**만. 관리자가 병원 보기로 들어온 경우도 포함된다(viewAsRole 은 액션이 다시 본다).
-  const canSave = (await viewAsRole(p?.role ?? "nurse")) === "hospital";
+  // 🔒 gated=false(캐시 화면)에서는 세션을 안 보므로 찜·열람 자격이 모두 false 다 — 비로그인과 같다.
+  const canSave = gated ? (await viewAsRole(p?.role ?? "nurse")) === "hospital" : false;
 
   // 서로 의존하지 않는 조회는 함께 보낸다. 열람 자격 판정과 목록은 독립.
   const [canSeeContacts, side] = await Promise.all([
-    canRevealContacts(p), // 광고 병원(또는 관리자)만 이름·전화
+    gated ? canRevealContacts(p) : Promise.resolve(false), // 광고 병원(또는 관리자)만 이름·전화
     searchPublicTalent({ q: kw, specialty: dept, category: cat, sido: sd, sigungu: sgg, minYears }, pageNum)
       // 보고 있는 본인은 왼쪽 목록에서 뺀다(자기 카드를 자기 화면에서 또 볼 이유가 없다).
       .then((r) => ({ rows: r.rows.filter((x) => x.profile_id !== t.profile_id), total: r.total })),

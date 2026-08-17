@@ -76,6 +76,9 @@ export async function setResumeVisibility(formData: FormData) {
   if (!data?.length) redirect(backTo(back, "error", "target"));
 
   revalidatePath("/talent");
+  // 관리자가 강제로 비공개로 내린 이력서가 캐시본에 남으면 계속 노출된다 — 그 한 장을 지운다.
+  // (라우트 패턴으로 지우면 7,787장이 통째로 날아가 캐시 이득이 사라진다.)
+  revalidatePath(`/talent-cached/${id}`);
   redirect(backTo(back, "ok"));
 }
 

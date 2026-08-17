@@ -1,5 +1,7 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
+
 import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
@@ -348,6 +350,20 @@ export async function repostJob(formData: FormData) {
 }
 
 // 간호사 이력서 저장(upsert) — RLS로 본인만.
+/**
+ * 이 사람의 인재 상세 **캐시된 공개 화면**만 즉시 갈아끼운다(2026-08-17).
+ *
+ * 🔴 왜 필요한가: 비로그인·검색봇이 보는 `/talent/<id>` 는 CDN 에 6시간 굳어 있다
+ *    (`src/app/talent-cached/[id]/page.tsx`). 무효화하지 않으면 **이력서를 고치거나 비공개로
+ *    내려도 최대 6시간 그대로 보인다** — 취업해서 내린 사람의 이력서가 계속 노출되는 것은
+ *    그냥 낡은 화면이 아니라 약속을 어기는 것이다.
+ * 🔴 **그 한 장만** 지운다. 라우트 패턴('page')으로 지우면 7,787장이 통째로 날아가,
+ *    하루에 몇 명만 이력서를 저장해도 캐시가 계속 비워져 절감이 사라진다.
+ */
+function revalidateCachedTalent(profileId: string): void {
+  revalidatePath(`/talent-cached/${profileId}`);
+}
+
 export async function saveResume(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -505,6 +521,8 @@ export async function saveResume(formData: FormData) {
     }
   }
 
+  // 고친 내용이 공개 화면(캐시본)에 바로 보이게 한다 — 안 하면 최대 6시간 옛 내용이 남는다.
+  revalidateCachedTalent(user.id);
   // 공고에서 "이력서를 먼저 채우세요"로 넘어온 경우 그 공고로 돌려보낸다(안 그러면 공고를 다시 찾아야 한다).
   redirect(safeNext(String(formData.get("next") ?? ""), "/mypage/resume?ok=1"));
 }
@@ -696,6 +714,8 @@ export async function deleteAccount(formData: FormData) {
     if (rmErr) console.error("deleteAccount(avatar) failed:", rmErr.message, avatar);
   }
   await supabase.auth.signOut();
+  // 탈퇴 = 흔적 전부 삭제. 캐시에 남은 공개 화면도 같이 지운다.
+  revalidateCachedTalent(user.id);
   redirect("/?left=1");
 }
 
@@ -726,6 +746,7 @@ export async function deleteResume() {
       if (rm) console.error("deleteResume(avatar remove) failed:", rm.message, old);
     }
   }
+  revalidateCachedTalent(user.id);
   redirect("/mypage/resume?ok=deleted");
 }
 
@@ -898,6 +919,7 @@ export async function saveResumePhoto(formData: FormData) {
   const old = (prof?.avatar_url ?? "").trim();
   // 외부 URL(네이버 프로필)은 우리 버킷이 아니라 지울 게 없다.
   if (old && !old.startsWith("http")) await admin.storage.from(AVATAR_BUCKET).remove([old]);
+  revalidateCachedTalent(user.id);
   redirect("/mypage/resume?ok=photo");
 }
 
@@ -915,6 +937,7 @@ export async function deleteResumePhoto() {
   }
   const old = (prof?.avatar_url ?? "").trim();
   if (old && !old.startsWith("http")) await admin.storage.from(AVATAR_BUCKET).remove([old]);
+  revalidateCachedTalent(user.id);
   redirect("/mypage/resume?ok=photo_deleted");
 }
 
@@ -942,6 +965,8 @@ export async function setResumePublic(formData: FormData) {
     console.error("setResumePublic failed:", error?.message ?? "no row");
     redirect("/mypage/resume?error=visibility");
   }
+  // 🔴 여기가 가장 중요하다 — 취업해서 이력서를 내렸는데 캐시 화면이 남으면 계속 노출된다.
+  revalidateCachedTalent(user.id);
   redirect(`/mypage/resume?ok=${next ? "public" : "private"}`);
 }
 

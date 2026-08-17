@@ -1,13 +1,67 @@
-import { type NextRequest, type NextFetchEvent } from "next/server";
+import { NextResponse, type NextRequest, type NextFetchEvent } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 import { trackPageView } from "@/lib/track";
 
+/**
+ * `/talent/<uuid>` — 인재 상세인가(목록·다른 화면이 아니라).
+ * 🔒 **소문자 UUID 만** 잡는다(`/i` 를 일부러 안 붙였다). 대소문자를 같이 받으면 같은 이력서가
+ *    대문자·소문자 조합마다 **다른 캐시 키**를 만들어 창고가 쓸데없이 불어난다.
+ *    DB 의 uuid 도 소문자로 나오므로 정상 링크는 전부 여기 걸린다.
+ */
+const TALENT_DETAIL = /^\/talent\/[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/;
+
+/**
+ * 인재 상세를 **캐시 가능한 라우트로 흘려보낸다**(2026-08-17).
+ *
+ * 왜: 이 화면이 이 사이트에서 가장 많이 열린다 — 7일 실측 **봇 1,244,902건 : 사람 1,008건(961:1)**.
+ * 공개 이력서 7,787건을 주소 하나당 주 191회씩 다시 만들고 있었다. 기존 라우트는 요청마다
+ * `getMyProfile()` 로 쿠키를 읽어 캐시가 원리상 불가능하다.
+ *
+ * 🔒 **네 조건을 전부 만족할 때만** 보낸다. 하나라도 어긋나면 손대지 않고 기존 동적 라우트로 간다:
+ *    ① GET·HEAD  ② 로그인 쿠키 없음  ③ 쿼리스트링 없음  ④ 경로가 /talent/<uuid>
+ *    · ②가 핵심이다 — 로그인 사용자(광고 중인 병원)는 지금까지처럼 서버가 그린 화면을 받는다.
+ *      캐시 화면에는 이름·전화·사진이 **애초에 없다**(canRevealContacts 판정이 항상 false).
+ *    · ③은 검색 조건이 사람마다 다르기 때문이다. 검색엔진이 크롤하는 정식 주소엔 쿼리가 없다.
+ *    · HEAD 를 빼면 링크 검사기·일부 크롤러가 전부 동적 라우트로 흘러 함수를 깨운다(형제 프로젝트 실측).
+ *
+ * 🔴 **접속 기록은 그대로 남긴다**(아래 proxy 참조). 이 프록시는 캐시가 맞아도 어차피 실행되므로,
+ *    기록을 빼도 아끼는 것이 없고 관리자 통계만 망가진다 — 봇 수치뿐 아니라 **비로그인 사람의
+ *    조회수·순방문자·유입처까지** 통째로 빠져서, 배포한 날 그래프가 절벽이 되는데 화면은 아무 말도
+ *    안 하게 된다. 아끼는 것은 **페이지 렌더와 DB 조회**지 기록이 아니다.
+ */
+function cacheableTalentDetail(request: NextRequest): NextResponse | null {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  if (request.nextUrl.search !== "") return null;
+  if (!TALENT_DETAIL.test(request.nextUrl.pathname)) return null;
+  if (request.cookies.getAll().some((c) => c.name.startsWith("sb-"))) return null;
+
+  const url = request.nextUrl.clone();
+  url.pathname = request.nextUrl.pathname.replace("/talent/", "/talent-cached/");
+  return NextResponse.rewrite(url);
+}
+
 // Next.js 16 proxy (구 middleware) — 매 요청 Supabase 세션 갱신 + 접속 기록.
 export async function proxy(request: NextRequest, event: NextFetchEvent) {
+  // 🔒 `/talent-cached/…` 는 **내부 전용**이다. 프록시가 rewrite 로만 도달시키며, rewrite 는
+  //    미들웨어를 다시 태우지 않으므로 여기 들어온 것은 전부 **밖에서 직접 친 요청**이다.
+  //    막지 않으면 두 가지가 생긴다: ① 정본과 내용이 같은 주소가 색인될 수 있다
+  //    ② 로그인한 사람이 직접 열면 그 사람 이름이 들어간 404 화면이 캐시에 굳을 여지가 생긴다.
+  //    사이트 어디에서도 링크하지 않는 주소라 404 로 막는 데 잃을 것이 없다.
+  if (request.nextUrl.pathname.startsWith("/talent-cached")) {
+    return new NextResponse(null, { status: 404 });
+  }
+
   // 🔴 응답을 기다리지 않되 **버리지도 않는다.** 그냥 매달아 두면 응답 반환 시 엣지 인스턴스가
   //    얼어붙어 기록이 유실된다. waitUntil 로 넘겨 응답은 즉시 나가고 기록은 끝까지 간다.
+  // 🔴 **캐시로 보내는 요청도 여기서 먼저 기록한다.** 프록시는 캐시가 맞아도 어차피 도니까
+  //    기록을 빼도 아끼는 게 없고, 빼면 관리자 통계에서 가장 많이 보는 화면의 숫자가 통째로 사라진다.
   const tracking = trackPageView(request);
   if (tracking) event.waitUntil(tracking);
+
+  // 캐시본으로 보낼 요청은 여기서 갈라진다 — 세션 갱신(updateSession)은 필요 없다(쿠키가 없다).
+  const cached = cacheableTalentDetail(request);
+  if (cached) return cached;
+
   return await updateSession(request);
 }
 
