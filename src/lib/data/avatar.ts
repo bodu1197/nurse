@@ -21,6 +21,16 @@ export const AVATAR_URL_TTL = 60 * 10;
 export { AVATAR_MAX_BYTES, AVATAR_MIME, AVATAR_ACCEPT, AVATAR_MAX_EDGE } from "@/lib/avatarLimits";
 
 /**
+ * 외부 프로필 주소를 https 로 올린다.
+ *
+ * 카카오·네이버가 기본 프로필 사진을 `http://img1.kakaocdn.net/…` 처럼 http 로 주고, 그게 그대로
+ * 저장돼 있다. https 페이지가 http 이미지를 부르면 Mixed Content — 지금은 크롬이 자동으로
+ * https 로 올려주지만 콘솔에 경고가 쌓이고, 그 자동 업그레이드가 사라지면 사진이 안 뜬다.
+ * 두 CDN 모두 https 를 지원하므로 내보내는 지점에서 올려버린다(이미 저장된 행까지 같이 해결된다).
+ */
+const toHttps = (u: string): string => (u.startsWith("http://") ? "https://" + u.slice(7) : u);
+
+/**
  * 저장된 avatar_url 하나를 화면에 쓸 수 있는 URL 로 바꾼다.
  *
  * 값이 `http…` 면 우리 버킷이 아니다(네이버 가입 때 들어온 외부 프로필) → 그대로 쓴다.
@@ -29,7 +39,7 @@ export { AVATAR_MAX_BYTES, AVATAR_MIME, AVATAR_ACCEPT, AVATAR_MAX_EDGE } from "@
 export async function signAvatar(avatarUrl: string | null | undefined): Promise<string | null> {
   const v = (avatarUrl ?? "").trim();
   if (!v) return null;
-  if (v.startsWith("http")) return v;
+  if (v.startsWith("http")) return toHttps(v);
   const { data, error } = await createAdminClient()
     .storage.from(AVATAR_BUCKET).createSignedUrl(v, AVATAR_URL_TTL);
   if (error) {
@@ -71,7 +81,7 @@ export async function signAvatarPaths(
     const v = (r ?? "").trim();
     if (!v) continue;
     // `http…` 는 우리 버킷이 아니다(네이버 가입 때 들어온 외부 프로필) → 서명 없이 그대로 쓴다.
-    if (v.startsWith("http")) out.set(v, v);
+    if (v.startsWith("http")) out.set(v, toHttps(v));
     else paths.add(v);
   }
   if (paths.size === 0) return out;
