@@ -68,8 +68,8 @@ export type Membership = {
  *    이력서 7천 건의 이름·연락처가 광고비를 안 낸 계정에도 열린다.
  *    광고가 끝나면 열람도 함께 닫힌다 — 화면 안내(LockedNotice)와 같은 계약이다.
  *
- * 테스트 병원(hospitals.is_test)은 광고를 낸 것으로 친다 — 결제 없이 병원회원 화면을 실제와
- * 같게 확인할 수 있어야 한다. 이 병원은 병원 검색·명부에서 이미 빠져 있어 밖으로 새지 않는다.
+ * 🔴 테스트 병원(hospitals.is_test) 예외는 **없다**(20260804380000 에서 제거 — 관리자 테스트 병원이
+ *    광고가 끝나도 상시 열람하는 뒷문이 됐다). 최고 관리자만 is_admin() 으로 통과한다.
  */
 async function hasLiveAd(userId: string): Promise<boolean> {
   const supabase = await createClient();
@@ -106,7 +106,7 @@ export const getMembership = cache(async (): Promise<Membership> => {
   // 🔴 인재정보는 예외로 두지 않는다. RLS(resumes_select_advertiser → is_talent_advertiser())에
   //    관리자 예외가 없어서, 앱에서만 열어주면 **게이트는 통과했는데 목록이 텅 빈** 화면이 된다
   //    (예전 isAdvertiser 도 admin 을 특별대우하지 않았다 — 여기서 넓히면 앱과 DB가 어긋난다).
-  //    관리자는 테스트 병원을 갖고 있어 hasLiveAd 로 통과한다.
+  //    관리자는 is_talent_advertiser() 안의 is_admin() 가지로 hasLiveAd 를 통과한다.
   if (profile.isAdmin) {
     return {
       userId: user.id, role: profile.role, tier: "admin", label: TIER_LABEL.admin,
