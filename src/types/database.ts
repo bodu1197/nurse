@@ -1271,7 +1271,7 @@ export type Database = {
         Row: {
           ad_live: boolean | null
           ad_paid: boolean | null
-          /** 목록 2순위 — 상급종합병원인가(20260812150000). 정렬 전용이라 앱은 읽기만 한다. */
+          /** 목록 3순위(유료·무료 광고 다음, lib/data/jobs.ts LISTED_ORDER) — 상급종합병원인가(20260812150000). 정렬 전용이라 앱은 읽기만 한다. */
           is_tertiary: boolean | null
           is_live: boolean | null
           ad_tier: string | null

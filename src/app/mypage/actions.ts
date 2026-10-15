@@ -339,7 +339,7 @@ export async function repostJob(formData: FormData) {
   //
   // 🔴 featured_until 은 **건드리지 않는다.** 남은 광고 기간이 그대로 이어져야 한다 —
   //    여기서 새로 쓰면 마감/재게시를 반복해 광고를 무한 연장할 수 있다.
-  //    posted_at 만 갱신해 목록·홈 카드에서 최신으로 잡히게 한다(정렬은 ad_live desc, posted_at desc).
+  //    posted_at 만 갱신해 목록·홈 카드에서 최신으로 잡히게 한다(정렬은 lib/data/jobs.ts 의 LISTED_ORDER).
   const q = admin
     .from("jobs")
     .update({ status: "open", posted_at: nowIso })

@@ -308,7 +308,7 @@ export async function activateAdOrder(admin: ReturnType<typeof createAdminClient
     // 🔴 posted_at 은 **첫 게시(draft→open)일 때만** 찍는다. 전에는 연장 결제마다 오늘로 덮어써서,
     //    석 달 전 공고가 「2026-08-05 등록」으로 바뀌고 관리자 대시보드의 '오늘 등록 공고'가
     //    신규 0건인 날에도 올랐다(신규 유입 지표가 연장 건에 오염됐다).
-    //    목록 상단 노출은 ad_live 정렬이 이미 보장하므로 잃는 것이 없다.
+    //    목록 상단 노출은 ad_paid·ad_live 정렬(lib/data/jobs.ts LISTED_ORDER)이 이미 보장하므로 잃는 것이 없다.
     .update({
       featured_until: until, ad_tier: tier, status: "open",
       ...(job?.status === "draft" ? { posted_at: new Date().toISOString() } : {}),

@@ -134,7 +134,7 @@ async function SeekerMatches({
     // 🔴 지역이 어긋난 것은 뺀다 — 후보 조회가 시도까지만 좁히기 때문에 여기까지 딸려 온다.
     //    직종·급여가 맞아도 갈 수 없는 곳은 "내 조건에 맞는 공고" 가 아니다(실측: 442건 중 293건).
     .filter((m) => m.regionOk)
-    // 일치 개수가 많은 순. 동률은 쿼리 순서(광고 → 최신)가 그대로 유지된다(JS sort 는 안정 정렬).
+    // 일치 개수가 많은 순. 동률은 쿼리 순서(유료 → 무료 광고 → 상급종합 → 최신)가 그대로 유지된다(JS sort 는 안정 정렬).
     .sort((a, b) => b.matched - a.matched);
 
   const totalPages = Math.max(1, Math.ceil(graded.length / PER_PAGE));

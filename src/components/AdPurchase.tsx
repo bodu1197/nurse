@@ -149,7 +149,7 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
                   (WCAG AA 기준 4.5:1). 정보를 담은 줄은 slate-500(4.8:1)로 올린다. */}
               <span className="mt-2 text-xs leading-snug text-slate-500">
                 목록 노출 ○<br />
-                유료 아래<br />
+                상단 (유료 다음)<br />
                 연락처 열람 ✕<br />
                 자동매치 ✕
               </span>
@@ -184,7 +184,7 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
         <div className="flex justify-between"><dt className="text-slate-500">노출 기간</dt><dd className="font-medium text-slate-800">{isFree ? FREE_WEEK_DAYS : product.days}일</dd></div>
         {isFree ? (
           <>
-            <div className="flex justify-between"><dt className="text-slate-500">목록 노출</dt><dd className="text-slate-800">유료 광고 아래</dd></div>
+            <div className="flex justify-between"><dt className="text-slate-500">목록 노출</dt><dd className="text-slate-800">상단 (유료 다음)</dd></div>
             {/* 🔴 못 하는 것을 **누르기 전에** 적는다. 나중에 알게 되면 그게 곧 항의다. */}
             <div className="flex justify-between"><dt className="text-slate-500">간호사 연락처 열람</dt><dd className="text-slate-500">열리지 않음</dd></div>
             <div className="flex justify-between"><dt className="text-slate-500">AI 자동매치 인재 추천</dt><dd className="text-slate-500">열리지 않음</dd></div>
@@ -234,7 +234,7 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
       </Button>
       <p className="mt-2 text-center text-xs text-slate-400">
         {isFree
-          ? `${FREE_WEEK_DAYS}일 동안 목록에 노출됩니다(유료 광고 아래). 병원당 한 번만 받을 수 있고, 되돌릴 수 없습니다.`
+          ? `${FREE_WEEK_DAYS}일 동안 목록 상단에 노출됩니다(유료 광고 다음). 병원당 한 번만 받을 수 있고, 되돌릴 수 없습니다.`
           : `${product.days}일 동안 목록 맨 위에 노출되고 간호사 연락처 열람과 AI 자동매치가 열립니다. 카드로 결제합니다(이니시스).`}
       </p>
     </div>

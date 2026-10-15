@@ -237,6 +237,26 @@ const byFacilityOrder = (rows: JobRegionNode[]): JobRegionNode[] =>
  */
 const LIVE = "is_live" as const;
 
+/**
+ * 🗂 구직자 목록의 정렬 순서 — 목록(getJobs)과 자동매치 후보(getMatchCandidates)가 **이 배열 하나를** 쓴다.
+ *    두 곳에 따로 적었더니 실제로 갈라졌다(목록은 상급종합 우선, 매치는 무료광고 우선 — /review8 2026-10-16).
+ *    전부 내림차순(true·최신이 위)이다. 키는 jobs_listed 뷰의 컬럼이라 쪽을 넘겨도 순서가 이어진다.
+ *
+ * ① ad_paid — 돈을 낸 광고(오너 확정 2026-08-06: "섞지 않고 유료만 위로 올린다").
+ *    무료 1주도 featured_until 을 쓰므로 ad_live 만으로 세우면 **공짜 광고가 돈 낸 광고와 같은 칸에 선다**.
+ * ② ad_live — 무료 광고. 오너 지시 2026-10-16: "무료도 상단에 나오게".
+ *    2026-08-12 에 "무료는 파묻혀도 된다"며 뺐던 키를 되살린 것이다. 직접 등록 공고는 광고 기간이 있어야만
+ *    노출되므로 ①이 아닌 노출 공고는 전부 0원 광고다 — 무료 1주·관리자가 켜 준 광고(free)·관리자 테스트(admin_test).
+ *    테스트도 위에 서는 것은 의도다(아래 getJobs 주석: 실제 화면에서 광고 노출을 확인할 수 있어야 한다).
+ *    수집분(워크넷 등)은 featured_until 이 없어 false 라, 상급종합 수집 공고는 무료 광고 다음이 된다.
+ * ③ is_tertiary — 상급종합병원(오너 확정 2026-08-12, 간호사가 가장 찾는 자리).
+ * ④ posted_at — 최신순. 첫 게시·재게시 때만 찍힌다(연장 결제는 안 바꾼다 — adOrders.ts activateAdOrder).
+ *    전에는 featured_until 하나로 정렬해 **종료일이 먼 쪽이 항상 1등**이었다(4주 산 병원이 4주 내내 최상단).
+ * ⑤ id — 유일 키. 워크넷 일괄수집분은 posted_at 이 같은 행이 수백 건이라, 쪽마다 별개 질의인
+ *    페이지네이션에서 이게 없으면 **행이 중복되거나 누락된다**(경계가 동률 한가운데 떨어진다).
+ */
+const LISTED_ORDER = ["ad_paid", "ad_live", "is_tertiary", "posted_at", "id"] as const;
+
 // 관리자 테스트 공고(hospitals.is_test)를 여기서 걸러내지 않는 것은 의도된 결정이다.
 // 숨기면 등록→광고→지원까지 실제 화면에서 확인할 방법이 없어 테스트 기능이 무용지물이 된다.
 // 병원명이 "[테스트] …"로 시작해 목록·상세에서 사용자도 테스트임을 알아볼 수 있고,
@@ -245,34 +265,14 @@ const LIVE = "is_live" as const;
 export async function getJobs(keyword: string, location: string, filters: JobFilters = {}, page = 1, withCount = true): Promise<{ jobs: JobRow[]; total: number }> {
   const supabase = await createClient();
   const from = (Math.max(1, page) - 1) * PER_PAGE;
-  // 🔴 jobs 가 아니라 jobs_listed 뷰다. 정렬 키를 세 질문으로 나누기 위한 것 —
-  //    ① **돈을 낸 광고인가**(ad_paid) ② 노출 중인 광고인가(ad_live) ③ 그 안에서는 무슨 순서인가(posted_at).
-  //    전에는 featured_until 하나로 둘 다 하려다 보니 **종료일이 먼 쪽이 항상 1등**이었다:
-  //    4주를 산 병원이 4주 내내 최상단이고, 뒤에 1주를 산 병원은 방금 결제해도 계속 2등.
-  //    posted_at 은 activateAdOrder 가 광고를 켤 때 갱신하므로 곧 "광고를 켠 시각"이다.
-  //
-  // 🔴 ad_paid 를 맨 앞에 둔 이유(오너 확정 2026-08-06: "섞지 않고 유료만 위로 올린다"):
-  //    무료 1주도 featured_until 을 쓰므로 ad_live 가 true 다. 그것만으로 줄을 세우면
-  //    **공짜 광고가 돈 낸 광고와 같은 칸에 선다** — 그러면 5만원을 낼 이유가 없어진다.
-  //
-  // 🔴 2순위는 **상급종합병원**이다(오너 확정 2026-08-12). 그리고 정렬에서 **ad_live 를 뺐다** —
-  //    무료 1주가 참이라 공짜 광고가 일반 공고 전체보다 위에 섰는데, 오너 지시가
-  //    "무료광고는 일반 순서에 그냥 둬라, 공고에 파묻혀도 된다" 다.
-  //    → 돈 낸 광고 → 상급종합병원 → 최신순. 무료는 최신순 무리 안에 그냥 섞인다.
+  // 🔴 jobs 가 아니라 jobs_listed 뷰다 — 정렬 키(LISTED_ORDER)가 뷰의 계산 컬럼이다.
   let query = supabase
     .from("jobs_listed")
     .select(SELECT, withCount ? { count: "exact" } : undefined)
     // 노출 판정은 뷰가 한다(is_live) — status·광고기간·마감일을 그 안에서 함께 본다.
-    .eq(LIVE, true)
-    .order("ad_paid", { ascending: false })
-    .order("is_tertiary", { ascending: false })
-    .order("posted_at", { ascending: false })
-    // 🔴 유일 키를 마지막 정렬 키로 둔다. 워크넷 일괄수집분은 posted_at 이 같은 행이 수백 건이라
-    //    쪽마다 별개 질의인 페이지네이션에서 **행이 중복되거나 누락된다**(20건 경계가 동률 한가운데
-    //    떨어진다). getMatchCandidates 가 같은 이유로 이미 2차 키를 갖고 있는데
-    //    목록에만 없었다 — /review8 이 잡았다.
-    .order("id", { ascending: false })
-    .range(from, from + PER_PAGE - 1);
+    .eq(LIVE, true);
+  for (const key of LISTED_ORDER) query = query.order(key, { ascending: false });
+  query = query.range(from, from + PER_PAGE - 1);
 
   const kw = clean(keyword);
   // 🔴 기관 종별·직종도 함께 본다. 진료과 어휘가 바뀌면서 '요양병원'이 specialty 에서 facility_type
@@ -362,22 +362,15 @@ export async function getMatchCandidates(sidoIn: readonly string[]): Promise<Mat
   const MAX = 5000; // 한 요청이 수만 행을 메모리로 끌어와 페이지가 죽는 것만 막는 상한
   const out: MatchJob[] = [];
   for (let from = 0; from < MAX; from += PAGE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("jobs_listed")
       .select(MATCH_SELECT)
       .eq(LIVE, true)
-      .in("sido", [...sidoIn])
-      // 목록(getJobs)과 **같은 순서**여야 한다 — 자동매치에서 본 차례가 목록과 다르면
-      // 같은 사이트가 두 말을 하는 셈이 된다. 유료 → 무료·워크넷 → 최신순.
-      .order("ad_paid", { ascending: false })
-      .order("ad_live", { ascending: false })
-      .order("posted_at", { ascending: false })
-      // 🔴 유일 키를 마지막 정렬 키로 둔다. 페이지마다 별개 쿼리라 동률(워크넷 일괄수집분은
-      //    posted_at 이 같은 행이 수백 건이다)이 있으면 1000행 경계에서 **행이 중복되거나 누락된다**
-      //    — 중복되면 화면의 key 도 깨진다. 인재 목록 조회도 같은 이유로 2차 키를 갖고 있다.
-      .order("id", { ascending: false })
-      .range(from, from + PAGE - 1)
-      .returns<MatchJob[]>();
+      .in("sido", [...sidoIn]);
+    // 목록(getJobs)과 **같은 순서**여야 한다 — 자동매치에서 본 차례가 목록과 다르면
+    // 같은 사이트가 두 말을 하는 셈이 된다. 마지막 키 id 가 1000행 경계의 중복·누락을 막는다.
+    for (const key of LISTED_ORDER) query = query.order(key, { ascending: false });
+    const { data, error } = await query.range(from, from + PAGE - 1).returns<MatchJob[]>();
     if (error) {
       console.error("getMatchCandidates failed:", error.message);
       break;
