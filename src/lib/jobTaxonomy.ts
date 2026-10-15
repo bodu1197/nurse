@@ -166,6 +166,18 @@ export const isNurseJobCode = (jobsCd: string | null | undefined): boolean =>
   categoryFromJobCode(jobsCd) !== null;
 
 /**
+ * 🧓 요양보호사·간병 직군인가 — 워크넷 직종코드 5501xx(요양보호사)·5502xx(재가·간병)·5503xx(생활지원사·어르신 돌봄).
+ *    5503xx 는 처음 범위에서 빠졌다가 실측(2026-10-16, 115건 — 제목이 "노인요양시설 요양보호사", "노인맞춤돌봄 생활지원사")
+ *    으로 넣었다. 232903(장애인활동지원사·사회복지사)·307900(병동 보호사 등 보건 보조)은 요양보호사가 아니라 뺀다.
+ *
+ * 간호 공고(jobs)에서는 버리는 코드지만(위 isNurseJobCode), **별도 표(care_jobs)** 로 따로 모은다
+ * (오너 지시 2026-10-16: "제외된 것을 탭을 별도로 만들어서 홈페이지에"). 두 판정은 서로 배타다 —
+ * 같은 공고가 양쪽에 들어가면 홈의 두 탭이 같은 카드를 보여 준다(jobTaxonomy.test 가 지킨다).
+ */
+export const isCareJobCode = (jobsCd: string | null | undefined): boolean =>
+  /^550[1-3]\d{2}$/.test((jobsCd ?? "").trim());
+
+/**
  * 진료과 추론 — 공고 텍스트에서 DEPARTMENTS 어휘를 찾는다.
  *
  * 🔴 순서가 규칙이다. 구체적인 것부터 본다 — '정형외과' 를 '외과' 보다, '혈액종양내과' 를 '내과'

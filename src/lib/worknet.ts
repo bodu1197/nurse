@@ -1,7 +1,7 @@
 import "server-only";
 import { decodeEntities } from "@/lib/html";
 import {
-  categoryFromJobCode, departmentFromText, facilityFor, isNurseJobCode,
+  categoryFromJobCode, departmentFromText, facilityFor, isCareJobCode, isNurseJobCode,
 } from "@/lib/jobTaxonomy";
 
 // 워크넷(고용24) 채용정보 오픈API(210L01) — **직종코드(occupation)** 로 간호 직군 구인공고 수집.
@@ -72,6 +72,14 @@ export function parseDeadline(s: string): string | null {
   return Number.isNaN(new Date(iso).getTime()) ? null : iso;
 }
 
+// 등록일 regDt "26-10-15" → "2026-10-15"(date 컬럼용). 못 읽으면 null — 부르는 쪽이 오늘로 메운다.
+export function regDtToDate(s: string): string | null {
+  const m = s.match(/(\d{2})-(\d{2})-(\d{2})/);
+  if (!m) return null;
+  const iso = `20${m[1]}-${m[2]}-${m[3]}`;
+  return Number.isNaN(new Date(iso).getTime()) ? null : iso;
+}
+
 function parsePage(xml: string): { jobs: WorknetJob[]; total: number } {
   const total = Number(pick(xml, "total")) || 0;
   const jobs = [...xml.matchAll(/<wanted>([\s\S]*?)<\/wanted>/g)].map((m) => {
@@ -131,10 +139,13 @@ export async function inBatches<T, R>(items: T[], size: number, fn: (t: T) => Pr
   return out;
 }
 
-async function fetchOccupation(occupation: string): Promise<WorknetJob[]> {
+async function fetchOccupation(occupation: string, maxPages = MAX_PAGES): Promise<WorknetJob[]> {
   const first = await fetchPage(occupation, 1);
   if (first.jobs.length === 0) return [];
-  const pages = Math.min(Math.ceil(first.total / first.jobs.length) || 1, MAX_PAGES);
+  const wanted = Math.ceil(first.total / first.jobs.length) || 1;
+  // 상한에 닿으면 뒤쪽 공고가 **조용히** 빠진다 — 적어도 로그에는 남긴다(크론 응답엔 안 보이는 손실).
+  if (wanted > maxPages) console.warn(`[worknet] 직종 ${occupation}: ${first.total}건 중 ${maxPages * first.jobs.length}건만 받음(쪽 상한 ${maxPages})`);
+  const pages = Math.min(wanted, maxPages);
   const rest = pages > 1
     ? await inBatches(Array.from({ length: pages - 1 }, (_, i) => i + 2), CONCURRENCY, (p) => fetchPage(occupation, p))
     : [];
@@ -153,6 +164,27 @@ export async function fetchNurseJobs(codes: readonly string[] = NURSE_JOB_CODES)
     //    공고 하나에 직종이 여럿 달릴 수 있어 부수 직종으로도 매칭되고, jobsCd 는 대표 직종만 온다.
     //    "요양보호사 원천 배제"는 여기서 실제로 이뤄진다.
     && isNurseJobCode(j.jobsCd));
+}
+
+// 🧓 요양보호사·간병 직종코드(work24 jobsCd). 간호 코드와 **겹치지 않는다**(isCareJobCode ↔ isNurseJobCode).
+//    실측 2026-10-16: 550100 요양보호사 10,717 · 550101 3,399 · 550102 방문·재가 7,096 · 5502xx 재가·간병 ~300 · 550300 생활지원사 115.
+//    🔴 코드별 건수를 더하면 2만이 넘지만 **고유 공고는 1만 700건쯤**이다 — occupation 필터가 부수 직종까지 잡아
+//       550101·550102 결과가 550100 결과에 통째로 들어 있다(새 공고 0건). 그래도 코드를 다 돈다: 그 포함 관계가
+//       앞으로도 유지된다는 보장이 없고, 비용은 한 실행에 20~30초다.
+export const CARE_JOB_CODES = ["550100", "550101", "550102", "550200", "550201", "550202", "550300"] as const;
+// 550100 하나가 1만 건(100건씩 108쪽)이라 간호 상한(MAX_PAGES 30쪽)으로는 3,000건에서 조용히 잘린다.
+const CARE_MAX_PAGES = 150;
+
+/**
+ * 요양보호사·간병 공고 전부 — care_jobs 표용(크론 /api/cron/sync-care). 간호 수집(fetchNurseJobs)과
+ * 같은 호출이고 거르는 코드만 반대다. 상세 API 는 부르지 않는다(카드가 워크넷 원문으로 간다).
+ */
+export async function fetchCareJobs(codes: readonly string[] = CARE_JOB_CODES): Promise<WorknetJob[]> {
+  const all: WorknetJob[] = [];
+  for (const code of codes) all.push(...await fetchOccupation(code, CARE_MAX_PAGES));
+  const seen = new Set<string>();
+  // occupation 필터가 느슨해 간호사·사회복지사 공고가 섞여 온다(fetchNurseJobs 주석) — 대표 직종으로 한 번 더 거른다.
+  return all.filter((j) => j.authNo && !seen.has(j.authNo) && seen.add(j.authNo) && isCareJobCode(j.jobsCd));
 }
 
 // 상세 API(210D01) — 리스트에 없는 풍부한 필드. 전체제목·직무내용·연락처·모집인원·근무시간·복지·전형·정확한 마감일.

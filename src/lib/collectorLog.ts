@@ -31,6 +31,8 @@ const prune = (admin: Admin, collector: CollectorKey) =>
  */
 export type CollectorKey =
   | "hospitals" | "worknet" | "alio" | "ats"
+  /** 요양보호사·간병 공고(care_jobs) — /api/cron/sync-care. */
+  | "care"
   /**
    * 크론이 아니라 **사용자 검색이 부르는 즉시 조회**(api/hospitals/search).
    * 화면(/admin/collectors)의 수집기 카드에는 안 뜬다 — COLLECTORS 목록에 없는 키는 무시된다.

@@ -353,6 +353,64 @@ export type Database = {
           },
         ]
       }
+      /** 요양보호사·간병인 구인(워크넷 5501xx·5502xx·5503xx) — 간호사 jobs 와 별도 표(20261016100000 · 좌표 20261016120000). */
+      care_jobs: {
+        Row: {
+          company_name: string | null
+          created_at: string
+          deadline: string | null
+          external_id: string
+          external_url: string
+          geocoded_at: string | null
+          jobs_cd: string
+          last_seen_at: string
+          lat: number | null
+          lng: number | null
+          location: string | null
+          posted_at: string
+          salary_text: string | null
+          sido: string | null
+          sigungu: string | null
+          title: string
+        }
+        Insert: {
+          company_name?: string | null
+          created_at?: string
+          deadline?: string | null
+          external_id: string
+          external_url: string
+          geocoded_at?: string | null
+          jobs_cd: string
+          last_seen_at?: string
+          lat?: number | null
+          lng?: number | null
+          location?: string | null
+          posted_at: string
+          salary_text?: string | null
+          sido?: string | null
+          sigungu?: string | null
+          title: string
+        }
+        Update: {
+          company_name?: string | null
+          created_at?: string
+          deadline?: string | null
+          external_id?: string
+          external_url?: string
+          geocoded_at?: string | null
+          jobs_cd?: string
+          last_seen_at?: string
+          lat?: number | null
+          lng?: number | null
+          location?: string | null
+          posted_at?: string
+          salary_text?: string | null
+          sido?: string | null
+          sigungu?: string | null
+          title?: string
+        }
+        Relationships: []
+      }
       /** 🔍 수집 크론 실행 기록 — /admin/collectors 가 "언제 마지막으로 성공했나"를 읽는다(20260812120000). */
       collector_runs: {
         Row: {
@@ -1452,6 +1510,16 @@ export type Database = {
         Returns: {
           cnt: number
           kind: string
+          name: string
+        }[]
+      }
+      /** care_jobs 지역 계단 건수 — p_sido 가 비면 시도별, 있으면 그 시도의 시군구별(20261016100000). */
+      care_job_region_list: {
+        Args: {
+          p_sido?: string
+        }
+        Returns: {
+          cnt: number
           name: string
         }[]
       }

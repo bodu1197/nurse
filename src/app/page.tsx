@@ -1,35 +1,74 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { acceptsPlatformApply } from "@/lib/applyGate";
 import SiteHeader from "@/components/SiteHeader";
 import Button from "@/components/Button";
 import DraftCleaner from "@/components/DraftCleaner";
 import { ApplyBadge } from "@/components/JobCard";
+import HomeJobTabs from "@/components/HomeJobTabs";
 import { getMyProfile } from "@/lib/data/user";
 import { getJobs } from "@/lib/data/jobs";
+import { getCareJobs } from "@/lib/data/careJobs";
 import { searchPublicTalent, revealContacts, canRevealContacts, type RevealedContact } from "@/lib/data/talent";
 import TalentCard from "@/components/TalentCard";
 import { daysAgo } from "@/lib/date";
 
 // 홈에 띄우는 구직 카드 수 — 한 줄에 2개씩 5줄.
 const HOME_TALENT = 10;
+// 홈 채용공고 탭 한 장당 카드 수 — 한 줄에 2개씩 3줄. 간호 탭·요양보호사 탭이 같은 수다.
+const HOME_JOBS = 6;
 
 // 홈만 자기 자신을 정본으로 선언한다(루트 레이아웃에서 canonical을 걷어냈다).
 export const metadata = { alternates: { canonical: "/" } };
 
+/**
+ * 홈 공고 카드 — 간호 탭과 요양보호사 탭이 **같은 모양**을 쓴다.
+ * 목록 카드(components/JobCard)와 레이아웃이 달라(병원명·지역 한 줄, 마감일 없음) 그건 공유하지 않는다.
+ * 홈은 6건이지만 /jobs 세그먼트에 layout·loading 이 있어 미리 받아오는 비용이 공짜가 아니다
+ * (로그인 상태면 카드마다 세션·프로필 조회) → 누른 뒤에 받는다(prefetch=false). 바깥(워크넷 원문)은 새 창.
+ */
+function HomeCard({ href, external, title, badge, sub, salary, postedAt }: Readonly<{
+  href: string; external?: boolean; title: string; badge?: ReactNode; sub: string; salary: string; postedAt: string;
+}>) {
+  // focus-visible 링은 목록 카드(JobCard)와 같다 — 종전 홈 카드엔 없어서 키보드 포커스가 보이지 않았다.
+  const className = "flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600";
+  const body = (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-bold leading-snug text-slate-900">{title}</h3>
+        {badge && <span className="shrink-0">{badge}</span>}
+      </div>
+      <p className="mt-1.5 text-sm text-slate-500">{sub}</p>
+      <div className="mt-3 flex items-end justify-between gap-2 border-t border-slate-100 pt-3">
+        <span className="font-bold text-teal-700">{salary}</span>
+        {/* slate-500 — slate-400 은 흰 바탕에서 2.6:1 로 작은 글자가 안 읽힌다(새 창 단서 "워크넷 ↗"가 여기 붙는다). */}
+        <span className="shrink-0 text-xs text-slate-500">{daysAgo(postedAt)}일 전{external ? " · 워크넷 ↗" : ""}</span>
+      </div>
+    </>
+  );
+  return external ? (
+    <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`${title} · ${sub} · 워크넷 원문, 새 창`} className={className}>{body}</a>
+  ) : (
+    <Link href={href} prefetch={false} className={className}>{body}</Link>
+  );
+}
+
 export default async function Home({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ left?: string }> }>) {
-  const [profile, { jobs, total: jobTotal }, { left }, talent] = await Promise.all([
+  const [profile, { jobs, total: jobTotal }, { left }, talent, { jobs: careJobs, total: careTotal }] = await Promise.all([
     getMyProfile(),
-    getJobs("", ""), // total 은 원래 세고 있었다(withCount 기본값 true) — 버리지 않고 제목 옆에 쓴다
+    getJobs("", ""), // total 은 원래 세고 있었다(withCount 기본값 true) — 버리지 않고 탭 안에 쓴다
     searchParams,
     // 구직 현황 — 최신 공개 이력서. 목록(/talent)과 같은 함수·같은 정렬(updated_at desc)이라
     // 홈에서 본 카드가 목록 첫 페이지와 어긋나지 않는다.
     // withCount=true — 제목 옆 건수를 여기서 받는다(오너 지시 2026-07-30). 카드는 10장만 받고
     // 개수는 전체를 센다. /talent 목록이 보여주는 총계와 같은 함수·같은 조건이라 숫자가 어긋나지 않는다.
     searchPublicTalent({}, 1, true, HOME_TALENT),
+    // 🧓 요양보호사 탭 — 별도 표(care_jobs). /care-jobs 목록과 같은 함수·같은 정렬이라 홈과 목록이 어긋나지 않는다.
+    getCareJobs({}, 1, HOME_JOBS),
   ]);
-  const latest = jobs.slice(0, 6);
+  const latest = jobs.slice(0, HOME_JOBS);
   const seekers = talent.rows;
   // 이름·사진은 광고 중인 병원에게만 — /talent 와 **같은 게이트**를 쓴다(홈이라고 더 열지 않는다).
   const canSeeContacts = await canRevealContacts(profile);
@@ -116,49 +155,66 @@ export default async function Home({
         </section>
 
         <div className="mx-auto max-w-[1280px] px-4">
-          {/* ── 최신 채용공고 ───────────────── */}
+          {/* ── 최신 채용공고 — [간호사·간호조무사 | 요양보호사·간병인] 탭 ─────────────
+              🧓 요양보호사·간병인 탭(오너 지시 2026-10-16 "제외된 것을 탭을 별도로 만들어서 홈페이지에", "간병인도 포함").
+                 워크넷 수집에서 2026-07-25 부터 빼 온 요양보호사·간병인 공고(고유 약 1만 700건 — 코드별 합계는 2만이지만
+                 중복)를 **별도 표(care_jobs)** 에 모아 여기와 /care-jobs 에서만 보여 준다 — 간호 목록·칩·자동매치·건수에는
+                 한 건도 섞이지 않는다.
+                 카드는 워크넷 원문(새 창)으로 간다. 상세 페이지를 안 만든 이유는 care_jobs 마이그레이션 주석.
+              건수는 탭 안에 붙인다 — 어느 쪽이 얼마나 있는지 누르기 전에 보인다(종전엔 제목 옆 "총 N건"). */}
           <section className="mt-12 pb-16">
-            <div className="flex items-end justify-between">
-              {/* 건수는 제목 옆에 붙인다 — 사람이 먼저 보는 곳이 제목이라, 얼마나 있는 사이트인지
-                  스크롤 전에 알 수 있다. 숫자는 전체 건수(목록 전체 보기와 같은 수)다. */}
-              <h2 className="text-xl font-bold text-slate-900">
-                최신 채용공고 <span className="text-base font-normal text-slate-400">총 {jobTotal.toLocaleString()}건</span>
-              </h2>
-              <Link href="/jobs" className="text-sm font-semibold text-teal-700 hover:underline">전체 보기 →</Link>
+            <h2 className="text-xl font-bold text-slate-900">최신 채용공고</h2>
+            <div className="mt-3">
+              <HomeJobTabs
+                tabs={[
+                  {
+                    key: "nurse", label: "간호사·간호조무사", count: jobTotal, moreHref: "/jobs",
+                    panel: latest.length === 0 ? (
+                      <p className="mt-4 rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">등록된 공고가 곧 올라옵니다.</p>
+                    ) : (
+                      <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                        {latest.map((job) => (
+                          <li key={job.id}>
+                            {/* 판정(lib/applyGate)도 배지 모양(components/JobCard 의 ApplyBadge)도 목록·자동매치와
+                                같은 것을 쓴다 — 갈라지면 같은 공고가 홈에서는 배지가 없고 목록에서는 있는 상태가 된다. */}
+                            <HomeCard
+                              href={`/jobs/${job.id}`}
+                              title={job.title}
+                              badge={acceptsPlatformApply(job) && <ApplyBadge />}
+                              sub={`${job.hospital?.name ?? job.company_name ?? "병원 미상"}${job.location ? ` · ${job.location}` : ""}`}
+                              salary={job.salary_text ?? "급여 협의"}
+                              postedAt={job.posted_at}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    ),
+                  },
+                  {
+                    key: "care", label: "요양보호사·간병인", count: careTotal, moreHref: "/care-jobs",
+                    panel: careJobs.length === 0 ? (
+                      <p className="mt-4 rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">요양보호사·간병인 공고가 아직 없습니다. 잠시 후 다시 확인해 주세요.</p>
+                    ) : (
+                      <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+                        {careJobs.map((job) => (
+                          <li key={job.external_id}>
+                            <HomeCard
+                              href={job.external_url}
+                              external
+                              title={job.title}
+                              sub={`${job.company_name ?? "기관 미상"}${job.location ? ` · ${job.location}` : ""}`}
+                              salary={job.salary_text ?? "급여 협의"}
+                              postedAt={job.posted_at}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    ),
+                  },
+                ]}
+              />
             </div>
-            {latest.length === 0 ? (
-              <p className="mt-6 rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-400">등록된 공고가 곧 올라옵니다.</p>
-            ) : (
-              <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                {latest.map((job) => (
-                  <li key={job.id}>
-                    {/* 홈은 6건이지만 /jobs 세그먼트에 layout·loading이 생겨 미리 받아오는 비용이 공짜가 아니게 됐다
-                        (로그인 상태면 카드마다 세션·프로필 조회) → 누른 뒤에 받는다 */}
-                    <Link href={`/jobs/${job.id}`} prefetch={false} className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md">
-                      <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-bold leading-snug text-slate-900">{job.title}</h3>
-                        {/* 판정(lib/applyGate)도 배지 모양(components/JobCard 의 ApplyBadge)도 목록·자동매치와
-                            같은 것을 쓴다 — 갈라지면 같은 공고가 홈에서는 배지가 없고 목록에서는 있는 상태가 된다.
-                            홈 카드는 레이아웃이 달라(병원명·지역 한 줄, 마감일 없음) 카드 자체는 공유하지 않는다. */}
-                        {acceptsPlatformApply(job) && (
-                          <span className="shrink-0">
-                            <ApplyBadge />
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-1.5 text-sm text-slate-500">
-                        {job.hospital?.name ?? job.company_name ?? "병원 미상"}{job.location ? ` · ${job.location}` : ""}
-                      </p>
-                      <div className="mt-3 flex items-end justify-between gap-2 border-t border-slate-100 pt-3">
-                        <span className="font-bold text-teal-700">{job.salary_text ?? "급여 협의"}</span>
-                        <span className="shrink-0 text-xs text-slate-400">{daysAgo(job.posted_at)}일 전</span>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <p className="mt-4 text-center text-xs text-slate-400">일부 공고는 고용노동부 워크넷 및 공공데이터포털에서 제공받아 표시됩니다.</p>
+            <p className="mt-4 text-center text-xs text-slate-500">일부 공고는 고용노동부 워크넷 및 공공데이터포털에서 제공받아 표시됩니다. 요양보호사·간병인 공고는 워크넷 원문으로 이동합니다.</p>
           </section>
         </div>
 
@@ -220,12 +276,12 @@ export default async function Home({
           <section className="mt-12 pb-16">
             <div className="flex items-end justify-between">
               <h2 className="text-xl font-bold text-slate-900">
-                구직 현황 <span className="text-base font-normal text-slate-400">총 {talent.total.toLocaleString()}건</span>
+                구직 현황 <span className="text-base font-normal text-slate-500">총 {talent.total.toLocaleString()}건</span>
               </h2>
               <Link href="/talent" className="text-sm font-semibold text-teal-700 hover:underline">전체 보기 →</Link>
             </div>
             {seekers.length === 0 ? (
-              <p className="mt-6 rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-400">등록된 이력서가 곧 올라옵니다.</p>
+              <p className="mt-6 rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">등록된 이력서가 곧 올라옵니다.</p>
             ) : (
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                 {seekers.map((r) => (
@@ -267,7 +323,8 @@ export default async function Home({
             {seekers.length > 0 && (
               // 🔴 "사진" 도 적는다 — 카드에 실루엣이 뜨는 이유가 이것이다. 이름·연락처만 적어두면
               //    비로그인 첫 방문자는 사진이 왜 없는지 알 수 없다(/talent 목록은 이미 셋 다 적고 있다).
-              <p className="mt-4 text-center text-xs text-slate-400">이력서를 공개한 간호사 회원입니다. 이름·연락처·사진은 광고 중인 병원에만 표시됩니다.</p>
+              // slate-500 — 400 은 흰 바탕에서 2.6:1 로 작은 글자가 안 읽힌다(위 채용공고 구역과 같은 색).
+              <p className="mt-4 text-center text-xs text-slate-500">이력서를 공개한 간호사 회원입니다. 이름·연락처·사진은 광고 중인 병원에만 표시됩니다.</p>
             )}
           </section>
         </div>

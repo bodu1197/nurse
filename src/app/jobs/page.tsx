@@ -9,6 +9,7 @@ import JobSearchBar from "@/components/JobSearchBar";
 import { getJobs, getSavedJobIds, getJobSidoList, getJobSigunguList, getJobFacets, jobFilterQs, PER_PAGE, UNSET } from "@/lib/data/jobs";
 import { getMyProfile } from "@/lib/data/user";
 import { parseRadius, JOB_NEAR_RADIUS } from "@/lib/location/radius";
+import { firstParam, pageParam } from "@/lib/url";
 import { EMPLOYMENT_TYPES, socialMeta } from "@/lib/constants";
 import { chipClass as chip } from "@/lib/chip";
 import { saveSearch, toggleSaveJob } from "./actions";
@@ -110,12 +111,16 @@ export default async function JobsPage({
   // 예전 마스터-디테일의 ?j= 링크(저장·지원 내역 등)는 단독 상세로 넘긴다.
   if (j) redirect(`/jobs/${encodeURIComponent(j)}`);
 
-  const kw = (q ?? "").trim();
-  const loc = (l ?? "").trim();
-  const sd = (sido ?? "").trim();
+  // 🔴 같은 키가 두 번 오면(?sido=a&sido=b) Next 는 **배열**을 준다 — JobSearchParams 는 string 이라고 하지만 거짓이다.
+  //    .trim() 을 부르는 네 값은 firstParam 으로 첫 값만 쓴다. 안 그러면 장난 URL 하나에 목록이 500 이 된다(/review8 2026-10-16).
+  //    나머지 값은 배열이어도 eq 필터가 그냥 0건을 내거나 Number() 가 NaN 이 되어 무시된다(크래시 없음, 확인함).
+  const kw = firstParam(q).trim();
+  const loc = firstParam(l).trim();
+  const sd = firstParam(sido).trim();
   // 시군구는 시도에 종속 — 시도 없으면 무시(서버 필터와 같은 계약).
-  const sg = sd ? (sigungu ?? "").trim() : "";
-  const pageNum = Math.max(1, Number(page) || 1);
+  const sg = sd ? firstParam(sigungu).trim() : "";
+  const pageNum = pageParam(page); // 1 이상의 안전한 정수만 — "1.01" 은 offset 을 소수로 만들어 조회가 깨진다
+
   // 📍 내 주변 — JobNearMeButton 이 브라우저 GPS로 실어 보낸 좌표. 유효(지구 범위 안 유한값)할 때만 켠다
   // — 장난 딥링크가 bounding-box 를 오염시키는 것 방지(talent parseNear 와 동일 계약).
   const latN = Number(lat);
@@ -260,9 +265,10 @@ export default async function JobsPage({
             </ul>
             {totalPages > 1 && (
               <nav className="mt-6 flex items-center justify-center gap-3 text-sm">
-                {pageNum > 1 ? <a href={href(pageNum - 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">← 이전</a> : <span />}
+                {/* min-h-11 — 터치 타겟 44px(종전 32px). /care-jobs 의 쪽 이동과 같은 모양. */}
+                {pageNum > 1 ? <a href={href(pageNum - 1)} className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-3 text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">← 이전</a> : <span />}
                 <span className="text-slate-500">{pageNum} / {totalPages}</span>
-                {pageNum < totalPages ? <a href={href(pageNum + 1)} className="rounded-lg border border-slate-300 px-3 py-1.5 text-slate-700 hover:bg-slate-50">다음 →</a> : <span />}
+                {pageNum < totalPages ? <a href={href(pageNum + 1)} className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-3 text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">다음 →</a> : <span />}
               </nav>
             )}
           </>

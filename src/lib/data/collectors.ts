@@ -25,6 +25,8 @@ export const COLLECTORS = [
   { key: "alio", label: "공공기관 채용(잡알리오)", everyHours: 24, cron: "매일 07:00" },
   // 한 크론이 셋을 함께 돈다 — 병원 ATS·병원 자체 홈페이지·집계 사이트(인재채움뱅크).
   { key: "ats", label: "병원 채용사이트·집계 사이트", everyHours: 12, cron: "매일 08:00·20:00" },
+  // 요양보호사·간병인 공고 — 간호 jobs 와 별도 표(care_jobs). 고유 1만 700건을 220쪽으로 받아 하루 2회(sync-care 주석).
+  { key: "care", label: "요양보호사·간병인 공고(워크넷)", everyHours: 12, cron: "매일 10:00·22:00" },
 ] as const;
 
 export type CollectorKey = (typeof COLLECTORS)[number]["key"];

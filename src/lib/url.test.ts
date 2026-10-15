@@ -1,7 +1,26 @@
 // 실행: npm test   (Node 24의 네이티브 TS 실행 — 테스트 러너 설치 불필요)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { safeNext } from "./url.ts";
+import { firstParam, pageParam, PAGE_MAX, safeNext } from "./url.ts";
+
+test("같은 키가 배열로 와도 첫 값만 — .trim() 에서 500 이 나지 않게", () => {
+  assert.equal(firstParam(["서울특별시", "x"]), "서울특별시");
+  assert.equal(firstParam("부산광역시"), "부산광역시");
+  assert.equal(firstParam(undefined), "");
+  assert.equal(firstParam([]), "");
+});
+
+test("쪽수는 1 이상의 안전한 정수만 — 소수·무한·음수·배열은 1쪽 또는 상한", () => {
+  assert.equal(pageParam("3"), 3);
+  assert.equal(pageParam("1.01"), 1, "소수 쪽은 offset 을 깨뜨린다");
+  assert.equal(pageParam("Infinity"), 1);
+  assert.equal(pageParam("1e300"), 1);
+  assert.equal(pageParam("-2"), 1);
+  assert.equal(pageParam("abc"), 1);
+  assert.equal(pageParam(undefined), 1);
+  assert.equal(pageParam(["4", "9"]), 4);
+  assert.equal(pageParam(String(PAGE_MAX * 10)), PAGE_MAX);
+});
 
 test("내부 경로는 그대로 통과한다", () => {
   assert.equal(safeNext("/jobs"), "/jobs");

@@ -36,6 +36,8 @@ export const HEADER_MENU: readonly MenuItem[] = [
 // 푸터 네비게이션 — 헤더와 마찬가지로 전원에게 보인다.
 export const FOOTER_NAV: readonly MenuItem[] = [
   { label: "채용공고 찾아보기", href: "/jobs" },
+  // 요양보호사·간병인 공고(care_jobs) — 홈 탭의 '전체 보기' 말고도 어느 화면에서든 닿는 길 하나.
+  { label: "요양보호사·간병인 채용", href: "/care-jobs" },
   { label: "인재정보", href: "/talent" },
   { label: "병원 리뷰", href: "/reviews" },
   { label: "병원 서비스", href: "/hospital" },
@@ -104,7 +106,7 @@ export const socialMeta = ({
 //  · /talent — **색인한다**(오너 지시 2026-08-08, 2026-08-06 의 noindex 를 되돌림). 여기에 적지 않는 이유는
 //    목록·상세를 app/sitemap.ts 가 lastModified 와 함께 따로 싣기 때문이다(공고와 같은 방식).
 //    근거: 이름·연락처·사진은 광고 중인 병원에만 붙고 나머지는 서버에서 마스킹돼 나간다.
-export const PUBLIC_ROUTES = ["/", "/hospital", "/match", "/ads", "/customer", "/faq", "/notice", "/event"] as const;
+export const PUBLIC_ROUTES = ["/", "/hospital", "/match", "/ads", "/care-jobs", "/customer", "/faq", "/notice", "/event"] as const;
 
 // 🔴 기본값은 **정본 도메인**이다. 종전 기본값은 nurse-app-nine.vercel.app 이었는데, 이 값 하나가
 //    canonical(layout.tsx metadataBase) · sitemap.xml 1,354개 URL · robots.txt 를 전부 만든다 —

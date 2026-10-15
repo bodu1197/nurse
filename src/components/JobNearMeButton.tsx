@@ -5,7 +5,8 @@
 // — 여기서는 내 위치만 구해 ?lat=&lng=&r= 로 실어 보내면 된다. talent 와 달리 잡·알바 두 버티컬을
 // 공유할 필요가 없어(nurse-app 은 채용 하나) 별도 어댑터 없이 한 파일로 둔다.
 //
-// 지역 선택은 검색창(JobSearchBar 의 RegionPicker) 한 곳이다. 이 버튼은 '내 주변' 전용.
+// 지역 선택은 검색창(JobSearchBar · CareRegionBar 의 RegionPicker)이 맡는다. 이 버튼은 '내 주변' 전용.
+// 경로는 usePathname 으로 받으므로 /jobs 와 /care-jobs(요양보호사) 어디서든 그 자리의 목록을 거른다 — label 만 다르다.
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { clampRadius, parseRadius, radiusLabel, JOB_NEAR_RADIUS } from "@/lib/location/radius";
@@ -15,7 +16,7 @@ const GEO_MAX_AGE_MS = 300_000; // 5분 내 캐시 위치 허용
 const COORD_PRECISION = 1e4; // 좌표 4자리(~11m) — 반경 box 에 충분 + URL 간결·위치 미세노출 축소
 const SLIDE_DEBOUNCE_MS = 300; // 드래그 중 매 틱마다 재조회하지 않도록
 
-export default function JobNearMeButton() {
+export default function JobNearMeButton({ label = "간호사 채용" }: Readonly<{ label?: string }>) {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
@@ -114,7 +115,7 @@ export default function JobNearMeButton() {
               <circle cx="12" cy="10" r="2.5" />
             </svg>
           )}
-          {active ? "내 주변 다시 찾기" : "내 주변 간호사 채용 찾기"}
+          {active ? "내 주변 다시 찾기" : `내 주변 ${label} 찾기`}
         </button>
 
         {active && (

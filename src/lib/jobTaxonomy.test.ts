@@ -1,6 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { departmentFromText, facilityFor, facilityFromClCd, stillValid } from "./jobTaxonomy.ts";
+import { departmentFromText, facilityFor, facilityFromClCd, isCareJobCode, isNurseJobCode, stillValid } from "./jobTaxonomy.ts";
+
+test("요양보호사·간병 코드는 간호 직군과 서로 배타다 — 같은 공고가 홈의 두 탭에 다 뜨면 안 된다", () => {
+  for (const cd of ["550100", "550101", "550102", "550200", "550201", "550202", "550300"]) {
+    assert.equal(isCareJobCode(cd), true, cd);
+    assert.equal(isNurseJobCode(cd), false, cd);
+  }
+  // 간호·치과위생사·그 외 보건직·장애인활동지원사(232903)·빈값은 요양보호사가 아니다. 5501~5503 으로 시작하는 6자리만 참이다.
+  for (const cd of ["304000", "307500", "306400", "307900", "232903", "550400", "5501", "55010", "", null, undefined]) {
+    assert.equal(isCareJobCode(cd), false, String(cd));
+  }
+});
 
 /**
  * 진료과 추론 회귀 테스트.

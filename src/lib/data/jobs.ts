@@ -10,6 +10,7 @@ import type { JobStatus } from "@/lib/jobState";
 import { DEPT_ANY } from "@/lib/resumeOptions";
 // 🔴 칩 순서를 등록 폼과 맞추려고 **같은 상수**를 쓴다. 여기 목록을 따로 적으면 둘이 갈라진다.
 import { FACILITY_TYPES } from "@/lib/jobTaxonomy";
+import { nearBox } from "@/lib/location/bbox";
 import type { Database } from "@/types/database";
 
 export type JobSource = "direct" | "worknet" | "public_data" | "partner" | "crawl";
@@ -303,14 +304,9 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   // box 는 .gte/.lte 로 인덱스(jobs_geo_idx) 범위 스캔이 가능하고, region 텍스트 일치의 시(市)
   // 모호성(서울/부산 중구 혼재)도 없다. 거리순 정렬은 하지 않는다 — 반경 안이냐만 거른다.
   if (filters.near) {
-    const KM_PER_DEG_LAT = 111.32; // 위도 1도 ~ 111.32km(경도는 위도에 따라 cos 보정)
-    const radiusKm = filters.near.radiusM / 1000;
-    const dLat = radiusKm / KM_PER_DEG_LAT;
-    const cosLat = Math.max(0.01, Math.cos((filters.near.lat * Math.PI) / 180));
-    const dLng = radiusKm / (KM_PER_DEG_LAT * cosLat);
-    query = query
-      .gte("lat", filters.near.lat - dLat).lte("lat", filters.near.lat + dLat)
-      .gte("lng", filters.near.lng - dLng).lte("lng", filters.near.lng + dLng);
+    // 식은 lib/location/bbox 한 곳 — 요양보호사 목록(getCareJobs)도 같은 것을 쓴다.
+    const b = nearBox(filters.near);
+    query = query.gte("lat", b.latMin).lte("lat", b.latMax).gte("lng", b.lngMin).lte("lng", b.lngMax);
   }
 
   const { data, count, error } = await query.returns<JobRow[]>();
