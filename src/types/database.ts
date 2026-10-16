@@ -873,6 +873,8 @@ export type Database = {
           intro: string | null
           is_public: boolean
           job_categories: string[]
+          /** 찾는 일자리: nurse / care, 둘 다 가능(20261016180000). */
+          job_tracks: string[]
           last_edited_at: string | null
           license_reported: boolean | null
           license_type: string | null
@@ -909,6 +911,7 @@ export type Database = {
           intro?: string | null
           is_public?: boolean
           job_categories?: string[]
+          job_tracks?: string[]
           last_edited_at?: string | null
           license_reported?: boolean | null
           license_type?: string | null
@@ -945,6 +948,7 @@ export type Database = {
           intro?: string | null
           is_public?: boolean
           job_categories?: string[]
+          job_tracks?: string[]
           last_edited_at?: string | null
           license_reported?: boolean | null
           license_type?: string | null
@@ -1492,7 +1496,7 @@ export type Database = {
         }[]
       }
       nurse_talent_facet_list: {
-        Args: never
+        Args: { p_track?: string }
         Returns: {
           cnt: number
           kind: string
@@ -1500,14 +1504,14 @@ export type Database = {
         }[]
       }
       nurse_talent_sido_list: {
-        Args: never
+        Args: { p_track?: string }
         Returns: {
           cnt: number
           name: string
         }[]
       }
       nurse_talent_sigungu_list: {
-        Args: { p_sido: string }
+        Args: { p_sido: string; p_track?: string }
         Returns: {
           cnt: number
           name: string

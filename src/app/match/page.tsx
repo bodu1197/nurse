@@ -9,8 +9,9 @@ import { getMembership } from "@/lib/data/membership";
 import { getMyResume, type ResumeWithWork } from "@/lib/data/resume";
 import { getMatchCandidates, getMyAdConditions, type MatchJob } from "@/lib/data/jobs";
 import { searchPublicTalent, revealContacts, canRevealContacts } from "@/lib/data/talent";
-import { canMatch, candidateSidos, evaluateMatch, shortSidos, talentSpecialtyFilter } from "@/lib/match";
+import { canMatch, candidateSidos, evaluateMatch, matchScope, shortSidos, talentSpecialtyFilter } from "@/lib/match";
 import { socialMeta } from "@/lib/constants";
+import { talentNoun } from "@/lib/resumeOptions";
 
 /**
  * 🤖 AI 자동매치 — dolpagu(https://dolpagu.com/match) 이식.
@@ -34,9 +35,9 @@ import { socialMeta } from "@/lib/constants";
  * 🔒 비로그인에게 보이는 기본 화면이 기능 설명이라 색인을 막지 않는다(크롤러가 받는 것 = 비로그인 화면).
  */
 
-const MATCH_TITLE = "AI 자동매치 — 내 조건에 맞는 간호사 채용공고 | 널스넷";
+const MATCH_TITLE = "AI 자동매치 — 내 조건에 맞는 간호·요양 채용공고 | 널스넷";
 const MATCH_DESC =
-  "이력서를 등록하면 희망 근무지·근무부서·직종·고용형태·급여에 맞는 간호사 채용공고를 자동으로 찾아 드립니다. 공고를 게재한 병원에는 조건에 맞는 인재를 보여 드립니다.";
+  "이력서를 등록하면 희망 근무지·근무부서·직종·고용형태·급여에 맞는 간호사·요양보호사·간병인 채용공고를 자동으로 찾아 드립니다. 공고를 게재한 병원·요양기관에는 조건에 맞는 인재를 보여 드립니다.";
 
 /**
  * 🔴 `?page=` 가 붙은 화면은 색인하지 않는다 — /jobs·/talent 와 같은 규칙이다.
@@ -128,14 +129,18 @@ async function SeekerMatches({
   }
 
   // 시도까지만 SQL 로 좁히고 나머지 축은 여기서 판정한다 — 그래야 "몇 개 중 몇 개 일치"를 말할 수 있다.
-  const candidates = await getMatchCandidates(candidateSidos(resume));
+  // 🧓 이력서 '찾는 일자리'가 후보 범위를 정한다 — 간호 → 간호 공고, 요양·간병 → 요양·간병 공고, 둘 다 → 둘 다(lib/match matchScope).
+  const candidates = await getMatchCandidates(candidateSidos(resume), matchScope(resume.job_tracks));
   const graded = candidates
     .map((job) => ({ job, ...evaluateMatch(resume, job) }))
     // 🔴 지역이 어긋난 것은 뺀다 — 후보 조회가 시도까지만 좁히기 때문에 여기까지 딸려 온다.
     //    직종·급여가 맞아도 갈 수 없는 곳은 "내 조건에 맞는 공고" 가 아니다(실측: 442건 중 293건).
     .filter((m) => m.regionOk)
-    // 일치 개수가 많은 순. 동률은 쿼리 순서(유료 → 무료 광고 → 상급종합 → 최신)가 그대로 유지된다(JS sort 는 안정 정렬).
-    .sort((a, b) => b.matched - a.matched);
+    // 어긋난 조건이 적은 순 → 같으면 일치 개수가 많은 순. 동률은 쿼리 순서(유료 → 무료 광고 → 상급종합 → 최신)가
+    // 그대로 유지된다(JS sort 는 안정 정렬).
+    // 🧓 일치 개수만으로 세우면 안 된다 — 요양 공고는 축이 최대 셋이라(lib/match) 간호·요양을 둘 다 찾는 사람에게
+    //    요양 완전일치(3개 중 3개)가 간호 부분일치(5개 중 4개)보다 아래로 깔린다. 간호만 찾는 사람은 순서가 그대로다.
+    .sort((a, b) => a.mismatches.length - b.mismatches.length || b.matched - a.matched);
 
   const totalPages = Math.max(1, Math.ceil(graded.length / PER_PAGE));
   const current = Math.min(pageNum, totalPages); // 범위 밖 딥링크는 마지막 쪽으로 접는다
@@ -233,9 +238,14 @@ function MatchCard({
 
 async function RecruiterMatches() {
   const cond = await getMyAdConditions();
+  // 🧓 인재도 이 기관이 낸 공고 종류(간호·요양)로 고른다 — 요양원에 간호사만, 병원에 요양보호사만 뜨지 않게(이력서 '찾는 일자리').
+  //    요양 공고에는 진료과가 없어 진료과 조건을 걸면 요양 인재가 통째로 빠진다 → 요양 공고가 있으면 진료과로 거르지 않는다.
+  //    ponytail: 간호·요양 공고를 함께 낸 기관은 진료과도 안 거르고 지역도 두 종류를 합쳐 본다(드물다). 많아지면 종류별로 두 번 조회해 합친다.
+  const careToo = cond.tracks.includes("care");
 
   // 조건이 하나도 없으면 공개 인재 전건이 나와 "내 조건에 맞는 인재"가 거짓말이 된다.
-  if (cond.specialties.length === 0 && cond.sidos.length === 0) {
+  // 요양 공고가 있으면 진료과를 안 쓰므로 지역이 유일한 조건이다 — 그것까지 비면 같은 거짓말이 된다.
+  if (cond.sidos.length === 0 && (cond.specialties.length === 0 || careToo)) {
     return (
       <Section title="내 공고 조건에 맞는 인재">
         <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -252,7 +262,11 @@ async function RecruiterMatches() {
   const profile = await getMyProfile();
   const [{ rows, total }, allowed] = await Promise.all([
     // talentSpecialtyFilter: 공고 진료과 + '부서무관'. 부서를 안 가리는 간호사가 빠지면 안 된다.
-    searchPublicTalent({ specialtiesAny: talentSpecialtyFilter(cond.specialties), sidosAny: shortSidos(cond.sidos) }, 1),
+    searchPublicTalent({
+      specialtiesAny: careToo ? [] : talentSpecialtyFilter(cond.specialties),
+      sidosAny: shortSidos(cond.sidos),
+      tracks: cond.tracks,
+    }, 1),
     canRevealContacts(profile),
   ]);
   const contacts = allowed && rows.length > 0 ? await revealContacts(rows.map((r) => r.profile_id)) : new Map();
@@ -260,8 +274,8 @@ async function RecruiterMatches() {
   return (
     <Section title="내 공고 조건에 맞는 인재" count={total} unit="명">
       <p className="text-sm text-slate-600">
-        노출 중인 공고 {cond.count}건의 <b className="text-slate-800">진료과·지역</b>을 기준으로 자동 선별했습니다.
-        이력서를 <b className="text-slate-800">공개</b>한 간호사만 나옵니다.
+        노출 중인 공고 {cond.count}건의 <b className="text-slate-800">{careToo ? "지역·일자리 종류(간호/요양·간병)" : "진료과·지역"}</b>을 기준으로 자동 선별했습니다.
+        이력서를 <b className="text-slate-800">공개</b>한 사람만 나옵니다.
       </p>
       {rows.length === 0 ? (
         <p className="py-16 text-center text-slate-500">
@@ -276,7 +290,7 @@ async function RecruiterMatches() {
                     읽을 수 없게 길어진다(/talent 목록과 같은 처리). */}
                 <a
                   href={`/talent/${t.profile_id}`}
-                  aria-label={`${contacts.get(t.profile_id)?.name ?? "간호사 회원"} — ${t.resume_title ?? "간호사 인재"}`}
+                  aria-label={`${contacts.get(t.profile_id)?.name ?? `${talentNoun(t.job_tracks)} 회원`} — ${t.resume_title ?? `${talentNoun(t.job_tracks)} 인재`}`}
                   className="block h-full rounded-2xl border border-slate-200 bg-white p-4 transition hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
                 >
                   <TalentCard t={t} contactName={contacts.get(t.profile_id)?.name} contactAvatar={contacts.get(t.profile_id)?.avatarUrl} />
@@ -285,7 +299,7 @@ async function RecruiterMatches() {
             ))}
           </ul>
           {total > rows.length && (
-            <Button href="/talent" variant="outline" className="mt-4">인재정보 전체 보기</Button>
+            <Button href={cond.tracks.length === 1 && careToo ? "/care-talent" : "/talent"} variant="outline" className="mt-4">인재정보 전체 보기</Button>
           )}
         </>
       )}
@@ -300,14 +314,14 @@ function HowItWorks({ loggedIn, hospital = false }: Readonly<{ loggedIn: boolean
     <div className="mt-6 flex flex-col gap-4">
       <div className="grid gap-3 sm:grid-cols-2">
         <Card
-          title="간호사 — 맞는 공고를 자동으로"
-          body="이력서를 등록해 두면, 지금 지원을 받고 있는 공고 중에서 희망 근무지·근무부서·직종·고용형태·급여가 맞는 곳을 조건이 많이 맞는 순서로 모아 드립니다. 어떤 조건이 다른지도 카드마다 적어 드립니다. 이력서를 비공개로 두어도 이 추천은 그대로 받습니다."
+          title="간호사·요양보호사 — 맞는 공고를 자동으로"
+          body="이력서에서 찾는 일자리(간호 / 요양·간병, 둘 다 가능)를 고르고 등록해 두면, 지금 지원을 받고 있는 그쪽 공고 중에서 희망 근무지·근무부서·직종·고용형태·급여가 맞는 곳을 조건이 많이 맞는 순서로 모아 드립니다. 어떤 조건이 다른지도 카드마다 적어 드립니다. 이력서를 비공개로 두어도 이 추천은 그대로 받습니다."
           href={loggedIn && !hospital ? "/mypage/resume" : "/signup"}
           label={loggedIn && !hospital ? "이력서 등록하기" : "간호사 회원가입"}
         />
         <Card
-          title="병원 — 맞는 인재를 자동으로"
-          body="공고를 게재하면 그 공고의 진료과·지역에 맞는 간호사 인재를 자동으로 보여 드립니다. 이름·연락처는 광고 중인 병원에게만 열립니다."
+          title="병원·요양기관 — 맞는 인재를 자동으로"
+          body="공고를 게재하면 그 공고의 지역·진료과(요양·간병 공고는 지역)와 일자리 종류에 맞는 간호사·요양보호사 인재를 자동으로 보여 드립니다. 이름·연락처는 광고 중인 기관에게만 열립니다."
           href={loggedIn && hospital ? "/mypage/jobs" : "/hospital"}
           label={loggedIn && hospital ? "내 공고 관리" : "병원 회원·공고등록"}
         />

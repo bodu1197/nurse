@@ -10,9 +10,10 @@ import { getMyResume, completeness, type ResumeWithWork } from "@/lib/data/resum
 import { INPUT_CLASS, LINK_CLASS, messageFor } from "@/lib/constants";
 import {
   SHIFT_TYPES, CERTIFICATIONS, APN_FIELDS, LICENSE_TYPES, EDUCATION_LEVELS, GRADUATION_STATUS,
-  CAREER_LEVELS, HOSPITAL_TYPES, AVAILABLE_FROM, EMPLOYMENT_TYPES, DEPARTMENTS, JOB_CATEGORIES,
-  RESUME_PUBLIC_SCOPE, RESUME_INTRO_MIN, RESUME_INTRO_MAX,
+  CAREER_LEVELS, HOSPITAL_TYPES, AVAILABLE_FROM, EMPLOYMENT_TYPES, DEPARTMENTS,
+  RESUME_PUBLIC_SCOPE, RESUME_INTRO_MIN, RESUME_INTRO_MAX, JOB_TRACKS, jobTrackLabels, seeksNurseJobs,
 } from "@/lib/resumeOptions";
+import { NURSE_JOB_CATEGORIES } from "@/lib/jobTaxonomy";
 import { SIDO_LIST, SIDO_SIGUNGU } from "@/lib/koreaRegions";
 import { safeNext } from "@/lib/url";
 import { saveResume, deleteResume, setResumePublic, saveResumePhoto, deleteResumePhoto } from "../actions";
@@ -29,6 +30,7 @@ const req = <><span className="text-red-500" aria-hidden>*</span><span className
 
 const SAVE_ERRORS: Record<string, string> = {
 
+  track: "찾는 일자리(간호사·간호조무사 / 요양보호사·간병인)를 하나 이상 골라 주세요.",
   save: "저장에 실패했습니다. 다시 시도해 주세요.",
   visibility: "공개 설정을 바꾸지 못했습니다. 다시 시도해 주세요.",
   photo: "사진을 저장하지 못했습니다. 다시 시도해 주세요.",
@@ -45,6 +47,19 @@ const SAVE_ERRORS: Record<string, string> = {
   title: "이력서 제목을 입력해 주세요.",
   intro: `자기소개를 ${RESUME_INTRO_MIN}자 이상 적어주세요.`,
 };
+
+/**
+ * 🧓 간호 전용 질문 — '찾는 일자리'에서 **요양·간병만** 골랐을 때 숨긴다(면허신고·전문간호사·근무부서 등은 요양보호사·간병인에게
+ * 말이 안 되는 질문이다). 둘 다 골랐거나 아직 아무것도 안 골랐으면 그대로 보인다 — 간호사가 간병도 하겠다는 경우가 흔하다.
+ * CSS 만으로 한다(폼이 서버 화면이라 스크립트를 늘리지 않는다): 폼(group/resume) 안에 요양 체크가 켜져 있고 간호 체크가
+ * 꺼져 있을 때만 hidden. 숨겨도 화면의 값은 그대로라 **저장 전에** 다시 간호를 고르면 남아 있다. 요양·간병만인 채로
+ * 저장하면 saveResume 이 간호 전용 항목을 비운다 — 그래서 기존 간호 이력서에는 그때만 경고를 띄운다(CARE_ONLY_SHOW).
+ */
+const NURSE_ONLY = "group-has-[#track-care:checked]/resume:group-has-[#track-nurse:not(:checked)]/resume:hidden";
+/** NURSE_ONLY 의 반대 — 요양·간병만 골랐을 때만 보인다(기본 hidden 과 함께 쓴다). */
+const CARE_ONLY_SHOW = "group-has-[#track-care:checked]/resume:group-has-[#track-nurse:not(:checked)]/resume:block";
+/** 저장된 이력서 보기(ResumeView)에서 같은 이유로 빼는 줄. */
+const NURSE_ONLY_ROWS: ReadonlySet<string> = new Set(["자격증", "희망 근무부서", "희망 직종"]);
 
 function Section({ title, hint, children }: Readonly<{ title: string; hint?: string; children: React.ReactNode }>) {
   return (
@@ -324,7 +339,8 @@ function VisibilitySwitch({ isPublic, hasName }: Readonly<{ isPublic: boolean; h
 // 사진도 여기 싣는다 — 위 업로드 상자에만 있으면 "올리긴 했는데 이력서에 붙었나?" 를 확인할 길이 없다.
 function ResumeView({ r, photoUrl }: Readonly<{ r: ResumeWithWork; photoUrl: string | null }>) {
   const pct = completeness(r, r.work.length);
-  const rows: Array<[string, string | null]> = [
+  const all: Array<[string, string | null]> = [
+    ["찾는 일자리", jobTrackLabels(r.job_tracks)],
     ["이름", r.name], ["연락처", r.phone], ["면허", r.license_type],
     ["총 경력", r.experience_years != null ? `${r.experience_years}년` : null],
     ["자격증", r.certifications.length > 0 ? r.certifications.join(", ") : null],
@@ -334,6 +350,8 @@ function ResumeView({ r, photoUrl }: Readonly<{ r: ResumeWithWork; photoUrl: str
     ["희망 근무부서", r.specialties.length > 0 ? r.specialties.join(", ") : null],
     ["희망 직종", r.job_categories.length > 0 ? r.job_categories.join(", ") : null],
   ];
+  // 요양·간병만 찾으면 간호 전용 줄은 안 보인다 — 폼에서 숨겨 채울 수 없고, 저장할 때 비운다(saveResume). '미입력'으로 남으면 거짓 안내다.
+  const rows = seeksNurseJobs(r.job_tracks) ? all : all.filter(([k]) => !NURSE_ONLY_ROWS.has(k));
   return (
     <section className="rounded-2xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -402,7 +420,8 @@ export default async function ResumePage({
   // 🔴 근무부서는 구 널스넷 코드표(DEPARTMENTS 28개)를 쓴다. 전에는 채용용 JOB_SPECIALTIES(9개)를 썼는데
   //    이관한 이력서 7,257건이 전부 DEPARTMENTS 값이라, 인재 검색 칩 9개 중 6개가 0명이었다.
   const specialtyOptions = withSaved(DEPARTMENTS, r?.specialties ?? []);
-  const categoryOptions = withSaved(JOB_CATEGORIES, r?.job_categories ?? []);
+  // 희망 직종은 간호 쪽 세부 직종만 — 요양·간병은 맨 위 '찾는 일자리'가 맡는다(saveResume 도 같은 목록만 받는다).
+  const categoryOptions = withSaved(NURSE_JOB_CATEGORIES, r?.job_categories ?? []);
   const licenseOptions = withSaved(LICENSE_TYPES, r?.license_type ? [r.license_type] : []);
   const certOptions = withSaved(CERTIFICATIONS, r?.certifications ?? []);
   const shiftOptions = withSaved(SHIFT_TYPES, r?.shift_types ?? []);
@@ -412,7 +431,7 @@ export default async function ResumePage({
     <NurseShell displayName={p.displayName} active="/mypage/resume">
       <h1 className="text-2xl font-bold text-slate-900">내 이력서</h1>
       <p className="mt-1 text-sm text-slate-600">
-        이력서는 무료입니다. <b className="text-slate-800">저장에 꼭 필요한 것은 6개</b>(이름 · 휴대폰 · 면허 · 신규/경력 · 근무형태 · 희망 근무지)이고,
+        이력서는 무료입니다. <b className="text-slate-800">저장에 꼭 필요한 것은 9개</b>(찾는 일자리 · 제목 · 이름 · 휴대폰 · 면허 · 신규/경력 · 근무형태 · 희망 근무지 · 자기소개)이고,
         나머지는 채울수록 병원 눈에 잘 띕니다.
       </p>
 
@@ -437,11 +456,13 @@ export default async function ResumePage({
 
       <h2 className="mt-8 text-base font-semibold text-slate-600">{r ? "이력서 수정" : "이력서 작성"}</h2>
 
-      <form action={saveResume} className="mt-3 flex flex-col gap-4">
+      {/* group/resume — 간호 전용 질문을 '요양·간병만' 골랐을 때 숨기는 CSS 의 기준점(NURSE_ONLY 주석) */}
+      <form action={saveResume} className="group/resume mt-3 flex flex-col gap-4">
         {/* 필수 체크박스 그룹을 제출 전에 막는다 — 서버에서 걸리면 화면을 떠나며 입력이 전부 날아간다.
             서버 검증(saveResume)은 그대로 있다. 여기 이름은 그쪽 검증과 **같은 name** 이어야 한다. */}
         <ResumeFormGuard
           groups={[
+            { name: "job_tracks", message: SAVE_ERRORS.track },
             { name: "shift_types", message: "가능한 근무형태를 하나 이상 선택해 주세요." },
             { name: "desired_location", message: "희망 근무지를 하나 이상 선택해 주세요." },
           ]}
@@ -455,9 +476,41 @@ export default async function ResumePage({
           addRowLabel="+ 경력 추가"
           // 이 폼의 서버 검증 코드만 인정한다 — 같은 화면의 사진·공개 스위치 오류(?error=photo_size 등)로
           // 이미 저장에 성공한 초안이 되살아나면 최신 이력서를 옛 값으로 덮어쓴다.
-          ownErrors={["title", "intro", "shift", "region", "work", "work_required", "work_lost", "save"]}
+          ownErrors={["track", "title", "intro", "shift", "region", "work", "work_required", "work_lost", "save"]}
         />
         <input type="hidden" name="next" value={backTo} />
+
+        {/* 🧓 찾는 일자리 — 맨 먼저 고른다(오너 지시 2026-10-16: "이력서를 작성할 때 간호원이냐 요양 간병이냐를 선택하게"),
+            **둘 다** 고를 수 있다("간호원이지만 병원 취업이 어려울 수도 있어 간병인도"). 새 이력서는 아무것도 안 켜 둔다 —
+            간호를 미리 켜 두면 요양보호사가 그대로 저장해 간호 인재 목록에 섞인다. 기존 이력서는 저장된 값(전부 간호). */}
+        {/* 체크 묶음이라 fieldset/legend — 화면낭독기가 "찾는 일자리, 필수, 그룹"으로 읽는다(아래 다른 체크 묶음과 같은 방식). */}
+        <fieldset className="rounded-2xl border-2 border-teal-200 bg-white p-5">
+          <legend className="sr-only">찾는 일자리 (필수)</legend>
+          <p aria-hidden className="font-bold text-slate-900">
+            찾는 일자리 <span className="text-red-500">*</span> <span className="text-sm font-normal text-slate-500">(둘 다 고를 수 있어요)</span>
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            고른 쪽의 공고를 AI 자동매치로 찾아 드리고, 이력서를 공개하면 고른 쪽 인재 목록에 실려 병원·요양기관이 볼 수 있습니다.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {JOB_TRACKS.map((t) => (
+              <label key={t.value} className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-slate-300 p-3 has-[:checked]:border-teal-500 has-[:checked]:bg-teal-50">
+                <input type="checkbox" id={`track-${t.value}`} name="job_tracks" value={t.value} defaultChecked={r?.job_tracks.includes(t.value) ?? false}
+                  className="h-5 w-5 shrink-0 rounded border-slate-300 text-teal-600 focus-visible:ring-2 focus-visible:ring-teal-600" />
+                <span>
+                  <b className="block text-base text-slate-900">{t.label}</b>
+                  <span className="text-xs text-slate-500">{t.hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {/* 간호 항목을 적어 둔 이력서에서 간호를 빼면 저장할 때 그 값이 지워진다(saveResume) — 모르고 잃지 않게 미리 말한다. */}
+          {r && seeksNurseJobs(r.job_tracks) && (
+            <p role="note" className={`mt-3 hidden rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 ${CARE_ONLY_SHOW}`}>
+              간호를 빼고 저장하면 지금 적어 둔 간호 항목(면허신고·자격증·희망 근무부서·희망 직종 등)은 지워집니다.
+            </p>
+          )}
+        </fieldset>
 
         <Section title="① 기본" hint="이름과 휴대폰이 없으면 병원이 연락할 방법이 없어 지원이 막힙니다.">
           {/* 제목·자기소개는 필수다(오너 확정 2026-07-30). 목록 카드의 머리말이 제목이고,
@@ -512,14 +565,19 @@ export default async function ResumePage({
             </Field>
           </div>
           {/* 3년마다 신고 의무이고, 미신고면 면허 효력이 정지돼 실제 공고 지원자격에 그대로 등장한다 */}
-          <YesNo name="license_reported" text="의료인 면허신고를 마쳤습니다 (3년 주기)" value={r?.license_reported ?? null} />
-          <fieldset>
+          {/* 아래 셋은 간호 전용 — 요양·간병만 고르면 숨긴다(NURSE_ONLY) */}
+          <div className={NURSE_ONLY}>
+            <YesNo name="license_reported" text="의료인 면허신고를 마쳤습니다 (3년 주기)" value={r?.license_reported ?? null} />
+          </div>
+          <fieldset className={NURSE_ONLY}>
             <legend className={label}>보유 자격증 <span className="text-slate-500">(복수 선택)</span></legend>
             <div className="mt-1"><CheckGroup name="certifications" options={certOptions} checked={r?.certifications ?? []} /></div>
           </fieldset>
-          <Field id="apn_field" text="전문간호사(APN) 분야" hint="(해당자만)">
-            <Select id="apn_field" defaultValue={r?.apn_field ?? null} options={APN_FIELDS} />
-          </Field>
+          <div className={NURSE_ONLY}>
+            <Field id="apn_field" text="전문간호사(APN) 분야" hint="(해당자만)">
+              <Select id="apn_field" defaultValue={r?.apn_field ?? null} options={APN_FIELDS} />
+            </Field>
+          </div>
         </Section>
 
         <Section title="③ 학력">
@@ -544,7 +602,7 @@ export default async function ResumePage({
             </select>
           </Field>
           <WorkExperienceFields initial={r?.work ?? []} />
-          <div className="flex flex-col gap-1">
+          <div className={`flex flex-col gap-1 ${NURSE_ONLY}`}>
             <YesNo name="has_integrated_care" text="간호간병통합병동 경력이 있습니다" value={r?.has_integrated_care ?? null} />
             <YesNo name="can_charge" text="차지(Charge) 가능합니다" value={r?.can_charge ?? null} />
           </div>
@@ -566,15 +624,16 @@ export default async function ResumePage({
             </p>
             <DesiredLocationField saved={savedRegions} />
           </fieldset>
-          <fieldset>
+          {/* 근무부서·직종·의료기관 종별은 간호 쪽 조건 — 요양·간병만 고르면 숨긴다(NURSE_ONLY). 자동매치도 요양 공고에는 이 축을 안 센다. */}
+          <fieldset className={NURSE_ONLY}>
             <legend className={label}>희망 근무부서 <span className="text-slate-500">(복수 선택)</span></legend>
             <div className="mt-1"><CheckGroup name="specialties" options={specialtyOptions} checked={r?.specialties ?? []} /></div>
           </fieldset>
-          <fieldset>
+          <fieldset className={NURSE_ONLY}>
             <legend className={label}>희망 직종 <span className="text-slate-500">(복수 선택)</span></legend>
             <div className="mt-1"><CheckGroup name="job_categories" options={categoryOptions} checked={r?.job_categories ?? []} /></div>
           </fieldset>
-          <fieldset>
+          <fieldset className={NURSE_ONLY}>
             <legend className={label}>희망 의료기관 종별 <span className="text-slate-500">(복수 선택)</span></legend>
             <div className="mt-1"><CheckGroup name="desired_hospital_types" options={hospitalTypeOptions} checked={r?.desired_hospital_types ?? []} /></div>
           </fieldset>

@@ -1,3 +1,5 @@
+import type { ResumeSheetFields } from "./data/resume.ts";
+
 // 이력서·공고가 함께 쓰는 선택지 목록.
 // 자유 입력으로 두면 "3교대"·"쓰리교대"·"3 교대"가 다 다른 값이 되어 검색·매칭이 성립하지 않는다.
 // 화면에 보이는 순서 그대로 둔다(빈도순).
@@ -12,6 +14,27 @@ export const CERTIFICATIONS = ["BLS", "ACLS", "KALS", "PALS", "NRP", "전문간�
 export const APN_FIELDS = [
   "감염관리", "노인", "마취", "가정", "산업", "응급", "종양", "정신", "중환자", "호스피스", "아동", "임상", "보건",
 ] as const;
+
+/**
+ * 🧓 이력서 '찾는 일자리' — 간호 / 요양·간병, **둘 다** 고를 수 있다(오너 지시 2026-10-16: "간호원이지만 간호도 할 수 있고
+ * 간병도 할 수 있는데"). DB 값은 resumes.job_tracks(마이그레이션 20261016180000)의 'nurse'·'care'.
+ * 이 값이 AI 자동매치 후보(lib/match matchScope)·인재정보 목록(/talent·/care-talent)·이력서 질문(간호 전용 항목 숨김)을 가른다.
+ * 🔴 값을 늘리거나 바꾸면 같이 고칠 곳: DB 제약 resumes_job_tracks_check 와 인재 RPC 의 p_track(마이그레이션 20261016180000),
+ *    이력서 화면의 체크박스 id(#track-nurse·#track-care — 간호 전용 항목을 숨기는 CSS 가 그 id 를 본다).
+ */
+export const JOB_TRACKS = [
+  { value: "nurse", label: "간호사·간호조무사", hint: "병원·의원·요양병원 등" },
+  { value: "care", label: "요양보호사·간병인", hint: "요양원·주간보호·방문요양·간병" },
+] as const;
+export type JobTrack = (typeof JOB_TRACKS)[number]["value"];
+/** 간호 일자리도 찾는가 — 아니면(요양·간병만) 간호 전용 항목(근무부서·자격증 등)은 묻지도·보이지도·맞춰 보지도 않는다.
+ *  비었으면 간호로 친다(DB 가 최소 하나를 강제하지만, 이 칸이 생기기 전 이력서는 전부 간호였다). */
+export const seeksNurseJobs = (tracks: readonly string[]): boolean => tracks.includes("nurse") || !tracks.includes("care");
+/** 이름이 가려졌을 때 이력서 주인을 부르는 말 — 간호도 찾으면 "간호사", 요양·간병만이면 "요양·간병". 카드·상세·제목이 같은 말을 쓴다. */
+export const talentNoun = (tracks: readonly string[]): string => (seeksNurseJobs(tracks) ? "간호사" : "요양·간병");
+/** 화면에 보이는 이름("간호사·간호조무사 / 요양보호사·간병인"). 모르는 값은 그대로. */
+export const jobTrackLabels = (tracks: readonly string[]): string =>
+  tracks.map((v) => JOB_TRACKS.find((t) => t.value === v)?.label ?? v).join(" / ");
 
 // 요양보호사(국가자격)·해당 없음(간병인 등 자격 없는 돌봄 인력)은 2026-10-16 에 더했다 — 요양·간병 공고(/care-jobs)에
 // 간편지원하려면 이력서가 있어야 하는데, 면허 칸이 필수라 간호 면허 셋 중 하나를 거짓으로 골라야 했다.
@@ -114,3 +137,29 @@ export const RESUME_PUBLIC_SCOPE = {
 export const RESUME_INTRO_MIN = 30;
 /** 이관된 회원 중 최장이 3,627자라 그 위로 잡는다(그 아래면 저장할 때 뒷부분이 잘린다). */
 export const RESUME_INTRO_MAX = 4000;
+
+/** 이력서 완성도 % — 무엇을 더 채우면 좋은지 사용자에게 보여주려고 쓴다(내 이력서·마이페이지). */
+const SCORED = [
+  "name", "phone", "license_type", "career_level", "shift_types", "desired_location",
+  "email", "residence_region", "license_year", "certifications", "education_level",
+  "education", "specialties", "desired_employment_type", "desired_salary", "available_from", "intro",
+] as const satisfies readonly (keyof ResumeSheetFields)[];
+
+// 🧓 요양·간병만 찾는 사람에게는 이력서 화면이 숨기는 간호 전용 항목 — 채울 수 없으니 완성도에서도 빼야 100% 가 된다.
+const NURSE_ONLY_SCORED: ReadonlySet<keyof ResumeSheetFields> = new Set(["specialties", "certifications"]);
+
+export function completeness(
+  r: Pick<ResumeSheetFields, (typeof SCORED)[number] | "job_tracks" | "career_level">,
+  workCount: number,
+): number {
+  const scored = seeksNurseJobs(r.job_tracks) ? SCORED : SCORED.filter((k) => !NURSE_ONLY_SCORED.has(k));
+  const filled = scored.filter((k) => {
+    const v = r[k];
+    if (Array.isArray(v)) return v.length > 0;
+    return v !== null && v !== undefined && v !== "";
+  }).length;
+  // 경력 상세 1건 이상을 한 항목으로 친다(신규 간호사는 이 항목이 없어도 100%가 되도록 아래에서 보정)
+  const total = scored.length + (r.career_level === CAREER_EXPERIENCED ? 1 : 0);
+  const score = filled + (r.career_level === CAREER_EXPERIENCED && workCount > 0 ? 1 : 0);
+  return Math.round((score / total) * 100);
+}

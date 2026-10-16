@@ -55,7 +55,8 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       { userAgent: "*", allow: "/" },
-      { userAgent: AI_CRAWLERS, disallow: "/talent" },
+      // 요양·간병 인재(/care-talent)도 같은 이력서다 — 같이 닫는다(2026-10-16).
+      { userAgent: AI_CRAWLERS, disallow: ["/talent", "/care-talent"] },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
     // Host 지시어(얀덱스 확장)는 **스킴 없는 호스트명**을 기대한다. 구글·네이버는 무시하지만

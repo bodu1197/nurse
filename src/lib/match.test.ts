@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   canMatch,
+  matchScope,
   candidateSidos,
   desiredRegions,
   evaluateMatch,
@@ -20,6 +21,7 @@ const seeker = (o: Partial<SeekerProfile> = {}): SeekerProfile => ({
   job_categories: [],
   desired_employment_type: null,
   desired_salary: null,
+  job_tracks: ["nurse"],
   ...o,
 });
 const job = (o: Partial<JobFacts> = {}): JobFacts => ({
@@ -133,4 +135,30 @@ test("안내용 축 상태 — 비어 있는 항목을 짚어준다", () => {
     seeker({ specialties: ["내과"], job_categories: ["간호직"], desired_employment_type: "정규직", desired_salary: "월급 250만원 이상" }),
   );
   assert.equal(all.every((a) => a.filled), true);
+});
+
+test("자동매치 후보 범위 — 이력서 '찾는 일자리'로 정한다(둘 다 가능)", () => {
+  assert.equal(matchScope(["nurse"]), "nurse");
+  assert.equal(matchScope(["care"]), "care");
+  assert.equal(matchScope(["nurse", "care"]), "both", "간호사인데 간병도 하겠다는 사람");
+  assert.equal(matchScope([]), "nurse", "비었으면 간호(기존 이력서는 전부 간호)");
+});
+
+test("요양·간병 공고에는 진료과·직종 축을 세지 않는다 — 간병도 고른 간호사에게 거짓 불일치를 안 보인다", () => {
+  const s = seeker({ specialties: ["내과"], job_categories: ["간호직"], desired_employment_type: "정규직", job_tracks: ["nurse", "care"] });
+  const care = evaluateMatch(s, job({ job_category: "요양보호사", specialty: null }));
+  assert.deepEqual(care.mismatches, []);
+  assert.equal(care.total, 2, "지역 + 고용형태만");
+  const nurse = evaluateMatch(s, job({ job_category: "간호직", specialty: "내과" }));
+  assert.equal(nurse.total, 4, "간호 공고는 진료과·직종까지 센다");
+  assert.deepEqual(nurse.mismatches, []);
+});
+
+test("요양·간병만 찾는 사람에게는 근무부서·직종 항목을 묻지 않는다(이력서 화면에서도 숨긴다)", () => {
+  const labels = (t: string[]) => matchAxes(seeker({ job_tracks: t })).map((a) => a.label);
+  assert.equal(labels(["care"]).includes("희망 근무부서"), false);
+  assert.equal(labels(["care"]).includes("희망 직종"), false);
+  assert.equal(labels(["nurse", "care"]).includes("희망 근무부서"), true);
+  assert.equal(labels(["care"]).length, 3, "지역·고용형태·급여");
+  assert.equal(labels(["nurse"]).length, 5);
 });

@@ -6,7 +6,7 @@
 // 지역만 고르는 옛 TalentRegionBar 를 대신한다 — 키워드 입력이 생기면서, 지역을 고를 때 타이핑 중인
 // 키워드를 함께 실어 보내야 하기 때문이다(따로 두면 지역을 누르는 순간 입력이 날아간다).
 import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/Button";
 import RegionPicker from "@/components/RegionPicker";
 import type { TalentRegionNode } from "@/lib/data/talent";
@@ -16,6 +16,8 @@ export default function TalentSearchBar({
   sigungus,
 }: Readonly<{ sidos: TalentRegionNode[]; sigungus: TalentRegionNode[] }>) {
   const router = useRouter();
+  // 지금 보는 인재 목록에서 검색한다 — 간호(/talent)·요양·간병(/care-talent)이 같은 화면이다(app/talent/TalentListing).
+  const pathname = usePathname();
   const sp = useSearchParams();
   const [q, setQ] = useState(sp.get("q") ?? "");
   const [pending, startTransition] = useTransition();
@@ -35,7 +37,7 @@ export default function TalentSearchBar({
     if (nextSigungu) p.set("sigungu", nextSigungu);
     else p.delete("sigungu");
     const s = p.toString();
-    startTransition(() => router.push("/talent" + (s ? `?${s}` : "")));
+    startTransition(() => router.push(pathname + (s ? `?${s}` : "")));
   }
 
   return (

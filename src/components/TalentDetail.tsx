@@ -2,7 +2,7 @@ import Link from "next/link";
 import IdPhoto from "@/components/IdPhoto";
 import { SaveIcon } from "@/components/JobDetail";
 import { toggleSaveTalent } from "@/app/talent/actions";
-import { careerSummary } from "@/lib/resumeOptions";
+import { careerSummary, jobTrackLabels, talentNoun } from "@/lib/resumeOptions";
 import { fmtDay } from "@/lib/date";
 import type { PublicTalentDetail } from "@/lib/data/talent";
 
@@ -61,7 +61,7 @@ export default function TalentDetail({
           이름·사진·전화·이메일은 전부 아래 '연락' 한 블록으로 모아 **한 번에** 잠근다.
           머리말은 이력서 제목(무엇을 하는 사람인가)이 대신한다 — 병원이 목록에서 찾는 것도 그쪽이다. */}
       <div className="min-w-0">
-        <Heading className={`text-2xl font-bold leading-snug text-slate-900 ${canSave ? "pr-28" : ""}`}>{t.resume_title ?? "간호사 인재"}</Heading>
+        <Heading className={`text-2xl font-bold leading-snug text-slate-900 ${canSave ? "pr-28" : ""}`}>{t.resume_title ?? `${talentNoun(t.job_tracks)} 인재`}</Heading>
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
           {t.license_type && <span className="rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">{t.license_type}</span>}
           <span className="text-slate-600">{careerSummary(t.career_level, t.experience_years)}</span>
@@ -79,7 +79,7 @@ export default function TalentDetail({
             {/* 사진도 이 블록 안이다 — 얼굴은 이름보다 강한 식별자라 같은 게이트를 태운다 */}
             <IdPhoto src={contact.avatarUrl ?? null} />
             <div className="min-w-0 flex-1">
-              <p className="text-xl font-bold text-slate-900">{contact.name ?? "간호사 회원"}</p>
+              <p className="text-xl font-bold text-slate-900">{contact.name ?? `${talentNoun(t.job_tracks)} 회원`}</p>
               {/* 전화·이메일 둘 다 — 전화를 안 적었거나 안 받는 사람에게 닿는 유일한 수단이 이메일이다. */}
               {contact.phone || contact.email ? (
                 <div className="mt-1 flex flex-col gap-1">
@@ -100,6 +100,11 @@ export default function TalentDetail({
           </div>
         )}
       </div>
+
+      {/* 🧓 찾는 일자리 — 간병도 하겠다는 간호사인지, 요양·간병만 찾는 사람인지 병원·요양기관이 먼저 알아야 한다. */}
+      <dl className="mt-5">
+        <Row k="찾는 일자리" v={jobTrackLabels(t.job_tracks)} />
+      </dl>
 
       <h3 className="mt-5 font-bold text-slate-900">면허 · 자격</h3>
       <dl className="mt-2">

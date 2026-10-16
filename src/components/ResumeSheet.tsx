@@ -1,5 +1,6 @@
 import { nowMs, fmtDate, fmtDay } from "@/lib/date";
 import type { ResumeSheetFields, WorkExperience } from "@/lib/data/resume";
+import { jobTrackLabels, seeksNurseJobs } from "@/lib/resumeOptions";
 
 // 이력서 한 장 — 간호사 본인 다운로드(/mypage/resume/print)와
 // 병원의 접수 이력서 다운로드(/mypage/applicants/[id]/print)가 같은 서식을 쓴다.
@@ -29,6 +30,9 @@ export default function ResumeSheet({
   /** 서명된 사진 URL. 선택 항목이라 없으면 자리 자체를 그리지 않는다(빈 네모가 남지 않게). */
   photoUrl?: string | null;
 }>) {
+  // 요양·간병만 찾는 이력서에는 간호 전용 줄(면허신고·자격증·근무부서 등)을 안 그린다 — 폼에서 묻지 않고 저장 때 비우는 칸이라
+  // "-" 로 남기면 빠뜨린 것처럼 보인다(저장된 이력서 보기·인재 상세와 같은 규칙).
+  const nurse = seeksNurseJobs(resume.job_tracks);
   return (
     <article className="mx-auto max-w-2xl bg-white p-8 text-sm print:p-0">
       <header className="border-b-2 border-slate-800 pb-3">
@@ -48,6 +52,7 @@ export default function ResumeSheet({
       <h2 className="mt-6 font-bold text-slate-900">기본 정보</h2>
       <div className="mt-2 flex gap-4">
         <dl className="min-w-0 flex-1">
+          <Row k="찾는 일자리" v={jobTrackLabels(resume.job_tracks)} />
           <Row k="이름" v={resume.name} />
           <Row k="연락처" v={resume.phone} />
           <Row k="이메일" v={resume.email} />
@@ -66,9 +71,9 @@ export default function ResumeSheet({
       <dl className="mt-2">
         <Row k="면허 구분" v={resume.license_type} />
         <Row k="취득연도" v={resume.license_year != null ? `${resume.license_year}년` : null} />
-        <Row k="면허신고" v={yesNo(resume.license_reported)} />
-        <Row k="보유 자격증" v={list(resume.certifications)} />
-        <Row k="전문간호사" v={resume.apn_field} />
+        {nurse && <Row k="면허신고" v={yesNo(resume.license_reported)} />}
+        {nurse && <Row k="보유 자격증" v={list(resume.certifications)} />}
+        {nurse && <Row k="전문간호사" v={resume.apn_field} />}
       </dl>
 
       <h2 className="mt-6 font-bold text-slate-900">학력</h2>
@@ -81,8 +86,8 @@ export default function ResumeSheet({
       <dl className="mt-2">
         <Row k="구분" v={resume.career_level} />
         <Row k="총 경력" v={resume.experience_years != null ? `${resume.experience_years}년` : null} />
-        <Row k="간호간병통합" v={yesNo(resume.has_integrated_care)} />
-        <Row k="차지 가능" v={yesNo(resume.can_charge)} />
+        {nurse && <Row k="간호간병통합" v={yesNo(resume.has_integrated_care)} />}
+        {nurse && <Row k="차지 가능" v={yesNo(resume.can_charge)} />}
       </dl>
 
       {work.length > 0 && (
@@ -110,10 +115,10 @@ export default function ResumeSheet({
         <Row k="근무형태" v={list(resume.shift_types)} />
         <Row k="나이트 전담" v={yesNo(resume.night_available)} />
         <Row k="희망 근무지" v={resume.desired_location} />
-        <Row k="희망 진료과" v={list(resume.specialties)} />
+        {nurse && <Row k="희망 진료과" v={list(resume.specialties)} />}
         {/* 골라놓고 서식·병원 화면 어디에도 안 나오던 항목 — 입력하게 했으면 보여줘야 한다 */}
-        <Row k="희망 직종" v={list(resume.job_categories)} />
-        <Row k="희망 기관종별" v={list(resume.desired_hospital_types)} />
+        {nurse && <Row k="희망 직종" v={list(resume.job_categories)} />}
+        {nurse && <Row k="희망 기관종별" v={list(resume.desired_hospital_types)} />}
         <Row k="희망 고용형태" v={resume.desired_employment_type} />
         <Row k="희망 급여" v={resume.desired_salary} />
         <Row k="입사 가능일" v={resume.available_from} />

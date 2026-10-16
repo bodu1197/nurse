@@ -1,4 +1,4 @@
-import { careerSummary } from "@/lib/resumeOptions";
+import { careerSummary, talentNoun } from "@/lib/resumeOptions";
 import { timeAgo } from "@/lib/date";
 import type { PublicTalent } from "@/lib/data/talent";
 
@@ -6,7 +6,7 @@ import type { PublicTalent } from "@/lib/data/talent";
  * 인재 목록 행 — 구 널스넷 카드 구성을 그대로 옮겼다.
  *   [사진 + 이름·성별·나이]  |  제목 / 자기소개 / 구분선 / 메타(경력·희망부서·형태·지역) + 경과시간
  *
- * 이름·사진은 광고 중인 병원에게만 온다(contactName·contactAvatar). 그 외에는 "간호사 회원" + 기본 아바타.
+ * 이름·사진은 광고 중인 병원에게만 온다(contactName·contactAvatar). 그 외에는 "간호사 회원"(요양·간병만 찾으면 "요양·간병 회원") + 기본 아바타.
  * 얼굴은 이름보다 강한 식별자라 이름만 가리는 건 의미가 없어 같은 게이트를 태운다(오너 확정).
  * 성별·나이는 전원 공개지만 아직 비어 있는 회원이 있다 — 없으면 그 자리를 빼고 레이아웃이 안 무너지게 한다.
  */
@@ -49,7 +49,7 @@ export default function TalentCard({
         <Avatar src={contactAvatar ?? null} name={contactName} size="sm" />
         <div className="min-w-0 flex-1">
           <p className="line-clamp-2 text-sm font-bold leading-snug text-slate-900">
-            {t.resume_title ?? "간호사 인재"}
+            {t.resume_title ?? `${talentNoun(t.job_tracks)} 인재`}
           </p>
           <p className="mt-1 truncate text-xs text-slate-400">
             {meta.map((m) => m.value).join(" · ")}
@@ -65,7 +65,7 @@ export default function TalentCard({
       <div className="flex w-16 shrink-0 flex-col items-center gap-1.5 sm:w-20">
         <Avatar src={contactAvatar ?? null} name={contactName} />
         <div className="text-center leading-tight">
-          <span className="block truncate text-sm font-bold text-slate-900">{contactName ?? "간호사 회원"}</span>
+          <span className="block truncate text-sm font-bold text-slate-900">{contactName ?? `${talentNoun(t.job_tracks)} 회원`}</span>
           {(t.gender || t.age !== null) && (
             <span className="mt-0.5 block text-xs text-slate-500">
               {[t.gender, t.age !== null ? `${t.age}세` : ""].filter(Boolean).join(" · ")}
@@ -77,7 +77,7 @@ export default function TalentCard({
       {/* 오른쪽: 제목 → 자기소개 → 구분선 → 메타 */}
       <div className="flex min-w-0 flex-1 flex-col">
         <p className="line-clamp-1 font-bold leading-snug text-slate-900 sm:text-base">
-          {t.resume_title ?? "간호사 인재"}
+          {t.resume_title ?? `${talentNoun(t.job_tracks)} 인재`}
         </p>
         {t.intro && (
           <p className="mt-1 line-clamp-1 text-sm text-slate-600">{t.intro}</p>

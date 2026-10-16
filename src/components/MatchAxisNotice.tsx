@@ -2,7 +2,7 @@ import Link from "next/link";
 import { matchAxes, type SeekerProfile } from "@/lib/match";
 
 /**
- * 🤖 AI 자동매치가 쓰는 다섯 항목 중 **무엇이 비어 있는지** 짚어주는 안내.
+ * 🤖 AI 자동매치가 쓰는 항목(최대 다섯 — 요양·간병만 찾으면 셋, lib/match matchAxes) 중 **무엇이 비어 있는지** 짚어주는 안내.
  *
  * 오너 지시 2026-08-05: "이력서 작성자들에게 AI 자동매칭을 위해서 최대한 입력값을 풍부하게
  * 입력하라고 노티스해 주고." — 그래서 "다 채우세요" 같은 뜬구름이 아니라 **비어 있는 항목 이름과

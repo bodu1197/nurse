@@ -1,7 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSessionUser } from "@/lib/data/user";
 import type { Database } from "@/types/database";
-import { CAREER_EXPERIENCED } from "@/lib/resumeOptions";
 
 // 경력 계산은 순수 함수라 서버 의존성 없는 @/lib/career 에 있다. 여기서 다시 내보내 소비처가 한 곳에서 쓴다.
 export { totalYears, totalMonths, careerText } from "@/lib/career";
@@ -14,6 +13,8 @@ type WorkRow = Database["public"]["Tables"]["work_experiences"]["Row"];
  * 타입과 select 문자열을 **이 배열 하나에서** 뽑아, 한쪽만 고쳐 런타임에 undefined 가 되는 일을 막는다.
  */
 const SHEET_FIELDS = [
+  // 찾는 일자리(간호 / 요양·간병, 둘 다 가능 — 20261016180000)
+  "job_tracks",
   // 기본
   "resume_title", "name", "phone", "email", "residence_region",
   // 면허·자격
@@ -60,21 +61,5 @@ export async function getMyResume(): Promise<ResumeWithWork | null> {
   return resume ? { ...resume, work: work ?? [] } : null;
 }
 
-/** 이력서 완성도 % — 무엇을 더 채우면 좋은지 사용자에게 보여주려고 쓴다. */
-const SCORED: readonly (keyof ResumeSheetFields)[] = [
-  "name", "phone", "license_type", "career_level", "shift_types", "desired_location",
-  "email", "residence_region", "license_year", "certifications", "education_level",
-  "education", "specialties", "desired_employment_type", "desired_salary", "available_from", "intro",
-];
-
-export function completeness(r: ResumeSheetFields, workCount: number): number {
-  const filled = SCORED.filter((k) => {
-    const v = r[k];
-    if (Array.isArray(v)) return v.length > 0;
-    return v !== null && v !== undefined && v !== "";
-  }).length;
-  // 경력 상세 1건 이상을 한 항목으로 친다(신규 간호사는 이 항목이 없어도 100%가 되도록 아래에서 보정)
-  const total = SCORED.length + (r.career_level === CAREER_EXPERIENCED ? 1 : 0);
-  const score = filled + (r.career_level === CAREER_EXPERIENCED && workCount > 0 ? 1 : 0);
-  return Math.round((score / total) * 100);
-}
+// 완성도 계산은 순수 함수라 @/lib/resumeOptions 에 있다(테스트가 서버 의존성 없이 부른다). 소비처는 그대로 여기서 쓴다.
+export { completeness } from "@/lib/resumeOptions";

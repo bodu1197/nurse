@@ -22,8 +22,8 @@ import { regionOfLocation } from "@/lib/jobRegion";
 import { geocodeAddress } from "@/lib/kakao";
 import { addressMoved, keepOrReplaceCoords } from "@/lib/geoKeep";
 import { totalYears } from "@/lib/data/resume";
-import { CAREER_EXPERIENCED, DEPARTMENTS, JOB_CATEGORIES, RESUME_INTRO_MIN, RESUME_INTRO_MAX as INTRO_MAX } from "@/lib/resumeOptions";
-import { JOB_DEPARTMENTS, FACILITY_TYPES } from "@/lib/jobTaxonomy";
+import { CAREER_EXPERIENCED, DEPARTMENTS, JOB_CATEGORIES, JOB_TRACKS, RESUME_INTRO_MIN, RESUME_INTRO_MAX as INTRO_MAX, seeksNurseJobs } from "@/lib/resumeOptions";
+import { JOB_DEPARTMENTS, FACILITY_TYPES, NURSE_JOB_CATEGORIES } from "@/lib/jobTaxonomy";
 import { SIDO_LIST, SIDO_SIGUNGU, LEGACY_REGIONS } from "@/lib/koreaRegions";
 
 /** 병원이 이미 판정을 내린 상태 — 이걸 되돌릴 때만 메모에 흔적을 남긴다. */
@@ -413,11 +413,17 @@ export async function saveResume(formData: FormData) {
   const shiftTypes = many("shift_types");
   const regions = onlyKnown(many("desired_location"), KNOWN_REGIONS);
   const departments = onlyKnown(many("specialties"), new Set(DEPARTMENTS));
-  const jobCategories = onlyKnown(many("job_categories"), new Set(JOB_CATEGORIES));
+  // 이력서의 희망 직종은 **간호 쪽 세부 직종**만 받는다 — 요양·간병은 '찾는 일자리'(job_tracks)가 맡는다.
+  // 둘이 따로 있으면 "간호만 찾음 + 희망 직종 요양보호사" 같은 모순이 저장된다.
+  const jobCategories = onlyKnown(many("job_categories"), new Set<string>(NURSE_JOB_CATEGORIES));
+  // 🧓 찾는 일자리(간호 / 요양·간병, 둘 다 가능) — 최소 하나. 빈 채로 두면 어느 인재 목록·자동매치에도 안 걸린다
+  //    (DB 제약 resumes_job_tracks_check 도 막는다 — 여기서 먼저 막아야 "저장 실패" 대신 무엇을 고칠지 말해 줄 수 있다).
+  const jobTracks = onlyKnown(many("job_tracks"), new Set<string>(JOB_TRACKS.map((t) => t.value)));
   const careerLevel = s("career_level");
   // 제목·자기소개는 필수다(오너 확정 2026-07-30). 화면의 required·minLength 는 편의일 뿐이라
   // 서버가 같은 규칙을 다시 건다 — 조작된 POST 는 그 속성을 그냥 무시한다.
   // 목록 카드의 머리말이 제목이고, 자기소개가 비면 병원이 판단할 근거가 카드에 남지 않는다.
+  if (jobTracks.length === 0) redirect("/mypage/resume?error=track");
   if (!s("resume_title")) redirect("/mypage/resume?error=title");
   // 공백만 채워 넘기는 것을 막으려고 trim 후 길이를 센다(s() 가 이미 trim 한다).
   if ((s("intro", INTRO_MAX) ?? "").length < RESUME_INTRO_MIN) redirect("/mypage/resume?error=intro");
@@ -426,6 +432,10 @@ export async function saveResume(formData: FormData) {
   // 병원명만 적고 입사연월을 비우면 그 줄이 조용히 버려져 경력이 사라진다 → 되돌려 알린다.
   if (work.some((w) => !w.hospital_name || !w.start_ym)) redirect("/mypage/resume?error=work");
   if (careerLevel === CAREER_EXPERIENCED && work.length === 0) redirect("/mypage/resume?error=work_required");
+  // 🧓 요양·간병만 찾으면 간호 전용 항목(면허신고·자격증·전문간호사·간호간병통합·차지·근무부서·직종·의료기관 종별)은
+  //    **비워서** 저장한다. 화면이 그 칸을 숨겨 본인은 보지도 고치지도 못하는데, 옛 값이 남으면 인재 카드·상세·
+  //    요양·간병 인재 목록의 근무부서 칩에 그대로 공개된다(검증 지적 2026-10-16). 다시 간호를 고르면 그때 새로 채운다.
+  const nurse = seeksNurseJobs(jobTracks);
 
 
   const { error } = await supabase.from("resumes").upsert({
@@ -433,6 +443,7 @@ export async function saveResume(formData: FormData) {
     // 🔴 사람이 저장한 시각. 인재 목록 정렬이 이 값을 쓴다 — updated_at 은 이관·보정 배치가
     //    한꺼번에 밀어놓아 "누가 실제로 손댔는지" 를 더 이상 말해주지 못한다(20260804290000).
     last_edited_at: new Date().toISOString(),
+    job_tracks: jobTracks,
     resume_title: s("resume_title"),
     name: s("name"),
     phone: s("phone"),
@@ -440,9 +451,9 @@ export async function saveResume(formData: FormData) {
     residence_region: s("residence_region"),
     license_type: s("license_type"),
     license_year: num("license_year"),
-    license_reported: bool("license_reported"),
-    certifications: many("certifications"),
-    apn_field: s("apn_field"),
+    license_reported: nurse ? bool("license_reported") : null,
+    certifications: nurse ? many("certifications") : [],
+    apn_field: nurse ? s("apn_field") : null,
     education_level: s("education_level"),
     education: s("education"),
     graduation_status: s("graduation_status"),
@@ -452,14 +463,14 @@ export async function saveResume(formData: FormData) {
     experience_years: work.length > 0
       ? totalYears(work.map((w) => ({ start_ym: w.start_ym ?? "", end_ym: w.end_ym, is_current: w.is_current })), new Date())
       : null,
-    has_integrated_care: bool("has_integrated_care"),
-    can_charge: bool("can_charge"),
+    has_integrated_care: nurse ? bool("has_integrated_care") : null,
+    can_charge: nurse ? bool("can_charge") : null,
     shift_types: shiftTypes,
     night_available: bool("night_available"),
     desired_location: regions.join(", ") || null,
-    specialties: departments,
-    job_categories: jobCategories,
-    desired_hospital_types: many("desired_hospital_types"),
+    specialties: nurse ? departments : [],
+    job_categories: nurse ? jobCategories : [],
+    desired_hospital_types: nurse ? many("desired_hospital_types") : [],
     desired_employment_type: s("desired_employment_type"),
     desired_salary: s("desired_salary"),
     available_from: s("available_from"),

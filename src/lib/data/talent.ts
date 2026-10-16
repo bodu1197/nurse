@@ -9,6 +9,7 @@ import { signAvatarPaths } from "@/lib/data/avatar";
 import { maskDeep } from "@/lib/maskPii";
 import { todayKst, nowMs } from "@/lib/date";
 import type { Database } from "@/types/database";
+import type { JobTrack } from "@/lib/resumeOptions";
 
 // 인재 검색(병원 → 공개 이력서). 열람 자격은 DB 정책(resumes_select_advertiser)이 최종 판정하고,
 // 여기서는 화면 안내를 위해 같은 조건을 한 번 더 확인한다.
@@ -23,7 +24,7 @@ type ResumeRow = Database["public"]["Tables"]["resumes"]["Row"];
  * 연락처는 광고 병원에게만 별도로 붙인다(revealContacts).
  */
 const PUBLIC_FIELDS = [
-  "profile_id", "resume_title", "residence_region", "license_type", "license_year", "license_reported",
+  "profile_id", "job_tracks", "resume_title", "residence_region", "license_type", "license_year", "license_reported",
   "certifications", "apn_field", "education_level", "education", "graduation_status",
   "career_level", "experience_years", "has_integrated_care", "can_charge",
   "shift_types", "night_available", "desired_location", "specialties", "desired_hospital_types",
@@ -161,10 +162,12 @@ export async function canRevealContacts(p: { role: Role; isAdmin?: boolean } | n
  *    '같은 시도 인재 8명' 이 고정으로 떴다(공고 쪽은 jobFilterQs 로 이미 이어져 있었다).
  */
 export function talentFilterQs(
-  f: { q?: string; dept?: string; cat?: string; sido?: string; sigungu?: string; years?: number },
+  f: { q?: string; dept?: string; cat?: string; sido?: string; sigungu?: string; years?: number; track?: JobTrack },
   page?: number,
 ): string {
   const p = new URLSearchParams();
+  // 🧓 요양·간병 인재 목록(/care-talent)에서 들어왔다는 표시 — 상세의 옆 목록·뒤로가기가 그 목록을 잇는다. 간호(기본)는 안 붙인다.
+  if (f.track === "care") p.set("tr", "care");
   if (f.q) p.set("q", f.q);
   if (f.dept) p.set("dept", f.dept);
   if (f.cat) p.set("cat", f.cat);
@@ -176,6 +179,11 @@ export function talentFilterQs(
 }
 
 export type TalentFilters = {
+  /**
+   * 🧓 어느 인재 목록인가 — 이력서 '찾는 일자리'(resumes.job_tracks)와 **하나라도 겹치는** 이력서. 빠지면 간호(/talent).
+   * 목록은 하나([간호] 또는 [요양·간병]), AI 자동매치(병원 쪽)는 그 기관이 낸 공고 종류 전부. 둘 다 고른 이력서는 양쪽에 걸린다.
+   */
+  tracks?: readonly JobTrack[];
   q?: string; specialty?: string; category?: string; sido?: string; sigungu?: string; minYears?: number;
   // 🤖 AI 자동매치(병원 쪽) 전용 — 게재 중인 공고가 여러 건이라 조건이 **여러 개**다.
   //    위 단수 필드는 화면 필터(한 번에 하나)라 그대로 두고, 겹치는 것을 찾는 축만 배열로 더한다.
@@ -192,16 +200,17 @@ export type TalentFilters = {
 //    ⚠️ resumes 는 RLS 로 잠겨 있어 anon 클라이언트로는 빈 결과가 나온다 → 목록과 같은 admin 클라이언트로 부른다.
 export type TalentRegionNode = { name: string; cnt: number };
 
-export const getTalentSidoList = cache(async (): Promise<TalentRegionNode[]> => {
-  const { data, error } = await createAdminClient().rpc("nurse_talent_sido_list");
+// track — 목록과 같은 범위로 센다(간호/요양·간병). RPC 의 p_track 기본값도 간호다(20261016180000).
+export const getTalentSidoList = cache(async (track: JobTrack = "nurse"): Promise<TalentRegionNode[]> => {
+  const { data, error } = await createAdminClient().rpc("nurse_talent_sido_list", { p_track: track });
   if (error) console.error("getTalentSidoList failed:", error.message);
   return data ?? [];
 });
 
 // 선택한 도의 시군구. 시도 미선택이면 즉시 [](비용 0).
-export const getTalentSigunguList = cache(async (sido: string): Promise<TalentRegionNode[]> => {
+export const getTalentSigunguList = cache(async (sido: string, track: JobTrack = "nurse"): Promise<TalentRegionNode[]> => {
   if (!sido) return [];
-  const { data, error } = await createAdminClient().rpc("nurse_talent_sigungu_list", { p_sido: clean(sido) });
+  const { data, error } = await createAdminClient().rpc("nurse_talent_sigungu_list", { p_sido: clean(sido), p_track: track });
   if (error) console.error("getTalentSigunguList failed:", error.message);
   return data ?? [];
 });
@@ -211,8 +220,8 @@ export const getTalentSigunguList = cache(async (sido: string): Promise<TalentRe
  * 전에는 고정 목록(JOB_SPECIALTIES 9개)을 뿌렸는데 그 중 6개가 0명이라, 누르면 빈 화면이 나왔다.
  * 한 번의 RPC 로 둘 다 받는다(따로 부르면 7천 행을 두 번 훑는다).
  */
-export const getTalentFacets = cache(async (): Promise<{ departments: TalentRegionNode[]; categories: TalentRegionNode[] }> => {
-  const { data, error } = await createAdminClient().rpc("nurse_talent_facet_list");
+export const getTalentFacets = cache(async (track: JobTrack = "nurse"): Promise<{ departments: TalentRegionNode[]; categories: TalentRegionNode[] }> => {
+  const { data, error } = await createAdminClient().rpc("nurse_talent_facet_list", { p_track: track });
   if (error) console.error("getTalentFacets failed:", error.message);
   const rows = data ?? [];
   const pick = (kind: string) => tailLast(rows.filter((r) => r.kind === kind).map(({ name, cnt }) => ({ name, cnt })));
@@ -261,6 +270,8 @@ export async function searchPublicTalent(
     .order("profile_id", { ascending: false })
     .range(from, from + perPage - 1);
 
+  // 🧓 어느 인재 목록인가(TalentFilters.tracks) — 빠지면 간호. 하나만 넘기면 '포함', 여럿이면 '하나라도 겹침'이 같은 연산이다.
+  query = query.overlaps("job_tracks", f.tracks?.length ? [...f.tracks] : ["nurse"]);
   if (f.specialty) query = query.contains("specialties", [f.specialty]);
   if (f.category) query = query.contains("job_categories", [f.category]);
   // 키워드 — **가려진 사본(search_text)** 에서만 찾는다. 제목·자기소개 원문을 그대로 뒤지면

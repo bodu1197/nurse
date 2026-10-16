@@ -190,6 +190,9 @@ export const CARE_CATEGORIES = ["요양보호사", "간병인"] as const satisfi
 export const isCareCategory = (jobCategory: string | null | undefined): boolean =>
   CARE_CATEGORIES.some((c) => c === jobCategory);
 
+/** 이력서 '희망 직종'이 받는 값 — 간호 쪽 세부 직종만. 요양·간병은 '찾는 일자리'(resumes.job_tracks)가 맡는다(화면·저장이 같은 목록). */
+export const NURSE_JOB_CATEGORIES = JOB_CATEGORIES.filter((c) => !isCareCategory(c));
+
 /**
  * 요양·간병이 **아닌** 행만 고르는 PostgREST or-필터 — 간호 수집 크론(sync-worknet)이 같은 표의 요양·간병 수집분을
  * 건드리지 않게 한다(안 거르면 6시간마다 요양 공고 1만 건을 "목록에서 사라졌다"며 마감시킨다).

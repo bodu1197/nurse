@@ -6,8 +6,9 @@ import TalentDetail from "@/components/TalentDetail";
 import TalentCard from "@/components/TalentCard";
 import { Pager } from "@/components/MasterDetail";
 import { getMyProfile, viewAsRole } from "@/lib/data/user";
-import { careerSummary } from "@/lib/resumeOptions";
+import { careerSummary, seeksNurseJobs, talentNoun, type JobTrack } from "@/lib/resumeOptions";
 import { socialMeta } from "@/lib/constants";
+import { firstParam } from "@/lib/url";
 import {
   getPublicTalent, revealContacts, canRevealContacts, getSavedTalentIds,
   searchPublicTalent, talentFilterQs, TALENT_PER_PAGE, type RevealedContact,
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
   const { id } = await params;
   const t = await getPublicTalent(id);
   if (!t) return { title: "간호사 인재 상세 — 널스넷", robots: { index: false } };
-  const title = `${t.resume_title ?? "간호사 인재"} — 널스넷 인재정보`;
+  const title = `${t.resume_title ?? `${talentNoun(t.job_tracks)} 인재`} — 널스넷 인재정보`;
   const desc = [
     careerSummary(t.career_level, t.experience_years),
     t.specialties.length > 0 ? t.specialties.join(", ") : null,
@@ -32,7 +33,7 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
   ].filter(Boolean).join(" · ");
   return {
     title,
-    description: desc || "이력서를 공개한 간호사 인재 정보입니다.",
+    description: desc || `이력서를 공개한 ${talentNoun(t.job_tracks)} 인재 정보입니다.`,
     alternates: { canonical: `/talent/${id}` },
     ...socialMeta({ type: "profile", url: `/talent/${id}`, title, description: desc }),
   };
@@ -40,7 +41,8 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
 
 type TalentDetailProps = Readonly<{
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ q?: string; dept?: string; spec?: string; cat?: string; sido?: string; loc?: string; sigungu?: string; years?: string; page?: string }>;
+  // 같은 키가 두 번 오면(`?q=a&q=b`) 배열이 된다 — 그대로 .trim() 하면 500. 읽을 때 firstParam 으로 하나만.
+  searchParams: Promise<Partial<Record<"tr" | "q" | "dept" | "spec" | "cat" | "sido" | "loc" | "sigungu" | "years" | "page", string | string[]>>>;
 }>;
 
 export default async function TalentDetailPage(props: TalentDetailProps) {
@@ -63,20 +65,24 @@ export async function renderTalentDetail(
   { params, searchParams }: TalentDetailProps,
   { gated = true }: { gated?: boolean } = {},
 ) {
-  const [{ id }, sp] = await Promise.all([params, searchParams]);
+  const [{ id }, raw] = await Promise.all([params, searchParams]);
+  const sp = {
+    tr: firstParam(raw.tr), q: firstParam(raw.q), dept: firstParam(raw.dept), spec: firstParam(raw.spec), cat: firstParam(raw.cat),
+    sido: firstParam(raw.sido), loc: firstParam(raw.loc), sigungu: firstParam(raw.sigungu), years: firstParam(raw.years), page: firstParam(raw.page),
+  };
   const [t, p] = await Promise.all([
     getPublicTalent(id),
     gated ? getMyProfile() : Promise.resolve(null),
   ]);
   if (!t) notFound(); // 비공개·없는 이력서는 404 (getPublicTalent가 is_public=true만 반환)
 
-  const kw = (sp.q ?? "").trim();
+  const kw = sp.q.trim();
   // 목록이 받아주는 예전 별칭(?spec=·?loc=)도 같이 받는다 — 한쪽만 알면 그 링크로 온 사람은 조건을 잃는다.
-  const dept = (sp.dept ?? sp.spec ?? "").trim();
-  const cat = (sp.cat ?? "").trim();
-  const sd = (sp.sido ?? sp.loc ?? "").trim();
+  const dept = (sp.dept || sp.spec).trim();
+  const cat = sp.cat.trim();
+  const sd = (sp.sido || sp.loc).trim();
   // 시군구는 시도에 종속 — 시도 없이 오면 무시한다(목록·서버 필터와 같은 계약).
-  const sgg = sd ? (sp.sigungu ?? "").trim() : "";
+  const sgg = sd ? sp.sigungu.trim() : "";
   const minYears = Number(sp.years) || 0;
   const pageNum = Math.max(1, Number(sp.page) || 1);
 
@@ -90,9 +96,16 @@ export async function renderTalentDetail(
    *    그 8개 화면이 그대로 남는다 — 실제로 가장 많이 지나가는 경로다. 그래서 분기를 없앴다.
    */
   const hasFilter = !!(kw || dept || cat || sd || minYears);
-  const qsFor = (toPage: number) => talentFilterQs({ q: kw, dept, cat, sido: sd, sigungu: sgg, years: minYears }, toPage);
+  // 🧓 어느 인재 목록을 이을까 — 요양·간병 목록(/care-talent)에서 왔으면 ?tr=care 가 붙어 온다(talentFilterQs).
+  //    표시 없이 들어왔으면(검색엔진·사이트맵·자동매치 카드·캐시 화면) 이력서가 요양·간병만 찾을 때 그쪽 —
+  //    간호 목록에는 이 사람이 없으니 옆 목록·뒤로가기가 엉뚱한 목록을 잇게 된다.
+  const track: JobTrack = sp.tr === "care" || !seeksNurseJobs(t.job_tracks) ? "care" : "nurse";
+  const listPath = track === "care" ? "/care-talent" : "/talent";
+  const qsFor = (toPage: number) => talentFilterQs({ q: kw, dept, cat, sido: sd, sigungu: sgg, years: minYears, track }, toPage);
   const searchQs = qsFor(pageNum);
-  const backHref = "/talent" + (searchQs ? `?${searchQs}` : "");
+  // 목록 주소에는 tr 를 안 붙인다 — 경로(/care-talent)가 이미 범위를 말한다.
+  const listQs = talentFilterQs({ q: kw, dept, cat, sido: sd, sigungu: sgg, years: minYears }, pageNum);
+  const backHref = listPath + (listQs ? `?${listQs}` : "");
   // 되돌아가기와 같은 조건을 유지한다 — 한쪽만 page 를 버리면 카드를 한 번 누른 뒤 목록이 1페이지로 튄다.
   const sideHref = (pid: string) => `/talent/${pid}` + (searchQs ? `?${searchQs}` : "");
   const pageHref = (toPage: number) => { const s = qsFor(toPage); return `/talent/${id}` + (s ? `?${s}` : ""); };
@@ -106,7 +119,7 @@ export async function renderTalentDetail(
   // 서로 의존하지 않는 조회는 함께 보낸다. 열람 자격 판정과 목록은 독립.
   const [canSeeContacts, side] = await Promise.all([
     gated ? canRevealContacts(p) : Promise.resolve(false), // 광고 병원(또는 관리자)만 이름·전화
-    searchPublicTalent({ q: kw, specialty: dept, category: cat, sido: sd, sigungu: sgg, minYears }, pageNum)
+    searchPublicTalent({ tracks: [track], q: kw, specialty: dept, category: cat, sido: sd, sigungu: sgg, minYears }, pageNum)
       // 보고 있는 본인은 왼쪽 목록에서 뺀다(자기 카드를 자기 화면에서 또 볼 이유가 없다).
       .then((r) => ({ rows: r.rows.filter((x) => x.profile_id !== t.profile_id), total: r.total })),
   ]);
@@ -121,7 +134,7 @@ export async function renderTalentDetail(
   const contact = contacts.get(t.profile_id);
 
   // 제목: 조건이 걸려 있으면 "검색 결과", 아니면 그냥 목록이다. 건수는 항상 총계(side.total)를 쓴다.
-  const sidebarTitle = hasFilter ? "검색 결과" : "인재정보";
+  const sidebarTitle = hasFilter ? "검색 결과" : track === "care" ? "요양·간병 인재" : "인재정보";
 
   return (
     <>
@@ -132,7 +145,7 @@ export async function renderTalentDetail(
                열어 본 뒤 나가려면 뒤로가기밖에 없었고 그러면 검색 첫 화면으로 튀어 **처음부터
                다시 검색**해야 했다(오너 지적 2026-08-07). 둘 다 같은 backHref 로 간다. */}
         <div className="mb-3 flex items-center justify-between gap-3">
-          <Link href={backHref} className="inline-block text-sm text-teal-700 hover:underline">← {hasFilter ? "검색 결과로" : "인재정보 목록"}</Link>
+          <Link href={backHref} className="inline-block rounded text-sm text-teal-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">← {hasFilter ? "검색 결과로" : track === "care" ? "요양·간병 인재 목록" : "인재정보 목록"}</Link>
           <Link href={backHref} aria-label="닫기" className="grid h-11 w-11 place-items-center rounded-full text-lg leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">✕</Link>
         </div>
 
@@ -161,7 +174,8 @@ export async function renderTalentDetail(
               <ul className="space-y-2">
                 {sidebar.map((r) => (
                   <li key={r.profile_id}>
-                    <a href={sideHref(r.profile_id)} className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-teal-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                    {/* 요양 쪽이면 ?tr=care 가 붙어 봇이 캐시 화면을 못 탄다 — 따라가지 않게(상세는 사이트맵으로 들어온다) */}
+                    <a href={sideHref(r.profile_id)} rel={track === "care" ? "nofollow" : undefined} className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-teal-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
                       <TalentCard t={r} contactName={contacts.get(r.profile_id)?.name} contactAvatar={contacts.get(r.profile_id)?.avatarUrl} compact />
                     </a>
                   </li>

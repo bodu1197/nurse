@@ -1,6 +1,7 @@
 import { SIDO_LIST, SIDO_SIGUNGU } from "./koreaRegions.ts";
 import { canonicalSido } from "./jobRegion.ts";
-import { DEPT_ANY } from "./resumeOptions.ts";
+import { DEPT_ANY, seeksNurseJobs, type JobTrack } from "./resumeOptions.ts";
+import { isCareCategory } from "./jobTaxonomy.ts";
 
 /**
  * 🤖 AI 자동매치 — 이력서 ↔ 공고를 축별로 맞춘다. dolpagu(C:\dev\talent) src/lib/jobs/match.ts 이식.
@@ -23,6 +24,9 @@ import { DEPT_ANY } from "./resumeOptions.ts";
  *
  *    죽은 축을 넣으면 "전원 불일치" 가 되어 매칭이 아니라 소음이 된다.
  *
+ * 🧓 요양·간병 공고(jobs_listed.is_care)에는 진료과·직종 축을 세지 않는다(2026-10-16) — 그 공고엔 진료과가 없고,
+ *    직종(요양보호사·간병인)은 이력서 '찾는 일자리'로 이미 골라 들어왔다. 그래서 요양 공고는 최대 셋(지역·고용형태·급여)이다.
+ *
  * 🔒 축은 **채운 사람에게만 적용**한다. 희망 급여를 안 적었으면 급여는 아예 안 세고 "4개 중 4개 일치"가
  *    된다 — 안 적은 것을 불일치로 세면 이력서를 덜 채운 사람이 벌을 받는 꼴이다.
  */
@@ -34,6 +38,8 @@ export interface SeekerProfile {
   readonly job_categories: readonly string[];
   readonly desired_employment_type: string | null;
   readonly desired_salary: string | null;
+  /** 찾는 일자리 — 'nurse'·'care', 둘 다 가능(resumes.job_tracks). 후보 범위(matchScope)를 정한다. */
+  readonly job_tracks: readonly string[];
 }
 
 /** 공고에서 그대로 뽑는다(jobs / jobs_listed 컬럼명). */
@@ -210,14 +216,19 @@ export function evaluateMatch(seeker: SeekerProfile, job: JobFacts): MatchResult
   const regionOk = regions.length === 0 || regionMatches(regions, job);
   if (regions.length > 0) axis(regionOk, "지역 다름");
 
+  // 🧓 요양·간병 공고에는 진료과·(간호 쪽) 직종이라는 개념이 없다 — 그 두 축은 **세지 않는다**. 세면 요양 공고마다
+  //    "진료과 미표기·직종 다름"이 붙어, 간병도 하겠다고 고른 사람에게 거짓 불일치를 보인다. 요양 공고가 후보에
+  //    들어온 것 자체가 그 사람이 요양·간병을 골랐다는 뜻이다(matchScope).
+  const careJob = isCareCategory(job.job_category);
+
   // '부서무관'을 고른 사람은 부서를 조건으로 삼지 않겠다는 뜻이다 → 진료과 축을 아예 안 센다.
-  if (!seeker.specialties.includes(DEPT_ANY) && seeker.specialties.length > 0) {
+  if (!careJob && !seeker.specialties.includes(DEPT_ANY) && seeker.specialties.length > 0) {
     const ok = !!job.specialty && seeker.specialties.includes(job.specialty);
     // 공고에 진료과가 아예 없는 것(79%)과 다른 과인 것은 사용자에게 뜻이 다르다 — 나눠 적는다.
     axis(ok, job.specialty ? "진료과 다름" : "진료과 미표기");
   }
 
-  if (seeker.job_categories.length > 0) {
+  if (!careJob && seeker.job_categories.length > 0) {
     const ok = !!job.job_category && seeker.job_categories.includes(job.job_category);
     axis(ok, job.job_category ? "직종 다름" : "직종 미표기");
   }
@@ -244,7 +255,19 @@ export function canMatch(seeker: SeekerProfile): boolean {
 }
 
 /**
- * 매칭이 쓰는 다섯 항목 중 **무엇이 채워져 있는가** — 이력서 화면과 /match 가 같은 안내를 띄운다
+ * 🧓 어느 공고에서 후보를 고를까 — 이력서 '찾는 일자리'(job_tracks)가 정한다. 간호(/jobs)와 요양·간병(/care-jobs)은
+ * 같은 표의 다른 목록이다(jobs_listed.is_care).
+ *   · 간호만 → 간호 공고 · 요양·간병만 → 요양·간병 공고 · 둘 다 → 둘 다(오너: "간호원이지만 간병도 할 수 있는데")
+ *   · 값이 비었으면 간호(DB 는 최소 하나를 강제하지만 — 기존 이력서는 전부 간호다)
+ */
+export type MatchScope = JobTrack | "both";
+export function matchScope(jobTracks: readonly string[]): MatchScope {
+  if (!jobTracks.includes("care")) return "nurse";
+  return seeksNurseJobs(jobTracks) ? "both" : "care";
+}
+
+/**
+ * 매칭이 쓰는 항목(최대 다섯 — 요양·간병만 찾으면 근무부서·직종을 뺀 셋) 중 **무엇이 채워져 있는가** — 이력서 화면과 /match 가 같은 안내를 띄운다
  * (오너 지시 2026-08-05: "이력서 작성자들에게 AI 자동매칭을 위해 최대한 입력값을 풍부하게
  * 입력하라고 노티스"). 두 화면에 손으로 적으면 규칙이 갈라지므로 목록은 여기 한 곳에서 만든다.
  */
@@ -256,22 +279,28 @@ export interface AxisStatus {
 }
 
 export function matchAxes(seeker: SeekerProfile): AxisStatus[] {
+  // 요양·간병만 찾는 사람에게는 간호 전용 두 항목을 안 묻는다 — 이력서 화면에서도 숨겨져 채울 수 없다.
+  const nurse = seeksNurseJobs(seeker.job_tracks);
   return [
     {
       label: "희망 근무지",
       filled: canMatch(seeker),
       why: "이게 없으면 자동매치가 아예 열리지 않습니다",
     },
-    {
-      label: "희망 근무부서",
-      filled: seeker.specialties.length > 0,
-      why: "내과·응급실처럼 원하는 과의 공고를 위로 올려 드립니다",
-    },
-    {
-      label: "희망 직종",
-      filled: seeker.job_categories.length > 0,
-      why: "간호직·간호조무직이 섞여 나오는 것을 막습니다",
-    },
+    ...(nurse
+      ? [
+          {
+            label: "희망 근무부서",
+            filled: seeker.specialties.length > 0,
+            why: "내과·응급실처럼 원하는 과의 공고를 위로 올려 드립니다",
+          },
+          {
+            label: "희망 직종",
+            filled: seeker.job_categories.length > 0,
+            why: "간호직·간호조무직이 섞여 나오는 것을 막습니다",
+          },
+        ]
+      : []),
     {
       label: "희망 고용형태",
       filled: normalizedEmployment(seeker.desired_employment_type) !== null,

@@ -11,6 +11,8 @@ import { DEPT_ANY } from "@/lib/resumeOptions";
 // 🔴 칩 순서를 등록 폼과 맞추려고 **같은 상수**를 쓴다. 여기 목록을 따로 적으면 둘이 갈라진다.
 import { FACILITY_TYPES } from "@/lib/jobTaxonomy";
 import { nearBox } from "@/lib/location/bbox";
+import type { MatchScope } from "@/lib/match";
+import type { JobTrack } from "@/lib/resumeOptions";
 import type { Database } from "@/types/database";
 
 export type JobSource = "direct" | "worknet" | "public_data" | "partner" | "crawl";
@@ -335,7 +337,7 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
  * 자동매치 후보가 쓰는 컬럼 — **목록용 SELECT 와 따로 둔다.**
  *
  * 🔴 `${SELECT}` 를 그대로 쓰면 description·benefits·apply_detail·manager_phone 같은 장문 컬럼까지
- *    후보 전건(최악 1,344행)을 매 요청마다 끌어온다. 이 화면의 카드가 실제로 읽는 것은 아래 12개뿐이고,
+ *    후보 전건(요양·간병까지 고르면 최악 1만 행 넘게)을 매 요청마다 끌어온다. 이 화면의 카드가 실제로 읽는 것은 아래 12개뿐이고,
  *    나머지 4개(sido·sigungu·specialty·job_category)는 매칭 판정에만 쓴다.
  * 🔒 카드 표시에 필요한 것을 빼면 화면이 조용히 빈칸이 된다 — MatchCard(app/match/page.tsx)와 함께 볼 것.
  */
@@ -357,43 +359,70 @@ export type MatchJob = Pick<JobsRow, (typeof MATCH_FIELDS)[number]> & {
 /**
  * 🤖 AI 자동매치 후보 — **시도만 SQL 로 좁히고** 나머지 축은 앱(lib/match)이 판정한다.
  *
- * 🔴 진료과·직종까지 SQL 로 걸면 안 된다. 공고 1,344건 중 진료과가 있는 건 288건(21%)뿐이라
+ * 🔴 진료과·직종까지 SQL 로 걸면 안 된다. 공고 1,344건 중 진료과가 있는 건 288건(21%)뿐이라(2026-08-05 실측 — 요양 공고엔 아예 없다)
  *    (워크넷 공고는 진료과 개념이 원래 없다 — jobTaxonomy 참고) 후보가 통째로 사라진다.
  *    넓게 가져와 **일치 개수로 줄을 세운다**(등급으로 자르지 않는다 — 오너 확정 2026-08-05).
  * 🔴 급여는 자유 텍스트라 SQL 로 비교할 수 없다. 이것도 앱에서 판정한다.
  * 🔒 노출 판정은 목록과 **같은 뷰 컬럼(is_live)** — 어긋나면 매치를 눌렀을 때 404 가 된다.
+ * 🧓 scope — 간호/요양·간병 중 어느 목록에서 고를지는 이력서 '찾는 일자리'(job_tracks)가 정한다(lib/match matchScope).
  */
-export async function getMatchCandidates(sidoIn: readonly string[]): Promise<MatchJob[]> {
+export async function getMatchCandidates(sidoIn: readonly string[], scope: MatchScope = "nurse"): Promise<MatchJob[]> {
   if (sidoIn.length === 0) return []; // 지역이 없으면 전국이 나온다 — "내 조건"이 거짓말이 된다
   const supabase = await createClient();
   // 🔴 PostgREST 는 max_rows(1000)에서 **조용히 자른다**(.limit() 으로 못 넘는다 — 사이트맵과 같은 함정).
-  //    지금은 전국 공고가 1,344건이라 한두 쪽이면 끝나지만, 늘어나도 안 잘리도록 이어 받는다.
+  //    전국 노출 공고가 간호 1,561 + 요양·간병 10,901건(2026-10-16)이라 여러 쪽으로 나눠 받는다.
   const PAGE = 1000;
-  const MAX = 5000; // 한 요청이 수만 행을 메모리로 끌어와 페이지가 죽는 것만 막는 상한
-  const out: MatchJob[] = [];
-  for (let from = 0; from < MAX; from += PAGE) {
+  // 한 요청이 수만 행을 메모리로 끌어와 페이지가 죽는 것만 막는 상한.
+  // 🧓 5,000 → 15,000(2026-10-16): 요양·간병 공고가 후보에 들어오면서 경기 3,718 + 서울 2,743 처럼 두 시도만 골라도
+  //    5,000 을 넘어 오래된 공고가 조용히 잘렸다. 전국 노출 공고(간호 1,561 + 요양 10,901)를 다 담는 크기다.
+  // ponytail: 더 커지면 시군구까지 SQL 로 좁힌다(지역은 어차피 어긋나면 빼는 축이다).
+  const MAX = 15_000;
+  const page = (from: number, withCount: boolean) => {
     let query = supabase
       .from("jobs_listed")
-      .select(MATCH_SELECT)
+      .select(MATCH_SELECT, withCount ? { count: "exact" } : undefined)
       .eq(LIVE, true)
       .eq("status", "open") // 평문 조건 — 인덱스용(getJobs 주석)
-      .eq("is_care", false) // AI 자동매치는 간호 공고만 — 요양·간병은 다른 목록이다(JobFilters.care)
       .in("sido", [...sidoIn]);
+    // 둘 다 원하면 범위를 걸지 않는다. 한쪽만이면 그 목록만(JobFilters.care 와 같은 칸).
+    if (scope !== "both") query = query.eq("is_care", scope === "care");
     // 목록(getJobs)과 **같은 순서**여야 한다 — 자동매치에서 본 차례가 목록과 다르면
     // 같은 사이트가 두 말을 하는 셈이 된다. 마지막 키 id 가 1000행 경계의 중복·누락을 막는다.
     for (const key of LISTED_ORDER) query = query.order(key, { ascending: false });
-    const { data, error } = await query.range(from, from + PAGE - 1).returns<MatchJob[]>();
-    if (error) {
-      console.error("getMatchCandidates failed:", error.message);
-      break;
+    return query.range(from, from + PAGE - 1).returns<MatchJob[]>();
+  };
+  // 첫 쪽에서 전체 건수를 받고 나머지 쪽은 **4개씩 묶어 동시에** 받는다(검증 지적 2026-10-16).
+  //  · 한 쪽씩 차례로 받으면 요양 서울+경기만 골라도 왕복 7번이 줄줄이 붙어 화면이 그만큼 늦게 뜬다.
+  //  · 전부 한꺼번에 보내면 요청 하나가 DB 연결을 최대 14개 잡아, 접속이 몰릴 때 사이트 전체가 느려진다.
+  const BATCH = 4;
+  const first = await page(0, true);
+  if (first.error) {
+    console.error("getMatchCandidates failed:", first.error.message);
+    return [];
+  }
+  const out: MatchJob[] = [...(first.data ?? [])];
+  const pages = Math.ceil(Math.min(first.count ?? 0, MAX) / PAGE);
+  for (let i = 1; i < pages; i += BATCH) {
+    const batch = await Promise.all(
+      Array.from({ length: Math.min(BATCH, pages - i) }, (_, j) => page((i + j) * PAGE, false)),
+    );
+    for (const r of batch) {
+      // 중간 쪽이 실패하면 거기까지만 — 받은 만큼 돌려준다(화면은 "살펴본 수"만 말한다).
+      if (r.error) {
+        console.error("getMatchCandidates failed:", r.error.message);
+        return out;
+      }
+      out.push(...(r.data ?? []));
     }
-    out.push(...(data ?? []));
-    if (!data || data.length < PAGE) break;
   }
   return out;
 }
 
-export type AdConditions = { specialties: string[]; sidos: string[]; count: number };
+export type AdConditions = {
+  specialties: string[]; sidos: string[]; count: number;
+  /** 🧓 이 기관이 낸 공고 종류 — 간호(nurse)·요양·간병(care). 인재도 이 범위에서 고른다(이력서 '찾는 일자리'). */
+  tracks: JobTrack[];
+};
 
 /**
  * 🤖 자동매치(병원 쪽) — **내 병원의 노출 중인 공고**에서 인재를 고를 조건을 뽑는다.
@@ -408,16 +437,16 @@ export type AdConditions = { specialties: string[]; sidos: string[]; count: numb
  * 🔴 노출 중인 공고 **전건**의 조건을 겹쳐 쓴다 — 첫 건만 보면 나머지 공고에 맞는 인재가 조용히 사라진다.
  */
 export async function getMyAdConditions(): Promise<AdConditions> {
-  const empty: AdConditions = { specialties: [], sidos: [], count: 0 };
+  const empty: AdConditions = { specialties: [], sidos: [], count: 0, tracks: [] };
   const ids = await getMyHospitalIds();
   if (ids.length === 0) return empty;
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("jobs_listed")
-    .select("specialty,sido")
+    .select("specialty,sido,is_care")
     .in("hospital_id", ids)
     .eq(LIVE, true)
-    .returns<{ specialty: string | null; sido: string | null }[]>();
+    .returns<{ specialty: string | null; sido: string | null; is_care: boolean | null }[]>();
   if (error) {
     // 🔴 삼키면 돈 낸 병원이 아무 설명 없이 "조건 없음" 화면을 본다.
     console.error("getMyAdConditions failed:", error.message);
@@ -429,6 +458,7 @@ export async function getMyAdConditions(): Promise<AdConditions> {
     specialties: uniq(rows.map((r) => r.specialty)),
     sidos: uniq(rows.map((r) => r.sido)),
     count: rows.length,
+    tracks: [...new Set(rows.map((r): JobTrack => (r.is_care ? "care" : "nurse")))],
   };
 }
 
