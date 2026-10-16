@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isWorknetUrl, shouldPruneCare, splitGeoRows } from "./careSync.ts";
+import { CARE_DETAIL_RETRY_MS, isCareJobId, isCrawlerUa, isWorknetUrl, needsCareDetail, shouldPruneCare, splitGeoRows } from "./careSync.ts";
 
 test("삭제 가드 — 직전 실행보다 10% 넘게 줄면 지우지 않고, 0건이면 절대 지우지 않는다", () => {
   assert.equal(shouldPruneCare(10675, null), true, "첫 실행은 지운다");
@@ -34,4 +34,36 @@ test("원문 링크 — https 의 work24.go.kr 만 받는다", () => {
   assert.equal(isWorknetUrl("javascript:alert(1)"), false);
   assert.equal(isWorknetUrl(""), false);
   assert.equal(isWorknetUrl(null), false);
+});
+
+test("상세 페이지 공고 id — 워크넷 채용공고번호 꼴(영숫자 6~32자)만 통과한다", () => {
+  assert.equal(isCareJobId("KJKZ002610160005"), true);
+  assert.equal(isCareJobId("K180612610150017"), true);
+  assert.equal(isCareJobId("abc123"), true, "하한 6자");
+  assert.equal(isCareJobId("A".repeat(32)), true, "상한 32자");
+  for (const bad of ["", "../x", "a b", "한글공고", "abc12", "A".repeat(33), "K1806;drop"]) assert.equal(isCareJobId(bad), false, bad);
+});
+
+test("상세 재시도 — 처음엔 묻고, 본문이 있으면 다시 안 묻고, 비어 있으면 하루 지난 뒤에만 다시 묻는다", () => {
+  const now = Date.parse("2026-10-16T12:00:00.000Z");
+  assert.equal(needsCareDetail({ description: null, detail_fetched_at: null }, now), true, "아직 아무도 안 열어 봄");
+  assert.equal(needsCareDetail({ description: "본문", detail_fetched_at: "2026-01-01T00:00:00.000Z" }, now), false, "본문이 있으면 끝");
+  assert.equal(needsCareDetail({ description: null, detail_fetched_at: "2026-10-16T11:00:00.000Z" }, now), false, "한 시간 전 실패 — 아직 안 묻는다");
+  assert.equal(needsCareDetail({ description: null, detail_fetched_at: new Date(now - CARE_DETAIL_RETRY_MS).toISOString() }, now), true, "하루 지나면 다시 묻는다");
+  assert.equal(needsCareDetail({ description: null, detail_fetched_at: "not-a-date" }, now), true, "읽을 수 없는 시각은 다시 묻는다");
+});
+
+test("크롤러 UA — Next 의 isBot 이 놓치는 네이버·다음·카카오 미리보기·AI 크롤러도 봇으로 본다", () => {
+  for (const ua of [
+    "Mozilla/5.0 (compatible; Yeti/1.1; +https://naver.me/spd)",
+    "Mozilla/5.0 (compatible; Daumoa/4.0; +http://cs.daum.net/faq/15/4118.html)",
+    "facebookexternalhit/1.1;kakaotalk-scrap/1.0;",
+    "Mozilla/5.0 AppleWebKit/537.36 (compatible; ClaudeBot/1.0)",
+    "Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)",
+  ]) assert.equal(isCrawlerUa(ua), true, ua);
+  for (const ua of [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    "",
+  ]) assert.equal(isCrawlerUa(ua), false, ua || "(빈 UA)");
 });

@@ -256,7 +256,8 @@ const LIVE = "is_live" as const;
  * ⑤ id — 유일 키. 워크넷 일괄수집분은 posted_at 이 같은 행이 수백 건이라, 쪽마다 별개 질의인
  *    페이지네이션에서 이게 없으면 **행이 중복되거나 누락된다**(경계가 동률 한가운데 떨어진다).
  */
-const LISTED_ORDER = ["ad_paid", "ad_live", "is_tertiary", "posted_at", "id"] as const;
+// export — 요양·간병 목록의 직접 등록분(lib/data/careJobs getCareDirectJobs)도 같은 순서로 선다.
+export const LISTED_ORDER = ["ad_paid", "ad_live", "is_tertiary", "posted_at", "id"] as const;
 
 // 관리자 테스트 공고(hospitals.is_test)를 여기서 걸러내지 않는 것은 의도된 결정이다.
 // 숨기면 등록→광고→지원까지 실제 화면에서 확인할 방법이 없어 테스트 기능이 무용지물이 된다.

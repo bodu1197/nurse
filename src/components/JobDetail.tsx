@@ -109,6 +109,37 @@ function ExternalApply({
   );
 }
 
+/**
+ * 채용 문의(담당자·전화) — 로그인한 사람에게만 보이고, 아니면 가린 채 로그인 링크를 둔다.
+ * 간호 공고 상세(아래 JobDetail)와 요양·간병 상세(app/care-jobs/[id])가 같은 것을 쓴다 — 연락처를 누구에게
+ * 보일지 정하는 규칙이 두 곳에 있으면 한쪽만 바뀐다. 둘 다 없으면 아무것도 그리지 않는다.
+ */
+export function ContactBox({ name, phone, revealed, loginHref }: Readonly<{ name: string | null; phone: string | null; revealed: boolean; loginHref: string }>) {
+  if (!name && !phone) return null;
+  return (
+    <div className="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-sm">
+      <p className="font-semibold text-slate-700">채용 문의</p>
+      {revealed ? (
+        <>
+          {name && <p className="mt-1 text-slate-600">{name}</p>}
+          {phone && (
+            <a href={`tel:${phone}`} className="mt-1 inline-flex min-h-11 items-center gap-1.5 rounded text-lg font-bold text-red-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M22 16.92v3a2 2 0 01-2.18 2 19.8 19.8 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z" /></svg>
+              {phone}
+            </a>
+          )}
+        </>
+      ) : (
+        <>
+          {name && <p className="mt-1 tracking-widest text-slate-500">담당자 ******</p>}
+          {phone && <p className="mt-1 tracking-widest text-slate-500">전화 ***-****-****</p>}
+          <a href={loginHref} className="mt-1 inline-flex min-h-11 items-center rounded font-semibold text-teal-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">로그인 후 연락처 확인</a>
+        </>
+      )}
+    </div>
+  );
+}
+
 type Props = Readonly<{
   job: JobRow;
   profile: { displayName: string; role: Role; email: string } | null;
@@ -301,28 +332,7 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
           )}
         </div>
 
-        {(job.manager_name || job.manager_phone) && (
-          <div className="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-sm">
-            <p className="font-semibold text-slate-700">채용 문의</p>
-            {profile ? (
-              <>
-                {job.manager_name && <p className="mt-1 text-slate-600">{job.manager_name}</p>}
-                {job.manager_phone && (
-                  <a href={`tel:${job.manager_phone}`} className="mt-1 inline-flex min-h-11 items-center gap-1.5 text-lg font-bold text-red-600 hover:underline">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><path d="M22 16.92v3a2 2 0 01-2.18 2 19.8 19.8 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z" /></svg>
-                    {job.manager_phone}
-                  </a>
-                )}
-              </>
-            ) : (
-              <>
-                {job.manager_name && <p className="mt-1 tracking-widest text-slate-500">담당자 ******</p>}
-                {job.manager_phone && <p className="mt-1 tracking-widest text-slate-500">전화 ***-****-****</p>}
-                <a href={loginHref} className="mt-1 inline-block font-semibold text-teal-700 hover:underline">로그인 후 연락처 확인</a>
-              </>
-            )}
-          </div>
-        )}
+        <ContactBox name={job.manager_name} phone={job.manager_phone} revealed={!!profile} loginHref={loginHref} />
 
         <hr className="my-5 border-slate-100" />
 

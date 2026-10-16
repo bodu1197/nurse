@@ -353,12 +353,17 @@ export type Database = {
           },
         ]
       }
-      /** 요양보호사·간병인 구인(워크넷 5501xx·5502xx·5503xx) — 간호사 jobs 와 별도 표(20261016100000 · 좌표 20261016120000). */
+      /** 요양보호사·간병인 구인(워크넷 5501xx·5502xx·5503xx) — 간호사 jobs 와 별도 표(20261016100000 · 좌표 20261016120000 · 상세 20261016140000). */
       care_jobs: {
         Row: {
+          apply_detail: string | null
+          benefits: string[]
           company_name: string | null
           created_at: string
           deadline: string | null
+          description: string | null
+          detail_fetched_at: string | null
+          employment_type: string | null
           external_id: string
           external_url: string
           geocoded_at: string | null
@@ -367,16 +372,25 @@ export type Database = {
           lat: number | null
           lng: number | null
           location: string | null
+          manager_name: string | null
+          manager_phone: string | null
           posted_at: string
+          recruit_count: number | null
           salary_text: string | null
+          shift_type: string | null
           sido: string | null
           sigungu: string | null
           title: string
         }
         Insert: {
+          apply_detail?: string | null
+          benefits?: string[]
           company_name?: string | null
           created_at?: string
           deadline?: string | null
+          description?: string | null
+          detail_fetched_at?: string | null
+          employment_type?: string | null
           external_id: string
           external_url: string
           geocoded_at?: string | null
@@ -385,16 +399,25 @@ export type Database = {
           lat?: number | null
           lng?: number | null
           location?: string | null
+          manager_name?: string | null
+          manager_phone?: string | null
           posted_at: string
+          recruit_count?: number | null
           salary_text?: string | null
+          shift_type?: string | null
           sido?: string | null
           sigungu?: string | null
           title: string
         }
         Update: {
+          apply_detail?: string | null
+          benefits?: string[]
           company_name?: string | null
           created_at?: string
           deadline?: string | null
+          description?: string | null
+          detail_fetched_at?: string | null
+          employment_type?: string | null
           external_id?: string
           external_url?: string
           geocoded_at?: string | null
@@ -403,8 +426,12 @@ export type Database = {
           lat?: number | null
           lng?: number | null
           location?: string | null
+          manager_name?: string | null
+          manager_phone?: string | null
           posted_at?: string
+          recruit_count?: number | null
           salary_text?: string | null
+          shift_type?: string | null
           sido?: string | null
           sigungu?: string | null
           title?: string

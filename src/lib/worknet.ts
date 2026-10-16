@@ -177,7 +177,8 @@ const CARE_MAX_PAGES = 150;
 
 /**
  * 요양보호사·간병 공고 전부 — care_jobs 표용(크론 /api/cron/sync-care). 간호 수집(fetchNurseJobs)과
- * 같은 호출이고 거르는 코드만 반대다. 상세 API 는 부르지 않는다(카드가 워크넷 원문으로 간다).
+ * 같은 호출이고 거르는 코드만 반대다. 상세 API 는 크론에서 부르지 않는다 — 상세 페이지(/care-jobs/[id])가
+ * 처음 열릴 때 그 공고만 받는다(lib/data/careJobs getCareJob).
  */
 export async function fetchCareJobs(codes: readonly string[] = CARE_JOB_CODES): Promise<WorknetJob[]> {
   const all: WorknetJob[] = [];
@@ -241,10 +242,11 @@ function parseDetail(xml: string): WorknetDetail | null {
   };
 }
 
-async function fetchDetail(authNo: string, infoSvc: string): Promise<WorknetDetail | null> {
+// timeoutMs — 크론은 15초(기본), 사람이 기다리는 상세 페이지(lib/data/careJobs withCareDetail)는 더 짧게 준다.
+async function fetchDetail(authNo: string, infoSvc: string, timeoutMs = 15000): Promise<WorknetDetail | null> {
   const qs = new URLSearchParams({ authKey: authKey(), callTp: "D", returnType: "XML", wantedAuthNo: authNo, infoSvc: infoSvc || "VALIDATION" });
   try {
-    const res = await fetch(`${DETAIL}?${qs}`, { cache: "no-store", signal: AbortSignal.timeout(15000) });
+    const res = await fetch(`${DETAIL}?${qs}`, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) return null;
     return parseDetail(await res.text());
   } catch {
@@ -253,8 +255,8 @@ async function fetchDetail(authNo: string, infoSvc: string): Promise<WorknetDeta
 }
 
 // 공고 상세 배치 조회. 실패분은 맵에서 누락(호출부에서 기존 저장값 유지).
-export async function fetchDetails(items: ReadonlyArray<{ authNo: string; infoSvc: string }>): Promise<Map<string, WorknetDetail>> {
-  const pairs = await inBatches([...items], CONCURRENCY * 2, async (it) => [it.authNo, await fetchDetail(it.authNo, it.infoSvc)] as const);
+export async function fetchDetails(items: ReadonlyArray<{ authNo: string; infoSvc: string }>, timeoutMs?: number): Promise<Map<string, WorknetDetail>> {
+  const pairs = await inBatches([...items], CONCURRENCY * 2, async (it) => [it.authNo, await fetchDetail(it.authNo, it.infoSvc, timeoutMs)] as const);
   const map = new Map<string, WorknetDetail>();
   for (const [id, d] of pairs) if (d) map.set(id, d);
   return map;

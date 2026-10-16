@@ -34,7 +34,7 @@ export default async function SignupPage({
           <div className="grid grid-cols-2 gap-2">
             <label>
               <input type="radio" name="role" value="nurse" defaultChecked={!isHospital} className="peer sr-only" />
-              <span className={roleClass}>간호사·간호조무사</span>
+              <span className={roleClass}>간호사·간호조무사·요양보호사·간병인</span>
             </label>
             <label>
               <input type="radio" name="role" value="hospital" defaultChecked={isHospital} className="peer sr-only" />

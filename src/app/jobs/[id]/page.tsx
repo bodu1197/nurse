@@ -7,8 +7,9 @@ import { getMyProfile } from "@/lib/data/user";
 import { getCommunityAccess } from "@/lib/data/community";
 import { myApplication } from "@/lib/data/applications";
 import { daysAgo, nowMs, listingEnd } from "@/lib/date";
-import { socialMeta } from "@/lib/constants";
+import { CARE_JOBS_MENU, socialMeta } from "@/lib/constants";
 import { isOpenToSeekers } from "@/lib/jobState";
+import { CARE_CATEGORIES } from "@/lib/jobTaxonomy";
 
 // 노출이 끝난 공고(직접등록 기간 만료 · 마감일 경과)는 없는 것과 같이 다룬다.
 // 목록과 같은 규칙(isOpenToSeekers)을 써야 "목록엔 없는데 링크로는 열리는" 공고가 안 생기고,
@@ -71,8 +72,12 @@ export default async function JobPage({
   // 직렬화 규칙은 목록과 같은 jobFilterQs 한 곳을 쓴다(필터 추가 시 한쪽만 고쳐 끊기는 것 방지).
   const qsFor = (toPage: number) => jobFilterQs({ q, l, sido, sigungu: sg, spec, fac, cat, et }, toPage);
   const searchQs = qsFor(pageNum);
+  // 🧓 직종이 요양보호사·간병인이면 이 공고는 요양·간병 채용(/care-jobs)에 실린 것이다 — 돌아갈 곳도 거기다.
+  //    간호 목록으로 보내면 방금 보던 목록이 아니다(/review8 지적 2026-10-16). 사이드바는 그대로 간호 공고다(후속).
+  const isCare = CARE_CATEGORIES.some((c) => c === job.job_category);
   // 닫기(X)·목록 링크가 돌아갈 곳: 필터가 있으면 그 검색결과, 없으면 목록 첫 화면.
-  const backHref = "/jobs" + (searchQs ? `?${searchQs}` : "");
+  const backHref = fromSearch ? `/jobs?${searchQs}` : isCare ? CARE_JOBS_MENU.href : "/jobs";
+  const backLabel = fromSearch ? "검색 결과로" : isCare ? `${CARE_JOBS_MENU.label} 목록` : "채용공고 목록";
   // 사이드바 카드도 같은 검색 컨텍스트(현재 페이지)를 달고 이동해야 필터가 끊기지 않는다.
   const sideHref = (nid: string) => `/jobs/${nid}` + (fromSearch && searchQs ? `?${searchQs}` : "");
   // 사이드바 페이지네이션 — 같은 상세에 머물며 검색결과 페이지만 바꾼다.
@@ -115,6 +120,8 @@ export default async function JobPage({
     datePosted: job.posted_at,
     validThrough: job.source === "direct" ? new Date(listingEnd(job)).toISOString() : job.deadline ?? undefined,
     employmentType: job.employment_type ? EMPLOYMENT_TYPE[job.employment_type] : undefined,
+    // 직종(간호직·요양보호사 …) — 검색엔진이 "요양보호사 채용"을 간호사 공고와 구분해 읽는다.
+    occupationalCategory: job.job_category ?? undefined,
     hiringOrganization: { "@type": "Organization", name: job.hospital?.name ?? job.company_name ?? "병원" },
     // 급여는 **금액이 적힌 공고만** 낸다. "회사내규에 따름" 같은 문구를 구조화 데이터에 넣으면
     // 검색엔진이 급여를 못 읽고 리치 결과에서 오히려 감점된다.
@@ -141,7 +148,7 @@ export default async function JobPage({
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
       <div className="mb-3 flex items-center justify-between gap-3">
-        <Link href={backHref} className="rounded text-sm text-teal-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">← {fromSearch ? "검색 결과로" : "채용공고 목록"}</Link>
+        <Link href={backHref} className="rounded text-sm text-teal-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">← {backLabel}</Link>
         {/* 닫기 — 들어온 검색결과(필터 유지)로 되돌아간다. 히트영역 44px(모바일 터치 최소). */}
         <Link href={backHref} aria-label="닫기" className="grid h-11 w-11 place-items-center rounded-full text-lg leading-none text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">✕</Link>
       </div>

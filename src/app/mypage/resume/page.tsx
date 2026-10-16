@@ -501,7 +501,9 @@ export default async function ResumePage({
         <Section title="② 면허 · 자격">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field id="license_type" text={<>면허 구분 {req}</>}>
-              <select id="license_type" name="license_type" required defaultValue={r?.license_type ?? "간호사"} className={INPUT_CLASS}>
+              {/* 기본값을 비운다 — "간호사"가 미리 골라져 있으면 요양보호사·간병인이 그대로 저장한다(필수 칸이라 고르게 한다). */}
+              <select id="license_type" name="license_type" required defaultValue={r?.license_type ?? ""} className={INPUT_CLASS}>
+                <option value="" disabled>선택하세요</option>
                 {licenseOptions.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </Field>

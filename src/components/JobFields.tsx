@@ -1,6 +1,7 @@
 import ApplyMethodFields from "@/components/ApplyMethodFields";
 import AddressSearch from "@/components/AddressSearch";
 import { JOB_DEPARTMENTS, FACILITY_TYPES, JOB_CATEGORIES } from "@/lib/jobTaxonomy";
+import { CARE_JOBS_MENU } from "@/lib/constants";
 
 // 공고 입력 필드 — 등록/수정/복제 폼이 공유(일관성 + 유지보수).
 export type JobDefaults = {
@@ -67,6 +68,8 @@ export default function JobFields({ d = {}, minDeadline }: { d?: JobDefaults; mi
             <option value="">선택 안 함</option>
             {categories.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
+          {/* 요양·간병 공고는 실리는 목록이 하나 더 있다(lib/jobTaxonomy CARE_CATEGORIES) — 고르는 자리에서 말해 준다. */}
+          <p className="text-xs text-slate-500">요양보호사·간병인을 고르면 「{CARE_JOBS_MENU.label}」 목록에도 실립니다.</p>
         </div>
         <div className="flex flex-col gap-1">
           <label htmlFor="employment_type" className={label}>고용형태</label>

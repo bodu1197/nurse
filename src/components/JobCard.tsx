@@ -54,9 +54,6 @@ export default function JobCard({
   badge,
   note,
   reserveAction = false,
-  // 🔴 기본값을 꼭 둔다. 빠뜨리면 컴파일은 통과한다 — DOM 표준에 옛 전역 `window.external` 이 있어 타입이 그걸
-  //    가리키고, 서버(Node)에선 그 전역이 없어 ReferenceError 로 목록이 500 이 된다(실측 2026-10-16).
-  external = false,
 }: Readonly<{
   job: JobCardData;
   href: string;
@@ -64,19 +61,16 @@ export default function JobCard({
   note?: ReactNode;
   /** 카드 위에 겹쳐 놓는 버튼(목록의 저장 아이콘)이 있으면 아래 줄 오른쪽을 비워 둔다. */
   reserveAction?: boolean;
-  /** 바깥 사이트(워크넷 원문)로 가는 카드(/care-jobs) — 새 창으로 열고, 링크 이름과 카드 아래 줄에 그 사실을 밝힌다. */
-  external?: boolean;
 }>) {
   const canApply = acceptsPlatformApply({ source: job.source, apply_methods: job.apply_methods });
   const hospitalName = job.hospital?.name ?? job.company_name ?? "병원 미상";
   return (
     <a
       href={href}
-      {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
       // 🔴 링크 이름을 따로 준다. 안 주면 카드 본문 전체(제목+배지+병원명+지역+어긋난 조건+급여+날짜)가
       //    한 링크의 이름으로 읽혀, 스크린리더의 링크 목록에서 어느 공고인지 가려낼 수 없다
       //    (/talent·/match 의 인재 카드가 같은 이유로 aria-label 을 단다).
-      aria-label={[job.title, hospitalName, job.location, external ? "워크넷 원문, 새 창" : null].filter(Boolean).join(" · ")}
+      aria-label={[job.title, hospitalName, job.location].filter(Boolean).join(" · ")}
       className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600"
     >
       {/* 🔴 제목에 최소 폭(basis-40)을 주고 줄바꿈을 허용한다. 배지가 둘(간편지원 + 자동매치 일치)이면
@@ -106,8 +100,6 @@ export default function JobCard({
         ) : (
           job.deadline && <span className="font-medium text-rose-600">~{job.deadline.slice(5).replace("-", ".")} 마감</span>
         )}
-        {/* slate-500 — 400 은 흰 바탕에서 2.6:1 로 작은 글자가 안 읽힌다(새 창으로 간다는 단서라 읽혀야 한다). */}
-        {external && <span className="ml-auto text-slate-500">워크넷 ↗</span>}
       </div>
     </a>
   );

@@ -14,7 +14,7 @@
  *
  *   1) 진료과   specialty      = DEPARTMENTS(28) …… 구 널스넷 근무부서 코드표
  *   2) 기관 종별 facility_type  = FACILITY_TYPES(11) … 이력서 HOSPITAL_TYPES + 워크넷 실측 보강
- *   3) 직종     job_category   = JOB_CATEGORIES(8) … 구 널스넷 직종 대분류
+ *   3) 직종     job_category   = JOB_CATEGORIES(10) … 구 널스넷 직종 대분류 8 + 요양보호사·간병인(2026-10-16)
  */
 
 import { DEPARTMENTS, JOB_CATEGORIES, HOSPITAL_TYPES } from "./resumeOptions.ts";
@@ -176,6 +176,18 @@ export const isNurseJobCode = (jobsCd: string | null | undefined): boolean =>
  */
 export const isCareJobCode = (jobsCd: string | null | undefined): boolean =>
   /^550[1-3]\d{2}$/.test((jobsCd ?? "").trim());
+
+/**
+ * 🧓 요양·간병 직종 — 기관이 직접 올린 공고(jobs)의 job_category 가 이 값이면 **요양·간병 채용(/care-jobs)과 홈 요양 탭**에
+ *    워크넷 수집분(care_jobs)과 한 목록으로 실린다(lib/data/careJobs getCareDirectJobs). 오너 지시 2026-10-16:
+ *    "구인 공고를 낼 때 /care-jobs 이곳에도 공고를 낼 수 있도록, 기존 구인 공고와 똑같은 기능이 되도록, 지원도 되게".
+ *    새 표를 만들지 않은 이유 — 등록·결제·상세·저장·간편지원이 전부 jobs 에 있다. 직종 값 하나로 목록만 갈린다.
+ * ponytail: 간호 목록(/jobs)에서 이 직종을 빼지는 않는다 — getJobs 뿐 아니라 칩·지역 건수 RPC 세 개(nurse_job_facet_list ·
+ *    nurse_job_sido_list · nurse_job_sigungu_list)를 같이 고쳐야 숫자가 맞는다. 직접 등록은 몇 건 안 되고 직종 칩으로 거를 수
+ *    있다(칩 집계의 직종 허용 목록에 두 값을 넣었다 — 마이그레이션 20261016150000). 빼야 하면 그 넷을 한 마이그레이션에서 같이 고친다.
+ * 🔴 값을 더하면 DB 의 허용 목록도 같이 — nurse_job_facet_list(공고 칩)·nurse_talent_facet_list(인재 칩). 안 넣으면 '미분류' 칸에 섞인다.
+ */
+export const CARE_CATEGORIES = ["요양보호사", "간병인"] as const satisfies readonly (typeof JOB_CATEGORIES)[number][];
 
 /**
  * 진료과 추론 — 공고 텍스트에서 DEPARTMENTS 어휘를 찾는다.

@@ -8,7 +8,8 @@ import { ApplyBadge } from "@/components/JobCard";
 import HomeJobTabs from "@/components/HomeJobTabs";
 import { getMyProfile } from "@/lib/data/user";
 import { getJobs } from "@/lib/data/jobs";
-import { getCareJobs } from "@/lib/data/careJobs";
+import { getCareJobs, getCareDirectJobs } from "@/lib/data/careJobs";
+import { CARE_JOBS_MENU } from "@/lib/constants";
 import { searchPublicTalent, revealContacts, canRevealContacts, type RevealedContact } from "@/lib/data/talent";
 import TalentCard from "@/components/TalentCard";
 import { daysAgo } from "@/lib/date";
@@ -25,10 +26,10 @@ export const metadata = { alternates: { canonical: "/" } };
  * 홈 공고 카드 — 간호 탭과 요양보호사 탭이 **같은 모양**을 쓴다.
  * 목록 카드(components/JobCard)와 레이아웃이 달라(병원명·지역 한 줄, 마감일 없음) 그건 공유하지 않는다.
  * 홈은 6건이지만 /jobs 세그먼트에 layout·loading 이 있어 미리 받아오는 비용이 공짜가 아니다
- * (로그인 상태면 카드마다 세션·프로필 조회) → 누른 뒤에 받는다(prefetch=false). 바깥(워크넷 원문)은 새 창.
+ * (로그인 상태면 카드마다 세션·프로필 조회) → 누른 뒤에 받는다(prefetch=false).
  */
-function HomeCard({ href, external, title, badge, sub, salary, postedAt }: Readonly<{
-  href: string; external?: boolean; title: string; badge?: ReactNode; sub: string; salary: string; postedAt: string;
+function HomeCard({ href, title, badge, sub, salary, postedAt }: Readonly<{
+  href: string; title: string; badge?: ReactNode; sub: string; salary: string; postedAt: string;
 }>) {
   // focus-visible 링은 목록 카드(JobCard)와 같다 — 종전 홈 카드엔 없어서 키보드 포커스가 보이지 않았다.
   const className = "flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600";
@@ -41,14 +42,12 @@ function HomeCard({ href, external, title, badge, sub, salary, postedAt }: Reado
       <p className="mt-1.5 text-sm text-slate-500">{sub}</p>
       <div className="mt-3 flex items-end justify-between gap-2 border-t border-slate-100 pt-3">
         <span className="font-bold text-teal-700">{salary}</span>
-        {/* slate-500 — slate-400 은 흰 바탕에서 2.6:1 로 작은 글자가 안 읽힌다(새 창 단서 "워크넷 ↗"가 여기 붙는다). */}
-        <span className="shrink-0 text-xs text-slate-500">{daysAgo(postedAt)}일 전{external ? " · 워크넷 ↗" : ""}</span>
+        {/* slate-500 — slate-400 은 흰 바탕에서 2.6:1 로 작은 글자가 안 읽힌다. */}
+        <span className="shrink-0 text-xs text-slate-500">{daysAgo(postedAt)}일 전</span>
       </div>
     </>
   );
-  return external ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" aria-label={`${title} · ${sub} · 워크넷 원문, 새 창`} className={className}>{body}</a>
-  ) : (
+  return (
     <Link href={href} prefetch={false} className={className}>{body}</Link>
   );
 }
@@ -56,7 +55,7 @@ function HomeCard({ href, external, title, badge, sub, salary, postedAt }: Reado
 export default async function Home({
   searchParams,
 }: Readonly<{ searchParams: Promise<{ left?: string }> }>) {
-  const [profile, { jobs, total: jobTotal }, { left }, talent, { jobs: careJobs, total: careTotal }] = await Promise.all([
+  const [profile, { jobs, total: jobTotal }, { left }, talent, { jobs: careJobs, total: careTotal }, { jobs: careDirect, total: careDirectTotal }] = await Promise.all([
     getMyProfile(),
     getJobs("", ""), // total 은 원래 세고 있었다(withCount 기본값 true) — 버리지 않고 탭 안에 쓴다
     searchParams,
@@ -65,8 +64,10 @@ export default async function Home({
     // withCount=true — 제목 옆 건수를 여기서 받는다(오너 지시 2026-07-30). 카드는 10장만 받고
     // 개수는 전체를 센다. /talent 목록이 보여주는 총계와 같은 함수·같은 조건이라 숫자가 어긋나지 않는다.
     searchPublicTalent({}, 1, true, HOME_TALENT),
-    // 🧓 요양보호사 탭 — 별도 표(care_jobs). /care-jobs 목록과 같은 함수·같은 정렬이라 홈과 목록이 어긋나지 않는다.
+    // 🧓 요양보호사 탭 — 워크넷 수집분(care_jobs) + 기관 직접 등록분(jobs 중 직종 요양보호사·간병인).
+    //    /care-jobs 목록과 같은 두 함수·같은 정렬이라 홈과 목록이 어긋나지 않는다.
     getCareJobs({}, 1, HOME_JOBS),
+    getCareDirectJobs({}, false, HOME_JOBS),
   ]);
   const latest = jobs.slice(0, HOME_JOBS);
   const seekers = talent.rows;
@@ -160,7 +161,8 @@ export default async function Home({
                  워크넷 수집에서 2026-07-25 부터 빼 온 요양보호사·간병인 공고(고유 약 1만 700건 — 코드별 합계는 2만이지만
                  중복)를 **별도 표(care_jobs)** 에 모아 여기와 /care-jobs 에서만 보여 준다 — 간호 목록·칩·자동매치·건수에는
                  한 건도 섞이지 않는다.
-                 카드는 워크넷 원문(새 창)으로 간다. 상세 페이지를 안 만든 이유는 care_jobs 마이그레이션 주석.
+                 기관이 직접 올린 요양·간병 공고(jobs, 직종 요양보호사·간병인)는 광고 순서대로 **먼저** 서고, 그 뒤가 수집분이다.
+                 카드는 우리 상세로 간다 — 직접 등록분은 /jobs/[id], 수집분은 /care-jobs/[id](오너 지시 2026-10-16: 바깥으로 보내지 말 것).
               건수는 탭 안에 붙인다 — 어느 쪽이 얼마나 있는지 누르기 전에 보인다(종전엔 제목 옆 "총 N건"). */}
           <section className="mt-12 pb-16">
             <h2 className="text-xl font-bold text-slate-900">최신 채용공고</h2>
@@ -191,30 +193,44 @@ export default async function Home({
                     ),
                   },
                   {
-                    key: "care", label: "요양보호사·간병인", count: careTotal, moreHref: "/care-jobs",
-                    panel: careJobs.length === 0 ? (
+                    key: "care", label: "요양보호사·간병인", count: careTotal + careDirectTotal, moreHref: CARE_JOBS_MENU.href,
+                    panel: careJobs.length === 0 && careDirect.length === 0 ? (
                       <p className="mt-4 rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">요양보호사·간병인 공고가 아직 없습니다. 잠시 후 다시 확인해 주세요.</p>
                     ) : (
                       <ul className="mt-4 grid gap-3 sm:grid-cols-2">
-                        {careJobs.map((job) => (
-                          <li key={job.external_id}>
-                            <HomeCard
-                              href={job.external_url}
-                              external
-                              title={job.title}
-                              sub={`${job.company_name ?? "기관 미상"}${job.location ? ` · ${job.location}` : ""}`}
-                              salary={job.salary_text ?? "급여 협의"}
-                              postedAt={job.posted_at}
-                            />
-                          </li>
-                        ))}
+                        {[
+                          // 직접 등록분이 먼저(유료 → 무료 → 최신, getCareDirectJobs) — 간편지원 배지 판정은 간호 탭과 같은 함수.
+                          ...careDirect.map((job) => (
+                            <li key={job.id}>
+                              <HomeCard
+                                href={`/jobs/${job.id}`}
+                                title={job.title}
+                                badge={acceptsPlatformApply(job) && <ApplyBadge />}
+                                sub={`${job.hospital?.name ?? job.company_name ?? "기관 미상"}${job.location ? ` · ${job.location}` : ""}`}
+                                salary={job.salary_text ?? "급여 협의"}
+                                postedAt={job.posted_at}
+                              />
+                            </li>
+                          )),
+                          ...careJobs.map((job) => (
+                            <li key={job.external_id}>
+                              <HomeCard
+                                href={`${CARE_JOBS_MENU.href}/${job.external_id}`}
+                                title={job.title}
+                                sub={`${job.company_name ?? "기관 미상"}${job.location ? ` · ${job.location}` : ""}`}
+                                salary={job.salary_text ?? "급여 협의"}
+                                postedAt={job.posted_at}
+                              />
+                            </li>
+                          )),
+                        ].slice(0, HOME_JOBS)}
                       </ul>
                     ),
                   },
                 ]}
               />
             </div>
-            <p className="mt-4 text-center text-xs text-slate-500">일부 공고는 고용노동부 워크넷 및 공공데이터포털에서 제공받아 표시됩니다. 요양보호사·간병인 공고는 워크넷 원문으로 이동합니다.</p>
+            <p className="mt-4 text-center text-xs text-slate-500">일부 공고는 고용노동부 워크넷 및 공공데이터포털에서 제공받아 표시됩니다.</p>
           </section>
         </div>
 
