@@ -20,8 +20,17 @@ type MenuItem = { label: string; href: string };
 //
 // 🔴 메뉴 카테고리는 **전원에게 보인다**(오너 확정 2026-07-30). 한때 역할별로 감췄다가 되돌렸다 —
 //    감추면 그런 게 있는 줄도 모른다. 누가 쓸 수 있는지는 들어간 화면에서 안내한다(CommunityGate).
-export const HEADER_MENU: readonly MenuItem[] = [
+/**
+ * 요양보호사·간병인 공고(/care-jobs) 메뉴 — 상단 메뉴와 /jobs 의 기관 종별 칩이 같은 이름·주소를 쓴다.
+ * 🔴 채용공고 바로 옆에 둔다(오너 지시 2026-10-16). 종전에는 푸터·홈 탭 '전체 보기'에만 걸려 있어
+ *    사실상 아무도 못 찾는 페이지였다.
+ */
+export const CARE_JOBS_MENU: MenuItem = { label: "요양·간병 채용", href: "/care-jobs" };
+
+/** 상단 카테고리 — PC 헤더 한 줄(xl~)과 그 아래 폭의 모바일 카테고리 줄(SiteHeader)이 같은 목록을 그린다. */
+export const TOP_NAV: readonly MenuItem[] = [
   { label: "채용공고", href: "/jobs" },
+  CARE_JOBS_MENU,
   { label: "AI 자동매치", href: "/match" },
   { label: "인재정보", href: "/talent" },
   { label: "리뷰", href: "/reviews" },
@@ -29,6 +38,11 @@ export const HEADER_MENU: readonly MenuItem[] = [
   //    2,856건이 레거시 이관분(운영자가 지어 쓴 가짜 글)이라 사람에게 보이면 안 된다.
   //    주소도 next.config.ts 에서 307 로 /customer 에 접는다(메뉴만 빼면 옛 링크로 그대로 들어온다).
   { label: "고객센터", href: "/customer" },
+];
+
+// 햄버거 메뉴 = 상단 카테고리 + 가입·병원 공고등록. 따로 적으면 한쪽만 낡는다.
+export const HEADER_MENU: readonly MenuItem[] = [
+  ...TOP_NAV,
   { label: "회원가입", href: "/signup" },
   { label: "병원 공고등록", href: "/hospital" },
 ];
@@ -36,8 +50,8 @@ export const HEADER_MENU: readonly MenuItem[] = [
 // 푸터 네비게이션 — 헤더와 마찬가지로 전원에게 보인다.
 export const FOOTER_NAV: readonly MenuItem[] = [
   { label: "채용공고 찾아보기", href: "/jobs" },
-  // 요양보호사·간병인 공고(care_jobs) — 홈 탭의 '전체 보기' 말고도 어느 화면에서든 닿는 길 하나.
-  { label: "요양보호사·간병인 채용", href: "/care-jobs" },
+  // 요양보호사·간병인 공고(care_jobs). 푸터는 "채용공고 찾아보기"처럼 풀어 쓰는 문체라 상단 메뉴(CARE_JOBS_MENU)와 이름이 다른 게 의도다.
+  { label: "요양보호사·간병인 채용", href: CARE_JOBS_MENU.href },
   { label: "인재정보", href: "/talent" },
   { label: "병원 리뷰", href: "/reviews" },
   { label: "병원 서비스", href: "/hospital" },

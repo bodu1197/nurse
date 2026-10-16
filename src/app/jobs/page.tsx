@@ -10,8 +10,8 @@ import { getJobs, getSavedJobIds, getJobSidoList, getJobSigunguList, getJobFacet
 import { getMyProfile } from "@/lib/data/user";
 import { parseRadius, JOB_NEAR_RADIUS } from "@/lib/location/radius";
 import { firstParam, pageParam } from "@/lib/url";
-import { EMPLOYMENT_TYPES, socialMeta } from "@/lib/constants";
-import { chipClass as chip } from "@/lib/chip";
+import { CARE_JOBS_MENU, EMPLOYMENT_TYPES, socialMeta } from "@/lib/constants";
+import { chipClass as chip, chipLinkClass } from "@/lib/chip";
 import { saveSearch, toggleSaveJob } from "./actions";
 
 // 실데이터(워크넷 수집 + 병원 직접등록) 운영 중이라 색인 대상이다.
@@ -22,21 +22,24 @@ import { saveSearch, toggleSaveJob } from "./actions";
  * cnt 가 있으면 건수를 함께 보여준다 — 누르기 전에 몇 건인지 알 수 있어야 헛클릭이 준다.
  * 항목이 하나도 없으면 줄 자체를 그리지 않는다(빈 "전체" 칩만 덩그러니 남는 걸 막는다).
  */
-function ChipRow({ label, allHref, active, items }: Readonly<{
+function ChipRow({ label, allHref, active, items, crossLink }: Readonly<{
   label: string;
   allHref: string;
   active?: string;
   items: ReadonlyArray<{ name: string; cnt: number | null; href: string }>;
+  /** 필터가 아니라 **다른 목록으로 건너가는** 칩. "전체" 바로 뒤 — 모바일에서 가로로 밀지 않아도 보이는 자리. */
+  crossLink?: React.ReactNode;
 }>) {
   // 🔴 고른 값이 목록에 없어도 칩을 남긴다. 칩은 "지금 조건에서 공고가 있는 것"만 그리는데,
   //    다른 축을 좁히다 보면 이미 고른 값이 0건이 될 수 있다. 그때 칩이 사라지면 **해제할 방법이
   //    없어져** 빈 화면에 갇힌다(주소를 손으로 고치는 수밖에 없다).
   // 고른 값이 이 조건에서 0건이면 목록에 없다. 그래도 "지금 이게 걸려 있다"는 건 보여야 한다.
   const orphan = active && !items.some((i) => i.name === active) ? active : null;
-  if (items.length === 0 && !orphan) return null;
+  if (items.length === 0 && !orphan && !crossLink) return null;
   return (
     <nav aria-label={label} className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-0.5 md:mx-0 md:flex-wrap md:overflow-visible md:px-0">
       <a href={allHref} aria-current={!active ? "page" : undefined} className={chip(!active)}>{label} 전체</a>
+      {crossLink}
       {/* 0건이 된 선택값 — 링크로 두면 눌러도 맨 위로 튀기만 한다(href="#"). 상태 표시로만 그리고,
           해제는 왼쪽 "{label} 전체" 가 맡는다. */}
       {orphan && (
@@ -181,7 +184,10 @@ export default async function JobsPage({
         <div className="mx-auto max-w-[1280px] space-y-2 px-4 py-3">
           {/* 기관 종별을 맨 위에 둔다(오너 지시 2026-07-29) — 요양원·병원·의원 중 어디서 일할지가
               진료과보다 먼저 갈리고, 이걸 고르면 아래 진료과 칩이 그 안에 있는 것만 남는다. */}
+          {/* 요양보호사·간병인 공고는 별도 표(care_jobs)라 기관 종별 필터로는 안 잡힌다 → 그 페이지로 가는 칩을 둔다.
+              필터 칩과 헷갈리지 않게 테두리 색과 → 로 "다른 화면으로 간다"를 보인다. */}
           <ChipRow label="기관 종별" allHref={axisHref({ fac: "" })} active={fac}
+            crossLink={<Link href={CARE_JOBS_MENU.href} className={chipLinkClass}>{CARE_JOBS_MENU.label} <span aria-hidden>→</span></Link>}
             items={facets.facilities.map((d) => ({ ...d, href: axisHref({ fac: d.name }) }))} />
           <ChipRow label="직종" allHref={axisHref({ cat: "" })} active={cat}
             items={facets.categories.map((d) => ({ ...d, href: axisHref({ cat: d.name }) }))} />

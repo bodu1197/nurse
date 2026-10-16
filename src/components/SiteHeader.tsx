@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link, { useLinkStatus } from "next/link";
 import Logo from "@/components/Logo";
-import { HEADER_MENU } from "@/lib/constants";
+import { HEADER_MENU, TOP_NAV } from "@/lib/constants";
 import { signOut } from "@/app/(auth)/actions";
 
 /**
@@ -89,27 +89,25 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
           <Logo />
         </Link>
 
-        {/* 🔴 상단 메뉴는 **lg(1024px)부터** 그린다 — 그 아래는 하단 탭이 내비게이션을 맡는다.
-            종전에는 sm(640px)부터 폈는데, 로그인 상태(마이페이지+이름+로그아웃)에서 헤더가
-            **가로로 넘쳤다**(실측 2026-08-05: 768px 화면에서 문서 폭 883px). 메뉴가 4개일 때부터
-            이미 넘쳤으므로 항목 하나를 숨기는 식의 땜질로는 안 되고, "자리가 확실한 폭에서만 편다"
-            로 규칙을 바꾼다. 그 아래에서는 하단 탭(홈·채용공고·인재정보·리뷰·마이페이지)과
-            햄버거 메뉴(HEADER_MENU, AI 자동매치 포함)가 같은 곳을 전부 담는다. */}
-        {/* 🔴 whitespace-nowrap + gap-4 (2026-08-16, 1024px 실측). 로그인 상태(마이페이지+이름+로그아웃)에서
+        {/* 🔴 상단 메뉴는 **xl(1280px)부터** 그린다 — 그 아래는 헤더 밑 카테고리 줄(같은 TOP_NAV)이 맡는다.
+            폭 기준의 역사: sm(640) → lg(1024, 2026-08-05: 로그인 상태에서 768px 화면의 문서 폭이 883px)
+            → xl(2026-10-16: 「요양·간병 채용」을 더하자 1024px 로그인 상태에서 73px 넘침 실측).
+            메뉴가 4개일 때부터 이미 넘쳤으므로 항목 하나를 숨기는 식의 땜질로는 안 되고,
+            "자리가 확실한 폭에서만 편다"가 규칙이다. */}
+        {/* 🔴 whitespace-nowrap + gap-4 (2026-08-16, 당시 lg 기준 1024px 실측 — 지금은 xl 부터 편다). 로그인 상태(마이페이지+이름+로그아웃)에서
             오른쪽 묶음이 505~526px 를 먹어 nav 가 눌리고, 「AI 자동매치」가 **두 줄로 접혔다**
             (항목 높이 32px → 54px). "고객센터"(4자)로 바꾸기 전 "게시판"(3자)·gap-5 에서도 똑같이 접혔다 —
             내 변경이 만든 게 아니라 원래 있던 눌림이다. 메뉴 글자는 접지 않고, 대신 이름 쪽이
             줄어들게(max-w-[7rem] truncate) 둔다. 접히는 것은 메뉴가 아니라 이름이어야 한다.
-            gap 4px×4칸 = 16px 은 여유로 되돌려 놨다. 항목을 더 늘릴 거면 이 폭부터 다시 재라. */}
-        <nav className="ml-7 hidden items-center gap-4 text-sm font-medium text-slate-600 lg:flex">
-          {/* 게시판은 뺐다(오너 지시 2026-08-16 — 레거시 가짜 글). 자리는 고객센터가 받는다. */}
-          {[["/jobs", "채용공고"], ["/match", "AI 자동매치"], ["/talent", "인재정보"], ["/reviews", "리뷰"], ["/customer", "고객센터"]].map(([href, label]) => (
-            <Link key={href} href={href} className="whitespace-nowrap rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"><LinkPending>{label}</LinkPending></Link>
+            gap 은 여유로 되돌려 놨다(항목 6개 = 5칸). 항목을 더 늘릴 거면 이 폭부터 다시 재라. */}
+        <nav className="ml-7 hidden items-center gap-4 text-sm font-medium text-slate-600 xl:flex">
+          {TOP_NAV.map((m) => (
+            <Link key={m.href} href={m.href} className="whitespace-nowrap rounded py-1 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"><LinkPending>{m.label}</LinkPending></Link>
           ))}
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5">
-          {/* 상단 메뉴와 같은 폭 규칙(lg~) — 그 아래에서는 햄버거 메뉴·푸터에 같은 링크가 있다. */}
+          {/* lg~ 에서만 — 그 아래에서는 햄버거 메뉴·푸터에 같은 링크가 있다. */}
           <Link href="/hospital" className="hidden items-center px-3 text-sm font-medium text-slate-600 hover:text-teal-700 lg:inline-flex">병원 회원·공고등록</Link>
           {user ? (
             <>
@@ -159,6 +157,14 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
         </div>
       </div>
 
+      {/* 📱 모바일 카테고리 줄(오너 지시 2026-10-16) — 햄버거를 열지 않아도 카테고리가 보이게.
+          넘치면 가로로 밀어 본다(페이지 자체는 가로로 안 넘친다). 상단 메뉴가 펴지는 xl 부터 숨긴다. */}
+      <nav aria-label="카테고리" className="flex overflow-x-auto border-t border-slate-100 px-2 xl:hidden">
+        {TOP_NAV.map((m) => (
+          <Link key={m.href} href={m.href} className="inline-flex min-h-11 shrink-0 items-center whitespace-nowrap px-3 text-sm font-semibold text-slate-700 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-teal-600"><LinkPending>{m.label}</LinkPending></Link>
+        ))}
+      </nav>
+
       {open && (
         <>
           <div className="fixed inset-0 top-16 z-20 bg-black/20" onClick={close} aria-hidden />
@@ -185,9 +191,8 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
           가장 많이 쓰는 두 가지를 손가락이 닿는 곳에 둔다.
           로그인 전에는 「로그인」, 로그인 후에는 「마이페이지」. 같은 자리에서 뜻만 바뀐다.
           메뉴는 위 햄버거와 **같은 상태**를 쓴다 — 따로 만들면 하나를 열어둔 채 다른 하나를 열 수 있다.
-          🔴 숨김 기준이 sm(640)에서 **lg(1024)로 넓어졌다** — 상단 메뉴가 lg 부터만 펴지므로,
-             640~1023 구간에 하단 탭까지 없으면 그 폭에서 갈 길이 햄버거 하나만 남는다.
-             body 의 pb-14 도 같은 기준이어야 한다(app/layout.tsx). */}
+          🔴 숨김 기준은 lg(1024). 상단 메뉴는 xl 부터라 1024~1279 에는 둘 다 없지만, 헤더 밑 카테고리 줄이
+             같은 곳을 담으므로 갈 길이 끊기지 않는다. body 의 pb-14 도 같은 기준이어야 한다(app/layout.tsx). */}
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden">
         {BOTTOM_TABS.map(({ href, label, icon }) => (
           <Link key={href} href={href} className={TAB_CLASS}>
