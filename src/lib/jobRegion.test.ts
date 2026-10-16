@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canonicalSido, regionOfLocation, sameArea, streetOfLocation } from "./jobRegion.ts";
+import { canonicalSido, regionLabelOf, regionOfLocation, sameArea, streetOfLocation, workplaceOf } from "./jobRegion.ts";
 import { SIDO_SIGUNGU } from "./koreaRegions.ts";
 
 test("워크넷 region 형('경기 성남시') — 축약 시도 흡수 + 시군구", () => {
@@ -61,4 +61,40 @@ test("같은 동네 — 기관 직접 등록의 사칭 검사 기준(표기 차�
   assert.equal(sameArea(r("인천"), r("인천광역시 제물포구 1")), true, "한쪽 시군구를 모르면 시·도만 본다");
   assert.equal(sameArea(r("서울 종로구"), r("부산 중구")), false);
   assert.equal(sameArea(r(null), r("서울 종로구")), false, "지역을 모르는 행은 같은 동네로 치지 않는다");
+});
+
+test("워크넷 근무지 글자 — 도로명 주소 + 상세 주소, 상세가 없으면 도로명만, 도로명이 없으면 지역", () => {
+  assert.equal(workplaceOf({ addr: "인천광역시 검단구 고산로45번길 18", detailAddr: "온누리노인요양원", region: "인천 검단구" }),
+    "인천광역시 검단구 고산로45번길 18, 온누리노인요양원");
+  assert.equal(workplaceOf({ addr: "인천광역시 연수구 청량로 51", detailAddr: "", region: "인천 연수구" }), "인천광역시 연수구 청량로 51");
+  assert.equal(workplaceOf({ addr: "", detailAddr: "3층", region: "경기 성남시 수정구" }), "경기 성남시 수정구", "도로명 없이 상세만 있으면 주소가 아니다 — 지역");
+  assert.equal(workplaceOf({ addr: " ", detailAddr: "", region: "경기 성남시 수정구" }), "경기 성남시 수정구", "주소가 없으면 종전처럼 지역");
+  assert.equal(workplaceOf({ addr: "", detailAddr: "", region: "" }), null);
+  // 🔴 집 호수는 뺀다 — 방문요양 근무지(어르신 댁)가 특정되지 않게. 건물 이름·층·동네 이름은 싣는다.
+  const road = "경기도 성남시 수정구 수정로 115-1";
+  for (const unit of ["101동 1203호", "1203호", "1203호실", "１２０３호", "101동", "3동", "B동 203호", "가동 203호", "A호", "나호", "2세대", "101-1203", "1203", "301", "B1"]) {
+    assert.equal(workplaceOf({ addr: road, detailAddr: unit, region: "" }), road, `집 호수 '${unit}' 은 뺀다`);
+  }
+  for (const ok of ["이편한세상", "성서주공1단지아파트", "3층", "13층", "부평동", "지하철 3호선 근처", "7번 출구 앞", "농협 뒤 쪽", "호수공원 앞", "신세대빌딩 2층", "동대문시장 옆", "2차 상가"]) {
+    assert.equal(workplaceOf({ addr: road, detailAddr: ok, region: "" }), `${road}, ${ok}`, `'${ok}' 은 싣는다`);
+  }
+  // 호수·숫자만 지우고 나머지는 남긴다 — '호' 없이 적은 호수("OO빌라 302")도 지운다
+  for (const [input, kept] of [["3층 301호", "3층"], ["이편한세상 101동 1203호", "이편한세상"], ["OO아파트101동1203", "OO아파트"], ["OO빌라 302", "OO빌라"],
+    ["주공아파트 103-1102", "주공아파트"], ["에이동 203", "에이동"], ["2단지 103동", "2단지"], ["본관 2층 201호", "본관 2층"],
+    ["OO빌라 302 차량진입불가", "OO빌라 차량진입불가"], ["302 층간소음 주의", "층간소음 주의"]]) {
+    assert.equal(workplaceOf({ addr: road, detailAddr: input, region: "" }), `${road}, ${kept}`, `'${input}' → '${kept}'`);
+  }
+  for (const junk of [".", "..", " - ", "·"]) assert.equal(workplaceOf({ addr: road, detailAddr: junk, region: "" }), road, `잡값 '${junk}' 은 뺀다`);
+  // 요양·간병 공고는 상세 칸을 아예 싣지 않는다(어르신 댁)
+  assert.equal(workplaceOf({ addr: road, detailAddr: "이편한세상 3층", region: "" }, { withDetail: false }), road);
+  assert.equal(workplaceOf({ addr: "", detailAddr: "이편한세상", region: "경기 성남시 수정구" }, { withDetail: false }), "경기 성남시 수정구");
+  assert.equal(regionLabelOf({ location: "경기도 성남시 수정구 수정로 115-1, 3층" }), "경기도 성남시 수정구");
+  assert.equal(regionLabelOf({ location: "경기도 화성시 동탄대로 1", sido: "경기도", sigungu: "화성시 동탄구" }), "경기도 화성시 동탄구", "저장된 정규화 값이 먼저다(신설 구)");
+  assert.equal(regionLabelOf({ location: "세종특별자치시 한누리대로 90-3", sido: "세종특별자치시", sigungu: null }), "세종특별자치시");
+  assert.equal(regionLabelOf({ location: "본원 3층", sido: null }), "본원 3층", "시도를 못 읽으면 원문");
+  assert.equal(regionLabelOf({ location: null }), null);
+  // 저장된 값은 지역 정규화·검색엔진 주소 분해가 그대로 먹어야 한다
+  const loc = workplaceOf({ addr: "경기도 성남시 수정구 수정로 115-1", detailAddr: "3층", region: "경기 성남시 수정구" });
+  assert.deepEqual(regionOfLocation(loc), { sido: "경기도", sigungu: "성남시 수정구" });
+  assert.equal(streetOfLocation(loc), "수정로 115-1, 3층");
 });

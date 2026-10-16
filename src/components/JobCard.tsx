@@ -89,7 +89,8 @@ export default function JobCard({
         )}
       </div>
       <p className="mt-1.5 text-sm text-slate-700">{hospitalName}</p>
-      <p className="text-sm text-slate-500">{job.location}</p>
+      {/* 근무지는 도로명 주소까지 들어 있어 길다 — 두 줄까지 보여 주고 그 뒤는 자른다(한 줄이면 375px 에서 구 이름까지 잘린다) */}
+      <p className="line-clamp-2 text-sm text-slate-500">{job.location}</p>
       {note}
       <div className={`mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-slate-100 pt-3 text-xs ${reserveAction ? "pr-12" : ""}`}>
         <span className="font-bold text-teal-700">{job.salary_text ?? "급여 협의"}</span>

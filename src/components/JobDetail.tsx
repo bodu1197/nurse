@@ -10,6 +10,7 @@ import FormDraft from "@/components/FormDraft";
 import DraftCleaner from "@/components/DraftCleaner";
 import { listingEnd, fmtDate } from "@/lib/date";
 import type { JobRow } from "@/lib/data/jobs";
+import { regionLabelOf } from "@/lib/jobRegion";
 import type { Role } from "@/lib/data/role";
 
 // 공고 상세 — 목록 옆 패널(/jobs)과 단독 상세 페이지(/jobs/[id])가 같은 화면을 쓴다.
@@ -217,7 +218,8 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
             <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-700">✓ 사업자 인증 병원</span>
           )}
         </div>
-        <div className="mt-1 text-slate-600">{job.location}</div>
+        {/* 머리글에는 지역(시도·시군구)만 — 도로명 주소까지 든 근무지 전체는 아래 「근무지」에서 한 번 보여 준다(같은 긴 글자가 두 번 보이지 않게). */}
+        <div className="mt-1 text-slate-600">{regionLabelOf(job)}</div>
         <div className="text-slate-600">{[job.employment_type, job.salary_text].filter(Boolean).join(" · ")}</div>
 
         {showError && (
@@ -349,7 +351,7 @@ export default function JobDetail({ job, profile, application, saved, selfHref, 
 
         {job.location && (
           <>
-            <h3 className="mt-5 font-bold text-slate-900">지역</h3>
+            <h3 className="mt-5 font-bold text-slate-900">근무지</h3>
             <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-700">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-500" aria-hidden><path d="M12 21s-7-6.3-7-11a7 7 0 1114 0c0 4.7-7 11-7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
               {job.location}

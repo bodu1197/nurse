@@ -38,7 +38,8 @@ function HomeCard({ href, title, badge, sub, salary, postedAt }: Readonly<{
         <h3 className="font-bold leading-snug text-slate-900">{title}</h3>
         {badge && <span className="shrink-0">{badge}</span>}
       </div>
-      <p className="mt-1.5 text-sm text-slate-500">{sub}</p>
+      {/* 기관명 · 근무지(도로명 주소까지) — 두 줄까지 보여 주고 그 뒤는 자른다(한 줄이면 375px 에서 기관명만 남는다). */}
+      <p className="mt-1.5 line-clamp-2 text-sm text-slate-500">{sub}</p>
       <div className="mt-3 flex items-end justify-between gap-2 border-t border-slate-100 pt-3">
         <span className="font-bold text-teal-700">{salary}</span>
         {/* slate-500 — slate-400 은 흰 바탕에서 2.6:1 로 작은 글자가 안 읽힌다. */}

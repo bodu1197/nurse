@@ -9,6 +9,11 @@ import { CARE_JOBS_MENU } from "@/lib/constants";
 import { isCareCategory } from "@/lib/jobTaxonomy";
 import { toggleSaveJob } from "@/app/jobs/actions";
 
+/** 공고의 저장된 지역(sido·sigungu — 목록 필터와 같은 값) → 목록 지역 필터 쿼리. 지역을 모르면 전국에서 찾는다. */
+function regionQs(j: { sido: string | null; sigungu: string | null }): Record<string, string> {
+  return j.sido ? { sido: j.sido, ...(j.sigungu ? { sigungu: j.sigungu } : {}) } : {};
+}
+
 export const metadata = { title: "저장한 공고 — 널스넷", robots: { index: false } };
 
 export default async function SavedPage() {
@@ -42,9 +47,10 @@ export default async function SavedPage() {
                   )}
                   <div className="text-sm text-slate-500">{j.hospital?.name ?? j.company_name ?? "병원 미상"} · {j.location ?? "-"}{j.salary_text ? " · " + j.salary_text : ""}</div>
                   {/* 마감 공고는 지우는 것 말고 할 게 없다 → 같은 조건으로 다시 찾을 길을 준다.
-                      요양·간병 공고면 요양·간병 목록에서 찾는다(간호 목록에는 안 나온다). */}
+                      요양·간병 공고면 요양·간병 목록에서 찾는다(간호 목록에는 안 나온다).
+                      지역은 저장된 시도·시군구 필터로 넘긴다 — 근무지 글자(이제 도로명 주소까지 들어 있다)를 검색어로 넘기면 그 주소 하나만 걸려 0건이 된다. */}
                   {!open && (
-                    <Link href={`${isCareCategory(j.job_category) ? CARE_JOBS_MENU.href : "/jobs"}?${new URLSearchParams({ ...(j.specialty ? { q: j.specialty } : {}), ...(j.location ? { l: j.location } : {}) })}`}
+                    <Link href={`${isCareCategory(j.job_category) ? CARE_JOBS_MENU.href : "/jobs"}?${new URLSearchParams({ ...(j.specialty ? { q: j.specialty } : {}), ...regionQs(j) })}`}
                       prefetch={false} className="mt-1 inline-block text-base font-semibold text-teal-700 hover:underline">
                       비슷한 공고 찾기 →
                     </Link>

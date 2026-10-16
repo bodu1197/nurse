@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchNurseJobs, fetchDetails, inBatches } from "@/lib/worknet";
-import { regionOfLocation } from "@/lib/jobRegion";
+import { regionOfLocation, workplaceOf } from "@/lib/jobRegion";
 import { departmentFromText, stillValid, NOT_CARE_OR } from "@/lib/jobTaxonomy";
 import { geocodeAddress } from "@/lib/kakao";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
@@ -128,7 +128,9 @@ export async function GET(request: Request) {
         facility_type: registry.get(j.company)?.facilityType ?? j.facilityType ?? s?.facility_type ?? null,
         job_category: j.jobCategory ?? s?.job_category ?? null,
         employment_type: j.employmentType,
-        location: j.region || null,
+        // 도로명 + 상세 주소(없으면 지역). 지역 필터(sido/sigungu)는 위 j.region 으로 따로 센다.
+        // 🔴 간호 공고라도 산업분류가 재가·방문·개인 간병이면 근무지가 가정일 수 있다 — 요양 크론처럼 상세 칸을 뺀다(workplaceOf 주석).
+        location: workplaceOf(j, { withDetail: !/재가|방문|개인\s*간병/.test(j.industry) }),
         sido: region.sido,
         sigungu: region.sigungu,
         lat: coords.get(j.authNo)?.lat ?? s?.lat ?? null,

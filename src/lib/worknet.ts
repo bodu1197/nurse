@@ -41,7 +41,8 @@ export type WorknetJob = {
   regDt: string; // 등록일 "YY-MM-DD"
   deadline: string | null; // 마감일 "YYYY-MM-DD"(상시/무기한이면 null)
   url: string; // 공고 상세 링크
-  addr: string; // 근무지 주소
+  addr: string; // 근무지 도로명 주소(basicAddr) — 좌표(내 주변)는 이걸로 찍는다
+  detailAddr: string; // 근무지 상세 주소(detailAddr: 건물 이름·층·집 호수 등 자유 입력. 실측 365건 중 252건에 있다 — 거르는 규칙은 jobRegion.workplaceOf)
   infoSvc: string; // 상세 API 호출용(VALIDATION 등)
   jobsCd: string; // 직종코드(304000 간호사 / 307500 간호조무사 …). 직종 축의 정답 — 누락 0건.
   industry: string; // indTpNm 산업분류명("노인 요양 복지시설 운영업" 등). 기관 종별의 정답 — 누락 0건.
@@ -101,7 +102,8 @@ function parsePage(xml: string): { jobs: WorknetJob[]; total: number } {
       regDt: pick(b, "regDt"),
       deadline: parseDeadline(pick(b, "closeDt")),
       url: decode(pick(b, "wantedInfoUrl")),
-      addr: pick(b, "basicAddr"),
+      addr: decode(pick(b, "basicAddr")),
+      detailAddr: decode(pick(b, "detailAddr")),
       infoSvc: pick(b, "infoSvc") || "VALIDATION",
       jobsCd,
       industry,

@@ -11,7 +11,7 @@ import { DEPT_ANY } from "@/lib/resumeOptions";
 // 🔴 칩 순서를 등록 폼과 맞추려고 **같은 상수**를 쓴다. 여기 목록을 따로 적으면 둘이 갈라진다.
 import { FACILITY_TYPES } from "@/lib/jobTaxonomy";
 import { nearBox } from "@/lib/location/bbox";
-import { regionOfLocation } from "@/lib/jobRegion";
+import { regionOfJob } from "@/lib/jobRegion";
 import type { MatchScope } from "@/lib/match";
 import type { JobTrack } from "@/lib/resumeOptions";
 import type { Database } from "@/types/database";
@@ -27,6 +27,8 @@ type JobsRow = Database["public"]["Tables"]["jobs"]["Row"];
  */
 const JOB_FIELDS = [
   "id", "title", "status", "specialty", "facility_type", "job_category", "location", "employment_type", "salary_text", "benefits",
+  // 정규화 지역(필터·RPC 와 같은 값) — 카드·머리글·옆 목록의 짧은 지역 표시와 '비슷한 공고 찾기' 링크가 쓴다(근무지 글자에서 다시 뽑으면 신설 구에서 어긋난다).
+  "sido", "sigungu",
   "description", "source", "external_url", "is_featured", "posted_at", "deadline", "featured_until",
   "recruit_count", "shift_type", "manager_name", "manager_phone", "apply_methods", "apply_email", "apply_detail",
   // 워크넷 등 명부에 없는 광고의 회사명(구인 광고 자체가 갖는 텍스트). 명부 연결(hospital) 없을 때 표시명으로 쓴다.
@@ -108,6 +110,11 @@ const REVIVABLE = ["closed", "expired"] as const satisfies readonly JobStatus[];
 const clean = (s: string) => s.replace(/[%,()*]/g, "").trim();
 /** LIKE 접두 검색어 — clean 에 더해 한 글자 와일드카드(_)와 이스케이프(\)도 지운다(시군구 이름에는 없는 글자). */
 const likePrefix = (s: string) => clean(s.replace(/[_\\]/g, ""));
+/**
+ * 지역 검색어(홈 검색폼 ?l=) → location ILIKE 패턴 속. 띄어 쓴 단어 사이를 % 로 이어 "서울 강남" 이 "서울특별시 강남구 테헤란로 1" 에도 걸리게 한다
+ * (근무지가 도로명 주소까지 들어 있어 "서울 강남구" 같은 글자 그대로는 더 이상 없다). 앱 필터와 지역 RPC(p_location) 가 같은 패턴을 쓴다.
+ */
+const locationPattern = (s: string) => likePrefix(s).split(/\s+/).filter(Boolean).join("%");
 
 /**
  * 🗂 "미분류" 를 고르는 URL 값.
@@ -146,7 +153,7 @@ const regionArgs = (f: RegionFilters) => ({
   p_category: f.jobCategory ?? "",
   p_employment: f.employmentType ?? "",
   p_keyword: f.keyword ? clean(f.keyword) : "",
-  p_location: f.location ? clean(f.location) : "",
+  p_location: f.location ? locationPattern(f.location) : "",
   p_care: !!f.care, // 목록과 같은 범위로 센다 — 드롭다운 건수 = 클릭 후 건수
 });
 
@@ -195,7 +202,7 @@ export async function getJobFacets(f: JobFilters & { keyword?: string; location?
     p_keyword: f.keyword ? clean(f.keyword) : "",
     // 홈 검색폼이 넣는 지역 텍스트(?l=성남). 이것도 getJobs 가 location ilike 로 거는데
     // 여기 안 넘기면 "의원 70" 이라 해놓고 눌렀을 때 더 적게 나온다.
-    p_location: f.location ? clean(f.location) : "",
+    p_location: f.location ? locationPattern(f.location) : "",
     p_care: !!f.care, // 간호/요양·간병 — 목록과 같은 범위
   });
   if (error) console.error("getJobFacets failed:", error.message);
@@ -303,7 +310,7 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   if (kw) query = query.or(
     `title.ilike.%${kw}%,specialty.ilike.%${kw}%,facility_type.ilike.%${kw}%,job_category.ilike.%${kw}%`,
   );
-  const loc = clean(location);
+  const loc = locationPattern(location);
   if (loc) query = query.ilike("location", `%${loc}%`);
   // 🗂 지역은 정규화 컬럼(정확·인덱스) — 시군구는 고른 값이면 eq, 같은 시 묶음(city)이면 접두 일치(같은 시도 안에서
   // 다른 시군구 이름으로 시작하는 시군구는 없다 — jobRegion.test.ts 가 koreaRegions 전체로 확인한다). 🔴 시군구는 시도에 종속 —
@@ -530,8 +537,8 @@ export async function getSitemapJobs(): Promise<{ id: string; updated_at: string
 // care — 요양·간병 공고의 옆 목록은 요양·간병 공고다(같은 목록 범위).
 // area — 찾은 지역의 이름(사이드바 제목), 최근 공고로 채웠으면 null(제목에 지역명을 쓰지 않는다). 제목을 따로 계산하면
 //   목록과 다른 지역을 가리킬 수 있어 목록을 찾은 값 그대로 여기서 같이 준다.
-export async function getNearbyJobs(location: string | null, excludeId: string, limit = 8, care = false): Promise<{ jobs: JobRow[]; area: string | null }> {
-  const { sido, sigungu } = regionOfLocation(location);
+export async function getNearbyJobs(job: { location: string | null; sido?: string | null; sigungu?: string | null }, excludeId: string, limit = 8, care = false): Promise<{ jobs: JobRow[]; area: string | null }> {
+  const { sido, sigungu } = regionOfJob(job); // 저장된 정규화 지역이 먼저(필터와 같은 값) — 근무지 글자에서 다시 뽑으면 신설 구에서 어긋난다
   const city = likePrefix(sigungu?.split(" ")[0] ?? "");
   if (sido) {
     const { jobs } = await getJobs("", "", { care, sido, city }, 1, false); // 총개수 불필요 → COUNT 생략

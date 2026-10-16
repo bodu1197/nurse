@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import JobDetail from "@/components/JobDetail";
 import { getPublicJob, getSavedJobIds, getNearbyJobs, getJobs, getMyHospitalIds, jobFilterQs, PER_PAGE, type JobRow } from "@/lib/data/jobs";
-import { regionOfLocation, streetOfLocation } from "@/lib/jobRegion";
+import { regionLabelOf, regionOfJob, streetOfLocation } from "@/lib/jobRegion";
 import { getMyProfile } from "@/lib/data/user";
 import { getCommunityAccess } from "@/lib/data/community";
 import { myApplication } from "@/lib/data/applications";
@@ -136,7 +136,7 @@ export default async function JobPage({
     fromSearch
       ? getJobs(q ?? "", l ?? "", { sido, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et, near, care: isCare }, pageNum, true)
           .then((res) => ({ jobs: res.jobs.filter((x) => x.id !== id), area: null, total: res.total }))
-      : getNearbyJobs(found.location, found.id, 8, isCare).then((res) => ({ ...res, total: 0 })),
+      : getNearbyJobs(found, found.id, 8, isCare).then((res) => ({ ...res, total: 0 })),
     needsResumeCheck ? getCommunityAccess().then((a) => a.ok) : Promise.resolve(false),
     // 🔴 병원이 **자기 공고**를 열었을 때 "간편지원은 간호사 회원만 가능합니다" 를 띄우면 안 된다.
     //    자기가 낸 광고를 보러 온 사람에게 자격 미달을 통보하는 꼴이다(오너 지적 2026-08-04).
@@ -148,7 +148,7 @@ export default async function JobPage({
   // 사이드바 제목: 검색결과면 "검색 결과", 같은 지역이면 getNearbyJobs 가 찾은 지역명("성남시 채용공고", 세종은 시도명), 폴백이면 "최근 채용공고".
   // 지역명을 여기서 다시 계산하지 않는다 — 제목과 목록이 다른 지역을 가리키지 않게 목록을 찾은 값 그대로 쓴다.
   const sidebarTitle = fromSearch ? "검색 결과" : side.area ? `${side.area} 채용공고` : "최근 채용공고";
-  const place = regionOfLocation(job.location);
+  const place = regionOfJob(job); // 저장된 정규화 지역이 먼저 — 머리글·옆 목록과 같은 값
 
   // 검색엔진용 채용공고 구조화 데이터 — 목록 옆 패널이 아니라 이 단독 라우트에서만 낸다
   // (한 페이지에 JobPosting이 둘이면 어느 공고의 페이지인지 알 수 없다).
@@ -236,7 +236,8 @@ export default async function JobPage({
                 <li key={n.id}>
                   <a href={sideHref(n.id)} rel={careRel} className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-teal-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
                     <p className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900">{n.title}</p>
-                    <p className="mt-1 truncate text-xs text-slate-500">{n.hospital?.name ?? n.company_name ?? "병원 미상"}{n.location ? ` · ${n.location}` : ""}</p>
+                    {/* 옆 목록은 좁다 — 근무지는 시도·시군구까지만(도로명 주소는 그 공고 상세에서) */}
+                    <p className="mt-1 truncate text-xs text-slate-500">{n.hospital?.name ?? n.company_name ?? "병원 미상"}{n.location ? ` · ${regionLabelOf(n)}` : ""}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs">
                       {n.salary_text && <span className="font-medium text-teal-700">{n.salary_text}</span>}
                       <span className="text-slate-400">{daysAgo(n.posted_at)}일 전</span>

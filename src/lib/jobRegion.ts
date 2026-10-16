@@ -94,6 +94,45 @@ export function normalizeJobRegion(
   return { sido, sigungu: sigungu || null };
 }
 
+// 집 호수 토큰 — "101동"·"아파트101동"·"1203호"·"1203호실"·"3세대", 글자 하나짜리 동 "B동"·"가동". 뒤에 한글이 이어지는 "동대문"·"3호선",
+// 앞에 글자가 붙은 "부평동"은 아니다. (둘째 갈래의 괄호 1은 앞 글자 보존용 — 지울 때 "$1" 로 되돌린다.)
+const UNIT_TOKEN = /\d+\s*(?:동|호(?:실)?|세대)(?![가-힣])|(^|[^가-힣A-Za-z0-9])[A-Za-z가-힣]\s*(?:동|호)(?![가-힣])/g;
+// 호 없이 적은 집 호수("OO빌라 302"·"주공아파트 103-1102"·"B1") — 뜻이 있는 숫자(3층·2단지·3호선·7번 출구·2차, 붙여 쓴 것만)만 남기고
+// 숫자 덩어리는 다 지운다. 과잉 삭제("365열린의원"→"열린의원")는 표시가 어색해질 뿐이라 집 호수가 새는 쪽보다 낫다.
+const BARE_NUMBER = /[A-Za-z]?\d+(?:\s*[-/]\s*\d+)*(?!\d|층|단지|호선|번|차)/g;
+
+/**
+ * 워크넷 수집 공고의 jobs.location(화면 근무지) — 도로명 주소 + 상세 주소("인천광역시 검단구 고산로45번길 18, 온누리노인요양원"),
+ * 주소가 없으면 지역("인천 검단구"). 심사평가원 명부 주소와 같은 꼴(", " 뒤에 상세)이라 한 칸에 섞여도 화면·검색엔진 주소 분해가 같다.
+ * 🔴 종전에는 지역만 저장해, 좌표(내 주변)는 건물 단위인데 글자는 구까지만 나왔다(오너 지적 2026-10-16 "API 는 상세 주소를 준다").
+ *    도로명이 없으면 상세("3층"·건물 이름)만으로는 주소가 아니다 — 지역으로 돌아간다.
+ * 🔴 상세 주소는 자유 입력이다(실측 365건 중 252건에 있고, 그중 35건이 "101동 1203호" 꼴). 집 호수가 공개 화면·검색엔진에 나가면
+ *    사는 집이 특정된다 — 동·호·세대와 뜻 없는 숫자 덩어리를 지우고 남는 글자(건물 이름·층)만 싣는다. 글자(한글·영문)가 안 남으면
+ *    ("101-1203"·"1203"·".") 상세를 통째로 뺀다.
+ * 🔴 요양·간병 공고(withDetail=false)는 상세 칸을 아예 싣지 않는다 — 방문요양·입주간병은 근무지가 **어르신 댁**이라 건물 이름만으로도
+ *    취약한 노인의 자택이 좁혀진다(검증 지적 2026-10-16). 도로명 주소(고용24 에 이미 공개)와 좌표(내 주변)는 그대로다.
+ */
+export function workplaceOf(j: { addr: string; detailAddr: string; region: string }, { withDetail = true } = {}): string | null {
+  const road = j.addr.trim();
+  if (!road) return j.region.trim() || null;
+  if (!withDetail) return road;
+  const detail = j.detailAddr.normalize("NFKC").replace(UNIT_TOKEN, "$1").replace(BARE_NUMBER, " ").replace(/\s+/g, " ").trim();
+  return /[가-힣A-Za-z]/.test(detail) ? `${road}, ${detail}` : road;
+}
+
+type JobPlace = { location: string | null; sido?: string | null; sigungu?: string | null };
+
+/** 공고의 정규화 지역 — 저장된 값(jobs.sido/sigungu, 필터·RPC 와 같은 값)을 먼저, 없으면 근무지 글자에서(옛 행·등록 폼 초안). */
+export function regionOfJob(j: JobPlace): NormalizedRegion {
+  return j.sido ? { sido: j.sido, sigungu: j.sigungu ?? null } : regionOfLocation(j.location);
+}
+
+/** 공고의 짧은 지역 "경기도 성남시 수정구"(머리글·옆 목록용). 시도를 못 읽는 글자(자유 입력)는 그대로. */
+export function regionLabelOf(j: JobPlace): string | null {
+  const { sido, sigungu } = regionOfJob(j);
+  return sido ? [sido, sigungu].filter(Boolean).join(" ") : j.location;
+}
+
 /** nurse 편의 래퍼 — jobs.location 하나에서 (sido, sigungu) 산출. ingest·백필이 같은 값을 내도록 단일 경로. */
 export function regionOfLocation(location: string | null | undefined): NormalizedRegion {
   return normalizeJobRegion(null, location);

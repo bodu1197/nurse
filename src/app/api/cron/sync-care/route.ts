@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchCareJobs, regDtToDate } from "@/lib/worknet";
-import { regionOfLocation } from "@/lib/jobRegion";
+import { regionOfLocation, workplaceOf } from "@/lib/jobRegion";
 import { geocodeAddressStrict } from "@/lib/kakao";
 import { recordRun } from "@/lib/collectorLog";
 import { CARE_CATEGORIES, careCategoryFromJobCode } from "@/lib/jobTaxonomy";
@@ -109,7 +109,9 @@ export async function GET(request: Request) {
         job_category: jobCategory, // 5502xx 간병인, 그 밖 요양보호사
         facility_type: j.facilityType, // 산업분류 → 기관 종별(요양원·주간보호 등) — 목록의 기관 종별 칩
         employment_type: j.employmentType,
-        location: j.region || null,
+        // 도로명 주소까지(없으면 지역). 🔴 상세 칸(건물 이름·호수)은 싣지 않는다 — 방문요양·입주간병은 근무지가 어르신 댁이다(workplaceOf 주석).
+        //    지역 필터(sido/sigungu)는 위 j.region 으로 따로 센다.
+        location: workplaceOf(j, { withDetail: false }),
         sido: region.sido,
         sigungu: region.sigungu,
         salary_text: [j.salTpNm, j.sal].filter(Boolean).join(" ") || null,
