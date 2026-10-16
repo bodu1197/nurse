@@ -18,12 +18,12 @@ import { CANCELABLE, isHospitalStatus, STATUS_LABEL, type AppStatus } from "@/li
 import { todayKst, nowMs } from "@/lib/date";
 import { MIN_PASSWORD } from "@/lib/constants";
 import { isSettableJobStatus } from "@/lib/jobState";
-import { regionOfLocation } from "@/lib/jobRegion";
+import { regionOfLocation, sameArea } from "@/lib/jobRegion";
 import { geocodeAddress } from "@/lib/kakao";
 import { addressMoved, keepOrReplaceCoords } from "@/lib/geoKeep";
 import { totalYears } from "@/lib/data/resume";
 import { CAREER_EXPERIENCED, DEPARTMENTS, JOB_CATEGORIES, JOB_TRACKS, RESUME_INTRO_MIN, RESUME_INTRO_MAX as INTRO_MAX, seeksNurseJobs } from "@/lib/resumeOptions";
-import { JOB_DEPARTMENTS, FACILITY_TYPES, NURSE_JOB_CATEGORIES } from "@/lib/jobTaxonomy";
+import { JOB_DEPARTMENTS, FACILITY_TYPES, NURSE_JOB_CATEGORIES, DIRECT_FACILITY_KINDS } from "@/lib/jobTaxonomy";
 import { SIDO_LIST, SIDO_SIGUNGU, LEGACY_REGIONS } from "@/lib/koreaRegions";
 
 /** 병원이 이미 판정을 내린 상태 — 이걸 되돌릴 때만 메모에 흔적을 남긴다. */
@@ -90,6 +90,24 @@ export async function setViewAs(formData: FormData) {
   redirect("/mypage");
 }
 
+/**
+ * 🧓 사업자 인증 화면의 '명부에 없나요? 기관 직접 등록' 칸 — 셋 다 비었으면 null(직접 등록 안 함).
+ * 하나라도 적었으면 셋 다 맞아야 한다: 이름 2자 이상, 정해진 종류, **시·도를 알아볼 수 있는 주소**
+ * (공고 근무지 기본값·지역 표시가 이 주소에서 나온다 — 못 알아보면 지역 검색에서 조용히 빠진다).
+ */
+function directFacilityInput(formData: FormData): { name: string; kind: string; address: string } | null | "invalid" {
+  const name = String(formData.get("direct_name") ?? "").trim().slice(0, 100);
+  const kind = String(formData.get("direct_kind") ?? "").trim();
+  const address = String(formData.get("direct_address") ?? "").trim().slice(0, 200);
+  if (!name && !address) return null;
+  const knownKind = DIRECT_FACILITY_KINDS.some((k) => k === kind);
+  if (name.length < 2 || !knownKind || !regionOfLocation(address).sido) return "invalid";
+  return { name, kind, address };
+}
+
+/** 한 계정이 사업자 인증 화면에서 직접 등록할 수 있는 기관 수(검색에서 골라 연결하는 것은 따로다). */
+const DIRECT_FACILITY_MAX = 3;
+
 // 병원 사업자 진위확인 → 통과 시에만 business_verified(서버=service_role) 설정.
 export async function verifyHospitalBusiness(formData: FormData) {
   const supabase = await createClient();
@@ -105,16 +123,101 @@ export async function verifyHospitalBusiness(formData: FormData) {
   const start_dt = String(formData.get("start_dt") ?? "");
   const p_nm = String(formData.get("p_nm") ?? "");
 
-  const res = await verifyBusiness(b_no, start_dt, p_nm);
-  if (!res.ok) redirect(`/mypage/verify?error=${res.reason ?? "fail"}`);
-
   // 인증 시 병원을 1회 연결 → 이후 공고에 자동 사용(병원 재선택/재입력 방지).
-  const hospitalId = String(formData.get("hospital_id") ?? "");
+  let hospitalId = String(formData.get("hospital_id") ?? "");
+  // 🧓 (나) 명부에 없는 기관(요양원·재가센터 등) — 이름·종류·주소를 받아 **국세청 인증이 통과한 뒤에만** 명부에 만든다
+  //    (오너 지시 2026-10-16). 위 검색에서 기관을 골랐으면(hospital_id) 그쪽이 이기고 이 칸은 안 본다.
+  //    국세청 호출 전에 입력부터 본다 — 틀린 칸 때문에 인증까지 다시 하게 하지 않는다.
+  const direct = hospitalId ? null : directFacilityInput(formData);
+
+  // 오류로 되돌릴 때 **보던 화면 그대로** — 재인증(reverify)·직접 등록 화면(direct)·돌아갈 곳(from)과 적어 둔 기관 칸(dn·dk·da)을
+  // 다시 싣는다. 🔴 reverify 를 빠뜨리면 이미 인증된 회원(공고 등록 화면에서 온 사람 전원)에게 "✓ 인증 완료" 패널이 떠
+  // 오류 문구와 폼이 통째로 사라진다 — 재인증하다 국세청 확인에 실패한 사람도 실패를 못 보고 됐다고 여겼다(검증 지적 2026-10-16).
+  // direct 는 **화면이 실어 보낸 값 그대로** 돌려준다(적은 칸이 있다고 짐작하면 재인증 중의 새 번호 화면이 직접 등록 화면으로 바뀐다).
+  // 대표자명·개업일·사업자번호는 싣지 않는다(개인정보를 주소창·기록에 남기지 않는다). 기관 칸은 어차피 명부에 공개될 값이다.
+  // 해시는 오류 문구(#verify-error)로 — Next 는 해시 위치로 스크롤하므로 #direct 로 보내면 위쪽 오류 문구가 화면 밖으로 밀린다.
+  const back = (code: string) => {
+    const q = new URLSearchParams({ error: code });
+    for (const [k, ok] of [["reverify", "1"], ["direct", "1"], ["from", "jobs-new"]] as const) {
+      if (String(formData.get(k) ?? "") === ok) q.set(k, ok);
+    }
+    const dn = String(formData.get("direct_name") ?? "").trim().slice(0, 100);
+    const dk = String(formData.get("direct_kind") ?? "").trim();
+    const da = String(formData.get("direct_address") ?? "").trim().slice(0, 200);
+    if (dn) q.set("dn", dn);
+    if (dk) q.set("dk", dk);
+    if (da) q.set("da", da);
+    return `/mypage/verify?${q.toString()}#verify-error`;
+  };
+
+  if (direct === "invalid") redirect(back("direct"));
+  // 같은 이름의 명부 행 중 **같은 동네**(lib/jobRegion sameArea) — 사칭 검사와 '내 것 다시 쓰기'가 같은 기준을 쓴다.
+  // 🔴 조회가 실패하면 **막는 쪽으로** — 검사를 건너뛰고 통과시키면 사칭·상한이 DB 오류 한 번에 뚫린다.
+  let mineHere: string | null = null;
+  if (direct) {
+    const here = regionOfLocation(direct.address);
+    const { data: same, error: sameErr } = await admin.from("hospitals").select("id, owner_profile_id, region, address, source")
+      .eq("name", direct.name).eq("is_test", false).limit(1000);
+    if (sameErr) {
+      console.error("verifyHospitalBusiness 동명 조회 실패:", sameErr.message);
+      redirect(back("direct_save"));
+    }
+    const nearby = (same ?? []).filter((h) => sameArea(regionOfLocation(h.address || h.region), here));
+    // 🔒 사칭 막기 — 같은 동네에 같은 이름의 기관이 이미 명부에 있으면(내 것이 아니면) 직접 등록을 받지 않고 검색에서 고르게 한다.
+    //    받으면 다른 계정이 관리 중인 기관(이름난 병원 등)을 같은 이름으로 새로 만들어 그 이름으로 공고를 낼 수 있다 —
+    //    검색에서 고르는 길은 'claimed' 로 막는데 직접 등록이 그 문을 돌아가게 된다. 다른 동네면 다른 기관이라 받는다.
+    //    ponytail: 이름은 글자 그대로 비교한다(띄어쓰기만 다른 이름은 못 막는다). 늘면 공백을 뺀 이름으로 비교하는 RPC 로.
+    //    '남의 것' = 주인이 있으면 그 주인이 내가 아닐 때, 주인이 없으면 **검색 명부에 있어 거기서 고를 수 있을 때**만
+    //    (api/hospitals/search 가 보여 주는 출처 — 심사평가원·공단·직접 등록). 명부 밖(이관 병원 등)의 주인 없는 행으로
+    //    막으면 "검색에서 고르라"는 안내가 막다른 길이 된다(검증 지적 2026-10-16).
+    const othersHere = nearby.some((h) =>
+      h.owner_profile_id ? h.owner_profile_id !== user.id : h.source === "public_data" || h.source === "direct");
+    if (othersHere) redirect(back("direct_exists"));
+    // 두 번 눌렀거나 다시 낸 경우 — 같은 동네의 내 것이 있으면 그것을 쓴다(명부에 같은 기관이 두 줄 생기지 않게).
+    mineHere = nearby.find((h) => h.owner_profile_id === user.id)?.id ?? null;
+    if (!mineHere) {
+      // 🔒 한 계정이 직접 등록으로 만들 수 있는 기관 수 — 이름만 바꿔 가며 명부(모두의 기관 검색)를 채우는 것을 막는다.
+      //    '만든 사람'(created_by)으로 센다 — 소유는 연결 해제로 비워져 등록→해제를 되풀이하면 끝없이 만들 수 있다.
+      const { count, error: countErr } = await admin.from("hospitals").select("id", { count: "exact", head: true })
+        .eq("created_by", user.id).eq("source", "direct");
+      if (countErr) {
+        console.error("verifyHospitalBusiness 직접 등록 수 조회 실패:", countErr.message);
+        redirect(back("direct_save"));
+      }
+      if ((count ?? 0) >= DIRECT_FACILITY_MAX) redirect(back("direct_limit"));
+    }
+  }
+
+  const res = await verifyBusiness(b_no, start_dt, p_nm);
+  if (!res.ok) redirect(back(res.reason ?? "fail"));
+
   if (hospitalId) {
     const { data: hosp } = await admin.from("hospitals").select("owner_profile_id").eq("id", hospitalId).maybeSingle();
-    if (!hosp) redirect("/mypage/verify?error=hospital");
-    if (hosp.owner_profile_id && hosp.owner_profile_id !== user.id) redirect("/mypage/verify?error=claimed");
+    if (!hosp) redirect(back("hospital"));
+    if (hosp.owner_profile_id && hosp.owner_profile_id !== user.id) redirect(back("claimed"));
     if (!hosp.owner_profile_id) await admin.from("hospitals").update({ owner_profile_id: user.id, is_claimed: true }).eq("id", hospitalId);
+  } else if (direct) {
+    if (mineHere) {
+      hospitalId = mineHere;
+    } else {
+      const r = regionOfLocation(direct.address);
+      const { data: made, error: madeErr } = await admin.from("hospitals").insert({
+        name: direct.name,
+        address: direct.address,
+        region: [r.sido, r.sigungu].filter(Boolean).join(" "),
+        cl_cd_nm: direct.kind === "기타" ? null : direct.kind,
+        // 명부 검색(api/hospitals/search)이 'direct' 를 함께 보여 준다 — 다른 사람(리뷰 쓰는 간호사 등)도 찾을 수 있다.
+        source: "direct",
+        owner_profile_id: user.id,
+        created_by: user.id,
+        is_claimed: true,
+      }).select("id").single();
+      if (madeErr || !made) {
+        console.error("verifyHospitalBusiness 직접 등록 실패:", madeErr?.message ?? "no row");
+        redirect(back("direct_save"));
+      }
+      hospitalId = made.id;
+    }
   }
 
   const bizDigits = b_no.replace(/\D/g, "");

@@ -6,8 +6,14 @@ import { useHospitalSearch, emptyMessage, type Hosp } from "./useHospitalSearch"
 export default function HospitalPicker({
   initial,
   draftKey,
+  missingHint,
 }: {
   initial?: Hosp | null;
+  /**
+   * 🧓 명부에서 못 찾았을 때 덧붙이는 안내 — 요양원·재가센터처럼 명부에 없는 기관이 **다음에 무엇을 하면 되는지**.
+   * 사업자 인증 화면은 바로 아래 '직접 등록'을, 공고 등록 화면은 그 화면으로 가는 링크를 넘긴다.
+   */
+  missingHint?: React.ReactNode;
   /**
    * 있으면 고른 병원을 이 브라우저에 임시 보관했다가 다음에 되살린다.
    * 🔴 병원은 hidden 값(hospital_id)이라 FormDraft 가 담지 못한다 — 초안을 복원해도 병원 칸만
@@ -18,6 +24,9 @@ export default function HospitalPicker({
 }) {
   const [q, setQ] = useState(initial?.name ?? "");
   const [selected, setSelected] = useState<Hosp | null>(initial ?? null);
+  // 목록·빈 결과 안내를 **보일지**만 정한다(결과는 그대로 둔다) — 닫을 때 결과를 비워 버리면 "일치하는 기관이 없습니다"가
+  // 거짓으로 뜨고, 다시 눌러도 목록이 안 돌아온다(검증 지적 2026-10-16).
+  const [open, setOpen] = useState(true);
 
   // 복원: 서버가 준 initial 이 없을 때만(저장된 연결이 있으면 그쪽이 우선이다).
   //
@@ -47,6 +56,7 @@ export default function HospitalPicker({
   const { results, loading, slow, reason, search, clear } = useHospitalSearch();
 
   function onChange(v: string) {
+    setOpen(true);
     setQ(v);
     setSelected(null);
     search(v);
@@ -59,19 +69,27 @@ export default function HospitalPicker({
   }
 
   return (
-    <div className="relative">
+    // 목록은 위에 겹쳐 뜨는 상자라, 닫는 길이 '고르기'뿐이면 아래 칸(사업자 인증 화면의 직접 등록 등)을 가린 채 남는다
+    // (검증 지적 2026-10-16) → 검색창 밖으로 포커스가 나가면(바깥 누르기·Tab) 숨기고, Esc 로도 숨긴다. 다시 누르면 보인다.
+    <div
+      className="relative"
+      onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setOpen(false); }}
+    >
       <input
         value={q}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)} // Esc 로 닫은 뒤엔 포커스가 남아 있어 onFocus 가 안 온다
+        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false); }}
         autoComplete="off"
-        placeholder="병원명을 검색하세요 (2자 이상)"
-        aria-label="병원 검색"
+        placeholder="기관 이름 2자 이상 (예: 행복요양원 종로)"
+        aria-label="병원·요양기관 검색"
         className="h-12 w-full rounded-xl border border-slate-300 px-3 text-base outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/40"
       />
       <input type="hidden" name="hospital_id" value={selected?.id ?? ""} />
 
       {/* 🔴 aria-live 가 있어야 화면을 못 보는 사용자도 결과가 바뀐 것을 안다 — 여긴 최대 12초 침묵한다. */}
-      {loading && !selected && (
+      {open && loading && !selected && (
         <p className="mt-1 text-xs text-slate-400" role="status" aria-live="polite">
           {slow ? "명부에 없는 병원이라 심사평가원에서 찾는 중… (10초 정도 걸립니다)" : "검색 중…"}
         </p>
@@ -81,15 +99,18 @@ export default function HospitalPicker({
           같은 API 를 쓰는 HospitalSearchBox 와 빈 상태 처리를 맞춘다 — 못 찾아본 경우를
           "없습니다" 라고 단정하지 않는 것까지 같다(사유는 서버가 헤더로 준다).
           이 화면은 로그인해야 들어오므로 비로그인 안내(skipped-anonymous)는 여기 안 온다. */}
-      {!loading && !selected && q.trim().length >= 2 && results.length === 0 && (
+      {open && !loading && !selected && q.trim().length >= 2 && results.length === 0 && (
         <p className="mt-1 text-xs text-slate-500" role="status" aria-live="polite">
           {emptyMessage(reason)}
           {reason === null && " 사업자등록증의 상호와 같은지 확인해 보세요."}
+          {missingHint && <> {missingHint}</>}
         </p>
       )}
 
-      {results.length > 0 && !selected && (
-        <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+      {open && results.length > 0 && !selected && (
+        // onMouseDown 막기 — 결과를 누르는 순간 검색창이 포커스를 잃어(사파리는 버튼에 포커스를 안 준다) 위 onBlur 가
+        // 목록부터 닫아 버리면 고르기가 안 먹는다. 포커스를 검색창에 둔 채 클릭만 받는다.
+        <ul onMouseDown={(e) => e.preventDefault()} className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
           {results.map((h) => (
             <li key={h.id}>
               <button
@@ -99,10 +120,16 @@ export default function HospitalPicker({
               >
                 <span className="font-medium text-slate-800">{h.name}</span>
                 {h.region && <span className="ml-2 text-xs text-slate-400">{h.region}</span>}
+                {/* 종별 — 요양원·재가센터는 주소가 없어(공단 명부) 같은 이름끼리 이것으로 가린다 */}
+                {h.cl_cd_nm && <span className="ml-2 text-xs text-slate-400">· {h.cl_cd_nm}</span>}
                 {h.address && <span className="block text-xs text-slate-400">{h.address}</span>}
               </button>
             </li>
           ))}
+          {/* 결과가 있어도 내 기관이 없을 수 있다(같은 이름의 다른 지역 기관만 걸린 경우) — 다음 길을 목록 끝에도 둔다. */}
+          {missingHint && (
+            <li className="border-t border-slate-100 px-4 py-2.5 text-xs text-slate-500">찾는 기관이 없나요? {missingHint}</li>
+          )}
         </ul>
       )}
 
@@ -110,7 +137,7 @@ export default function HospitalPicker({
         <div className="mt-2 rounded-lg border border-teal-200 bg-teal-50 px-3 py-2 text-base">
           <span className="font-semibold text-teal-800">{selected.name}</span>
           {selected.address && <span className="block text-xs text-teal-700">{selected.address}</span>}
-          <button type="button" aria-label="병원 선택 취소" onClick={() => { setSelected(null); setQ(""); }} className="mt-1 text-xs text-teal-700 underline">
+          <button type="button" aria-label="기관 선택 취소" onClick={() => { setSelected(null); setQ(""); }} className="mt-1 text-xs text-teal-700 underline">
             다시 선택
           </button>
         </div>

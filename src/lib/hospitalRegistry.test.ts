@@ -63,3 +63,14 @@ test("빈 목록이면 아무것도 확정하지 않는다", () => {
   assert.equal(m.region, null);
   assert.equal(m.address, null);
 });
+
+test("같은 이름에 심사평가원 행이 있으면 그 행으로만 판정한다 — 요양원·재가센터(공단 명부) 행이 섞여도 병원 판정이 흐려지지 않게", () => {
+  const m = decideMatch([
+    row({ name: "곡성군보건의료원", cl_cd_nm: "보건의료원", region: "전남광주 곡성군", address: "전남 곡성군 곡성읍 A", ykiho: "Y1" }),
+    row({ name: "곡성군보건의료원", cl_cd_nm: "방문간호", region: "전남광주 곡성군", address: null }),
+  ]);
+  assert.equal(m.facilityType, "보건소");
+  assert.equal(m.address, "전남 곡성군 곡성읍 A", "의료기관 행이 하나면 그 주소를 쓴다");
+  const careOnly = decideMatch([row({ name: "행복재가센터", cl_cd_nm: "방문요양·방문목욕", region: "서울 종로구" })]);
+  assert.equal(careOnly.facilityType, "요양원·주간보호", "심사평가원 행이 없으면 공단 행으로 판정한다");
+});

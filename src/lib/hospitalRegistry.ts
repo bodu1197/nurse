@@ -31,6 +31,8 @@ export type RegistryRow = {
   cl_cd_nm: string | null;
   region: string | null;
   address: string | null;
+  /** 심사평가원 요양기호 — 있으면 의료기관 명부 행이다(요양원·재가센터 공단 행·직접 등록 행은 없다). */
+  ykiho?: string | null;
 };
 
 /**
@@ -43,7 +45,12 @@ export type RegistryRow = {
  * 🔴 지역·주소: **정확히 한 곳일 때만.** 동명이 여럿이면 지역은 서로 다르다 —
  *    아무거나 고르면 간호사에게 "서울 강남" 이라고 거짓말하게 된다.
  */
-export function decideMatch(rows: readonly RegistryRow[]): RegistryMatch {
+export function decideMatch(all: readonly RegistryRow[]): RegistryMatch {
+  // 🧓 같은 이름에 심사평가원 행(ykiho)이 있으면 그 행들로만 판정한다 — 요양원·재가센터(공단 명부)·직접 등록 행이 섞이면
+  //    병원 공고의 종별·주소가 '모름'으로 빠지거나(동명 여럿), 병원 이름을 단 방문간호 기관 때문에 요양원으로 붙는다
+  //    (검증 지적 2026-10-16). 공고를 내는 곳이 병원이면 그 이름은 심사평가원 명부에 있다.
+  const hira = all.filter((r) => r.ykiho);
+  const rows = hira.length > 0 ? hira : all;
   const only = rows.length === 1 ? rows[0] : null;
   // 종별은 **한 번만** 계산해서 두 판정(같은가 / 다 아는가)이 같은 값을 보게 한다.
   const graded = rows.map((r) => facilityFromClCd(r.cl_cd_nm));
@@ -85,7 +92,7 @@ async function lookupHospitals(
   for (let i = 0; i < uniq.length; i += CHUNK) {
     const { data, error } = await admin
       .from("hospitals")
-      .select("name,cl_cd_nm,region,address")
+      .select("name,cl_cd_nm,region,address,ykiho")
       .in("name", uniq.slice(i, i + CHUNK))
       .limit(ROW_LIMIT + 1);
     if (error) throw new Error(`hospitals lookup: ${error.message}`);

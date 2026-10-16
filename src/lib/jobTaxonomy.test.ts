@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { careCategoryFromJobCode, departmentFromText, facilityFor, facilityFromClCd, isCareCategory, isCareJobCode, isNurseJobCode, NOT_CARE_OR, stillValid } from "./jobTaxonomy.ts";
+import { careCategoryFromJobCode, departmentFromText, DIRECT_FACILITY_KINDS, facilityFor, facilityFromClCd, isCareCategory, isCareJobCode, isNurseJobCode, LTC_KINDS, NOT_CARE_OR, stillValid } from "./jobTaxonomy.ts";
 
 test("요양보호사·간병 코드는 간호 직군과 서로 배타다 — 같은 공고가 홈의 두 탭에 다 뜨면 안 된다", () => {
   for (const cd of ["550100", "550101", "550102", "550200", "550201", "550202", "550300"]) {
@@ -134,4 +134,13 @@ test("요양·간병 직종 — 5502xx 는 간병인, 5501xx·5503xx 는 요양�
 
 test("NOT_CARE_OR — 간호 크론이 요양·간병 행을 건드리지 않게 거는 PostgREST 필터 문자열(직종이 비었거나 요양·간병이 아님)", () => {
   assert.equal(NOT_CARE_OR, "job_category.is.null,job_category.not.in.(요양보호사,간병인)");
+});
+
+test("요양원·재가센터 명부 행(장기요양 급여 종류) → 기관 종별 '요양원·주간보호' — 공단 명부·직접 등록이 같은 규칙", () => {
+  for (const k of LTC_KINDS) assert.equal(facilityFromClCd(k), "요양원·주간보호", k);
+  assert.equal(facilityFromClCd("방문요양·방문목욕"), "요양원·주간보호", "급여 종류가 여럿이면 '·'로 이어 붙는다");
+  assert.equal(facilityFromClCd("요양병원"), "요양병원", "심사평가원 종별은 그대로");
+  assert.equal(facilityFromClCd("보건의료원"), "보건소");
+  assert.equal(facilityFromClCd("기타"), null, "직접 등록의 '기타'는 종별을 비운다(틀린 값보다 빈 값)");
+  assert.deepEqual(DIRECT_FACILITY_KINDS.slice(0, LTC_KINDS.length), [...LTC_KINDS]);
 });

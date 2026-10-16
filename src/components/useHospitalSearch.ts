@@ -2,7 +2,11 @@
 
 import { useRef, useState } from "react";
 
-export type Hosp = { id: string; name: string; region: string | null; address: string | null };
+export type Hosp = {
+  id: string; name: string; region: string | null; address: string | null;
+  /** 종별(심사평가원 종별 또는 장기요양 급여 종류) — 검색 결과에서 같은 이름을 가리는 데 쓴다. 저장해 둔 초안에는 없을 수 있다. */
+  cl_cd_nm?: string | null;
+};
 
 /** 검색을 걸기 전 기다리는 시간. 한 글자마다 서버를 부르지 않게. */
 const DEBOUNCE_MS = 250;
@@ -20,7 +24,7 @@ const SLOW_MS = 2500;
 export function emptyMessage(reason: string | null): string {
   if (reason === "capped") return "지금은 새로 생긴 병원 조회가 몰려 잠시 쉬고 있습니다. 잠시 후 다시 검색해 주세요.";
   if (reason === "unavailable") return "지금은 심사평가원 조회가 되지 않습니다. 잠시 후 다시 검색해 주세요.";
-  return "일치하는 병원이 없습니다.";
+  return "일치하는 기관이 없습니다.";
 }
 
 /**

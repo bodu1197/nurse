@@ -17,7 +17,8 @@ import { reserveHiraLookup } from "@/lib/collectorLog";
 //    아래 timeoutMs(12초)가 도는 동안 함수가 먼저 끊기면 빈 배열 폴백이 통째로 무력해진다.
 export const maxDuration = 30;
 
-const SELECT = "id, name, region, address";
+// cl_cd_nm — 요양원·재가센터는 주소가 없어(공단 명부) 같은 이름을 종별로 가린다(HospitalPicker).
+const SELECT = "id, name, region, address, cl_cd_nm";
 
 /**
  * 즉시 조회를 거는 최소 글자수. HIRA 왕복이 5~10초라 아무 때나 부르지 않는다 —
@@ -64,9 +65,35 @@ const directory = (db: Db) =>
     // 명부는 심사평가원(public_data)+직접등록(direct)만. 워크넷은 "구인 광고"라 병원 명부가 아니다.
     .in("source", ["public_data", "direct"]);
 
-/** 이름 부분 일치로 찾는다(화면이 부르는 기본 경로). */
-const searchDirectory = (db: Db, q: string) =>
-  directory(db).ilike("name", `%${q}%`).order("name", { ascending: true }).limit(10);
+/**
+ * 이름 부분 일치로 찾는다(화면이 부르는 기본 경로).
+ * 🧓 띄어 쓴 둘째 말부터는 **지역**으로 좁힌다 — "행복요양원 종로" → 이름에 '행복요양원', 지역에 '종로'.
+ *    요양원·재가센터(공단 명부 2.8만 곳)를 실은 뒤로 같은 이름이 10곳을 넘는 경우가 생겼다 — 이름만으로는 10건 안에
+ *    내 기관이 안 들어와, 검색으로 못 고르고 직접 등록도 '같은 이름이 이미 있다'에 막힌다(검증 지적 2026-10-16).
+ *    지역 말은 하나씩 따로 건다("서울 종로구" 가 "서울특별시 종로구" 표기에도 걸리게). 좁혀서 0건이면 ① 통째 이름(이름 자체에
+ *    띄어쓰기가 있는 병원) ② 첫 말(이름)만 — 지역 말이 빗나가도("서울아산병원 강남") 명부에 있는 기관은 보여 준다.
+ *    안 그러면 있는 기관을 두고 심사평가원 즉시 조회(5~12초·일일 상한)까지 간다(검증 지적 2026-10-16).
+ */
+const byName = (db: Db, name: string) =>
+  directory(db).ilike("name", `%${name}%`).order("name", { ascending: true }).limit(10);
+
+const searchDirectory = async (db: Db, q: string) => {
+  const [head, ...area] = q.split(/\s+/).filter(Boolean);
+  if (area.length === 0 || head.length < 2) return byName(db, q);
+  let narrowed = directory(db).ilike("name", `%${head}%`);
+  for (const t of area) narrowed = narrowed.ilike("region", `%${t}%`);
+  for (const attempt of [() => narrowed.order("name", { ascending: true }).limit(10), () => byName(db, q)]) {
+    const r = await attempt();
+    if (r.error || (r.data?.length ?? 0) > 0) return r;
+  }
+  return byName(db, head);
+};
+
+/** 심사평가원에 물을 이름 — 검색어의 첫 말(뒤는 지역으로 쓰인다, searchDirectory). misses·최소 글자수도 이 값으로 센다.
+ * ponytail: 즉시 조회는 명부 결과가 **0건일 때만** 간다(이 변경 전부터 같은 규칙). 그래서 다른 지역에 같은 이름이 이미 있는
+ *           신규 개원 기관은 여기서 못 찾는다 — 사업자 인증 화면의 '직접 등록'이 그 길이다. 잦아지면 화면에 "심사평가원에서 찾기"를 단다.
+ */
+const askName = (q: string) => q.split(/\s+/)[0] ?? q;
 
 /**
  * 결과와 함께 **왜 이 결과인지**를 준다.
@@ -109,7 +136,8 @@ async function fromRegistry(supabase: Db, q: string): Promise<{ rows: unknown[];
     return { rows: [], note: "unavailable" };
   }
   // 너무 짧거나, 이미 물어봐서 없던 이름은 다시 안 묻는다 — 이건 진짜 "없다" 라서 사유가 없다.
-  if (q.length < MIN_ONDEMAND || misses.has(q)) return { rows: [] };
+  const name = askName(q);
+  if (name.length < MIN_ONDEMAND || misses.has(name)) return { rows: [] };
 
   // 🎫 부르기 전에 표를 끊는다 — 계정 하나가 공공데이터 일일 한도를 통째로 태우면 이 기능이
   //    모두에게 죽는다. 상한에 걸려도 명부 8만 건 검색은 아무 영향 없이 계속 된다.
@@ -126,11 +154,12 @@ async function fromRegistry(supabase: Db, q: string): Promise<{ rows: unknown[];
     //    더 줄이면 **있는 병원을 "없습니다" 라고 말하게 된다** — 그게 이 기능의 존재 이유를 무너뜨린다.
     // 🔴 재시도는 끈다. 여기는 사용자가 기다리는 길이라 실패 시 대기가 두 배가 되면 안 된다.
     //    한 번 놓쳐도 다음 글자를 치면 다시 온다.
-    const { rows } = await fetchHospitals(key, { yadmNm: q, numOfRows: 10, timeoutMs: 12000, retry: false });
+    // 심사평가원에는 **이름만** 묻는다 — "○○의원 종로" 처럼 지역을 덧붙인 검색어를 통째로 넘기면 있는 병원도 못 찾는다.
+    const { rows } = await fetchHospitals(key, { yadmNm: name, numOfRows: 10, timeoutMs: 12000, retry: false });
     if (rows.length === 0) {
       await finish(true, { found: 0 });
       if (misses.size > 500) misses.clear(); // 무한히 자라지 않게(값 자체에 근거는 없다 — 상한일 뿐)
-      misses.add(q);
+      misses.add(name);
       return { rows: [] }; // 원천이 정상으로 "없다" 고 했다 — 화면이 그대로 말해도 사실이다
     }
     // 명부 쓰기는 서비스 롤로 — 검색은 비로그인도 부르는 공개 경로라 RLS 로는 못 넣는다.

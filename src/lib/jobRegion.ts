@@ -98,3 +98,19 @@ export function normalizeJobRegion(
 export function regionOfLocation(location: string | null | undefined): NormalizedRegion {
   return normalizeJobRegion(null, location);
 }
+
+/**
+ * 두 지역이 **같은 동네**인가 — 시·도가 같고, 양쪽 다 시·군·구가 있으면 그것도 같다(표기 차이는 흡수한다).
+ * 사업자 인증 화면의 기관 직접 등록이 '같은 동네·같은 이름의 남의 기관'을 막을 때 쓴다(사칭 방지, app/mypage/actions).
+ * 시·군·구는 띄어쓰기와 '시'를 빼고 앞부분이 겹치면 같다고 본다 — "부천시"(구가 생기기 전 주소)와 "부천시 원미구",
+ * "성남분당구"(심사평가원 표기)와 "성남시 분당구"가 같은 동네다. 한쪽 시·군·구가 비면 시·도만 본다(모르면 막는 쪽이 안전).
+ * 시·도를 모르면 같다고 하지 않는다 — 지역을 모르는 동명 행 하나가 전국의 같은 이름 등록을 다 막으면 안 된다.
+ */
+export function sameArea(a: NormalizedRegion, b: NormalizedRegion): boolean {
+  if (!a.sido || a.sido !== b.sido) return false;
+  if (!a.sigungu || !b.sigungu) return true;
+  const n = (s: string) => s.replace(/\s+/g, "").replace(/시(?=.+구$)/, "").replace(/시$/, "");
+  const x = n(a.sigungu);
+  const y = n(b.sigungu);
+  return x.startsWith(y) || y.startsWith(x);
+}

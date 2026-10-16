@@ -14,9 +14,9 @@ export const metadata = { title: "공고 등록 — 널스넷", robots: { index:
 
 const ERR: Record<string, string> = {
   deadline: "마감일이 오늘보다 이전입니다. 그대로 두면 공고가 한 번도 노출되지 않습니다.",
-  missing: "병원과 공고 제목은 필수입니다.",
-  hospital: "선택한 병원을 찾을 수 없습니다.",
-  claimed: "이미 다른 계정이 등록·관리 중인 병원입니다.",
+  missing: "기관과 공고 제목은 필수입니다.",
+  hospital: "선택한 기관을 찾을 수 없습니다.",
+  claimed: "이미 다른 계정이 등록·관리 중인 기관입니다.",
   save: "공고 저장에 실패했습니다. 다시 시도해 주세요.",
 };
 
@@ -56,7 +56,7 @@ export default async function NewJobPage({
     <HospitalShell displayName={p.displayName} active="/mypage/jobs/new">
       <h1 className="mt-3 text-2xl font-bold text-slate-900">{dup ? "공고 복제" : "공고 등록"}</h1>
       <p className="mt-1 text-sm text-slate-500">
-        {dup ? "기존 공고를 복사했습니다. 필요한 부분(급여·직종 등)만 고쳐 등록하세요." : "병원을 검색해 선택하면 공고에 자동 연결됩니다."}
+        {dup ? "기존 공고를 복사했습니다. 필요한 부분(급여·직종 등)만 고쳐 등록하세요." : "기관을 검색해 선택하면 공고에 자동 연결됩니다."}
       </p>
 
       {error && (
@@ -74,20 +74,22 @@ export default async function NewJobPage({
         />
         {myHosp ? (
           <div className="flex flex-col gap-1">
-            <span className="text-base font-medium text-slate-700">병원</span>
+            <span className="text-base font-medium text-slate-700">기관</span>
             <div className="rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5 text-base">
               <span className="font-semibold text-teal-800">{myHosp.name}</span>
               {myHosp.region && <span className="ml-2 text-xs text-teal-700">{myHosp.region}</span>}
             </div>
             <input type="hidden" name="hospital_id" value={myHosp.id} />
-            <span className="text-sm text-slate-500">인증 시 연결된 병원이 자동 사용됩니다.</span>
+            <span className="text-sm text-slate-500">인증 시 연결된 기관이 자동 사용됩니다.</span>
           </div>
         ) : (
           <div className="flex flex-col gap-1">
-            <span className="text-base font-medium text-slate-700">병원 선택 <span className="text-red-500">*</span></span>
+            <span className="text-base font-medium text-slate-700">기관 선택 <span className="text-red-500">*</span></span>
             <HospitalPicker
               initial={template?.hospital ? { id: template.hospital.id, name: template.hospital.name, region: null, address: null } : null}
               draftKey={`nursenet:draft:job-new-hospital:${p.email}`}
+              // 🧓 명부에 없는 기관(요양원·재가센터 신규 개설 등)은 사업자 인증 화면에서 직접 등록한다 — 등록하면 이 화면으로 돌아온다.
+              missingHint={<>명부에 없으면 <a href="/mypage/verify?reverify=1&direct=1&from=jobs-new#direct" className="font-semibold text-teal-700 underline underline-offset-2">기관 직접 등록</a>으로 등록할 수 있습니다.</>}
             />
           </div>
         )}

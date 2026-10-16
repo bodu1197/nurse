@@ -669,7 +669,7 @@ export async function getResumeForAdmin(profileId: string) {
 /** 병원 이름에 들어갈 법한 말. 하나도 없으면 "이름이 아닌 것" 으로 본다. */
 const HOSPITAL_WORDS =
   "병원|의원|클리닉|센터|한의원|치과|약국|요양원|보건|의료|재활|정신|산부인과|안과|피부과|정형외과|" +
-  "내과|외과|소아|이비인후|비뇨|성형|검진|투석|주간보호|조리원|너싱홈|실버|요양";
+  "내과|외과|소아|이비인후|비뇨|성형|검진|투석|주간보호|조리원|너싱홈|실버|요양|재가|복지|케어|돌봄";
 
 export type HospitalToFix = {
   id: string;

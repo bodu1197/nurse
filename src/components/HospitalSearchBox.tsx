@@ -67,6 +67,8 @@ export default function HospitalSearchBox({ initialName = "" }: Readonly<{ initi
               >
                 <span className="font-medium text-slate-800">{h.name}</span>
                 {h.region && <span className="ml-2 text-xs text-slate-500">{h.region}</span>}
+                {/* 종별 — 요양원·재가센터는 주소가 없어(공단 명부) 같은 이름끼리 이것으로 가린다(HospitalPicker 와 같다) */}
+                {h.cl_cd_nm && <span className="ml-2 text-xs text-slate-500">· {h.cl_cd_nm}</span>}
                 {h.address && <span className="block text-xs text-slate-500">{h.address}</span>}
               </button>
             </li>

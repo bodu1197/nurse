@@ -119,7 +119,21 @@ const FACILITY_BY_CL_CD: ReadonlyArray<readonly [FacilityType, RegExp]> = [
   ["보건소", /보건소|보건지소|보건진료소|보건의료원/],
   ["병원", /병원/], // 정신병원 포함(위에서 안 걸린 '○○병원' 전부)
   ["의원", /의원/],
+  // 🧓 요양원·재가센터 — 공단 명부 행·직접 등록 행의 종별은 장기요양 급여 종류다(LTC_KINDS, 여럿이면 '·'로 이어 붙음).
+  ["요양원·주간보호", /노인요양|공동생활가정|주야간보호|단기보호|방문요양|방문목욕|방문간호|장기요양/],
 ];
+
+/**
+ * 🧓 장기요양 급여 종류 — 요양원·재가센터를 병원 명부(hospitals)에 실을 때 종별(cl_cd_nm)로 쓰는 이름.
+ * 공단 명부에서 넣은 행(scripts/import-ltc-facilities.ts)과 명부에 없어 사업자 인증 화면에서 직접 등록한 행이
+ * **같은 이름**을 쓴다 — 그래야 위 규칙 하나로 둘 다 '요양원·주간보호'가 된다. 공단 장기요양 홈페이지의 기관 종류 이름 그대로다.
+ * 복지용구는 넣지 않는다 — 용품 대여점이라 요양보호사·간병인을 뽑는 곳이 아니다(명부 수집에서도 뺀다).
+ */
+export const LTC_KINDS = ["노인요양시설", "노인요양공동생활가정", "주야간보호", "단기보호", "방문요양", "방문목욕", "방문간호"] as const;
+export type LtcKind = (typeof LTC_KINDS)[number];
+
+/** 명부에 없는 기관을 직접 등록할 때 고르는 종류 — 급여 종류 + '기타'(그 밖의 돌봄 기관. 기관 종별은 비워 둔다). */
+export const DIRECT_FACILITY_KINDS = [...LTC_KINDS, "기타"] as const;
 
 export function facilityFromClCd(clCdNm: string | null | undefined): FacilityType | null {
   const s = (clCdNm ?? "").trim();

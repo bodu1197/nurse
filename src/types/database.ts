@@ -435,13 +435,17 @@ export type Database = {
       hospitals: {
         Row: {
           address: string | null
-          /** 심사평가원 종별(clCdNm): 상급종합·종합병원·병원·요양병원·의원… 원본 그대로(20260811180000). */
+          /** 기관 종별 — 심사평가원 clCdNm 원본(상급종합·종합병원·요양병원·의원…, 20260811180000) 또는 장기요양 급여 종류(노인요양시설·방문요양…, 20261016190000). */
           cl_cd_nm: string | null
           created_at: string
+          /** 사업자 인증 화면에서 직접 등록한 회원(20261016190000) — 계정당 직접 등록 상한을 센다. */
+          created_by: string | null
           id: string
           is_claimed: boolean
           is_test: boolean
           legacy_member_srl: number | null
+          /** 국민건강보험공단 장기요양기관기호(11자리) — 요양원·재가센터 명부 행의 열쇠(20261016190000). 심사평가원 행은 null. */
+          ltc_code: string | null
           name: string
           owner_profile_id: string | null
           rating_avg: number
@@ -455,10 +459,12 @@ export type Database = {
           address?: string | null
           cl_cd_nm?: string | null
           created_at?: string
+          created_by?: string | null
           id?: string
           is_claimed?: boolean
           is_test?: boolean
           legacy_member_srl?: number | null
+          ltc_code?: string | null
           name: string
           owner_profile_id?: string | null
           rating_avg?: number
@@ -472,10 +478,12 @@ export type Database = {
           address?: string | null
           cl_cd_nm?: string | null
           created_at?: string
+          created_by?: string | null
           id?: string
           is_claimed?: boolean
           is_test?: boolean
           legacy_member_srl?: number | null
+          ltc_code?: string | null
           name?: string
           owner_profile_id?: string | null
           rating_avg?: number
@@ -486,6 +494,13 @@ export type Database = {
           ykiho?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "hospitals_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "hospitals_owner_profile_id_fkey"
             columns: ["owner_profile_id"]
