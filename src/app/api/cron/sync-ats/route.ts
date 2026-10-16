@@ -4,7 +4,7 @@ import { fetchNurseAtsJobs, fetchAtsDescription, TENANTS } from "@/lib/recruiter
 import { fetchNurseSiteJobs, fetchSiteDetail, SITES } from "@/lib/hospitalSites";
 import { fetchBoardJobs, fetchBoardDetail, BOARDS } from "@/lib/jobBoards";
 import { lookupHospitalsBestEffort, pickMatch } from "@/lib/hospitalRegistry";
-import { regionOfLocation } from "@/lib/jobRegion";
+import { isFullAddress, regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
 import { recordRun } from "@/lib/collectorLog";
 import { geocodeAddress } from "@/lib/kakao";
@@ -148,7 +148,10 @@ export async function GET(request: Request) {
       // 집계 사이트는 상세의 근무지 주소가 실제 근무지라 그쪽을 먼저 본다.
       // 🔴 저장값이 명부보다 앞선다. 상세는 한 번만 받으므로 2회차부터 d 가 없는데, 명부를 먼저 보면
       //    **좌표는 상세 주소로 찍히고 지역은 명부 주소로 바뀌어** 둘이 어긋난다.
-      const loc = d?.address ?? s?.location ?? reg?.address ?? null;
+      //    저장값이 **시도·시군구뿐**이면(2026-10-16 이전 행 — 그때는 지역만 저장했다) 명부 주소로 채운다. 그 뒤로는 저장값에
+      //    도로명까지 들어 있어 다시 바뀌지 않는다.
+      const kept = isFullAddress(s?.location) ? s?.location : null;
+      const loc = d?.address ?? kept ?? reg?.address ?? s?.location ?? null;
       const region = regionOfLocation(loc);
       const description = bodies.get(j.id) ?? d?.description ?? s?.description ?? null;
       return {
@@ -163,7 +166,8 @@ export async function GET(request: Request) {
         employment_type: j.employmentType ?? d?.employmentType ?? s?.employment_type ?? null,
         // 급여는 상세에만 있다(목록에는 아예 없다). 없으면 화면이 "급여 협의" 로 받는다.
         salary_text: d?.salaryText ?? s?.salary_text ?? null,
-        location: [region.sido, region.sigungu].filter(Boolean).join(" ") || s?.location || null,
+        // 근무지는 주소 글자 그대로(도로명까지) — 종전처럼 시도·시군구만 조립하면 카드·상세가 구까지만 보인다(오너 지적 2026-10-16).
+        location: loc,
         sido: region.sido,
         sigungu: region.sigungu,
         // 🔴 명부 주소로만 지오코딩한다 — 주소를 못 얻은 공고는 좌표 없이 둔다.

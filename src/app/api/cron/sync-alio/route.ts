@@ -94,8 +94,9 @@ export async function GET(request: Request) {
         employment_type: j.employmentType,
         // 🔴 화면·JSON-LD 의 "지역" 은 이 컬럼을 읽는다. 필터(sido/sigungu)와 **같은 값**이어야
         //    "수원시 팔달구로 걸러 놓고 상세에는 경기라고 적혀 있는" 어긋남이 안 생긴다.
-        //    주소 원문을 그대로 넣으면 너무 길어서 정규화된 결과를 다시 조립한다.
-        location: [region.sido, region.sigungu].filter(Boolean).join(" ") || j.location,
+        //    2026-10-16 부터는 주소 글자(명부 도로명 주소)를 그대로 싣는다 — 시도·시군구만 조립하면 카드·상세가 구까지만 보인다(오너 지적).
+        //    필터용 sido/sigungu 는 같은 글자에서 정규화하므로 어긋나지 않는다(워크넷 공고와 같은 꼴).
+        location: loc,
         sido: region.sido,
         sigungu: region.sigungu,
         // 🔴 지오코딩은 **명부 주소로만** 한다. API 근무지("서울")를 그대로 넣으면 시청 좌표가 찍혀

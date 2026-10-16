@@ -120,6 +120,9 @@ export function workplaceOf(j: { addr: string; detailAddr: string; region: strin
   return /[가-힣A-Za-z]/.test(detail) ? `${road}, ${detail}` : road;
 }
 
+/** 도로명(또는 번지)까지 든 주소인가 — 시도·시군구뿐인 글자("서울특별시 양천구"·"서울 양천구")나 시도를 못 읽는 글자는 아니다. */
+export const isFullAddress = (s: string | null | undefined): s is string => !!s && !!regionOfLocation(s).sido && !!streetOfLocation(s);
+
 type JobPlace = { location: string | null; sido?: string | null; sigungu?: string | null };
 
 /** 공고의 정규화 지역 — 저장된 값(jobs.sido/sigungu, 필터·RPC 와 같은 값)을 먼저, 없으면 근무지 글자에서(옛 행·등록 폼 초안). */

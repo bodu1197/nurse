@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canonicalSido, regionLabelOf, regionOfLocation, sameArea, streetOfLocation, workplaceOf } from "./jobRegion.ts";
+import { canonicalSido, isFullAddress, regionLabelOf, regionOfLocation, sameArea, streetOfLocation, workplaceOf } from "./jobRegion.ts";
 import { SIDO_SIGUNGU } from "./koreaRegions.ts";
 
 test("워크넷 region 형('경기 성남시') — 축약 시도 흡수 + 시군구", () => {
@@ -93,6 +93,9 @@ test("워크넷 근무지 글자 — 도로명 주소 + 상세 주소, 상세가
   assert.equal(regionLabelOf({ location: "세종특별자치시 한누리대로 90-3", sido: "세종특별자치시", sigungu: null }), "세종특별자치시");
   assert.equal(regionLabelOf({ location: "본원 3층", sido: null }), "본원 3층", "시도를 못 읽으면 원문");
   assert.equal(regionLabelOf({ location: null }), null);
+  // 도로명까지 든 주소인가(sync-ats 가 옛 '지역만' 저장값을 명부 주소로 바꿀지 판단)
+  for (const full of ["서울특별시 양천구 목동서로 161, (목동)", "세종특별자치시 전의면 산단길 1", "경기도 성남시 수정구 고등로 57"]) assert.equal(isFullAddress(full), true, full);
+  for (const not of ["서울특별시 양천구", "서울 양천구", "세종특별자치시", "본원 3층", "(04564) 서울특별시 중구 1", "", null, undefined]) assert.equal(isFullAddress(not), false, String(not));
   // 저장된 값은 지역 정규화·검색엔진 주소 분해가 그대로 먹어야 한다
   const loc = workplaceOf({ addr: "경기도 성남시 수정구 수정로 115-1", detailAddr: "3층", region: "경기 성남시 수정구" });
   assert.deepEqual(regionOfLocation(loc), { sido: "경기도", sigungu: "성남시 수정구" });
