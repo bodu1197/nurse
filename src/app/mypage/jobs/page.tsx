@@ -31,7 +31,7 @@ export default async function MyJobsPage({
             무엇을 받았고 무엇이 안 열리는지 그 자리에서 알려야 나중에 항의가 안 온다. */}
         {ok === "free" && (
           <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-base leading-relaxed text-teal-800">
-            <b>무료 {FREE_WEEK_DAYS}일 노출이 시작되었습니다.</b> 병원당 한 번만 드리는 혜택이라 다음부터는 광고를 결제하셔야 합니다.
+            <b>무료 {FREE_WEEK_DAYS}일 노출이 시작되었습니다.</b> 사업자당 한 번만 드리는 혜택이라 다음부터는 광고를 결제하셔야 합니다.
             <span className="block text-teal-700">간호사 연락처 열람과 AI 자동매치는 유료 광고에서만 열립니다.</span>
           </div>
         )}

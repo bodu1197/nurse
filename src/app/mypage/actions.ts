@@ -294,7 +294,7 @@ export async function createJob(formData: FormData) {
   //    종전에는 선택과 무관하게 status='open' + 7일 노출을 줬는데, 그 탓에 「2주」를 고르고
   //    결제만 안 하면 무료 7일을 몇 번이든 받을 수 있었다(실측 2026-08-05 15:18, 주문 0건).
   //    이제 노출의 유일한 문은 featured_until 이고, 그걸 세우는 길은 둘뿐이다 —
-  //    결제(activateAdOrder) 또는 **무료 1주(claim_free_week, 병원당 평생 1회)**.
+  //    결제(activateAdOrder) 또는 **무료 1주(claim_free_week, 계정·사업자번호당 평생 1회 — ad_free_used 의 두 unique)**.
   //    가입 캐시 지급은 폐지했다(오너 확정 2026-08-06) — 유료는 정가 그대로 받는다.
   const weeksPicked = Number(s("duration"));
   const picked = adProduct(weeksPicked)?.weeks ?? AD_PRODUCTS[0].weeks;

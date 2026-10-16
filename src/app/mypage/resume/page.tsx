@@ -682,7 +682,7 @@ export default async function ResumePage({
                 이력서 공개에 동의합니다
                 <span className="mt-1 block text-xs leading-relaxed text-slate-600">
                   <b className="text-slate-700">누가 봅니까?</b> 인재정보 화면에서 <b className="text-slate-800">로그인하지 않은 방문자를 포함한 누구나</b> — {RESUME_PUBLIC_SCOPE.anyone}.
-                  <b className="text-slate-700"> 연락처는?</b> {RESUME_PUBLIC_SCOPE.advertiser}는 <b className="text-slate-800">{RESUME_PUBLIC_SCOPE.advertiserWho}</b>만 봅니다.
+                  <b className="text-slate-700"> 연락처는?</b> {RESUME_PUBLIC_SCOPE.advertiser}은 <b className="text-slate-800">{RESUME_PUBLIC_SCOPE.advertiserWho}</b>만 봅니다.
                   <b className="text-slate-700"> 왜 봅니까?</b> 채용 제안 · 인재 검색 목적.
                   <b className="text-slate-700"> 언제까지?</b> 저장 뒤에는 이 화면 맨 위 스위치로 언제든 즉시 중단할 수 있습니다.
                 </span>

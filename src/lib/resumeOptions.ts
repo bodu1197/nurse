@@ -130,7 +130,8 @@ export const RESUME_PUBLIC_SCOPE = {
    */
   advertiser: "이름 · 휴대폰 · 이메일 · 증명사진",
   /** 위 항목을 보는 사람의 범위 — 문장에 그대로 끼워 쓴다 */
-  advertiserWho: "널스넷에 광고 중인 병원과 내가 지원한 병원",
+  // 🧓 요양원·재가센터도 같은 기관 회원으로 광고·인재 열람을 한다(2026-10-16) — 동의 문구가 그 사실을 빼면 고지가 아니다.
+  advertiserWho: "널스넷에 광고 중인 병원·요양기관과 내가 지원한 기관",
 } as const;
 
 /** 자기소개 글자 수 — 화면(minLength·maxLength)과 서버(saveResume)가 같은 값을 쓴다. */

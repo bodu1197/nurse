@@ -247,7 +247,7 @@ export default async function Home({
                 찾지 마세요. 맞춰 드립니다.
               </p>
               <p className="mt-2 text-base text-slate-600 sm:text-lg">
-                간호사에겐 조건에 맞는 <b className="text-slate-800">공고</b>를, 병원에는 조건에 맞는{" "}
+                간호사에겐 조건에 맞는 <b className="text-slate-800">공고</b>를, 병원·요양기관에는 조건에 맞는{" "}
                 <b className="text-slate-800">인재</b>를.
               </p>
             </div>
@@ -255,7 +255,7 @@ export default async function Home({
             <div className="flex shrink-0 flex-col gap-2.5 sm:flex-row">
               <Button href="/match" size="lg">내게 맞는 공고 보기 →</Button>
               <Button href="/hospital" variant="outline" size="lg" className="border-teal-300 bg-white text-teal-800 hover:bg-teal-50">
-                병원 회원가입 · 공고등록 →
+                병원·요양기관 공고등록 →
               </Button>
             </div>
           </div>
@@ -324,7 +324,7 @@ export default async function Home({
               // 🔴 "사진" 도 적는다 — 카드에 실루엣이 뜨는 이유가 이것이다. 이름·연락처만 적어두면
               //    비로그인 첫 방문자는 사진이 왜 없는지 알 수 없다(/talent 목록은 이미 셋 다 적고 있다).
               // slate-500 — 400 은 흰 바탕에서 2.6:1 로 작은 글자가 안 읽힌다(위 채용공고 구역과 같은 색).
-              <p className="mt-4 text-center text-xs text-slate-500">이력서를 공개한 간호사 회원입니다. 이름·연락처·사진은 광고 중인 병원에만 표시됩니다.</p>
+              <p className="mt-4 text-center text-xs text-slate-500">이력서를 공개한 간호사 회원입니다. 이름·연락처·사진은 광고 중인 병원·요양기관에만 표시됩니다.</p>
             )}
           </section>
         </div>

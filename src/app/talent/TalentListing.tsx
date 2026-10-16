@@ -211,7 +211,7 @@ export default async function TalentListing({
         <h1 className="text-2xl font-bold text-slate-900">{m.heading}</h1>
         <p className="mt-1 text-sm text-slate-600">
           {filtered ? "검색 결과" : `이력서를 공개한 ${m.noun}`} <b className="text-slate-800">{total}명</b>.
-          {!canSeeContacts && " 이름·연락처·사진은 광고 중인 병원 회원만 볼 수 있습니다."}
+          {!canSeeContacts && " 이름·연락처·사진은 광고 중인 병원·요양기관 회원만 볼 수 있습니다."}
         </p>
 
         {showAdCta && (

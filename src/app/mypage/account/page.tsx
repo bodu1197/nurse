@@ -62,7 +62,7 @@ export default async function AccountPage({
           {p.role === "nurse" && (
             // 오너 확정: 간호사의 실명·연락처는 이력서가 원본이다. 두 곳에 두면 반드시 어긋난다.
             <p className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-600">
-              병원에 보이는 <b className="text-slate-800">이름과 연락처는 이력서</b>에 있습니다.{" "}
+              병원·요양기관에 보이는 <b className="text-slate-800">이름과 연락처는 이력서</b>에 있습니다.{" "}
               <Link href="/mypage/resume" className={LINK_CLASS}>이력서에서 수정</Link>
             </p>
           )}
@@ -103,7 +103,7 @@ export default async function AccountPage({
           // 🔴 병원 회원에게는 **등록한 공고가 전부 사라진다**가 가장 중요한 고지다(deleteAccount 가
           //    jobs 를 지운다). 이걸 안 적으면 광고비를 낸 병원이 모르고 눌렀다가 공고를 잃는다.
           //    결제 기록이 남는 것도 함께 적는다 — 개인정보처리방침 5조와 같은 말이어야 한다.
-          hint="계정과 이력서가 즉시 삭제되며 되돌릴 수 없습니다. 이미 지원한 공고의 기록도 병원 화면에서 사라집니다. 병원 회원이라면 등록하신 공고가 남은 광고 기간과 관계없이 모두 삭제됩니다. 다만 법령에 따라 결제 내역은 주문자 정보를 지운 뒤 보관됩니다."
+          hint="계정과 이력서가 즉시 삭제되며 되돌릴 수 없습니다. 이미 지원한 공고의 기록도 병원·요양기관 화면에서 사라집니다. 병원·요양기관 회원이라면 등록하신 공고가 남은 광고 기간과 관계없이 모두 삭제됩니다. 다만 법령에 따라 결제 내역은 주문자 정보를 지운 뒤 보관됩니다."
         >
           <form action={deleteAccount} className="flex flex-col gap-3 sm:max-w-md">
             <div className="flex flex-col gap-1">

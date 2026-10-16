@@ -5,9 +5,9 @@ import { getMyProfile } from "@/lib/data/user";
 import { LINK_CLASS, socialMeta } from "@/lib/constants";
 import { AD_WEEK_PRICE, won } from "@/lib/ads";
 
-const HOSP_TITLE = "병원 서비스 — 간호사 채용공고 등록 | 널스넷";
+const HOSP_TITLE = "병원·요양기관 서비스 — 간호사·요양보호사 채용공고 등록 | 널스넷";
 // 🔴 금액은 lib/ads 에서 온다 — 손으로 적으면 값을 바꿨을 때 검색결과 설명만 옛 가격으로 남는다.
-const HOSP_DESC = `병원 채용담당자를 위한 간호사 채용 서비스. 사업자 인증 후 공고를 등록하시면 첫 공고 1주는 무료로 노출됩니다. 유료 광고는 1주 ${won(AD_WEEK_PRICE)}부터이며 목록 상단 노출과 간호사 연락처 열람이 열립니다.`;
+const HOSP_DESC = `병원·요양기관 채용담당자를 위한 간호사·요양보호사·간병인 채용 서비스. 사업자 인증 후 공고를 등록하시면 첫 공고 1주는 무료로 노출됩니다. 유료 광고는 1주 ${won(AD_WEEK_PRICE)}부터이며 목록 상단 노출과 인재 연락처 열람이 열립니다.`;
 
 export const metadata = {
   title: HOSP_TITLE,
@@ -17,9 +17,9 @@ export const metadata = {
 };
 
 const STEPS = [
-  { n: "1", t: "병원 회원가입", d: "이메일로 간단히 가입합니다." },
-  { n: "2", t: "사업자 인증", d: "국세청 사업자등록 진위확인으로 병원을 인증합니다." },
-  { n: "3", t: "공고 등록 · 광고 시작", d: "병원을 검색·선택하면 정보가 자동 입력됩니다. 첫 공고는 1주 무료로 올려 보고, 이어서 유료 광고를 고르시면 됩니다." },
+  { n: "1", t: "병원·요양기관 회원가입", d: "이메일로 간단히 가입합니다." },
+  { n: "2", t: "사업자 인증", d: "국세청 사업자등록 진위확인으로 기관을 인증합니다." },
+  { n: "3", t: "공고 등록 · 광고 시작", d: "기관을 검색·선택하면 정보가 자동 입력됩니다(명부에 없는 기관은 직접 등록). 첫 공고는 1주 무료로 올려 보고, 이어서 유료 광고를 고르시면 됩니다." },
 ];
 
 export default async function HospitalPage() {
@@ -30,18 +30,19 @@ export default async function HospitalPage() {
       <SiteHeader user={p ? { displayName: p.displayName } : null} />
       <main className="flex-1">
         <section className="mx-auto max-w-3xl px-4 py-16 text-center sm:py-20">
-          <p className="text-sm font-semibold text-teal-700">병원 채용담당자님께</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">간호사 채용, 첫 1주는 무료로 시작하세요</h1>
+          <p className="text-sm font-semibold text-teal-700">병원·요양기관 채용담당자님께</p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-900 sm:text-4xl">간호사·요양보호사 채용, 첫 1주는 무료로 시작하세요</h1>
           <p className="mx-auto mt-4 max-w-xl text-slate-600">
-            전국 79,000여 개 병원 데이터를 기반으로, 사업자 인증을 마친 병원만 공고를 등록합니다.
-            인증된 병원의 공고는 간호사에게 신뢰를 줍니다. 첫 공고 1주는 무료로 올려 보시고,
-            상단 노출과 간호사 연락처 열람이 필요하시면 1주 {won(AD_WEEK_PRICE)}부터 광고를 더하시면 됩니다.
+            {/* 명부 규모(2026-10-16 실측): 심사평가원 의료기관 80,204곳 + 공단 장기요양기관 28,451곳 */}
+            전국 병원 8만여 곳과 요양원·재가센터 2만 8천여 곳의 명부를 기반으로, 사업자 인증을 마친 기관만 공고를 등록합니다.
+            인증된 기관의 공고는 구직자에게 신뢰를 줍니다. 첫 공고 1주는 무료로 올려 보시고,
+            상단 노출과 인재 연락처 열람이 필요하시면 1주 {won(AD_WEEK_PRICE)}부터 광고를 더하시면 됩니다.
           </p>
 
           <div className="mt-8">
             {!p ? (
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <Button href="/signup?role=hospital" size="lg">병원 회원가입</Button>
+                <Button href="/signup?role=hospital" size="lg">병원·요양기관 회원가입</Button>
                 <Button href="/login" variant="outline" size="lg">로그인</Button>
               </div>
             ) : p.role === "hospital" ? (
@@ -50,7 +51,7 @@ export default async function HospitalPage() {
               </Button>
             ) : (
               <p className="rounded-xl bg-slate-50 px-5 py-4 text-sm text-slate-500">
-                공고 등록은 병원 회원만 가능합니다. 병원 계정으로 로그인해 주세요.
+                공고 등록은 병원·요양기관 회원만 가능합니다. 그 계정으로 로그인해 주세요.
               </p>
             )}
           </div>
@@ -69,7 +70,7 @@ export default async function HospitalPage() {
           {/* 공고 작성은 공짜지만 노출은 광고다 — 알아볼 곳으로 가는 길을 여기 둔다.
               구 널스넷도 /service_information 을 전 화면 메뉴에 달아 뒀고, 그 주소가 이제 /ads 로 온다. */}
           <p className="mx-auto max-w-4xl px-4 pb-14 text-center text-sm text-slate-600">
-            더 많은 간호사에게 먼저 보이고 싶다면{" "}
+            더 많은 구직자에게 먼저 보이고 싶다면{" "}
             <Link href="/ads" className={LINK_CLASS}>광고 상품 안내</Link>를 확인해 보세요.
           </p>
         </section>

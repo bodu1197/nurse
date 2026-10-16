@@ -108,7 +108,8 @@ export default function SiteHeader({ user }: Readonly<{ user: { displayName: str
 
         <div className="ml-auto flex items-center gap-1.5">
           {/* lg~ 에서만 — 그 아래에서는 햄버거 메뉴·푸터에 같은 링크가 있다. */}
-          <Link href="/hospital" className="hidden items-center px-3 text-sm font-medium text-slate-600 hover:text-teal-700 lg:inline-flex">병원 회원·공고등록</Link>
+          {/* 이름은 햄버거 메뉴(HEADER_MENU)와 같게 — 요양원·재가센터도 이 길로 가입·공고등록한다(오너 확정 2026-10-16 '병원·요양기관'). */}
+          <Link href="/hospital" className="hidden items-center whitespace-nowrap rounded px-3 text-sm font-medium text-slate-600 hover:text-teal-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 lg:inline-flex">병원·요양기관 공고등록</Link>
           {user ? (
             <>
               {/* 🔴 전에는 "홍길동님" 만 적혀 있었다. 이 글자가 마이페이지 링크인 줄 알 방법이 없어

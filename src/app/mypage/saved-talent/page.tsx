@@ -65,7 +65,7 @@ export default async function SavedTalentPage({
           상황에서 "왜 이름이 안 보이지" 를 혼자 추측하게 두지 않는다. */}
       {!canSeeContacts && rows.length > 0 && (
         <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-base text-amber-900">
-          <span>후보는 그대로 보관됩니다. <b>이름·연락처·사진은 광고 중인 병원에게만</b> 열립니다.</span>
+          <span>후보는 그대로 보관됩니다. <b>이름·연락처·사진은 광고 중인 병원·요양기관에게만</b> 열립니다.</span>
           <Link href="/hospital" className="font-semibold underline">광고 안내 →</Link>
         </p>
       )}

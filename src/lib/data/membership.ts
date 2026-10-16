@@ -28,8 +28,8 @@ export const TIER_LABEL: Record<MemberTier, string> = {
   guest: "비회원",
   nurse_basic: "간호 일반회원",
   nurse_member: "간호회원",
-  hospital_basic: "병원 일반회원",
-  hospital_member: "병원회원",
+  hospital_basic: "병원·요양기관 일반회원",
+  hospital_member: "병원·요양기관 회원",
   admin: "관리자",
 };
 
@@ -42,7 +42,7 @@ export const TIER_UPGRADE: Partial<Record<MemberTier, { text: string; href: stri
   },
   hospital_basic: {
     // 무료 등록만으로는 안 된다 — 인재정보 열람은 유료 광고의 특전이다(hasLiveAd 참고).
-    text: "공고에 광고를 적용하면 광고 기간 동안 병원회원이 되어 인재정보를 열람할 수 있습니다.",
+    text: "공고에 광고를 적용하면 광고 기간 동안 병원·요양기관 회원이 되어 인재정보를 열람할 수 있습니다.",
     href: "/mypage/jobs",
     label: "내 공고에 광고 올리기",
   },

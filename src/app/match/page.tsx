@@ -323,12 +323,12 @@ function HowItWorks({ loggedIn, hospital = false }: Readonly<{ loggedIn: boolean
           title="병원·요양기관 — 맞는 인재를 자동으로"
           body="공고를 게재하면 그 공고의 지역·진료과(요양·간병 공고는 지역)와 일자리 종류에 맞는 간호사·요양보호사 인재를 자동으로 보여 드립니다. 이름·연락처는 광고 중인 기관에게만 열립니다."
           href={loggedIn && hospital ? "/mypage/jobs" : "/hospital"}
-          label={loggedIn && hospital ? "내 공고 관리" : "병원 회원·공고등록"}
+          label={loggedIn && hospital ? "내 공고 관리" : "병원·요양기관 공고등록"}
         />
       </div>
       <p className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
         추천하는 공고는 <b className="text-slate-800">지금 지원을 받고 있는 것</b>뿐입니다 — 마감된 공고는 나오지 않습니다.
-        병원에게 보이는 인재는 <b className="text-slate-800">공개된 이력서</b>뿐이고, 비공개로 두면 인재 검색에서만
+        병원·요양기관에게 보이는 인재는 <b className="text-slate-800">공개된 이력서</b>뿐이고, 비공개로 두면 인재 검색에서만
         빠집니다(<b className="text-slate-800">공고 추천은 그대로</b> 받습니다).
       </p>
     </div>

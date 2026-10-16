@@ -13,6 +13,6 @@ export function pickRole(dbRole: Role, cookieValue: string | undefined): Role {
 // 역할 표시명 — 마이페이지/전환 배너 공용(같은 문구를 두 곳에 적지 않기 위해 여기 한 곳).
 export const ROLE_LABEL: Record<Role, string> = {
   nurse: "간호사 회원",
-  hospital: "병원 회원",
+  hospital: "병원·요양기관 회원",
   admin: "관리자",
 };

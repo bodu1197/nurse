@@ -44,7 +44,7 @@ export const TOP_NAV: readonly MenuItem[] = [
 export const HEADER_MENU: readonly MenuItem[] = [
   ...TOP_NAV,
   { label: "회원가입", href: "/signup" },
-  { label: "병원 공고등록", href: "/hospital" },
+  { label: "병원·요양기관 공고등록", href: "/hospital" },
 ];
 
 // 푸터 네비게이션 — 헤더와 마찬가지로 전원에게 보인다.
@@ -54,7 +54,7 @@ export const FOOTER_NAV: readonly MenuItem[] = [
   { label: "요양보호사·간병인 채용", href: CARE_JOBS_MENU.href },
   { label: "인재정보", href: "/talent" },
   { label: "병원 리뷰", href: "/reviews" },
-  { label: "병원 서비스", href: "/hospital" },
+  { label: "병원·요양기관 서비스", href: "/hospital" },
   // 광고 상품 안내 — 돈이 들어오는 길이라 푸터 어디서든 닿아야 한다(구 널스넷도 전 화면 메뉴에 뒀다)
   { label: "채용광고 안내", href: "/ads" },
   // 고객센터는 허브(/customer)로 보낸다 — 그 아래 자주묻는질문·공지사항·이벤트·1:1문의가 걸려 있다

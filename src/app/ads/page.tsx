@@ -23,7 +23,7 @@ import { RESUME_PUBLIC_SCOPE } from "@/lib/resumeOptions";
 const TITLE = "채용광고 안내 — 널스넷";
 // 🔴 금액을 손으로 적지 않는다 — 값을 바꾸면 검색결과 설명만 옛 가격으로 남는다.
 const DESC =
-  `첫 공고 1주는 무료로 노출됩니다(병원당 1회). 유료 광고는 1주 ${won(AD_WEEK_PRICE)}부터이며 길게 하실수록 주당 단가가 내려갑니다. 유료 광고 중에는 목록 맨 위에 노출되고, 이력서를 공개한 간호사의 연락처 열람과 AI 자동매치 인재 추천이 열립니다.`;
+  `첫 공고 1주는 무료로 노출됩니다(사업자당 1회). 유료 광고는 1주 ${won(AD_WEEK_PRICE)}부터이며 길게 하실수록 주당 단가가 내려갑니다. 유료 광고 중에는 목록 맨 위에 노출되고, 이력서를 공개한 간호사의 연락처 열람과 AI 자동매치 인재 추천이 열립니다.`;
 
 export const metadata = {
   title: TITLE,
@@ -42,7 +42,7 @@ const BENEFITS = [
   {
     icon: "👤",
     title: "간호사 연락처 열람",
-    body: `이력서를 공개한 간호사의 ${RESUME_PUBLIC_SCOPE.advertiser}를 봅니다. 지원을 기다리지 않고 먼저 연락할 수 있습니다.`,
+    body: `이력서를 공개한 간호사의 ${RESUME_PUBLIC_SCOPE.advertiser}을 봅니다. 지원을 기다리지 않고 먼저 연락할 수 있습니다.`,
   },
   {
     icon: "✦",
@@ -55,7 +55,7 @@ export default async function AdsPage() {
   const profile = await getMyProfile();
   // 병원 회원이면 바로 공고 등록으로, 아니면 병원 회원 안내로 보낸다.
   const ctaHref = profile?.role === "hospital" ? "/mypage/jobs/new" : "/hospital";
-  const ctaLabel = profile?.role === "hospital" ? "공고 등록하기" : "병원 회원가입 · 공고등록";
+  const ctaLabel = profile?.role === "hospital" ? "공고 등록하기" : "병원·요양기관 회원가입 · 공고등록";
 
   return (
     <>
@@ -67,7 +67,7 @@ export default async function AdsPage() {
       <main className="mx-auto w-full max-w-[1280px] flex-1 px-4 py-10">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">채용광고 안내</h1>
         <p className="mt-3 max-w-2xl text-base leading-relaxed text-slate-600">
-          첫 공고 <b className="text-slate-900">1주는 무료</b>로 노출됩니다(병원당 1회). 목록 맨 위 노출과
+          첫 공고 <b className="text-slate-900">1주는 무료</b>로 노출됩니다(사업자당 1회). 목록 맨 위 노출과
           간호사 연락처 열람이 필요하시면 <b className="text-slate-900">1주 {won(AD_WEEK_PRICE)}</b>부터
           유료 광고를 더하실 수 있습니다.
         </p>
@@ -82,7 +82,7 @@ export default async function AdsPage() {
                 <tr className="border-b border-slate-200 text-left">
                   <th className="py-2.5 pr-4 font-semibold text-slate-500">　</th>
                   <th className="py-2.5 pr-4 font-semibold text-slate-700">광고 없음</th>
-                  <th className="py-2.5 pr-4 font-semibold text-slate-700">무료 1주<span className="block text-xs font-normal text-slate-400">병원당 1회</span></th>
+                  <th className="py-2.5 pr-4 font-semibold text-slate-700">무료 1주<span className="block text-xs font-normal text-slate-400">사업자당 1회</span></th>
                   <th className="py-2.5 font-semibold text-teal-700">유료 광고</th>
                 </tr>
               </thead>
@@ -110,7 +110,7 @@ export default async function AdsPage() {
               '돈을 냈는가'로 갈린다(DB 의 is_talent_advertiser 가 실결제 amount>0 을 요구한다).
               여기서 얼버무리면 무료로 올린 병원이 인재정보를 열려다 막히고 그때 처음 알게 된다. */}
           <p className="mt-3 max-w-3xl text-sm text-slate-500">
-            무료 1주는 <b className="text-slate-700">병원당 한 번</b>만 받으실 수 있고, 그동안에도 인재정보
+            무료 1주는 <b className="text-slate-700">사업자당 한 번</b>만 받으실 수 있고, 그동안에도 인재정보
             목록·상세는 보실 수 있지만 <b className="text-slate-700">이름·연락처는 가려집니다.</b>
           </p>
           <p className="mt-1.5 max-w-3xl text-sm text-slate-500">
@@ -177,9 +177,9 @@ export default async function AdsPage() {
           <h2 className="text-lg font-bold text-slate-900">신청 방법</h2>
           <ol className="mt-3 grid gap-3 sm:grid-cols-4">
             {[
-              ["1", "병원 회원가입", "사업자 정보로 병원을 인증합니다."],
+              ["1", "병원·요양기관 회원가입", "사업자 정보로 기관을 인증합니다."],
               ["2", "공고 등록", "등록은 무료입니다. 이때는 아직 노출되지 않습니다."],
-              ["3", "무료 1주 또는 기간 선택", "첫 공고는 무료 1주로 올려 보실 수 있습니다(병원당 1회)."],
+              ["3", "무료 1주 또는 기간 선택", "첫 공고는 무료 1주로 올려 보실 수 있습니다(사업자당 1회)."],
               ["4", "즉시 노출", "유료는 결제 직후 맨 위에 올라가고 인재 열람이 열립니다."],
             ].map(([n, t, d]) => (
               <li key={n} className="rounded-2xl border border-slate-200 bg-white p-5">

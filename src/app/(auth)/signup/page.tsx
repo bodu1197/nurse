@@ -38,7 +38,7 @@ export default async function SignupPage({
             </label>
             <label>
               <input type="radio" name="role" value="hospital" defaultChecked={isHospital} className="peer sr-only" />
-              <span className={roleClass}>병원 채용담당자</span>
+              <span className={roleClass}>병원·요양기관 채용담당자</span>
             </label>
           </div>
         </div>

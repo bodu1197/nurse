@@ -53,7 +53,7 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
     if (!res.ok) {
       setBusy(false);
       setErr(
-        res.error === "already_used" ? "무료 1주는 병원당 한 번만 받으실 수 있습니다. 기간을 선택해 결제해 주세요."
+        res.error === "already_used" ? "무료 1주는 사업자당 한 번만 받으실 수 있습니다. 기간을 선택해 결제해 주세요."
         : res.error === "already_live" ? "이미 노출 중인 공고입니다. 무료 1주는 노출이 끝난 뒤에 쓰실 수 있습니다."
         : res.error === "deadline" ? "공고 마감일이 지났습니다. 마감일을 수정한 뒤 다시 시도해 주세요."
         : res.error === "not_owner" ? "이 공고에 광고를 올릴 권한이 없습니다."
@@ -142,7 +142,7 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
             <input type="radio" name="weeks" value={FREE} checked={weeks === FREE} onChange={() => setWeeks(FREE)} className="peer sr-only" />
             {/* peer-focus-visible: 라디오가 sr-only 라 키보드로 옮겨도 어디에 있는지 안 보였다 — 테두리를 준다. */}
             <span className="relative flex h-full min-h-44 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[12px] border border-dashed border-slate-400 px-2 py-4 text-base text-slate-600 peer-checked:border-solid peer-checked:border-teal-500 peer-checked:bg-teal-50 peer-checked:text-teal-700 peer-focus-visible:ring-2 peer-focus-visible:ring-teal-500 peer-focus-visible:ring-offset-2">
-              <span className="absolute -top-2.5 rounded-full bg-slate-700 px-2 py-0.5 text-xs font-bold text-white">병원당 1회</span>
+              <span className="absolute -top-2.5 rounded-full bg-slate-700 px-2 py-0.5 text-xs font-bold text-white">사업자당 1회</span>
               <b className="text-base">{FREE_WEEK_DAYS}일 무료</b>
               <span className="text-lg font-bold">0원</span>
               {/* 🔴 slate-400 은 흰 바탕에서 명도대비 2.8:1 이라 작은 글자에서 특히 안 읽힌다
@@ -234,7 +234,7 @@ export default function AdPurchase({ jobId, initialWeeks = 1, adCash, freeAvaila
       </Button>
       <p className="mt-2 text-center text-xs text-slate-400">
         {isFree
-          ? `${FREE_WEEK_DAYS}일 동안 목록 상단에 노출됩니다(유료 광고 다음). 병원당 한 번만 받을 수 있고, 되돌릴 수 없습니다.`
+          ? `${FREE_WEEK_DAYS}일 동안 목록 상단에 노출됩니다(유료 광고 다음). 사업자당 한 번만 받을 수 있고, 되돌릴 수 없습니다.`
           : `${product.days}일 동안 목록 맨 위에 노출되고 간호사 연락처 열람과 AI 자동매치가 열립니다. 카드로 결제합니다(이니시스).`}
       </p>
     </div>

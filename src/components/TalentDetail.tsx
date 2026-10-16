@@ -95,7 +95,7 @@ export default function TalentDetail({
           </div>
         ) : (
           <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-            <span className="text-slate-500">🔒 이름·연락처·사진은 광고 중인 병원만 볼 수 있습니다.</span>
+            <span className="text-slate-500">🔒 이름·연락처·사진은 광고 중인 병원·요양기관만 볼 수 있습니다.</span>
             {contactGated && <Link href="/hospital" className="shrink-0 rounded font-semibold text-teal-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">광고 안내 →</Link>}
           </div>
         )}

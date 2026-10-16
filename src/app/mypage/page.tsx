@@ -199,8 +199,8 @@ function Card({ item }: Readonly<{ item: Item }>) {
 // 역할이 맞지 않아 되돌아온 경우의 안내 — 어느 역할 전용 화면이었는지로 문구가 갈린다.
 // 조용히 되돌리기만 하면 "클릭이 안 먹었나" 하고 같은 링크를 두세 번 더 누르게 된다.
 const DENIED: Record<string, string> = {
-  hospital: "그 화면은 병원 회원 전용입니다. 지금 계정은 간호사 회원이라 열 수 없습니다.",
-  nurse: "그 화면은 간호사 회원 전용입니다. 지금 계정은 병원 회원이라 열 수 없습니다.",
+  hospital: "그 화면은 병원·요양기관 회원 전용입니다. 지금 계정은 간호사 회원이라 열 수 없습니다.",
+  nurse: "그 화면은 간호사 회원 전용입니다. 지금 계정은 병원·요양기관 회원이라 열 수 없습니다.",
 };
 
 export default async function MyPage({
