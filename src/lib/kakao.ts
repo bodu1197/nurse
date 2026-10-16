@@ -45,6 +45,28 @@ export async function geocodeAddressStrict(address: string): Promise<Coords | nu
   return byAddress === undefined || byKeyword === undefined ? undefined : null;
 }
 
+export type Place = { name: string; address: string; lat: number; lng: number };
+
+/** 장소 이름 검색 결과(최대 15곳) — 이름·주소(도로명 우선)·좌표. 장애면 undefined, 결과 없음은 빈 배열. */
+export async function searchPlaces(query: string): Promise<Place[] | undefined> {
+  const key = process.env.KAKAO_REST_API_KEY;
+  if (!key) return undefined;
+  try {
+    const res = await fetch(`${KEYWORD_URL}?${new URLSearchParams({ query })}`, {
+      headers: { Authorization: `KakaoAK ${key}` },
+      signal: AbortSignal.timeout(5000),
+      cache: "no-store",
+    });
+    if (!res.ok) return undefined;
+    const docs: { place_name: string; road_address_name: string; address_name: string; x: string; y: string }[] = (await res.json()).documents ?? [];
+    return docs
+      .map((d) => ({ name: d.place_name, address: d.road_address_name || d.address_name, lat: Number(d.y), lng: Number(d.x) }))
+      .filter((p) => p.address && Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  } catch {
+    return undefined;
+  }
+}
+
 // 주소 → 좌표. 지번/도로명 정확 매칭을 먼저 시도하고, 안 되면(건물명·약칭 등 워크넷 주소 quirk)
 // 키워드(장소) 검색으로 한 번 더 시도한다.
 export async function geocodeAddress(address: string): Promise<Coords | null> {

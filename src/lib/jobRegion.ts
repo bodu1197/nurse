@@ -113,12 +113,29 @@ const BARE_NUMBER = /[A-Za-z]?\d+(?:\s*[-/]\s*\d+)*(?!\d|층|단지|호선|번|�
  *    취약한 노인의 자택이 좁혀진다(검증 지적 2026-10-16). 도로명 주소(고용24 에 이미 공개)와 좌표(내 주변)는 그대로다.
  */
 export function workplaceOf(j: { addr: string; detailAddr: string; region: string }, { withDetail = true } = {}): string | null {
-  const road = j.addr.trim();
+  const road = cleanAddress(j.addr);
   if (!road) return j.region.trim() || null;
   if (!withDetail) return road;
   const detail = j.detailAddr.normalize("NFKC").replace(UNIT_TOKEN, "$1").replace(BARE_NUMBER, " ").replace(/\s+/g, " ").trim();
-  return /[가-힣A-Za-z]/.test(detail) ? `${road}, ${detail}` : road;
+  // 숫자를 지운 자리에 남는 쉼표·빈 괄호(",10층" → ", ,10층" · "OO빌딩 (101호)" → "OO빌딩 ()")까지 합친 글자째 걷어낸다.
+  return cleanAddress(/[가-힣A-Za-z]/.test(detail) ? `${road}, ${detail}` : road);
 }
+
+/**
+ * 주소 글자의 빈 자리 걷어내기 — 심사평가원 명부는 빈 칸을 0·빈 괄호로 채워 보낸다(2026-10-17 실측 약 1,000곳):
+ * "아란13길 15-0,  0동 0층 0호 (아라일동)" → "아란13길 15, (아라일동)" · "문화로 282- , (대사동)" → "문화로 282, (대사동)" · "양벌로 327, ()" → "양벌로 327".
+ * 건물 부번 0("-0")은 '부번 없음'이다. 근무지를 주소 글자로 싣고부터(2026-10-16) 카드·상세·검색엔진에 깨진 주소처럼 나갔다.
+ */
+export const cleanAddress = (s: string): string => s
+  .replace(/\(\s*\)/g, "")
+  .replace(/(^|[\s,])0\s*(?:동|층|호)(?=[\s,(]|$)/g, "$1")
+  .replace(/(\d)-0(?!\d)/g, "$1")
+  .replace(/(\d)-\s*(?=,|$)/g, "$1")
+  .replace(/,(?:\s*,)+\s*/g, ", ")
+  .replace(/\s+/g, " ")
+  .replace(/\s+,/g, ",")
+  .replace(/,\s*$/, "")
+  .trim();
 
 /** 도로명(또는 번지)까지 든 주소인가 — 시도·시군구뿐인 글자("서울특별시 양천구"·"서울 양천구")나 시도를 못 읽는 글자는 아니다. */
 export const isFullAddress = (s: string | null | undefined): s is string => !!s && !!regionOfLocation(s).sido && !!streetOfLocation(s);

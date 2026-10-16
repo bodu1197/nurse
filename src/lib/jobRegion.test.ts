@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canonicalSido, isFullAddress, regionLabelOf, regionOfLocation, sameArea, streetOfLocation, workplaceOf } from "./jobRegion.ts";
+import { canonicalSido, cleanAddress, isFullAddress, regionLabelOf, regionOfLocation, sameArea, streetOfLocation, workplaceOf } from "./jobRegion.ts";
 import { SIDO_SIGUNGU } from "./koreaRegions.ts";
 
 test("워크넷 region 형('경기 성남시') — 축약 시도 흡수 + 시군구", () => {
@@ -35,6 +35,23 @@ test("검색엔진 주소의 도로명 칸 — 시도·시군구 단어를 뺀 �
   assert.equal(streetOfLocation("서울 강북구"), null, "워크넷 지역만 있는 공고");
   assert.equal(streetOfLocation("본원 3층"), "본원 3층", "시도를 못 읽으면 원문");
   assert.equal(streetOfLocation(null), null);
+});
+
+test("명부 주소의 빈 자리 — 부번 0·빈 동층호·빈 괄호·매달린 쉼표를 걷어낸다(심사평가원 원문 그대로의 예)", () => {
+  for (const [raw, clean] of [
+    ["제주특별자치도 제주시 아란13길 15-0,  0동 0층 0호 (아라일동,제주대학교병원)", "제주특별자치도 제주시 아란13길 15, (아라일동,제주대학교병원)"],
+    ["대전광역시 중구 문화로 282- , (대사동)", "대전광역시 중구 문화로 282, (대사동)"],
+    ["강원특별자치도 정선군 정선읍 봉양1길 145-0,", "강원특별자치도 정선군 정선읍 봉양1길 145"],
+    ["경기도 광주시 오포읍 양벌로 327, ()", "경기도 광주시 오포읍 양벌로 327"],
+    ["경기도 고양시 덕양구  호국로 804, (성사동)", "경기도 고양시 덕양구 호국로 804, (성사동)"],
+    ["강원특별자치도 태백시 보드미길 8-0,  4층 (장성동,근로복지공단태백요양병원)", "강원특별자치도 태백시 보드미길 8, 4층 (장성동,근로복지공단태백요양병원)"],
+    ["세종특별자치시  봉산로 74", "세종특별자치시 봉산로 74"],
+    ["경기도 김포시 김포한강8로 382, ,10층", "경기도 김포시 김포한강8로 382, 10층"],
+  ]) assert.equal(cleanAddress(raw), clean, raw);
+  // 뜻 있는 0 은 그대로 — 부번 10·105, 10층, 제10호
+  for (const keep of ["부산광역시 해운대구 센텀로 30-10, (우동)", "서울특별시 중구 세종대로 110-105, 10층 제10호", "인천광역시 미추홀구 인주대로 138, 인천보훈병원 지(1,2),1~7층 (용현동)"]) {
+    assert.equal(cleanAddress(keep), keep);
+  }
 });
 
 test("직접등록 주소형 — 2단 시군구('구' 결합) / 단일 시군구", () => {
@@ -81,7 +98,8 @@ test("워크넷 근무지 글자 — 도로명 주소 + 상세 주소, 상세가
   // 호수·숫자만 지우고 나머지는 남긴다 — '호' 없이 적은 호수("OO빌라 302")도 지운다
   for (const [input, kept] of [["3층 301호", "3층"], ["이편한세상 101동 1203호", "이편한세상"], ["OO아파트101동1203", "OO아파트"], ["OO빌라 302", "OO빌라"],
     ["주공아파트 103-1102", "주공아파트"], ["에이동 203", "에이동"], ["2단지 103동", "2단지"], ["본관 2층 201호", "본관 2층"],
-    ["OO빌라 302 차량진입불가", "OO빌라 차량진입불가"], ["302 층간소음 주의", "층간소음 주의"]]) {
+    ["OO빌라 302 차량진입불가", "OO빌라 차량진입불가"], ["302 층간소음 주의", "층간소음 주의"],
+    [",10층", "10층"], ["탑빌딩 , ,7층", "탑빌딩, 7층"], ["OO빌딩 (101호)", "OO빌딩"]]) {
     assert.equal(workplaceOf({ addr: road, detailAddr: input, region: "" }), `${road}, ${kept}`, `'${input}' → '${kept}'`);
   }
   for (const junk of [".", "..", " - ", "·"]) assert.equal(workplaceOf({ addr: road, detailAddr: junk, region: "" }), road, `잡값 '${junk}' 은 뺀다`);

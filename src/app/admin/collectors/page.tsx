@@ -30,8 +30,10 @@ function statLine(stats: RunRow["stats"]): string {
   if (!stats) return "";
   const L: Record<string, string> = {
     fetched: "받음", fetchedAts: "ATS", fetchedSites: "자체사이트", fetchedBoards: "집계사이트", jobsUpserted: "저장",
-    jobsClosed: "마감", registryMatched: "명부매칭", detailsFetched: "상세", upserted: "저장",
-    total: "전체", pages: "페이지", graded: "종별있음",
+    jobsClosed: "마감", registryMatched: "명부매칭", placeMatched: "장소매칭", detailsFetched: "상세", upserted: "저장",
+    total: "전체", pages: "페이지", graded: "종별있음", closed: "마감",
+    tenants: "대상ATS", sites: "대상사이트", boards: "대상집계",
+    geocodeAttempted: "좌표시도", geocoded: "좌표", geocodeRemaining: "좌표남음", geocodeTransient: "좌표장애",
   };
   return Object.entries(stats)
     .filter(([, v]) => typeof v === "number")

@@ -56,6 +56,7 @@ export type PublicJob = {
   title: string;
   org: string;
   location: string | null; // 시도 수준(근무지역이 여럿이면 첫 번째)
+  multiRegion: boolean; // 근무지역이 여럿인가 — 기관명만으로는 어느 지역 사무소가 근무지인지 모른다(sync-alio 장소 찾기)
   employmentType: string | null;
   recruitCount: number | null;
   postedAt: string | null; // "YYYY-MM-DD"
@@ -145,6 +146,18 @@ export function jobCategoryOf(title: string, eligibility: string | null | undefi
   return /간호조무/.test(t) ? "간호조무직" : "간호직";
 }
 
+/**
+ * 제목 앞에 적힌 근무 병원 — "[영주적십자병원] 정규직 …" · "서울적십자병원 정규직 간호사 …".
+ * 🔴 대한적십자사·한국보훈복지의료공단처럼 **모기관 이름**으로 올라오는 공고는 기관명으로 명부에 안 맞아
+ *    근무지가 "서울특별시"까지만, 좌표 없이 남았다(2026-10-17 실측 46건 중 19건). 실제 병원은 제목 앞에 있다.
+ * 병원류 이름으로 끝날 때만 친다 — "2026년 6차 정규직 …" 같은 제목 앞말을 병원으로 오인하지 않게.
+ * 네 글자 이상만 — "의료원 간호사 채용"의 '의료원'처럼 이름 없는 낱말로 명부를 찾지 않게("울산병원"이 가장 짧은 꼴).
+ */
+export function hospitalOfTitle(title: string): string | null {
+  const m = title.match(/^\s*\[\s*([^\]]{4,30}?)\s*\]/) ?? title.match(/^\s*(\S{4,30})\s/);
+  return m && /(병원|의원|요양원|의료원|센터)$/.test(m[1]) ? m[1] : null;
+}
+
 /** 공고 원문 링크. 알리오 상세는 첨부·상세요강까지 다 있고 공고번호가 API 와 같다. */
 export const publicJobUrl = (id: string) => `https://job.alio.go.kr/recruitview.do?idx=${id}`;
 
@@ -171,6 +184,7 @@ export function toPublicJob(r: PublicJobRaw): PublicJob | null {
     org: (r.instNm ?? "").trim(),
     // 근무지역이 여럿이면("서울,경기") 첫 번째만 쓴다 — 우리 지역 축은 한 값이다.
     location: (r.workRgnNmLst ?? "").split(",")[0].trim() || null,
+    multiRegion: (r.workRgnNmLst ?? "").split(",").filter((s) => s.trim()).length > 1,
     employmentType: employmentTypeOf(r.hireTypeNmLst),
     recruitCount: Number.isFinite(r.recrutNope) && r.recrutNope > 0 ? r.recrutNope : null,
     postedAt: ymd(r.pbancBgngYmd),

@@ -1,6 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toPublicJob, ymd, employmentTypeOf, isNursePublicJob, jobCategoryOf, isAnnouncementOnly, fetchNursePublicJobs } from "./alio.ts";
+import { toPublicJob, ymd, employmentTypeOf, isNursePublicJob, jobCategoryOf, isAnnouncementOnly, fetchNursePublicJobs, hospitalOfTitle } from "./alio.ts";
+
+test("모기관 공고의 실제 병원은 제목 앞에서 — 대괄호든 첫 낱말이든, 병원류 이름일 때만(실제 제목)", () => {
+  assert.equal(hospitalOfTitle("[영주적십자병원] 정규직 조리사, 계약직(간호조무사(상근직)) 공개채용 공고"), "영주적십자병원");
+  assert.equal(hospitalOfTitle("[근로복지공단 울산병원] 의료직 채용 공고"), "근로복지공단 울산병원", "띄어 쓴 이름은 통째로 — '울산병원'(다른 병원)으로 자르지 않는다");
+  assert.equal(hospitalOfTitle("[전주보훈요양원] 사회복지직 5급(간호사) 채용"), "전주보훈요양원");
+  assert.equal(hospitalOfTitle("서울적십자병원 정규직 간호사(병동) 신규채용 공고"), "서울적십자병원");
+  assert.equal(hospitalOfTitle("경인권역재활병원 정규직 간호사 채용 공고(2026.11.1.임용)"), "경인권역재활병원");
+  for (const t of ["2026년 6차 정규직 제한경쟁 채용 공고", "제2026-4차 개방형 직위(경영지원본부장) 채용 공고",
+    "한국의약품안전관리원 2026년 3차 채용 공고", "[긴급] 간호사 채용", "간호사", "의료원 간호사 채용", "[병원] 간호사"]) assert.equal(hospitalOfTitle(t), null, t);
+});
 
 /**
  * 🔴 채용 게시판에는 공고와 그 후속 안내가 섞여 올라온다. 안내글을 채용 카드로 띄우면
@@ -85,6 +95,8 @@ test("간호업무보조만 있는 공고는 간호직이 아니다", () => {
 
 test("근무지역이 여럿이면 첫 번째만 쓴다 — 우리 지역 축은 한 값이다", () => {
   assert.equal(toPublicJob({ ...RAW, workRgnNmLst: "서울,경기,인천" })!.location, "서울");
+  assert.equal(toPublicJob({ ...RAW, workRgnNmLst: "서울,경기,인천" })!.multiRegion, true);
+  assert.equal(toPublicJob(RAW)!.multiRegion, false);
 });
 
 test("채용인원 0(미정)은 숫자로 적지 않는다", () => {

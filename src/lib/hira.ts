@@ -2,6 +2,7 @@
 //    (붙이면 ERR_MODULE_NOT_FOUND). 이 파일에는 비밀이 없고 API 키는 부르는 쪽이 넘긴다.
 //    import 하는 곳은 Route Handler 두 곳과 자체 시험뿐이라 클라이언트 번들에 들어가지 않는다
 //    (hospitalRegistry.ts 와 같은 이유).
+import { cleanAddress } from "./jobRegion.ts";
 
 /**
  * 🏥 심사평가원(HIRA) 병원정보서비스 — 병원 명부의 원천.
@@ -108,7 +109,7 @@ export function toRows(raw: unknown): HospitalRow[] {
     .map((it) => ({
       ykiho: it.ykiho,
       name: it.yadmNm,
-      address: typeof it.addr === "string" ? it.addr : null,
+      address: typeof it.addr === "string" ? cleanAddress(it.addr) || null : null,
       region: [it.sidoCdNm, it.sgguCdNm].filter((s) => typeof s === "string" && s).join(" ") || null,
       cl_cd_nm: typeof it.clCdNm === "string" ? it.clCdNm.trim() || null : null,
       source: "public_data" as const,

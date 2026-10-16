@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchNursePublicJobs, publicJobUrl } from "@/lib/alio";
-import { regionOfLocation } from "@/lib/jobRegion";
+import { fetchNursePublicJobs, hospitalOfTitle, publicJobUrl, type PublicJob } from "@/lib/alio";
+import { isFullAddress, regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
-import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
+import { lookupHospitalsBestEffort, pickMatch } from "@/lib/hospitalRegistry";
 import { recordRun } from "@/lib/collectorLog";
-import { geocodeAddress } from "@/lib/kakao";
+import { geocodeAddressStrict, searchPlaces, type Coords } from "@/lib/kakao";
 import { inBatches } from "@/lib/worknet";
 
 /**
@@ -45,7 +45,17 @@ export async function GET(request: Request) {
     // 🏥 기관 종별·시군구는 **심사평가원 명부**에서 가져온다. API 는 등급을 안 주고 근무지는 시도까지뿐이라
     //    (실측: 31건 전부 시군구 없음 → 간호사가 시군구를 고르는 순간 통째로 사라졌다),
     //    이름이 같은 명부 기관을 찾아 채운다. 동명이 갈리면 안 채운다 — lib/hospitalRegistry 주석 참고.
-    const registry = await lookupHospitalsBestEffort(admin, jobs.map((j) => j.org));
+    // 🔴 기관명만 물으면 모기관(대한적십자사·한국보훈복지의료공단) 공고가 명부에 안 맞는다 — 명부 표기 "한국보훈복지의료공단 중앙보훈병원"
+    //    (기관명 + 제목 병원)·제목 병원·기관명 순으로 묻고, 심사평가원 행·주소가 있는 쪽을 고른다(같으면 앞쪽 = 더 구체적인 이름 —
+    //    근로복지공단의 "[대구병원]" 공고가 같은 점수의 동명 병원보다 명부의 '근로복지공단 대구병원'에 붙게).
+    //    ponytail: 명부에 '기관명 + 병원' 행이 없는데 제목이 짧은 이름("[울산병원]")만 쓰면 동명 사설 병원에 붙는다 — 실제 공고는
+    //    "[근로복지공단 울산병원]"처럼 전체 이름이라 아직 없다. 생기면 제목 병원 단독 일치에 기관명 단어 포함을 조건으로 건다.
+    const namesOf = (j: PublicJob) => {
+      const h = hospitalOfTitle(j.title);
+      return h ? [`${j.org} ${h}`, h, j.org] : [j.org];
+    };
+    const registry = await lookupHospitalsBestEffort(admin, jobs.flatMap(namesOf));
+    const regOf = (j: PublicJob) => namesOf(j).map((n) => registry.get(n)).reduce((a, b) => pickMatch(a, b));
 
     // 🔴 기존 저장값을 읽어 둔다. 명부 조회가 실패하면(BestEffort → 빈 Map) 아래 upsert 가
     //    **이미 맞게 채워져 있던 종별·지역을 null 로 덮어쓴다.** 일시적 실패 한 번에 데이터가
@@ -61,25 +71,55 @@ export async function GET(request: Request) {
       if (!page || page.length < 1000) break;
     }
 
-    // 📍 좌표 — 「내 주변 채용」이 이걸 본다. API 근무지는 시도까지뿐이라 예전엔 비워 뒀는데,
-    //    이제 **명부에서 진짜 주소**를 받으므로 그걸 지오코딩한다. geocoded_at 마커로 한 번만 시도한다
-    //    (실패한 주소를 매일 다시 두드리지 않으려고 — 워크넷과 같은 계약).
-    const needGeo = jobs.filter((j) => !stored.get(j.id)?.geocoded_at && registry.get(j.org)?.address);
-    const coords = new Map(
-      await inBatches(needGeo, 6, async (j) => [j.id, await geocodeAddress(registry.get(j.org)!.address!)] as const),
+    // 📍 명부에 없는 기관(새로 연 근로복지공단 울산병원·병원 밖 공공기관의 보건관리자 자리)은 카카오 장소 이름으로 찾는다.
+    //    🔴 이름이 똑같고 API 근무 시도 안에 **딱 한 곳**일 때만 — 지사·분원이 여럿이면 어느 곳인지 모른다(애매하면 비운다, decideMatch 와 같은 원칙).
+    //    🔴 제목에 병원이 있으면 그 이름으로만 찾는다 — 기관명으로 물러서면 "근로복지공단"(울산 본부)이 울산병원 공고의 근무지가 된다.
+    //    🔴 기관명으로 찾을 때(제목에 병원 없음)는 근무지역이 여럿이거나, 이름이 기관명으로 시작하는 **다른 주소**(지사·혈액원·병원)가
+    //       있으면 비운다 — 근로복지공단·대한적십자사 공고에 본부 주소가 붙는다(검증 지적 2026-10-17). 같은 건물의 주차장·식당은 괜찮다.
+    //    한 번 찾은 주소는 저장값(isFullAddress)으로 지키므로 아직 못 찾은 공고만 묻는다.
+    //    괄호는 빼고 비교한다 — 카카오가 "근로복지공단 울산병원 (2026년 10월 예정)"처럼 이름 뒤에 덧붙인다(실측).
+    const bare = (s: string) => s.replace(/\([^)]*\)/g, "").replace(/\s+/g, "");
+    const needPlace = jobs.filter((j) => !regOf(j)?.address && !isFullAddress(stored.get(j.id)?.location));
+    const places = new Map(await inBatches(needPlace, 6, async (j) => {
+      const h = hospitalOfTitle(j.title);
+      const name = h ?? j.org;
+      const sido = regionOfLocation(j.location).sido;
+      if (!sido || (!h && j.multiRegion)) return [j.id, null] as const;
+      const found = (await searchPlaces(name)) ?? [];
+      const same = found.filter((p) => bare(p.name) === bare(name) && regionOfLocation(p.address).sido === sido);
+      const branch = !h && found.some((p) => bare(p.name).startsWith(bare(name)) && p.address !== same[0]?.address);
+      // 카카오는 시도를 줄여 쓴다("울산 중구 …") — 명부 주소와 같은 꼴("울산광역시 중구 …")로 편다.
+      return [j.id, same.length === 1 && !branch ? { ...same[0], address: same[0].address.replace(/^\S+/, sido) } : null] as const;
+    }));
+
+    // 📍 좌표 — 「내 주변 채용」이 이걸 본다. API 근무지는 시도까지뿐이라 **명부 주소**를 지오코딩한다(카카오 장소는 좌표가 같이 온다).
+    //    geocoded_at 마커로 한 번만 시도하되(실패한 주소를 매일 두드리지 않게 — 워크넷과 같은 계약), 명부 주소가 저장값과 달라지면
+    //    (제목 병원으로 새로 맞음·명부 주소 정리) 다시 한다 — 안 그러면 글자는 새 주소인데 좌표는 옛 자리에 남는다.
+    // 🔴 시도한 공고는 결과로 덮는다(결과 없음이면 좌표를 비움 — 옛 주소 좌표를 새 글자에 남기지 않게). 카카오 장애(undefined)면
+    //    geocoded_at 을 비워 다음 실행에 다시 한다(sync-care 와 같은 계약). 종전 geocodeAddress 는 장애도 '결과 없음'으로 굳혔다.
+    const needGeo = jobs.filter((j) => {
+      const a = regOf(j)?.address;
+      const s = stored.get(j.id);
+      return a && (!s?.geocoded_at || s.location !== a);
+    });
+    const coords = new Map<string, Coords | null | undefined>(
+      await inBatches(needGeo, 6, async (j) => [j.id, await geocodeAddressStrict(regOf(j)!.address!)] as const),
     );
-    const geoTried = new Set(needGeo.map((j) => j.id));
+    for (const [id, p] of places) if (p) coords.set(id, p);
 
     const rows = jobs.map((j) => {
-      const reg = registry.get(j.org);
+      const reg = regOf(j);
       const s = stored.get(j.id);
+      const c = coords.get(j.id); // 없음(시도 안 함·장애) → 저장값 · null → 좌표 없음 · 값 → 새 좌표
       // 🔴 명부의 `region`("경기 수원팔달구")이 아니라 **`address`** 를 쓴다. HIRA 의 시군구 표기는
       //    표준이 아니다 — "대전 대전중구"·"전남광주 광주동구" 처럼 시도가 앞에 붙어 있어서,
       //    그대로 저장하면 시군구 필터에 koreaRegions 에 없는 값("대전중구")이 새로 생기고
       //    이력서 매칭("중구")도 영영 안 걸린다(실측 2026-08-11: 알리오 8건이 그렇게 들어갔다).
       //    주소는 표준형이라("대전광역시 중구 문화로 282") 기존 규칙이 그대로 정답을 낸다.
-      const loc = reg?.address ?? s?.location ?? j.location;
+      const loc = reg?.address ?? places.get(j.id)?.address ?? s?.location ?? j.location;
       const region = regionOfLocation(loc);
+      // 저장 좌표는 이번에 시도하지 않았거나, 장애였어도 주소가 그대로일 때만 지킨다 — 주소가 바뀐 날 장애면 옛 자리 대신 비운다.
+      const keep = c === undefined && (!coords.has(j.id) || s?.location === loc);
       return {
         company_name: j.org || null,
         hospital_id: null,
@@ -99,11 +139,11 @@ export async function GET(request: Request) {
         location: loc,
         sido: region.sido,
         sigungu: region.sigungu,
-        // 🔴 지오코딩은 **명부 주소로만** 한다. API 근무지("서울")를 그대로 넣으면 시청 좌표가 찍혀
+        // 🔴 지오코딩은 **명부 주소·카카오 장소로만** 한다. API 근무지("서울")를 그대로 넣으면 시청 좌표가 찍혀
         //    「내 주변」이 그 공고를 시청 옆이라고 거짓말한다. 주소를 못 얻으면 좌표 없이 둔다.
-        lat: coords.get(j.id)?.lat ?? s?.lat ?? null,
-        lng: coords.get(j.id)?.lng ?? s?.lng ?? null,
-        geocoded_at: geoTried.has(j.id) ? syncStart : (s?.geocoded_at ?? null),
+        lat: keep ? (s?.lat ?? null) : (c?.lat ?? null),
+        lng: keep ? (s?.lng ?? null) : (c?.lng ?? null),
+        geocoded_at: c !== undefined ? syncStart : coords.has(j.id) ? null : (s?.geocoded_at ?? null),
         description: j.description,
         recruit_count: j.recruitCount,
         apply_detail: j.applyDetail,
@@ -133,17 +173,15 @@ export async function GET(request: Request) {
       .select("id");
     if (closeErr) return NextResponse.json({ error: `jobs close: ${closeErr.message}`, upserted }, { status: 500 });
 
-    const stats = { fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, registryMatched: registry.size };
+    // 명부 보강이 조용히 죽는 것을 알아채려면 숫자가 응답에 있어야 한다(0 이면 조회가 실패했거나 이름이 안 맞은 것).
+    // 🔴 이름 개수(registry.size)가 아니라 **명부에 붙은 공고 수**다 — 공고마다 이름을 셋까지 물어서 이름 수는 부풀어 보인다.
+    const stats = {
+      fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0,
+      registryMatched: jobs.filter((j) => regOf(j)).length, placeMatched: [...places.values()].filter(Boolean).length,
+    };
     await recordRun(admin, { collector: "alio", ok: true, stats, startedAt });
 
-    return NextResponse.json({
-      ok: true,
-      fetched: jobs.length,
-      jobsUpserted: upserted,
-      jobsClosed: closedRows?.length ?? 0,
-      // 명부 보강이 조용히 죽는 것을 알아채려면 숫자가 응답에 있어야 한다(0 이면 조회가 실패했거나 이름이 안 맞은 것).
-      registryMatched: registry.size,
-    });
+    return NextResponse.json({ ok: true, ...stats });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "sync failed";
     await recordRun(createAdminClient(), { collector: "alio", ok: false, error: msg, startedAt });
