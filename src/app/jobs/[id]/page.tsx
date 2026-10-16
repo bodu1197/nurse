@@ -6,10 +6,21 @@ import { getPublicJob, getSavedJobIds, getNearbyJobs, getJobs, getMyHospitalIds,
 import { getMyProfile } from "@/lib/data/user";
 import { getCommunityAccess } from "@/lib/data/community";
 import { myApplication } from "@/lib/data/applications";
+import { enrichCareJob, requestIsBot } from "@/lib/data/careJobs";
 import { daysAgo, nowMs, listingEnd } from "@/lib/date";
 import { CARE_JOBS_MENU, socialMeta } from "@/lib/constants";
-import { isOpenToSeekers } from "@/lib/jobState";
-import { CARE_CATEGORIES } from "@/lib/jobTaxonomy";
+import { isCollectedJob, isOpenToSeekers } from "@/lib/jobState";
+import { isCareCategory } from "@/lib/jobTaxonomy";
+import { parseRadius, JOB_NEAR_RADIUS } from "@/lib/location/radius";
+import { firstParam, pageParam } from "@/lib/url";
+
+// 🧓 요양·간병 **수집분**(워크넷 사본)인가 — 이 공고는 색인하지 않고(1만 건의 얇은 사본), 본문을 열릴 때 받는다(enrichCareJob).
+//    기관이 직접 올린 요양·간병 공고는 간호 공고와 똑같이 다룬다.
+const isCareCopy = (job: JobRow) => isCareCategory(job.job_category) && isCollectedJob(job.source);
+
+// 요양·간병 수집분을 처음 열 때 워크넷 상세(타임아웃 5초)를 기다린다 — DB 몇 번과 합쳐 기본 실행 예산을 넘지 않게 여유를 준다
+// (mypage/verify 와 같은 값).
+export const maxDuration = 30;
 
 // 노출이 끝난 공고(직접등록 기간 만료 · 마감일 경과)는 없는 것과 같이 다룬다.
 // 목록과 같은 규칙(isOpenToSeekers)을 써야 "목록엔 없는데 링크로는 열리는" 공고가 안 생기고,
@@ -41,7 +52,9 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
   return {
     title: `${job.title} — ${job.hospital?.name ?? job.company_name ?? "병원"} | 널스넷`,
     description,
-    alternates: { canonical: `/jobs/${job.id}` },
+    // 🔴 요양·간병 수집분은 noindex — 워크넷 사본 1만 장을 색인시키면 얇은·중복 페이지로 사이트 평가가 깎인다(dolpagu 가 그걸로
+    //    1년간 색인 0 이었다). 사이트맵에서도 뺐다(getSitemapJobs). noindex 와 canonical 은 함께 내지 않는다(JobsListing 주석).
+    ...(isCareCopy(job) ? { robots: { index: false } } : { alternates: { canonical: `/jobs/${job.id}` } }),
     // 자식이 openGraph를 선언하면 루트 값이 통째로 대체된다 — siteName·locale 뿐 아니라
     // opengraph-image.tsx 가 넣어 주던 images 까지 사라진다. socialMeta 가 그 셋을 한 번에 낸다.
     ...socialMeta({ url: `/jobs/${job.id}`, title: job.title, description }),
@@ -53,48 +66,76 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
 export default async function JobPage({
   params,
   searchParams,
-}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<{ apply?: string; ok?: string; q?: string; l?: string; sido?: string; sigungu?: string; spec?: string; fac?: string; cat?: string; et?: string; page?: string }> }>) {
-  const [{ id }, { apply, ok, q, l, sido, sigungu, spec, fac, cat, et, page }] = await Promise.all([params, searchParams]);
+}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<Partial<Record<"apply" | "ok" | "q" | "l" | "sido" | "sigungu" | "spec" | "fac" | "cat" | "et" | "page" | "lat" | "lng" | "r", string | string[]>>> }>) {
+  const [{ id }, sp] = await Promise.all([params, searchParams]);
+  // 🔴 같은 키가 두 번 오면(?q=a&q=b) Next 는 **배열**을 준다 — 문자열로 믿고 넘기면 getJobs 의 clean() 이 터져 500 이었다
+  //    (목록은 /review8 2026-10-16 에 고쳤고 상세가 남아 있었다). 목록과 같이 첫 값만 쓴다(lib/url firstParam). 빈 값은 undefined.
+  const one = (v: string | string[] | undefined) => firstParam(v) || undefined;
+  const apply = one(sp.apply), ok = one(sp.ok), q = one(sp.q), l = one(sp.l), sido = one(sp.sido), sigungu = one(sp.sigungu);
+  const spec = one(sp.spec), fac = one(sp.fac), cat = one(sp.cat), et = one(sp.et), page = one(sp.page);
+  const lat = one(sp.lat), lng = one(sp.lng), r = one(sp.r);
   // 시군구는 시도에 종속 — 시도 없으면 무시(목록과 같은 계약).
   const sg = sido ? sigungu : undefined;
   const now = nowMs();
-  const [job, profile] = await Promise.all([getLiveJob(id, now), getMyProfile()]);
+  const [found, profile] = await Promise.all([getLiveJob(id, now), getMyProfile()]);
   // 없거나 노출이 끝난 공고는 200 안내가 아니라 404로 응답한다(안내 화면은 not-found.tsx).
-  if (!job) notFound();
+  if (!found) notFound();
+  // 🧓 요양·간병 공고는 목록이 /care-jobs 다 — 옆 목록·뒤로가기를 그 목록으로 맞춘다(화면은 간호 공고와 같은 이 페이지).
+  const isCare = isCareCategory(found.job_category);
+  // 요양·간병 **워크넷** 수집분은 본문을 열릴 때 받는다(1만 건이라 크론이 미리 받지 않는다). 봇에게는 묻지 않는다.
+  // 아래 조회들과 **동시에** 돌린다 — 그쪽은 id·지역만 쓰므로 본문을 기다릴 이유가 없다(첫 열람 지연 = 둘 중 긴 쪽).
+  // .catch — 본문 받기는 덤이다. 무엇이 던지든 상세 페이지를 500 으로 만들지 않고 저장된 값으로 그린다.
+  const jobP = isCareCopy(found) && found.source === "worknet"
+    ? requestIsBot().then((bot) => enrichCareJob(found, !bot)).catch((e: unknown) => {
+        console.error("enrichCareJob threw:", e instanceof Error ? e.message : e);
+        return found;
+      })
+    : Promise.resolve(found);
+
+  // 📍 내 주변으로 들어왔으면(목록이 lat·lng·r 를 실어 보낸다 — jobFilterQs) 그 반경을 옆 목록·뒤로가기에 그대로 잇는다.
+  //    🔴 종전에는 여기서 안 읽어서, 내 주변으로 걸러 들어온 사람이 뒤로가기를 누르면 반경이 풀린 전체 목록으로 돌아갔다.
+  //    유효 범위 검사는 목록과 같은 계약(장난 딥링크가 bounding-box 를 오염시키지 않게).
+  const latN = Number(lat);
+  const lngN = Number(lng);
+  const nearOn = !!lat && !!lng && Number.isFinite(latN) && Number.isFinite(lngN) && Math.abs(latN) <= 90 && Math.abs(lngN) <= 180;
+  const near = nearOn ? { lat: latN, lng: lngN, radiusM: parseRadius(r, JOB_NEAR_RADIUS) } : undefined;
 
   // 목록에서 필터를 걸고 들어왔으면(spec·et 등) 그 검색결과를 사이드바·닫기 링크로 그대로 이어간다.
   // 🔴 fac(기관 종별)·cat(직종)도 같이 본다 — 목록은 이 두 칩을 실어 보내는데(jobFilterQs) 여기가
   // 받지 않아서, '요양병원' 칩 하나로 좁힌 사람이 공고를 열자마자 사이드바가 '최근 공고'로
   // 바뀌고 '목록으로'를 누르면 필터가 풀린 전체 목록으로 돌아갔다.
-  const fromSearch = !!(q || l || sido || spec || fac || cat || et);
-  const pageNum = Math.max(1, Number(page) || 1);
+  const fromSearch = !!(q || l || sido || spec || fac || cat || et || nearOn);
+  const pageNum = pageParam(page); // 목록과 같은 규칙 — 1 이상의 안전한 정수만("1.5"·"1e300" 은 1쪽)
   // 검색 컨텍스트 쿼리스트링(페이지 지정 가능) — 사이드바 카드·페이지네이션·닫기 공용.
   // 직렬화 규칙은 목록과 같은 jobFilterQs 한 곳을 쓴다(필터 추가 시 한쪽만 고쳐 끊기는 것 방지).
-  const qsFor = (toPage: number) => jobFilterQs({ q, l, sido, sigungu: sg, spec, fac, cat, et }, toPage);
+  const qsFor = (toPage: number) =>
+    jobFilterQs({ q, l, sido, sigungu: sg, spec, fac, cat, et, lat: nearOn ? lat : undefined, lng: nearOn ? lng : undefined, r: nearOn ? r : undefined }, toPage);
   const searchQs = qsFor(pageNum);
-  // 🧓 직종이 요양보호사·간병인이면 이 공고는 요양·간병 채용(/care-jobs)에 실린 것이다 — 돌아갈 곳도 거기다.
-  //    간호 목록으로 보내면 방금 보던 목록이 아니다(/review8 지적 2026-10-16). 사이드바는 그대로 간호 공고다(후속).
-  const isCare = CARE_CATEGORIES.some((c) => c === job.job_category);
-  // 닫기(X)·목록 링크가 돌아갈 곳: 필터가 있으면 그 검색결과, 없으면 목록 첫 화면.
-  const backHref = fromSearch ? `/jobs?${searchQs}` : isCare ? CARE_JOBS_MENU.href : "/jobs";
+  // 닫기(X)·목록 링크가 돌아갈 곳: 들어온 목록(간호/요양·간병)의 그 검색결과·그 쪽.
+  const listPath = isCare ? CARE_JOBS_MENU.href : "/jobs";
+  const backHref = listPath + (searchQs ? `?${searchQs}` : "");
   const backLabel = fromSearch ? "검색 결과로" : isCare ? `${CARE_JOBS_MENU.label} 목록` : "채용공고 목록";
   // 사이드바 카드도 같은 검색 컨텍스트(현재 페이지)를 달고 이동해야 필터가 끊기지 않는다.
   const sideHref = (nid: string) => `/jobs/${nid}` + (fromSearch && searchQs ? `?${searchQs}` : "");
   // 사이드바 페이지네이션 — 같은 상세에 머물며 검색결과 페이지만 바꾼다.
   const pageHref = (toPage: number) => { const s = qsFor(toPage); return `/jobs/${id}` + (s ? `?${s}` : ""); };
+  // 요양·간병 옆 목록은 noindex 사본(1만 장)끼리 서로 잇는다 — 크롤러가 따라 돌지 않게 nofollow(사람은 그대로 누른다).
+  const careRel = isCare ? "nofollow" : undefined;
 
   // 서로 의존하지 않는 조회는 함께 보낸다(직렬로 두면 상세 화면이 왕복 한 번만큼 늦어진다).
   // 외부 수집 공고는 **이력서를 등록한 간호사 회원**만 원본 사이트로 나갈 수 있다(오너 확정 2026-07-30).
   // 그 판정에만 필요하므로 해당 조건에서만 조회한다(직접등록 공고에는 헛왕복을 만들지 않는다).
-  const needsResumeCheck = job.source !== "direct" && profile?.role === "nurse";
-  const [application, savedIds, side, resumeOwned, myHospitalIds] = await Promise.all([
-    profile?.role === "nurse" ? myApplication(job.id) : Promise.resolve(null),
-    profile ? getSavedJobIds([job.id]) : Promise.resolve(new Set<string>()),
+  const needsResumeCheck = found.source !== "direct" && profile?.role === "nurse";
+  const [job, application, savedIds, side, resumeOwned, myHospitalIds] = await Promise.all([
+    jobP,
+    profile?.role === "nurse" ? myApplication(found.id) : Promise.resolve(null),
+    profile ? getSavedJobIds([found.id]) : Promise.resolve(new Set<string>()),
     // 필터로 들어왔으면 같은 검색결과(전체 개수 포함)를, 아니면 같은 지역(없으면 최근) 공고를 좌측 사이드바로.
+    // 요양·간병 공고의 옆 목록은 요양·간병 공고다(care) — 들어온 목록과 같은 범위.
     fromSearch
-      ? getJobs(q ?? "", l ?? "", { sido, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et }, pageNum, true)
-          .then((r) => ({ jobs: r.jobs.filter((x) => x.id !== id), sameRegion: false, total: r.total }))
-      : getNearbyJobs(job.location, job.id).then((r) => ({ ...r, total: 0 })),
+      ? getJobs(q ?? "", l ?? "", { sido, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et, near, care: isCare }, pageNum, true)
+          .then((res) => ({ jobs: res.jobs.filter((x) => x.id !== id), sameRegion: false, total: res.total }))
+      : getNearbyJobs(found.location, found.id, 8, isCare).then((res) => ({ ...res, total: 0 })),
     needsResumeCheck ? getCommunityAccess().then((a) => a.ok) : Promise.resolve(false),
     // 🔴 병원이 **자기 공고**를 열었을 때 "간편지원은 간호사 회원만 가능합니다" 를 띄우면 안 된다.
     //    자기가 낸 광고를 보러 온 사람에게 자격 미달을 통보하는 꼴이다(오너 지적 2026-08-04).
@@ -188,7 +229,7 @@ export default async function JobPage({
             <ul className="space-y-2">
               {nearby.map((n) => (
                 <li key={n.id}>
-                  <a href={sideHref(n.id)} className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-teal-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
+                  <a href={sideHref(n.id)} rel={careRel} className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-teal-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
                     <p className="line-clamp-2 text-sm font-semibold leading-snug text-slate-900">{n.title}</p>
                     <p className="mt-1 truncate text-xs text-slate-500">{n.hospital?.name ?? n.company_name ?? "병원 미상"}{n.location ? ` · ${n.location}` : ""}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs">
@@ -202,9 +243,9 @@ export default async function JobPage({
             {/* 검색결과 페이지네이션 — 같은 상세에 머물며 사이드바 페이지만 넘긴다. */}
             {fromSearch && totalPages > 1 && (
               <nav aria-label="검색 결과 페이지" className="mt-4 flex items-center justify-between gap-2 text-sm">
-                {pageNum > 1 ? <a href={pageHref(pageNum - 1)} className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 px-3 text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">← 이전</a> : <span />}
+                {pageNum > 1 ? <a href={pageHref(pageNum - 1)} rel={careRel} className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 px-3 text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">← 이전</a> : <span />}
                 <span className="text-slate-500" aria-current="page">{pageNum} / {totalPages}</span>
-                {pageNum < totalPages ? <a href={pageHref(pageNum + 1)} className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 px-3 text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">다음 →</a> : <span />}
+                {pageNum < totalPages ? <a href={pageHref(pageNum + 1)} rel={careRel} className="inline-flex min-h-[44px] items-center rounded-lg border border-slate-300 px-3 text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">다음 →</a> : <span />}
               </nav>
             )}
           </aside>

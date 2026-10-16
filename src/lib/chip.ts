@@ -6,6 +6,6 @@ export const chipClass = (active: boolean) =>
       : "border-slate-200 bg-white text-slate-700 hover:border-teal-400 hover:text-teal-700"
   }`;
 
-/** 필터 칩 줄에 섞이는 **다른 화면으로 가는** 칩(/jobs → /care-jobs) — 테두리만 teal 로 두어 필터 칩과 구분한다. */
+/** 필터 칩 줄에 섞이는 **다른 목록으로 가는** 칩(/jobs ↔ /care-jobs) — 테두리만 teal 로 두어 필터 칩과 구분한다. */
 export const chipLinkClass =
   "inline-flex min-h-11 items-center whitespace-nowrap rounded-full border border-teal-600 px-4 text-sm font-semibold text-teal-700 transition hover:bg-teal-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2";

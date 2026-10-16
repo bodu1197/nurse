@@ -170,24 +170,41 @@ export const isNurseJobCode = (jobsCd: string | null | undefined): boolean =>
  *    5503xx 는 처음 범위에서 빠졌다가 실측(2026-10-16, 115건 — 제목이 "노인요양시설 요양보호사", "노인맞춤돌봄 생활지원사")
  *    으로 넣었다. 232903(장애인활동지원사·사회복지사)·307900(병동 보호사 등 보건 보조)은 요양보호사가 아니라 뺀다.
  *
- * 간호 공고(jobs)에서는 버리는 코드지만(위 isNurseJobCode), **별도 표(care_jobs)** 로 따로 모은다
- * (오너 지시 2026-10-16: "제외된 것을 탭을 별도로 만들어서 홈페이지에"). 두 판정은 서로 배타다 —
- * 같은 공고가 양쪽에 들어가면 홈의 두 탭이 같은 카드를 보여 준다(jobTaxonomy.test 가 지킨다).
+ * 간호 공고와 같은 표(jobs)에 들어가되 직종이 요양보호사·간병인이라(careCategoryFromJobCode) 간호 목록에는 안 나온다
+ * (jobs_listed.is_care). 두 판정은 서로 배타다 — 같은 공고가 양쪽 수집에 걸리면 크론 두 개가 직종을 번갈아 덮는다
+ * (jobTaxonomy.test 가 지킨다).
  */
 export const isCareJobCode = (jobsCd: string | null | undefined): boolean =>
   /^550[1-3]\d{2}$/.test((jobsCd ?? "").trim());
 
 /**
- * 🧓 요양·간병 직종 — 기관이 직접 올린 공고(jobs)의 job_category 가 이 값이면 **요양·간병 채용(/care-jobs)과 홈 요양 탭**에
- *    워크넷 수집분(care_jobs)과 한 목록으로 실린다(lib/data/careJobs getCareDirectJobs). 오너 지시 2026-10-16:
- *    "구인 공고를 낼 때 /care-jobs 이곳에도 공고를 낼 수 있도록, 기존 구인 공고와 똑같은 기능이 되도록, 지원도 되게".
- *    새 표를 만들지 않은 이유 — 등록·결제·상세·저장·간편지원이 전부 jobs 에 있다. 직종 값 하나로 목록만 갈린다.
- * ponytail: 간호 목록(/jobs)에서 이 직종을 빼지는 않는다 — getJobs 뿐 아니라 칩·지역 건수 RPC 세 개(nurse_job_facet_list ·
- *    nurse_job_sido_list · nurse_job_sigungu_list)를 같이 고쳐야 숫자가 맞는다. 직접 등록은 몇 건 안 되고 직종 칩으로 거를 수
- *    있다(칩 집계의 직종 허용 목록에 두 값을 넣었다 — 마이그레이션 20261016150000). 빼야 하면 그 넷을 한 마이그레이션에서 같이 고친다.
+ * 🧓 요양·간병 직종 — 공고(jobs)의 job_category 가 이 값이면 **요양·간병 채용(/care-jobs)** 목록에 실리고 간호 목록(/jobs)에는
+ *    안 나온다. 기관 직접 등록분과 워크넷 수집분이 같은 규칙이다(오너 지시 2026-10-16: "기존 구인 공고 페이지 그대로 100% 재사용").
+ *    새 표·새 페이지를 만들지 않는다 — 목록 화면(app/jobs/JobsListing)·상세(/jobs/[id])·저장·지원·광고가 전부 같은 것이고,
+ *    갈리는 것은 목록의 범위 하나다. 🔴 DB 의 짝은 jobs_listed.is_care(마이그레이션 20261016160000) — 이름을 같이 고친다.
  * 🔴 값을 더하면 DB 의 허용 목록도 같이 — nurse_job_facet_list(공고 칩)·nurse_talent_facet_list(인재 칩). 안 넣으면 '미분류' 칸에 섞인다.
  */
 export const CARE_CATEGORIES = ["요양보호사", "간병인"] as const satisfies readonly (typeof JOB_CATEGORIES)[number][];
+
+/** 요양·간병 직종인가(jobs_listed.is_care 와 같은 판정). 값이 없으면 간호 쪽이다. */
+export const isCareCategory = (jobCategory: string | null | undefined): boolean =>
+  CARE_CATEGORIES.some((c) => c === jobCategory);
+
+/**
+ * 요양·간병이 **아닌** 행만 고르는 PostgREST or-필터 — 간호 수집 크론(sync-worknet)이 같은 표의 요양·간병 수집분을
+ * 건드리지 않게 한다(안 거르면 6시간마다 요양 공고 1만 건을 "목록에서 사라졌다"며 마감시킨다).
+ */
+export const NOT_CARE_OR = `job_category.is.null,job_category.not.in.(${CARE_CATEGORIES.join(",")})`;
+
+/**
+ * 워크넷 요양·간병 직종코드 → 직종. 5502xx(간병) → 간병인, 5501xx(요양보호사)·5503xx(생활지원사·어르신 돌봄) → 요양보호사.
+ * 요양·간병 코드가 아니면 null(그 공고는 이 수집 대상이 아니다).
+ */
+export function careCategoryFromJobCode(jobsCd: string | null | undefined): (typeof CARE_CATEGORIES)[number] | null {
+  const cd = (jobsCd ?? "").trim();
+  if (!isCareJobCode(cd)) return null;
+  return cd.startsWith("5502") ? "간병인" : "요양보호사";
+}
 
 /**
  * 진료과 추론 — 공고 텍스트에서 DEPARTMENTS 어휘를 찾는다.

@@ -113,6 +113,9 @@ const nextConfig: NextConfig = {
       { source: "/notice/:id", destination: "/notice", permanent: false },
       { source: "/event_board", destination: "/event", permanent: false },
       { source: "/event_board/:path*", destination: "/event", permanent: false },
+      // 🧓 요양·간병 전용 상세(/care-jobs/공고번호)는 지웠다(오너 지시 2026-10-16: 기존 채용공고 상세 /jobs/[id] 를 그대로 쓴다).
+      //    하루 남짓 살아 있던 주소라 공유된 링크가 남아 있을 수 있다 — 404 대신 요양·간병 목록으로 보낸다.
+      { source: "/care-jobs/:id", destination: "/care-jobs", permanent: false },
     ];
   },
   async headers() {

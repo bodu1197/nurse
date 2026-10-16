@@ -75,6 +75,7 @@ function ApplyError({ code, resumeHref }: Readonly<{ code: string; resumeHref: s
  * 🔴 조건은 그대로 둔다(로그인 → 이력서 → 지원). 오너 지시 2026-08-04 는 **설명 문구를 없애고
  *    버튼 글자로 말하라**는 것이다. 긴 안내문 대신 버튼이 다음에 할 일을 그대로 적는다:
  *    로그인 전 "로그인하고 지원" · 이력서 없으면 "이력서 작성하기" · 다 되면 "원본에서 지원하기".
+ *    요양·간병 수집 공고도 같은 상세(/jobs/[id])라 같은 조건이다(오너 지시 2026-10-16 "로그인 하고 지원이 되어야지").
  */
 function ExternalApply({
   href, profile, hasResume, loginHref, resumeHref, hasContact,
@@ -109,12 +110,8 @@ function ExternalApply({
   );
 }
 
-/**
- * 채용 문의(담당자·전화) — 로그인한 사람에게만 보이고, 아니면 가린 채 로그인 링크를 둔다.
- * 간호 공고 상세(아래 JobDetail)와 요양·간병 상세(app/care-jobs/[id])가 같은 것을 쓴다 — 연락처를 누구에게
- * 보일지 정하는 규칙이 두 곳에 있으면 한쪽만 바뀐다. 둘 다 없으면 아무것도 그리지 않는다.
- */
-export function ContactBox({ name, phone, revealed, loginHref }: Readonly<{ name: string | null; phone: string | null; revealed: boolean; loginHref: string }>) {
+/** 채용 문의(담당자·전화) — 로그인한 사람에게만 보이고, 아니면 가린 채 로그인 링크를 둔다. 둘 다 없으면 아무것도 그리지 않는다. */
+function ContactBox({ name, phone, revealed, loginHref }: Readonly<{ name: string | null; phone: string | null; revealed: boolean; loginHref: string }>) {
   if (!name && !phone) return null;
   return (
     <div className="mt-4 rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-sm">

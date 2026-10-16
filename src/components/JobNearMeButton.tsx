@@ -5,7 +5,7 @@
 // — 여기서는 내 위치만 구해 ?lat=&lng=&r= 로 실어 보내면 된다. talent 와 달리 잡·알바 두 버티컬을
 // 공유할 필요가 없어(nurse-app 은 채용 하나) 별도 어댑터 없이 한 파일로 둔다.
 //
-// 지역 선택은 검색창(JobSearchBar · CareRegionBar 의 RegionPicker)이 맡는다. 이 버튼은 '내 주변' 전용.
+// 지역 선택은 검색창(JobSearchBar 의 RegionPicker)이 맡는다. 이 버튼은 '내 주변' 전용.
 // 경로는 usePathname 으로 받으므로 /jobs 와 /care-jobs(요양보호사) 어디서든 그 자리의 목록을 거른다 — label 만 다르다.
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";

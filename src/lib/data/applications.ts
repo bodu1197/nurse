@@ -56,7 +56,8 @@ export type MyApplication = {
   message: string | null;
   created_at: string;
   updated_at: string;
-  job: { id: string; title: string; hospital: { name: string } | null } | null;
+  /** job_category — 마감된 공고의 "비슷한 공고 찾기"가 간호(/jobs)·요양·간병(/care-jobs) 중 어느 목록으로 갈지 정한다. */
+  job: { id: string; title: string; job_category: string | null; hospital: { name: string } | null } | null;
   job_id: string;
   /** 그 공고가 지금도 구직자에게 열려 있는가 — '다시 지원'·제목 링크를 그릴지 정한다. */
   jobOpen: boolean;
@@ -71,7 +72,7 @@ export async function getMyApplications(): Promise<MyApplication[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("applications")
-    .select("id,status,message,created_at,updated_at,job_id,job:jobs(id,title,hospital:hospitals(name))")
+    .select("id,status,message,created_at,updated_at,job_id,job:jobs(id,title,job_category,hospital:hospitals(name))")
     .eq("applicant_id", user.id)
     .order("created_at", { ascending: false })
     .limit(LIST_LIMIT)
@@ -82,8 +83,8 @@ export async function getMyApplications(): Promise<MyApplication[]> {
   const missing = rows.filter((r) => !r.job).map((r) => r.job_id);
   if (missing.length > 0) {
     const { data: closed } = await createAdminClient()
-      .from("jobs").select("id,title,hospital:hospitals(name)").in("id", missing)
-      .returns<Array<{ id: string; title: string; hospital: { name: string } | null }>>();
+      .from("jobs").select("id,title,job_category,hospital:hospitals(name)").in("id", missing)
+      .returns<Array<{ id: string; title: string; job_category: string | null; hospital: { name: string } | null }>>();
     const byId = new Map((closed ?? []).map((j) => [j.id, j]));
     rows.forEach((r) => { if (!r.job) r.job = byId.get(r.job_id) ?? null; });
   }

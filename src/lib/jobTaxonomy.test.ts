@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { departmentFromText, facilityFor, facilityFromClCd, isCareJobCode, isNurseJobCode, stillValid } from "./jobTaxonomy.ts";
+import { careCategoryFromJobCode, departmentFromText, facilityFor, facilityFromClCd, isCareCategory, isCareJobCode, isNurseJobCode, NOT_CARE_OR, stillValid } from "./jobTaxonomy.ts";
 
 test("요양보호사·간병 코드는 간호 직군과 서로 배타다 — 같은 공고가 홈의 두 탭에 다 뜨면 안 된다", () => {
   for (const cd of ["550100", "550101", "550102", "550200", "550201", "550202", "550300"]) {
@@ -118,4 +118,20 @@ test("저장된 값이 지금 규칙으로 설명되는지 검사한다", () => 
   assert.equal(stillValid("건강진단센터", "직원 건강검진 지원"), false);     // 복리후생
   assert.equal(stillValid("건강진단센터", "특수검진실 간호사"), true);
   assert.equal(stillValid("병동", "병동 간호사"), false);                  // 폐기된 옛 어휘
+});
+
+test("요양·간병 직종 — 5502xx 는 간병인, 5501xx·5503xx 는 요양보호사, 간호 코드는 null. 판정은 jobs_listed.is_care 와 같다", () => {
+  assert.equal(careCategoryFromJobCode("550100"), "요양보호사");
+  assert.equal(careCategoryFromJobCode("550102"), "요양보호사");
+  assert.equal(careCategoryFromJobCode("550200"), "간병인");
+  assert.equal(careCategoryFromJobCode("550202"), "간병인");
+  assert.equal(careCategoryFromJobCode("550300"), "요양보호사");
+  for (const cd of ["304000", "307500", "232903", "", null, undefined]) assert.equal(careCategoryFromJobCode(cd), null, String(cd));
+  assert.equal(isCareCategory("요양보호사"), true);
+  assert.equal(isCareCategory("간병인"), true);
+  for (const c of ["간호직", "간호조무직", "", null, undefined]) assert.equal(isCareCategory(c), false, String(c));
+});
+
+test("NOT_CARE_OR — 간호 크론이 요양·간병 행을 건드리지 않게 거는 PostgREST 필터 문자열(직종이 비었거나 요양·간병이 아님)", () => {
+  assert.equal(NOT_CARE_OR, "job_category.is.null,job_category.not.in.(요양보호사,간병인)");
 });

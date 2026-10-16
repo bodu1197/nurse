@@ -1,15 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CARE_DETAIL_RETRY_MS, isCareJobId, isCrawlerUa, isWorknetUrl, needsCareDetail, shouldPruneCare, splitGeoRows } from "./careSync.ts";
+import { CARE_DETAIL_RETRY_MS, isCrawlerUa, isWorknetUrl, needsCareDetail, shouldPruneCare, splitGeoRows } from "./careSync.ts";
 
-test("삭제 가드 — 직전 실행보다 10% 넘게 줄면 지우지 않고, 0건이면 절대 지우지 않는다", () => {
-  assert.equal(shouldPruneCare(10675, null), true, "첫 실행은 지운다");
+test("마감 가드 — 직전 실행보다 10% 넘게 줄면 마감시키지 않고, 0건이면 절대 마감시키지 않는다", () => {
+  assert.equal(shouldPruneCare(10675, null), true, "첫 실행은 마감시킨다");
   assert.equal(shouldPruneCare(9700, 10675), true, "9% 감소는 정상 변동");
   assert.equal(shouldPruneCare(7000, 10675), false, "한 코드가 0건으로 와 34% 줄면 건너뛴다");
-  assert.equal(shouldPruneCare(0, null), false, "0건 수집은 첫 실행이라도 지우지 않는다");
+  assert.equal(shouldPruneCare(0, null), false, "0건 수집은 첫 실행이라도 마감시키지 않는다");
   assert.equal(shouldPruneCare(0, 10675), false);
   assert.equal(shouldPruneCare(7000, 7000), true, "줄어든 상태가 이어지면 다음 실행이 받아들인다");
-  assert.equal(shouldPruneCare(2000, 0), false, "기준치가 0 이면 어떤 수도 '줄지 않음'이 된다 — 지우지 않는다");
+  assert.equal(shouldPruneCare(2000, 0), false, "기준치가 0 이면 어떤 수도 '줄지 않음'이 된다 — 마감시키지 않는다");
   assert.equal(shouldPruneCare(2000, -1), false);
 });
 
@@ -36,14 +36,6 @@ test("원문 링크 — https 의 work24.go.kr 만 받는다", () => {
   assert.equal(isWorknetUrl(null), false);
 });
 
-test("상세 페이지 공고 id — 워크넷 채용공고번호 꼴(영숫자 6~32자)만 통과한다", () => {
-  assert.equal(isCareJobId("KJKZ002610160005"), true);
-  assert.equal(isCareJobId("K180612610150017"), true);
-  assert.equal(isCareJobId("abc123"), true, "하한 6자");
-  assert.equal(isCareJobId("A".repeat(32)), true, "상한 32자");
-  for (const bad of ["", "../x", "a b", "한글공고", "abc12", "A".repeat(33), "K1806;drop"]) assert.equal(isCareJobId(bad), false, bad);
-});
-
 test("상세 재시도 — 처음엔 묻고, 본문이 있으면 다시 안 묻고, 비어 있으면 하루 지난 뒤에만 다시 묻는다", () => {
   const now = Date.parse("2026-10-16T12:00:00.000Z");
   assert.equal(needsCareDetail({ description: null, detail_fetched_at: null }, now), true, "아직 아무도 안 열어 봄");
@@ -57,13 +49,20 @@ test("크롤러 UA — Next 의 isBot 이 놓치는 네이버·다음·카카오
   for (const ua of [
     "Mozilla/5.0 (compatible; Yeti/1.1; +https://naver.me/spd)",
     "Mozilla/5.0 (compatible; Daumoa/4.0; +http://cs.daum.net/faq/15/4118.html)",
+    "Mozilla/5.0 (compatible; Daum/4.1; +http://cs.daum.net/faq/15/4118.html?faqId=17351)",
     "facebookexternalhit/1.1;kakaotalk-scrap/1.0;",
     "Mozilla/5.0 AppleWebKit/537.36 (compatible; ClaudeBot/1.0)",
     "Mozilla/5.0 (compatible; Bytespider; spider-feedback@bytedance.com)",
+    "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)",
+    "Mozilla/5.0 (compatible; PetalBot;+https://webmaster.petalsearch.com/site/petalbot)",
   ]) assert.equal(isCrawlerUa(ua), true, ua);
   for (const ua of [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+    // 사람인데 넓은 정규식에 걸리던 것 — 다음 앱 인앱 브라우저, CUBOT 휴대폰
+    "Mozilla/5.0 (Linux; Android 13; SM-S911N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36 DaumApps/8.5.0",
+    "Mozilla/5.0 (Linux; Android 10; CUBOT X30) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36",
     "",
   ]) assert.equal(isCrawlerUa(ua), false, ua || "(빈 UA)");
 });

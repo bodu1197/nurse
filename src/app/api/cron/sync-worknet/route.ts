@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchNurseJobs, fetchDetails, inBatches } from "@/lib/worknet";
 import { regionOfLocation } from "@/lib/jobRegion";
-import { departmentFromText, stillValid } from "@/lib/jobTaxonomy";
+import { departmentFromText, stillValid, NOT_CARE_OR } from "@/lib/jobTaxonomy";
 import { geocodeAddress } from "@/lib/kakao";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
 import { recordRun } from "@/lib/collectorLog";
@@ -39,7 +39,8 @@ export async function GET(request: Request) {
 
     // ?reset=1: 상세 파싱 로직 변경 후 기존 보강분을 재처리하려 마커 초기화(앱 경유 1회성 운영용).
     if (new URL(request.url).searchParams.get("reset") === "1") {
-      const { error } = await admin.from("jobs").update({ detail_fetched_at: null }).eq("source", "worknet").not("detail_fetched_at", "is", null);
+      // 요양·간병 수집분은 빼고 — 그쪽 본문은 이 크론이 아니라 상세가 열릴 때 받는다(lib/data/careJobs enrichCareJob).
+      const { error } = await admin.from("jobs").update({ detail_fetched_at: null }).eq("source", "worknet").or(NOT_CARE_OR).not("detail_fetched_at", "is", null);
       if (error) return NextResponse.json({ error: `reset: ${error.message}` }, { status: 500 });
     }
 
@@ -53,7 +54,9 @@ export async function GET(request: Request) {
       const { data: page, error } = await admin
         .from("jobs")
         .select("external_id,title,specialty,facility_type,job_category,description,recruit_count,manager_phone,manager_name,shift_type,benefits,apply_detail,deadline,detail_fetched_at,lat,lng,geocoded_at")
-        .eq("source", "worknet").range(from, from + 999);
+        // 같은 표의 요양·간병 수집분(sync-care, 1만 건)은 이 크론의 몫이 아니다 — 읽지 않는다.
+        // 🔴 order 를 둔다 — 쪽마다 별개 질의라 순서가 없으면 1000행 경계에서 행이 새거나 겹친다.
+        .eq("source", "worknet").or(NOT_CARE_OR).order("id").range(from, from + 999);
       if (error) return NextResponse.json({ error: `jobs select: ${error.message}` }, { status: 500 });
       for (const r of page ?? []) if (r.external_id) stored.set(r.external_id, r as Stored);
       if (!page || page.length < 1000) break;
@@ -163,10 +166,13 @@ export async function GET(request: Request) {
     // 워크넷 목록에서 사라진 공고(충원·마감·철회)는 우리 사이트도 close — 조기 마감 반영.
     // 이번 upsert로 갱신된 live 공고는 updated_at >= syncStart. 갱신 안 된 open 공고(=목록 이탈분)만 close.
     // ponytail: 잘림(캡 초과) 시 일부 오탐 가능하나 다음 실행의 upsert가 status='open'으로 복구(self-healing).
+    // 🔴 요양·간병 수집분은 빼고 닫는다(NOT_CARE_OR) — 같은 표·같은 source 라, 안 거르면 이 크론이 6시간마다
+    //    요양 공고 1만 건을 "간호 목록에서 사라졌다"며 전부 마감시킨다. 그쪽 마감은 sync-care 가 한다.
     const { data: closedRows, error: closeErr } = await admin
       .from("jobs")
       .update({ status: "closed" })
       .eq("source", "worknet")
+      .or(NOT_CARE_OR)
       .eq("status", "open")
       .lt("updated_at", syncStart)
       .select("id");

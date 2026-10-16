@@ -53,7 +53,7 @@ export async function generateMetadata({
     description: MATCH_DESC,
     ...socialMeta({ url: "/match", title: MATCH_TITLE, description: MATCH_DESC }),
     // 🔴 canonical 과 noindex 를 함께 내지 않는다 — 서로 모순된 지시라 noindex 가 정본(/match)으로
-    //    전파될 수 있다. /jobs 와 같은 규칙(app/jobs/page.tsx 의 같은 자리 주석 참고).
+    //    전파될 수 있다. /jobs 와 같은 규칙(app/jobs/JobsListing.tsx listingMetadata 주석 참고).
     ...(page ? { robots: { index: false } } : { alternates: { canonical: "/match" } }),
   };
 }

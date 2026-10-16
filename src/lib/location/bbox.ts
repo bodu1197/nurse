@@ -2,7 +2,7 @@
  * 📍 "내 주변" bounding-box — 원(하버사인) 대신 **정사각형 근사**.
  *
  * 반경 안이냐만 거르고 거리순 정렬은 하지 않는다(오너 확정 2026-08-02, talent 의 applyJobFilters 이식).
- * box 는 .gte/.lte 범위 스캔으로 (lat, lng) 인덱스를 탄다. 간호 목록(getJobs)과 요양보호사 목록(getCareJobs)이
+ * box 는 .gte/.lte 범위 스캔으로 (lat, lng) 인덱스를 탄다. 채용공고 목록(getJobs — 간호·요양·간병 공용)이
  * **이 식 하나**를 쓴다 — 두 곳에 따로 적으면 한쪽만 고쳐져 같은 반경이 두 화면에서 다른 넓이가 된다.
  */
 export type NearQuery = { lat: number; lng: number; radiusM: number };

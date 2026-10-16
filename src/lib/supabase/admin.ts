@@ -13,8 +13,8 @@ import type { Database } from "@/types/database";
 //  3) **컬럼 마스킹**: 공개(is_public) 이력서를 목록에 보이되 이름·전화만 가릴 때(searchPublicTalent).
 //     RLS는 행 단위라 컬럼을 못 가리므로, select에서 이름·전화를 아예 빼서 공개 payload에 PII가 안 실리게 한다.
 //     연락처는 자격 확인(isAdvertiser) 후 profile_id 목록으로만 별도 조회한다(revealContacts).
-//  4) **읽기-통과 캐시 채우기**: 공개 표(care_jobs, 쓰기 정책 없음)의 한 행에 외부 API 에서 받은 값을 써 넣을 때
-//     (lib/data/careJobs withCareDetail). 대상 행은 RLS 읽기로 존재를 먼저 확인한 것이고, 쓰는 컬럼은 고정이며 값은 사용자가 아니라 워크넷이 준다.
+//  4) **읽기-통과 캐시 채우기**: 워크넷 수집 공고(jobs) 한 행에 외부 API 에서 받은 본문을 써 넣을 때
+//     (lib/data/careJobs enrichCareJob). 대상 행은 공개 조회로 이미 찾은 것이고, 쓰는 컬럼은 고정이며 값은 사용자가 아니라 워크넷이 준다.
 //
 // 사용자가 넘긴 id를 그대로 조회하는 데 쓰면 안 된다 — 그 순간 비공개 데이터가 새는 통로가 된다.
 export function createAdminClient() {

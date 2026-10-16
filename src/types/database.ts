@@ -353,91 +353,6 @@ export type Database = {
           },
         ]
       }
-      /** 요양보호사·간병인 구인(워크넷 5501xx·5502xx·5503xx) — 간호사 jobs 와 별도 표(20261016100000 · 좌표 20261016120000 · 상세 20261016140000). */
-      care_jobs: {
-        Row: {
-          apply_detail: string | null
-          benefits: string[]
-          company_name: string | null
-          created_at: string
-          deadline: string | null
-          description: string | null
-          detail_fetched_at: string | null
-          employment_type: string | null
-          external_id: string
-          external_url: string
-          geocoded_at: string | null
-          jobs_cd: string
-          last_seen_at: string
-          lat: number | null
-          lng: number | null
-          location: string | null
-          manager_name: string | null
-          manager_phone: string | null
-          posted_at: string
-          recruit_count: number | null
-          salary_text: string | null
-          shift_type: string | null
-          sido: string | null
-          sigungu: string | null
-          title: string
-        }
-        Insert: {
-          apply_detail?: string | null
-          benefits?: string[]
-          company_name?: string | null
-          created_at?: string
-          deadline?: string | null
-          description?: string | null
-          detail_fetched_at?: string | null
-          employment_type?: string | null
-          external_id: string
-          external_url: string
-          geocoded_at?: string | null
-          jobs_cd: string
-          last_seen_at?: string
-          lat?: number | null
-          lng?: number | null
-          location?: string | null
-          manager_name?: string | null
-          manager_phone?: string | null
-          posted_at: string
-          recruit_count?: number | null
-          salary_text?: string | null
-          shift_type?: string | null
-          sido?: string | null
-          sigungu?: string | null
-          title: string
-        }
-        Update: {
-          apply_detail?: string | null
-          benefits?: string[]
-          company_name?: string | null
-          created_at?: string
-          deadline?: string | null
-          description?: string | null
-          detail_fetched_at?: string | null
-          employment_type?: string | null
-          external_id?: string
-          external_url?: string
-          geocoded_at?: string | null
-          jobs_cd?: string
-          last_seen_at?: string
-          lat?: number | null
-          lng?: number | null
-          location?: string | null
-          manager_name?: string | null
-          manager_phone?: string | null
-          posted_at?: string
-          recruit_count?: number | null
-          salary_text?: string | null
-          shift_type?: string | null
-          sido?: string | null
-          sigungu?: string | null
-          title?: string
-        }
-        Relationships: []
-      }
       /** 🔍 수집 크론 실행 기록 — /admin/collectors 가 "언제 마지막으로 성공했나"를 읽는다(20260812120000). */
       collector_runs: {
         Row: {
@@ -1358,6 +1273,8 @@ export type Database = {
           ad_paid: boolean | null
           /** 목록 3순위(유료·무료 광고 다음, lib/data/jobs.ts LISTED_ORDER) — 상급종합병원인가(20260812150000). 정렬 전용이라 앱은 읽기만 한다. */
           is_tertiary: boolean | null
+          /** 요양·간병 직종(요양보호사·간병인)인가 — 간호 목록은 false 만, /care-jobs 는 true 만(20261016160000). */
+          is_care: boolean | null
           is_live: boolean | null
           ad_tier: string | null
           apply_detail: string | null
@@ -1403,6 +1320,7 @@ export type Database = {
           ad_live?: never
           ad_paid?: never
           is_tertiary?: never
+          is_care?: never
           is_live?: never
           ad_tier?: string | null
           apply_detail?: string | null
@@ -1446,6 +1364,7 @@ export type Database = {
           ad_live?: never
           ad_paid?: never
           is_tertiary?: never
+          is_care?: never
           is_live?: never
           ad_tier?: string | null
           apply_detail?: string | null
@@ -1525,6 +1444,7 @@ export type Database = {
       nurse_axis_match: { Args: { p: string; v: string }; Returns: boolean }
       nurse_job_facet_list: {
         Args: {
+          p_care?: boolean
           p_category?: string
           p_employment?: string
           p_facility?: string
@@ -1540,18 +1460,9 @@ export type Database = {
           name: string
         }[]
       }
-      /** care_jobs 지역 계단 건수 — p_sido 가 비면 시도별, 있으면 그 시도의 시군구별(20261016100000). */
-      care_job_region_list: {
-        Args: {
-          p_sido?: string
-        }
-        Returns: {
-          cnt: number
-          name: string
-        }[]
-      }
       nurse_job_sido_list: {
         Args: {
+          p_care?: boolean
           p_category?: string
           p_employment?: string
           p_facility?: string
@@ -1566,6 +1477,7 @@ export type Database = {
       }
       nurse_job_sigungu_list: {
         Args: {
+          p_care?: boolean
           p_category?: string
           p_employment?: string
           p_facility?: string

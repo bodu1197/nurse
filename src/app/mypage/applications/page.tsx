@@ -5,6 +5,8 @@ import Button from "@/components/Button";
 import { requireProfile } from "@/lib/data/user";
 import { getMyApplications, STATUS_LABEL, STATUS_TONE, CANCELABLE, LIST_LIMIT } from "@/lib/data/applications";
 import { fmtDay } from "@/lib/date";
+import { CARE_JOBS_MENU } from "@/lib/constants";
+import { isCareCategory } from "@/lib/jobTaxonomy";
 import { withdrawApplication } from "../actions";
 
 export const metadata = { title: "지원 내역 — 널스넷", robots: { index: false } };
@@ -58,7 +60,7 @@ export default async function ApplicationsPage({
                   <span className="ml-auto flex items-center gap-2">
                     {a.status === "withdrawn" && (a.jobOpen
                       ? <Button href={`/jobs/${a.job_id}`} variant="outline" size="sm" className="min-h-11">다시 지원</Button>
-                      : <Button href="/jobs" variant="outline" size="sm" className="min-h-11">비슷한 공고 찾기</Button>)}
+                      : <Button href={isCareCategory(a.job?.job_category) ? CARE_JOBS_MENU.href : "/jobs"} variant="outline" size="sm" className="min-h-11">비슷한 공고 찾기</Button>)}
                     {CANCELABLE.some((s) => s === a.status) && (
                       <form action={withdrawApplication} className="inline">
                         <input type="hidden" name="application_id" value={a.id} />

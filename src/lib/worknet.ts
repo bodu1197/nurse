@@ -176,9 +176,9 @@ export const CARE_JOB_CODES = ["550100", "550101", "550102", "550200", "550201",
 const CARE_MAX_PAGES = 150;
 
 /**
- * 요양보호사·간병 공고 전부 — care_jobs 표용(크론 /api/cron/sync-care). 간호 수집(fetchNurseJobs)과
- * 같은 호출이고 거르는 코드만 반대다. 상세 API 는 크론에서 부르지 않는다 — 상세 페이지(/care-jobs/[id])가
- * 처음 열릴 때 그 공고만 받는다(lib/data/careJobs getCareJob).
+ * 요양보호사·간병 공고 전부 — jobs 에 직종 요양보호사·간병인으로(크론 /api/cron/sync-care). 간호 수집(fetchNurseJobs)과
+ * 같은 호출이고 거르는 코드만 반대다. 상세 API 는 크론에서 부르지 않는다 — 상세(/jobs/[id])가
+ * 처음 열릴 때 그 공고만 받는다(lib/data/careJobs enrichCareJob).
  */
 export async function fetchCareJobs(codes: readonly string[] = CARE_JOB_CODES): Promise<WorknetJob[]> {
   const all: WorknetJob[] = [];
@@ -242,7 +242,7 @@ function parseDetail(xml: string): WorknetDetail | null {
   };
 }
 
-// timeoutMs — 크론은 15초(기본), 사람이 기다리는 상세 페이지(lib/data/careJobs withCareDetail)는 더 짧게 준다.
+// timeoutMs — 크론은 15초(기본), 사람이 기다리는 상세 페이지(lib/data/careJobs enrichCareJob)는 더 짧게 준다.
 async function fetchDetail(authNo: string, infoSvc: string, timeoutMs = 15000): Promise<WorknetDetail | null> {
   const qs = new URLSearchParams({ authKey: authKey(), callTp: "D", returnType: "XML", wantedAuthNo: authNo, infoSvc: infoSvc || "VALIDATION" });
   try {

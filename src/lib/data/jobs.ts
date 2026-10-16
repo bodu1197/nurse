@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getSessionUser, getMyProfile } from "@/lib/data/user";
 import { LIST_LIMIT } from "@/lib/data/applications";
 
-import type { JobStatus } from "@/lib/jobState";
+import { COLLECTED_SOURCES, type JobStatus } from "@/lib/jobState";
 import { DEPT_ANY } from "@/lib/resumeOptions";
 // 🔴 칩 순서를 등록 폼과 맞추려고 **같은 상수**를 쓴다. 여기 목록을 따로 적으면 둘이 갈라진다.
 import { FACILITY_TYPES } from "@/lib/jobTaxonomy";
@@ -30,6 +30,8 @@ const JOB_FIELDS = [
   "company_name",
   // 이 공고가 내 병원 것인가 판정용(공개 상세에서 '내 공고' 안내를 띄운다). hospitals 는 공개 명부라 FK 자체는 비밀이 아니다.
   "hospital_id",
+  // 요양·간병 수집분은 본문을 상세가 열릴 때 받는다 — 받았는지·언제 시도했는지, 워크넷에 물을 공고번호(lib/data/careJobs enrichCareJob).
+  "detail_fetched_at", "external_id",
 ] as const satisfies readonly (keyof JobsRow)[];
 
 // source·status 는 생성 타입이 string 이라 실제 허용값(유니온)으로 좁혀 쓴다.
@@ -117,6 +119,11 @@ export const UNSET = "_none";
 export type JobFilters = {
   sido?: string; sigungu?: string; specialty?: string; facilityType?: string; jobCategory?: string; employmentType?: string;
   near?: { lat: number; lng: number; radiusM: number };
+  /**
+   * 🧓 어느 목록인가 — 빠지면 간호(/jobs), true 면 요양·간병(/care-jobs). 둘은 같은 표·같은 화면이고 범위만 갈린다
+   * (jobs_listed.is_care — 마이그레이션 20261016160000). 🔴 간호 쪽을 부르는 기존 코드는 손대지 않아도 요양·간병이 안 섞인다.
+   */
+  care?: boolean;
 };
 
 // 🗂 지역 계단 노드(도/시군구 + 건수) — nurse_job_sido_list / nurse_job_sigungu_list RPC 반환형.
@@ -135,6 +142,7 @@ const regionArgs = (f: RegionFilters) => ({
   p_employment: f.employmentType ?? "",
   p_keyword: f.keyword ? clean(f.keyword) : "",
   p_location: f.location ? clean(f.location) : "",
+  p_care: !!f.care, // 목록과 같은 범위로 센다 — 드롭다운 건수 = 클릭 후 건수
 });
 
 export async function getJobSidoList(f: RegionFilters = {}): Promise<JobRegionNode[]> {
@@ -183,6 +191,7 @@ export async function getJobFacets(f: JobFilters & { keyword?: string; location?
     // 홈 검색폼이 넣는 지역 텍스트(?l=성남). 이것도 getJobs 가 location ilike 로 거는데
     // 여기 안 넘기면 "의원 70" 이라 해놓고 눌렀을 때 더 적게 나온다.
     p_location: f.location ? clean(f.location) : "",
+    p_care: !!f.care, // 간호/요양·간병 — 목록과 같은 범위
   });
   if (error) console.error("getJobFacets failed:", error.message);
   const rows = data ?? [];
@@ -256,8 +265,7 @@ const LIVE = "is_live" as const;
  * ⑤ id — 유일 키. 워크넷 일괄수집분은 posted_at 이 같은 행이 수백 건이라, 쪽마다 별개 질의인
  *    페이지네이션에서 이게 없으면 **행이 중복되거나 누락된다**(경계가 동률 한가운데 떨어진다).
  */
-// export — 요양·간병 목록의 직접 등록분(lib/data/careJobs getCareDirectJobs)도 같은 순서로 선다.
-export const LISTED_ORDER = ["ad_paid", "ad_live", "is_tertiary", "posted_at", "id"] as const;
+const LISTED_ORDER = ["ad_paid", "ad_live", "is_tertiary", "posted_at", "id"] as const;
 
 // 관리자 테스트 공고(hospitals.is_test)를 여기서 걸러내지 않는 것은 의도된 결정이다.
 // 숨기면 등록→광고→지원까지 실제 화면에서 확인할 방법이 없어 테스트 기능이 무용지물이 된다.
@@ -272,7 +280,12 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
     .from("jobs_listed")
     .select(SELECT, withCount ? { count: "exact" } : undefined)
     // 노출 판정은 뷰가 한다(is_live) — status·광고기간·마감일을 그 안에서 함께 본다.
-    .eq(LIVE, true);
+    .eq(LIVE, true)
+    // 간호/요양·간병 중 어느 목록인가(JobFilters.care 주석). 정렬·필터·쪽 나누기는 둘이 똑같다.
+    .eq("is_care", !!filters.care)
+    // is_live 가 이미 뜻하지만 **평문으로** 한 번 더 — 계산식(is_live·is_care)은 인덱스를 못 타서, 쌓여 가는 닫힌 수집분까지
+    // 매번 훑는다. 평문 조건이 있어야 jobs_status_idx 로 건너뛸 수 있다(칩·지역 RPC 도 같은 조건 — 마이그레이션 20261016160000).
+    .eq("status", "open");
   for (const key of LISTED_ORDER) query = query.order(key, { ascending: false });
   query = query.range(from, from + PER_PAGE - 1);
 
@@ -305,7 +318,7 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   // box 는 .gte/.lte 로 인덱스(jobs_geo_idx) 범위 스캔이 가능하고, region 텍스트 일치의 시(市)
   // 모호성(서울/부산 중구 혼재)도 없다. 거리순 정렬은 하지 않는다 — 반경 안이냐만 거른다.
   if (filters.near) {
-    // 식은 lib/location/bbox 한 곳 — 요양보호사 목록(getCareJobs)도 같은 것을 쓴다.
+    // 식은 lib/location/bbox 한 곳.
     const b = nearBox(filters.near);
     query = query.gte("lat", b.latMin).lte("lat", b.latMax).gte("lng", b.lngMin).lte("lng", b.lngMax);
   }
@@ -363,6 +376,8 @@ export async function getMatchCandidates(sidoIn: readonly string[]): Promise<Mat
       .from("jobs_listed")
       .select(MATCH_SELECT)
       .eq(LIVE, true)
+      .eq("status", "open") // 평문 조건 — 인덱스용(getJobs 주석)
+      .eq("is_care", false) // AI 자동매치는 간호 공고만 — 요양·간병은 다른 목록이다(JobFilters.care)
       .in("sido", [...sidoIn]);
     // 목록(getJobs)과 **같은 순서**여야 한다 — 자동매치에서 본 차례가 목록과 다르면
     // 같은 사이트가 두 말을 하는 셈이 된다. 마지막 키 id 가 1000행 경계의 중복·누락을 막는다.
@@ -446,6 +461,10 @@ export async function getSitemapJobs(): Promise<{ id: string; updated_at: string
       .from("jobs_listed")
       .select("id, updated_at")
       .eq(LIVE, true)
+      .eq("status", "open") // 평문 조건 — 인덱스용(getJobs 주석)
+      // 🧓 요양·간병 **수집분**(워크넷 사본 1만 건)은 싣지 않는다 — 상세가 noindex 다(jobs/[id] isCareCopy 와 같은 판정:
+      //    요양 직종 ∧ 수집처). 기관이 직접 올린 요양·간병 공고(돈 낸 광고)는 간호 공고처럼 싣는다.
+      .or(`is_care.eq.false,source.not.in.(${COLLECTED_SOURCES.join(",")})`)
       .order("posted_at", { ascending: false })
       // 🔴 유일 키 2차 정렬 — 워크넷 일괄수집분은 posted_at 동률이 수백 건이라, 없으면 1000행
       //    경계에서 URL 이 중복·누락된다(인재 목록 조회도 같은 이유로 profile_id 를 2차 키로 쓴다).
@@ -470,16 +489,16 @@ export function regionOf(location: string | null): string {
   return (location ?? "").trim().split(/\s+/).slice(0, 2).join(" ");
 }
 // 같은 지역 공고를 우선 보여주되, 없으면(외진 지역·그 지역 단일 공고) 최근 공고로 채워 왼쪽이 절대 비지 않게 한다.
-// sameRegion=false면 제목에 지역명을 쓰지 않는다.
-export async function getNearbyJobs(location: string | null, excludeId: string, limit = 8): Promise<{ jobs: JobRow[]; sameRegion: boolean }> {
+// sameRegion=false면 제목에 지역명을 쓰지 않는다. care — 요양·간병 공고의 옆 목록은 요양·간병 공고다(같은 목록 범위).
+export async function getNearbyJobs(location: string | null, excludeId: string, limit = 8, care = false): Promise<{ jobs: JobRow[]; sameRegion: boolean }> {
   const region = regionOf(location);
   if (region) {
-    const { jobs } = await getJobs("", region, {}, 1, false); // 총개수 불필요 → COUNT 생략
+    const { jobs } = await getJobs("", region, { care }, 1, false); // 총개수 불필요 → COUNT 생략
     const same = jobs.filter((j) => j.id !== excludeId);
     if (same.length > 0) return { jobs: same.slice(0, limit), sameRegion: true };
   }
   // 지역 매칭이 없으면 최근 공고로 폴백.
-  const { jobs } = await getJobs("", "", {}, 1, false);
+  const { jobs } = await getJobs("", "", { care }, 1, false);
   return { jobs: jobs.filter((j) => j.id !== excludeId).slice(0, limit), sameRegion: false };
 }
 

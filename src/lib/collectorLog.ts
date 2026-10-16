@@ -31,7 +31,7 @@ const prune = (admin: Admin, collector: CollectorKey) =>
  */
 export type CollectorKey =
   | "hospitals" | "worknet" | "alio" | "ats"
-  /** 요양보호사·간병 공고(care_jobs) — /api/cron/sync-care. */
+  /** 요양보호사·간병 공고(jobs, 직종 요양보호사·간병인) — /api/cron/sync-care. */
   | "care"
   /**
    * 크론이 아니라 **사용자 검색이 부르는 즉시 조회**(api/hospitals/search).

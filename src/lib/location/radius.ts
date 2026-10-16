@@ -29,6 +29,6 @@ export function radiusLabel(m: number): string {
 }
 
 // 📍 "내 주변" 반경(m) — talent(C:\dev\talent\src\lib\jobs\types.ts JOB_NEAR_RADIUS) 그대로.
-// 서버 bounding-box 계산(lib/data/jobs.ts)·URL 파싱(jobs/page.tsx)·슬라이더(JobNearMeButton)가
+// 서버 bounding-box 계산(lib/data/jobs.ts)·URL 파싱(app/jobs/JobsListing.tsx · 상세 jobs/[id])·슬라이더(JobNearMeButton)가
 // 이 한 곳을 공유한다(드리프트 방지). 클라이언트 안전(서버 전용 아님) — radius.ts 자체가 그렇다.
 export const JOB_NEAR_RADIUS: RadiusConfig = { min: 1000, max: 30_000, default: 10_000, step: 1000 };

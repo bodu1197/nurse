@@ -50,7 +50,7 @@ export const HEADER_MENU: readonly MenuItem[] = [
 // 푸터 네비게이션 — 헤더와 마찬가지로 전원에게 보인다.
 export const FOOTER_NAV: readonly MenuItem[] = [
   { label: "채용공고 찾아보기", href: "/jobs" },
-  // 요양보호사·간병인 공고(care_jobs). 푸터는 "채용공고 찾아보기"처럼 풀어 쓰는 문체라 상단 메뉴(CARE_JOBS_MENU)와 이름이 다른 게 의도다.
+  // 요양보호사·간병인 공고 목록. 푸터는 "채용공고 찾아보기"처럼 풀어 쓰는 문체라 상단 메뉴(CARE_JOBS_MENU)와 이름이 다른 게 의도다.
   { label: "요양보호사·간병인 채용", href: CARE_JOBS_MENU.href },
   { label: "인재정보", href: "/talent" },
   { label: "병원 리뷰", href: "/reviews" },

@@ -5,6 +5,8 @@ import { requireProfile } from "@/lib/data/user";
 import { getSavedJobs } from "@/lib/data/jobs";
 import { isOpenToSeekers } from "@/lib/jobState";
 import { nowMs } from "@/lib/date";
+import { CARE_JOBS_MENU } from "@/lib/constants";
+import { isCareCategory } from "@/lib/jobTaxonomy";
 import { toggleSaveJob } from "@/app/jobs/actions";
 
 export const metadata = { title: "저장한 공고 — 널스넷", robots: { index: false } };
@@ -39,9 +41,10 @@ export default async function SavedPage() {
                     </span>
                   )}
                   <div className="text-sm text-slate-500">{j.hospital?.name ?? j.company_name ?? "병원 미상"} · {j.location ?? "-"}{j.salary_text ? " · " + j.salary_text : ""}</div>
-                  {/* 마감 공고는 지우는 것 말고 할 게 없다 → 같은 조건으로 다시 찾을 길을 준다 */}
+                  {/* 마감 공고는 지우는 것 말고 할 게 없다 → 같은 조건으로 다시 찾을 길을 준다.
+                      요양·간병 공고면 요양·간병 목록에서 찾는다(간호 목록에는 안 나온다). */}
                   {!open && (
-                    <Link href={`/jobs?${new URLSearchParams({ ...(j.specialty ? { q: j.specialty } : {}), ...(j.location ? { l: j.location } : {}) })}`}
+                    <Link href={`${isCareCategory(j.job_category) ? CARE_JOBS_MENU.href : "/jobs"}?${new URLSearchParams({ ...(j.specialty ? { q: j.specialty } : {}), ...(j.location ? { l: j.location } : {}) })}`}
                       prefetch={false} className="mt-1 inline-block text-base font-semibold text-teal-700 hover:underline">
                       비슷한 공고 찾기 →
                     </Link>

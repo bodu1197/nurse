@@ -4,7 +4,7 @@
 // 소유자 확정 배치(dolpagu 동일): 내 주변(pill 밖) → 지역 → 키워드 → 검색. pill = rounded-[20px]·shadow-md.
 // 지역은 서버가 준 정규화 계단(건수 포함) — 클라 문자열 파싱 없음.
 import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/Button";
 import RegionPicker from "@/components/RegionPicker";
 import type { JobRegionNode } from "@/lib/data/jobs";
@@ -14,6 +14,8 @@ export default function JobSearchBar({
   sigungus,
 }: Readonly<{ sidos: JobRegionNode[]; sigungus: JobRegionNode[] }>) {
   const router = useRouter();
+  // 지금 보는 목록에서 검색한다 — 간호(/jobs)·요양·간병(/care-jobs)이 같은 화면이다(app/jobs/JobsListing).
+  const pathname = usePathname();
   const sp = useSearchParams();
   const [q, setQ] = useState(sp.get("q") ?? "");
   const [pending, startTransition] = useTransition();
@@ -43,7 +45,7 @@ export default function JobSearchBar({
       p.delete("r");
     }
     const s = p.toString();
-    startTransition(() => router.push("/jobs" + (s ? `?${s}` : "")));
+    startTransition(() => router.push(pathname + (s ? `?${s}` : "")));
   }
 
   function submit(e: React.FormEvent) {
