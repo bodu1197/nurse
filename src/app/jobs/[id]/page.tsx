@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import JobDetail from "@/components/JobDetail";
-import { getPublicJob, getSavedJobIds, getNearbyJobs, getJobs, getMyHospitalIds, jobFilterQs, regionOf, PER_PAGE, type JobRow } from "@/lib/data/jobs";
+import { getPublicJob, getSavedJobIds, getNearbyJobs, getJobs, getMyHospitalIds, jobFilterQs, PER_PAGE, type JobRow } from "@/lib/data/jobs";
+import { regionOfLocation, streetOfLocation } from "@/lib/jobRegion";
 import { getMyProfile } from "@/lib/data/user";
 import { getCommunityAccess } from "@/lib/data/community";
 import { myApplication } from "@/lib/data/applications";
@@ -134,7 +135,7 @@ export default async function JobPage({
     // 요양·간병 공고의 옆 목록은 요양·간병 공고다(care) — 들어온 목록과 같은 범위.
     fromSearch
       ? getJobs(q ?? "", l ?? "", { sido, sigungu: sg, specialty: spec, facilityType: fac, jobCategory: cat, employmentType: et, near, care: isCare }, pageNum, true)
-          .then((res) => ({ jobs: res.jobs.filter((x) => x.id !== id), sameRegion: false, total: res.total }))
+          .then((res) => ({ jobs: res.jobs.filter((x) => x.id !== id), area: null, total: res.total }))
       : getNearbyJobs(found.location, found.id, 8, isCare).then((res) => ({ ...res, total: 0 })),
     needsResumeCheck ? getCommunityAccess().then((a) => a.ok) : Promise.resolve(false),
     // 🔴 병원이 **자기 공고**를 열었을 때 "간편지원은 간호사 회원만 가능합니다" 를 띄우면 안 된다.
@@ -144,14 +145,15 @@ export default async function JobPage({
   const isMyJob = !!job.hospital_id && myHospitalIds.includes(job.hospital_id);
   const nearby = side.jobs;
   const totalPages = Math.max(1, Math.ceil(side.total / PER_PAGE));
-  // 사이드바 제목: 검색결과면 "검색 결과", 같은 지역이면 시/군명("성남시 채용공고"), 폴백이면 "최근 채용공고".
-  const regionLabel = regionOf(job.location).split(" ")[1] ?? regionOf(job.location);
-  const sidebarTitle = fromSearch ? "검색 결과" : side.sameRegion && regionLabel ? `${regionLabel} 채용공고` : "최근 채용공고";
-  const sidebarCount = fromSearch ? side.total : nearby.length;
+  // 사이드바 제목: 검색결과면 "검색 결과", 같은 지역이면 getNearbyJobs 가 찾은 지역명("성남시 채용공고", 세종은 시도명), 폴백이면 "최근 채용공고".
+  // 지역명을 여기서 다시 계산하지 않는다 — 제목과 목록이 다른 지역을 가리키지 않게 목록을 찾은 값 그대로 쓴다.
+  const sidebarTitle = fromSearch ? "검색 결과" : side.area ? `${side.area} 채용공고` : "최근 채용공고";
+  const place = regionOfLocation(job.location);
 
   // 검색엔진용 채용공고 구조화 데이터 — 목록 옆 패널이 아니라 이 단독 라우트에서만 낸다
   // (한 페이지에 JobPosting이 둘이면 어느 공고의 페이지인지 알 수 없다).
-  const [region, ...rest] = (job.location ?? "").split(" ");
+  // 주소: 시도·시군구는 정규화 값으로, 그 뒤(도로명·번호)는 streetAddress 로. 글자를 첫 칸에서 자르면 기관 주소의
+  // "강북구 월계로 187" 이 통째로 시군구(addressLocality) 칸에 들어간다.
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "JobPosting",
@@ -173,8 +175,9 @@ export default async function JobPage({
       "@type": "Place",
       address: {
         "@type": "PostalAddress",
-        addressRegion: region || undefined,
-        addressLocality: rest.join(" ") || undefined,
+        addressRegion: place.sido ?? undefined,
+        addressLocality: place.sigungu ?? place.sido ?? undefined,
+        streetAddress: streetOfLocation(job.location) ?? undefined,
         addressCountry: "KR",
       },
     },
@@ -218,8 +221,10 @@ export default async function JobPage({
         {(fromSearch || nearby.length > 0) && (
           <aside aria-label={sidebarTitle} className="mt-10 lg:col-start-1 lg:row-start-1 lg:mt-0">
             <h2 className="mb-3 text-sm font-bold text-slate-900">
-              {sidebarTitle} <span className="font-normal text-slate-400">({sidebarCount})</span>
-              {fromSearch && totalPages > 1 && <span className="ml-1 font-normal text-slate-400">· {pageNum}/{totalPages}p</span>}
+              {/* 건수는 검색 결과(전체 개수)일 때만 — 같은 지역·최근 목록은 앞의 8건만 보여 주므로 "(8)"이 그 지역 전체 건수처럼 읽힌다 */}
+              {sidebarTitle}
+              {fromSearch && <span className="font-normal text-slate-500"> ({side.total.toLocaleString()})</span>}
+              {fromSearch && totalPages > 1 && <span className="ml-1 font-normal text-slate-500">· {pageNum}/{totalPages}p</span>}
             </h2>
             {nearby.length === 0 && (
               <p className="rounded-xl border border-dashed border-slate-300 px-3 py-6 text-center text-xs text-slate-500">

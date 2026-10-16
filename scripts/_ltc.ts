@@ -1,7 +1,10 @@
 /**
  * 장기요양기관 명부 수집(import-ltc-facilities.ts)의 판정 부분 — 네트워크 없이 시험하려고 따로 둔다(_legacy-util 과 같은 이유).
  */
+import { inflateRawSync } from "node:zlib";
 import { LTC_KINDS, type LtcKind } from "../src/lib/jobTaxonomy.ts";
+import { decodeEntities } from "../src/lib/html.ts";
+import { regionOfLocation, sameArea } from "../src/lib/jobRegion.ts";
 
 /** 공단 API(getLtcInsttSeachList02) 한 줄 — 같은 기관이 급여 종류마다 한 줄씩 온다. */
 export type LtcItem = {
@@ -12,7 +15,7 @@ export type LtcItem = {
   siGunGuCd: string;
 };
 
-/** hospitals 에 넣을 한 행(기관 하나). 주소는 공단 검색 API 가 주지 않아 비운다. */
+/** hospitals 에 넣을 한 행(기관 하나). 주소는 공단 검색 API 가 주지 않아 비운다 — 상세조회로 따로 채운다(--addresses). */
 export type LtcRow = {
   ltc_code: string;
   name: string;
@@ -58,6 +61,94 @@ export function ltcRegion(siDoCd: string, siGunGuNm: string | undefined): string
   if (!sido) return null;
   const sgg = (siGunGuNm ?? "").trim();
   return sgg ? `${sido} ${sgg}` : sido;
+}
+
+const BROKEN = String.fromCharCode(0xfffd); // 해독 못 한 글자 자리(U+FFFD)
+
+/**
+ * zip 의 첫 파일 하나(도로명 전체분 zip 에는 TN_SPRD_RDNM.txt 하나뿐이다). 의존성을 늘리지 않으려고 중앙 디렉터리만 읽는다.
+ * 오프셋은 zip 형식 그대로: 끝 레코드 +16 = 중앙 디렉터리 위치 / 중앙 항목 +10 압축 방식, +20 압축 크기, +42 로컬 헤더 위치 /
+ * 로컬 헤더 30바이트 + 이름 길이(+26) + 부가 길이(+28) 다음이 데이터. 풀린 크기는 256MB 까지(실제 66MB — 압축 폭탄 방지).
+ */
+export function firstZipEntry(zip: Buffer): Buffer {
+  const end = zip.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (end < 0) throw new Error("zip 의 끝 레코드가 없다");
+  const cd = zip.readUInt32LE(end + 16);
+  const local = zip.readUInt32LE(cd + 42);
+  const start = local + 30 + zip.readUInt16LE(local + 26) + zip.readUInt16LE(local + 28);
+  const data = zip.subarray(start, start + zip.readUInt32LE(cd + 20));
+  return zip.readUInt16LE(cd + 10) === 8 ? inflateRawSync(data, { maxOutputLength: 256 << 20 }) : data;
+}
+
+/**
+ * 행정안전부 도로명 파일(주소정보누리집 '도로명' 월 전체분 TN_SPRD_RDNM.txt, '|' 구분) → 도로명코드 12자리 → "시도 시군구 도로명".
+ * 칸: 0 시군구코드(5) · 1 도로명번호(7) · 3 도로명 · 5 시도명 · 6 시군구명(세종은 빈칸).
+ * 🔴 2026-09 파일에 EUC-KR 로 안 읽히는 글자가 18줄 있다(대부분 설명 칸, 도로명 1곳 '금천구?역중앙통로') —
+ *    엄격 해독은 파일 전체를 버리게 되므로, 쓰는 칸에 깨진 글자(U+FFFD)가 든 줄만 뺀다(그 도로의 기관은 주소를 비워 둔다).
+ */
+export function parseRoadNames(txt: string): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const ln of txt.split(/\r?\n/)) {
+    const f = ln.split("|");
+    if (f.length < 7 || !/^\d{5}$/.test(f[0]) || !/^\d{7}$/.test(f[1])) continue;
+    const [sido, sigungu, road] = [f[5], f[6], f[3]].map((s) => s.trim());
+    if (!road || [sido, sigungu, road].some((s) => s.includes(BROKEN))) continue;
+    m.set(f[0] + f[1], [sido, sigungu, road].filter(Boolean).join(" "));
+  }
+  return m;
+}
+
+/**
+ * 공단 상세조회(일반현황)의 주소 조각 → "서울특별시 강북구 월계로 187"(심사평가원 행과 같은 모양, 동 이름은 없다).
+ * 🔴 공단은 주소를 글자로 주지 않는다 — 도로명코드·건물번호만 준다. 도로 이름을 모르거나 번호가 이상하면 null(틀린 주소보다 빈 주소).
+ * 🔴 공단의 '층'(fl)은 싣지 않는다 — 기관이 있는 층인지 건물 층수인지 설명서로 확인되지 않았다(틀린 층은 거짓 안내다).
+ */
+export function ltcAddress(road: string | undefined, mainNo: string, subNo: string): string | null {
+  const main = Number(mainNo), sub = Number(subNo);
+  if (!road || !Number.isInteger(main) || main <= 0) return null;
+  const no = Number.isInteger(sub) && sub > 0 ? `${main}-${sub}` : `${main}`;
+  return `${road} ${no}`;
+}
+
+/** XML 한 칸의 글자(엔티티를 풀어서). 없으면 "". */
+export function xmlField(xml: string, tag: string): string {
+  return decodeEntities(xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`))?.[1] ?? "");
+}
+
+export type LtcDetail = { road: string; main: string; sub: string };
+
+/**
+ * 공단 상세조회(일반현황) 응답 한 통 → 주소 조각 / null(기관 없음) / "quota"(오늘 한도 끝) / "retry"(잠깐 뒤 다시).
+ * - 00 인데 item 이 없으면 기관이 없다(실측: 없는 기관은 00 + 빈 body). 03(NODATA)도 같다.
+ * - 🔴 item 의 기관기호가 요청한 것과 다르면 null — API 가 변수를 무시하고 엉뚱한 기관을 주면 같은 주소가 대량으로 들어간다.
+ * - 사유 코드 22(LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS) = 하루 한도. 초당 한도(23)·일시 오류·네트워크 실패는 "retry".
+ */
+export function parseDetail(xml: string, sym: string): LtcDetail | null | "quota" | "retry" {
+  const code = xmlField(xml, "resultCode");
+  if (code === "00" || code === "03") {
+    const item = xml.match(/<item>([\s\S]*?)<\/item>/)?.[1];
+    if (!item || xmlField(item, "longTermAdminSym").trim() !== sym) return null;
+    return { road: xmlField(item, "roadNmCd").trim(), main: xmlField(item, "gunmulMlno").trim(), sub: xmlField(item, "gunmulSlno").trim() };
+  }
+  // 새 게이트웨이는 한도를 평문("API token quota exceeded")으로 주기도 한다(미실측 — 놓치면 연속 실패로 멈출 뿐이라 함께 받는다).
+  const quota = code === "22" || xmlField(xml, "returnReasonCode") === "22" ||
+    xml.includes("LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS") || /quota exceeded/i.test(xml);
+  return quota ? "quota" : "retry";
+}
+
+/**
+ * 상세조회 주소 조각 + 명부 지역 → 실을 주소, 또는 못 싣는 까닭.
+ * 🔴 명부 지역(공단 시군구)과 다른 동네면 싣지 않는다(옛 도로코드·자료 어긋남) — 틀린 동네보다 빈 주소.
+ *    시군구까지 본다(전남광주는 한 시도라 시도만 보면 광주↔전남 어긋남을 못 거른다). 표본 60곳 중 59곳 일치·1곳 주소 없음(2026-10-16).
+ */
+export function ltcRowAddress(
+  d: LtcDetail,
+  roads: ReadonlyMap<string, string>,
+  region: string | null,
+): { address: string } | { miss: "noRoad" | "otherArea" } {
+  const address = ltcAddress(roads.get(d.road), d.main, d.sub);
+  if (!address) return { miss: "noRoad" };
+  return sameArea(regionOfLocation(address), regionOfLocation(region)) ? { address } : { miss: "otherArea" };
 }
 
 /**

@@ -90,7 +90,7 @@ export default function HospitalPicker({
 
       {/* 🔴 aria-live 가 있어야 화면을 못 보는 사용자도 결과가 바뀐 것을 안다 — 여긴 최대 12초 침묵한다. */}
       {open && loading && !selected && (
-        <p className="mt-1 text-xs text-slate-400" role="status" aria-live="polite">
+        <p className="mt-1 text-xs text-slate-500" role="status" aria-live="polite">
           {slow ? "명부에 없는 병원이라 심사평가원에서 찾는 중… (10초 정도 걸립니다)" : "검색 중…"}
         </p>
       )}
@@ -119,10 +119,10 @@ export default function HospitalPicker({
                 className="block w-full px-4 py-2.5 text-left hover:bg-slate-50 focus-visible:bg-slate-50 focus-visible:outline-none"
               >
                 <span className="font-medium text-slate-800">{h.name}</span>
-                {h.region && <span className="ml-2 text-xs text-slate-400">{h.region}</span>}
-                {/* 종별 — 요양원·재가센터는 주소가 없어(공단 명부) 같은 이름끼리 이것으로 가린다 */}
-                {h.cl_cd_nm && <span className="ml-2 text-xs text-slate-400">· {h.cl_cd_nm}</span>}
-                {h.address && <span className="block text-xs text-slate-400">{h.address}</span>}
+                {h.region && <span className="ml-2 text-xs text-slate-500">{h.region}</span>}
+                {/* 종별 — 요양원·재가센터는 주소가 빈 곳이 있어(공단 명부 — 상세조회로도 못 채운 곳) 같은 이름끼리 이것으로도 가린다 */}
+                {h.cl_cd_nm && <span className="ml-2 text-xs text-slate-500">· {h.cl_cd_nm}</span>}
+                {h.address && <span className="block text-xs text-slate-500">{h.address}</span>}
               </button>
             </li>
           ))}

@@ -24,6 +24,8 @@ export type RegistryMatch = {
   region: string | null;
   /** 명부 주소. 동명이 여럿이면 null. */
   address: string | null;
+  /** 심사평가원 의료기관 행으로 판정했는가 — 아니면 요양원·재가센터(공단)·직접 등록 행으로 맞은 것이다. */
+  hira: boolean;
 };
 
 export type RegistryRow = {
@@ -61,7 +63,20 @@ export function decideMatch(all: readonly RegistryRow[]): RegistryMatch {
     facilityType: allKnown && grades.size === 1 ? first : null,
     region: only?.region ?? null,
     address: only?.address ?? null,
+    hira: hira.length > 0,
   };
+}
+
+/**
+ * 이름이 둘(공고 제목의 병원 이름·등기명)로 맞았을 때 하나 고르기 — **심사평가원 행으로 맞은 쪽**, 그다음 **주소가 있는 쪽**.
+ * 주소가 있어야 좌표를 얻는다(「내 주변 채용」). 🔴 다만 공단(요양원·재가센터) 행에도 주소를 채우므로(import-ltc-facilities --addresses),
+ * 주소만 보면 병원 공고가 같은 이름의 재가센터에 붙어 종별이 '요양원'으로 바뀐다 — 병원 수집 공고에서는 의료기관 명부가 먼저다.
+ * 심사평가원 쪽이 동명 여럿이라 주소가 비어도 그쪽을 고른다(틀린 종별보다 좌표 없는 공고가 낫다 — 애매하면 비운다).
+ * 점수: 심사평가원 4 · 주소 2 · 있음 1 — 높은 자리 하나가 낮은 자리들의 합보다 커서(4 > 2+1) 이 순서가 그대로 지켜진다. 같으면 첫째(a).
+ */
+export function pickMatch(a?: RegistryMatch, b?: RegistryMatch): RegistryMatch | undefined {
+  const rank = (m?: RegistryMatch) => (m ? 1 : 0) + (m?.address ? 2 : 0) + (m?.hira ? 4 : 0);
+  return rank(b) > rank(a) ? b : a;
 }
 
 // 🔴 `.in()` 은 **URL 쿼리스트링**으로 나간다. 병원 이름은 한글이라 한 글자가 퍼센트 인코딩으로

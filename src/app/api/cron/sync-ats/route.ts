@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchNurseAtsJobs, fetchAtsDescription, TENANTS } from "@/lib/recruiterAts";
 import { fetchNurseSiteJobs, fetchSiteDetail, SITES } from "@/lib/hospitalSites";
 import { fetchBoardJobs, fetchBoardDetail, BOARDS } from "@/lib/jobBoards";
-import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
+import { lookupHospitalsBestEffort, pickMatch } from "@/lib/hospitalRegistry";
 import { regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
 import { recordRun } from "@/lib/collectorLog";
@@ -53,15 +53,10 @@ export async function GET(request: Request) {
 
     // 🏥 기관 종별·지역은 심사평가원 명부에서. ATS 목록에는 근무지가 아예 없다.
     const registry = await lookupHospitalsBestEffort(admin, jobs.flatMap((j) => (j.alt ? [j.hospital, j.alt] : [j.hospital])));
-    // 🔴 둘 다 명부에 있으면 **주소가 있는 쪽**을 고른다. 그냥 `??` 로 두면 주소 없는 행이 먼저
-    //    걸려 좌표를 못 얻는다 = 「내 주변 채용」에서 빠진다(같은 병원이 명부에 여러 이름으로 있다).
-    const regOf = (j: { hospital: string; alt: string | null }) => {
-      const a = registry.get(j.hospital);
-      const b = j.alt ? registry.get(j.alt) : undefined;
-      if (a?.address) return a;
-      if (b?.address) return b;
-      return a ?? b;
-    };
+    // 🔴 둘 다 명부에 있으면 심사평가원 행으로 맞은 쪽, 그다음 주소가 있는 쪽(pickMatch). 그냥 `??` 로 두면
+    //    주소 없는 행이 먼저 걸려 좌표를 못 얻는다 = 「내 주변 채용」에서 빠진다(같은 병원이 명부에 여러 이름으로 있다).
+    const regOf = (j: { hospital: string; alt: string | null }) =>
+      pickMatch(registry.get(j.hospital), j.alt ? registry.get(j.alt) : undefined);
 
     // 기존 저장값 — 명부 조회가 실패했거나 상세를 못 받았을 때 옛 값을 지킨다.
     // (BestEffort 가 빈 Map 을 돌려줄 수 있는데, 그때 이미 맞던 종별·지역을 null 로 덮으면 안 된다.)

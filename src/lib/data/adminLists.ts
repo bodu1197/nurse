@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/data/admin";
 import { SHEET_COLS, WORK_COLS, type ResumeSheetFields, type WorkExperience } from "@/lib/data/resume";
 import { isAppStatus, type AppStatus } from "@/lib/data/applications";
 import { COLLECTED_SOURCES } from "@/lib/jobState";
+import { regionOfLocation, sameArea } from "@/lib/jobRegion";
 
 export const PER_PAGE = 30;
 
@@ -678,7 +679,7 @@ export type HospitalToFix = {
   region: string | null;
   /** 이 병원이 올린 공고 제목 — 대개 여기에 진짜 병원 이름이 들어 있다. */
   jobTitles: string[];
-  /** 같은 주소(도로명+번호)의 심사평가원 명부 병원들. 눌러서 바로 고르게 한다. */
+  /** 같은 동네·같은 주소(도로명+번호)의 명부 기관들(병원·요양기관). 눌러서 바로 고르게 한다. */
   candidates: string[];
   /** 관리자 테스트용 계정인가 — 고칠 대상이 아니다. */
   isTest: boolean;
@@ -736,17 +737,24 @@ export async function getHospitalsToFix(
   ]);
   const titlesBy = new Map<string, string[]>();
   for (const j of jobs ?? []) titlesBy.set(j.hospital_id, [...(titlesBy.get(j.hospital_id) ?? []), j.title]);
-  const regBy = new Map<string, string[]>();
+  const regBy = new Map<string, { name: string; address: string | null }[]>();
   for (const r of reg ?? []) {
     const rd = roadOf(r.address);
-    if (rd) regBy.set(rd, [...(regBy.get(rd) ?? []), r.name]);
+    if (rd) regBy.set(rd, [...(regBy.get(rd) ?? []), r]);
   }
+  // 🔴 '도로명 + 번호'는 전국에 같은 것이 있다(중앙로 12 …) — 다른 동네 기관을 후보로 내밀지 않게 동네까지 맞춘다
+  //    (실측 2026-10-16: 95행 중 3행에 다른 시·도 후보 17곳이 섞여 있었다). 주소에서 동네를 못 읽는 행은 거르지 않는다.
+  const candidatesOf = (address: string | null) => {
+    const here = regionOfLocation(address);
+    const near = (regBy.get(roadOf(address) ?? "") ?? []).filter((c) => !here.sido || sameArea(regionOfLocation(c.address), here));
+    return [...new Set(near.map((c) => c.name))].slice(0, 6);
+  };
 
   return {
     rows: rows.map((r) => ({
       id: r.id, name: r.name, address: r.address, region: r.region, isTest: r.is_test,
       jobTitles: (titlesBy.get(r.id) ?? []).slice(0, 3),
-      candidates: [...new Set(regBy.get(roadOf(r.address) ?? "") ?? [])].slice(0, 6),
+      candidates: candidatesOf(r.address),
     })),
     total: count ?? 0,
   };

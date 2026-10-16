@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { regionOfLocation, sameArea } from "./jobRegion.ts";
+import { canonicalSido, regionOfLocation, sameArea, streetOfLocation } from "./jobRegion.ts";
+import { SIDO_SIGUNGU } from "./koreaRegions.ts";
 
 test("워크넷 region 형('경기 성남시') — 축약 시도 흡수 + 시군구", () => {
   assert.deepEqual(regionOfLocation("경기 성남시"), { sido: "경기도", sigungu: "성남시" });
@@ -9,6 +10,31 @@ test("워크넷 region 형('경기 성남시') — 축약 시도 흡수 + 시군
 test("워크넷 전남광주 통합 토큰 — 병합 캐노니컬 + 시군구 보존", () => {
   assert.deepEqual(regionOfLocation("전남광주 목포시"), { sido: "전남광주통합특별시", sigungu: "목포시" });
   assert.deepEqual(regionOfLocation("전남광주 북구"), { sido: "전남광주통합특별시", sigungu: "북구" });
+});
+
+test("같은 시도 안에서 한 시군구의 첫 단어로 시작하는 다른 시군구가 없다 — 공고 옆 '같은 지역' 목록의 접두 일치(getJobs city)가 기대는 성질", () => {
+  // 공고의 시도는 canonicalSido 로 모은 값이다 — 광주·전남은 한 시도(전남광주통합특별시)로 합쳐 본다.
+  const bySido = new Map<string, string[]>();
+  for (const [name, list] of Object.entries(SIDO_SIGUNGU)) {
+    const key = canonicalSido(name) ?? name;
+    bySido.set(key, [...(bySido.get(key) ?? []), ...list]);
+  }
+  for (const [sido, list] of bySido) {
+    const cities = new Set(list.map((s) => s.split(" ")[0]));
+    for (const city of cities) {
+      const strays = list.filter((s) => s.startsWith(city) && s.split(" ")[0] !== city);
+      assert.deepEqual(strays, [], `${sido} ${city}`);
+    }
+  }
+});
+
+test("검색엔진 주소의 도로명 칸 — 시도·시군구 단어를 뺀 나머지, 시도를 못 읽으면 원문", () => {
+  assert.equal(streetOfLocation("서울특별시 강북구 월계로 187"), "월계로 187");
+  assert.equal(streetOfLocation("경기도 성남시 분당구 대왕판교로 1"), "대왕판교로 1", "2단 시군구는 두 단어를 뺀다");
+  assert.equal(streetOfLocation("세종특별자치시 한누리대로 90-3"), "한누리대로 90-3", "세종은 시군구가 없다");
+  assert.equal(streetOfLocation("서울 강북구"), null, "워크넷 지역만 있는 공고");
+  assert.equal(streetOfLocation("본원 3층"), "본원 3층", "시도를 못 읽으면 원문");
+  assert.equal(streetOfLocation(null), null);
 });
 
 test("직접등록 주소형 — 2단 시군구('구' 결합) / 단일 시군구", () => {

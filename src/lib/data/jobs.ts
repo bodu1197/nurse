@@ -11,6 +11,7 @@ import { DEPT_ANY } from "@/lib/resumeOptions";
 // 🔴 칩 순서를 등록 폼과 맞추려고 **같은 상수**를 쓴다. 여기 목록을 따로 적으면 둘이 갈라진다.
 import { FACILITY_TYPES } from "@/lib/jobTaxonomy";
 import { nearBox } from "@/lib/location/bbox";
+import { regionOfLocation } from "@/lib/jobRegion";
 import type { MatchScope } from "@/lib/match";
 import type { JobTrack } from "@/lib/resumeOptions";
 import type { Database } from "@/types/database";
@@ -105,6 +106,8 @@ const REVIVABLE = ["closed", "expired"] as const satisfies readonly JobStatus[];
 //    칩 집계 RPC 는 순수 SQL ilike 라 `*` 를 리터럴로 본다. 안 지우면 `?q=성형*` 에서
 //    목록엔 5건이 나오는데 칩은 전부 0건이 되어 칩 줄이 통째로 사라진다.
 const clean = (s: string) => s.replace(/[%,()*]/g, "").trim();
+/** LIKE 접두 검색어 — clean 에 더해 한 글자 와일드카드(_)와 이스케이프(\)도 지운다(시군구 이름에는 없는 글자). */
+const likePrefix = (s: string) => clean(s.replace(/[_\\]/g, ""));
 
 /**
  * 🗂 "미분류" 를 고르는 URL 값.
@@ -274,7 +277,9 @@ const LISTED_ORDER = ["ad_paid", "ad_live", "is_tertiary", "posted_at", "id"] as
 // 병원명이 "[테스트] …"로 시작해 목록·상세에서 사용자도 테스트임을 알아볼 수 있고,
 // 테스트가 끝나면 해당 공고를 삭제하면 된다. (공고 등록 시 병원 검색에서는 계속 제외 — /api/hospitals/search)
 // withCount=false: total(전체 개수)이 필요 없는 호출(사이드바 등)은 COUNT 스캔을 생략한다.
-export async function getJobs(keyword: string, location: string, filters: JobFilters = {}, page = 1, withCount = true): Promise<{ jobs: JobRow[]; total: number }> {
+// city — 같은 시(市) 묶음: 시군구가 이 이름으로 시작하는 공고("성남시" → "성남시 분당구"·"성남시 수정구"). 공고 옆 '같은 지역'
+//   목록(getNearbyJobs)만 쓴다 — 지역 칩·집계 RPC 는 모르는 값이라 JobFilters 에 넣지 않는다(받고 조용히 버리지 않게).
+export async function getJobs(keyword: string, location: string, filters: JobFilters & { city?: string } = {}, page = 1, withCount = true): Promise<{ jobs: JobRow[]; total: number }> {
   const supabase = await createClient();
   const from = (Math.max(1, page) - 1) * PER_PAGE;
   // 🔴 jobs 가 아니라 jobs_listed 뷰다 — 정렬 키(LISTED_ORDER)가 뷰의 계산 컬럼이다.
@@ -300,10 +305,14 @@ export async function getJobs(keyword: string, location: string, filters: JobFil
   );
   const loc = clean(location);
   if (loc) query = query.ilike("location", `%${loc}%`);
-  // 🗂 지역은 정규화 컬럼 eq(정확·인덱스). 🔴 시군구는 시도에 종속 — 시도 없이 걸면 시군구명이
-  // 시도 간 중복이라('중구'가 여러 시도) 엉뚱한 지역을 긁는다. 시도 있을 때만 시군구를 적용한다.
+  // 🗂 지역은 정규화 컬럼(정확·인덱스) — 시군구는 고른 값이면 eq, 같은 시 묶음(city)이면 접두 일치(같은 시도 안에서
+  // 다른 시군구 이름으로 시작하는 시군구는 없다 — jobRegion.test.ts 가 koreaRegions 전체로 확인한다). 🔴 시군구는 시도에 종속 —
+  // 시도 없이 걸면 시군구명이 시도 간 중복이라('중구'가 여러 시도) 엉뚱한 지역을 긁는다. 시도 있을 때만 시군구를 적용한다.
+  // city 는 직접 등록 공고의 위치 글자에서 나온다 — LIKE 특수문자를 지우고, 비면(= 시도 전체가 걸린다) 걸지 않는다.
+  const city = likePrefix(filters.city ?? "");
   if (filters.sido) query = query.eq("sido", filters.sido);
   if (filters.sido && filters.sigungu) query = query.eq("sigungu", filters.sigungu);
+  else if (filters.sido && city) query = query.like("sigungu", `${city}%`);
   // 세 축은 서로 독립이다 — 진료과 ∧ 기관 종별 ∧ 직종. "의원의 내과 간호조무사"처럼 겹쳐 걸 수 있다.
   // UNSET 이면 "그 축이 비어 있는 공고" 를 고른 것이다(미분류 칩) → is null 로 건다.
   const axis = (col: "specialty" | "facility_type" | "job_category" | "employment_type", v: string | undefined) => {
@@ -513,23 +522,25 @@ export async function getSitemapJobs(): Promise<{ id: string; updated_at: string
   return out;
 }
 
-// 같은 지역 다른 공고(상세 페이지 좌측 사이드바). 지역 키는 앞 2토큰("경기 성남시")으로 잡아
-// 시/군 단위로 묶는다. 노출 규칙(마감·유료기간 등)은 getJobs를 그대로 재사용해 목록과 어긋나지 않게 한다.
-export function regionOf(location: string | null): string {
-  return (location ?? "").trim().split(/\s+/).slice(0, 2).join(" ");
-}
+// 같은 지역 다른 공고(상세 페이지 좌측 사이드바). 시/군 단위로 묶는다("성남시 분당구" 공고 옆에 성남시 전체).
+// 노출 규칙(마감·유료기간 등)은 getJobs를 그대로 재사용해 목록과 어긋나지 않게 한다.
+// 🔴 지역은 정규화한 시도·시군구(jobs.sido/sigungu, 지역 필터와 같은 값)로 맞춘다. 위치 글자의 앞 두 단어로 부분일치하면
+//    "서울특별시 강북구 월계로 187"(기관 주소)과 "서울 강북구"(워크넷)가 서로 못 찾고, 세종은 도로 이름이 지역으로 잡힌다.
 // 같은 지역 공고를 우선 보여주되, 없으면(외진 지역·그 지역 단일 공고) 최근 공고로 채워 왼쪽이 절대 비지 않게 한다.
-// sameRegion=false면 제목에 지역명을 쓰지 않는다. care — 요양·간병 공고의 옆 목록은 요양·간병 공고다(같은 목록 범위).
-export async function getNearbyJobs(location: string | null, excludeId: string, limit = 8, care = false): Promise<{ jobs: JobRow[]; sameRegion: boolean }> {
-  const region = regionOf(location);
-  if (region) {
-    const { jobs } = await getJobs("", region, { care }, 1, false); // 총개수 불필요 → COUNT 생략
+// care — 요양·간병 공고의 옆 목록은 요양·간병 공고다(같은 목록 범위).
+// area — 찾은 지역의 이름(사이드바 제목), 최근 공고로 채웠으면 null(제목에 지역명을 쓰지 않는다). 제목을 따로 계산하면
+//   목록과 다른 지역을 가리킬 수 있어 목록을 찾은 값 그대로 여기서 같이 준다.
+export async function getNearbyJobs(location: string | null, excludeId: string, limit = 8, care = false): Promise<{ jobs: JobRow[]; area: string | null }> {
+  const { sido, sigungu } = regionOfLocation(location);
+  const city = likePrefix(sigungu?.split(" ")[0] ?? "");
+  if (sido) {
+    const { jobs } = await getJobs("", "", { care, sido, city }, 1, false); // 총개수 불필요 → COUNT 생략
     const same = jobs.filter((j) => j.id !== excludeId);
-    if (same.length > 0) return { jobs: same.slice(0, limit), sameRegion: true };
+    if (same.length > 0) return { jobs: same.slice(0, limit), area: city || sido };
   }
   // 지역 매칭이 없으면 최근 공고로 폴백.
   const { jobs } = await getJobs("", "", { care }, 1, false);
-  return { jobs: jobs.filter((j) => j.id !== excludeId).slice(0, limit), sameRegion: false };
+  return { jobs: jobs.filter((j) => j.id !== excludeId).slice(0, limit), area: null };
 }
 
 // 🔴 deadline·source 도 실어야 한다. 병원 화면의 '노출 중' 판정을 구직자 쪽(isOpenToSeekers)과

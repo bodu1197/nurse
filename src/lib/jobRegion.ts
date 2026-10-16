@@ -100,6 +100,16 @@ export function regionOfLocation(location: string | null | undefined): Normalize
 }
 
 /**
+ * 위치 글자에서 시도·시군구 단어를 뺀 나머지(도로명·번호) — 검색엔진 주소(streetAddress)용.
+ * 시도를 못 읽으면("서울시 …"·자유 입력) 원문 그대로 돌려준다 — 지역 칸을 못 채워도 위치가 통째로 사라지지 않게.
+ */
+export function streetOfLocation(location: string | null | undefined): string | null {
+  const { sido, sigungu } = regionOfLocation(location);
+  const words = tokens(location);
+  return (sido ? words.slice(1 + (sigungu?.split(" ").length ?? 0)) : words).join(" ") || null;
+}
+
+/**
  * 두 지역이 **같은 동네**인가 — 시·도가 같고, 양쪽 다 시·군·구가 있으면 그것도 같다(표기 차이는 흡수한다).
  * 사업자 인증 화면의 기관 직접 등록이 '같은 동네·같은 이름의 남의 기관'을 막을 때 쓴다(사칭 방지, app/mypage/actions).
  * 시·군·구는 띄어쓰기와 '시'를 빼고 앞부분이 겹치면 같다고 본다 — "부천시"(구가 생기기 전 주소)와 "부천시 원미구",

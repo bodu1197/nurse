@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decideMatch, type RegistryRow } from "./hospitalRegistry.ts";
+import { decideMatch, pickMatch, type RegistryMatch, type RegistryRow } from "./hospitalRegistry.ts";
 
 const row = (o: Partial<RegistryRow>): RegistryRow =>
   ({ name: "테스트병원", cl_cd_nm: null, region: null, address: null, ...o });
@@ -71,6 +71,21 @@ test("같은 이름에 심사평가원 행이 있으면 그 행으로만 판정�
   ]);
   assert.equal(m.facilityType, "보건소");
   assert.equal(m.address, "전남 곡성군 곡성읍 A", "의료기관 행이 하나면 그 주소를 쓴다");
+  assert.equal(m.hira, true);
   const careOnly = decideMatch([row({ name: "행복재가센터", cl_cd_nm: "방문요양·방문목욕", region: "서울 종로구" })]);
   assert.equal(careOnly.facilityType, "요양원·주간보호", "심사평가원 행이 없으면 공단 행으로 판정한다");
+  assert.equal(careOnly.hira, false, "부르는 쪽(sync-ats)이 병원 이름 쪽을 먼저 고르게 표시한다");
+});
+
+test("이름이 둘로 맞으면 — 심사평가원 쪽 먼저, 그다음 주소 있는 쪽(sync-ats 집계 사이트 공고)", () => {
+  const m = (o: Partial<RegistryMatch>): RegistryMatch => ({ facilityType: null, region: null, address: null, hira: false, ...o });
+  const hiraNoAddr = m({ facilityType: "종합병원", hira: true });
+  const careWithAddr = m({ facilityType: "요양원·주간보호", address: "서울특별시 강북구 월계로 187" });
+  assert.equal(pickMatch(hiraNoAddr, careWithAddr), hiraNoAddr, "주소가 있어도 재가센터 쪽으로 병원 공고를 붙이지 않는다");
+  assert.equal(pickMatch(careWithAddr, hiraNoAddr), hiraNoAddr);
+  const noAddr = m({}), withAddr = m({ address: "A" });
+  assert.equal(pickMatch(noAddr, withAddr), withAddr, "둘 다 심사평가원이 아니면 예전처럼 주소 있는 쪽");
+  assert.equal(pickMatch(withAddr, m({ address: "B" })), withAddr, "같으면 첫째");
+  assert.equal(pickMatch(undefined, noAddr), noAddr);
+  assert.equal(pickMatch(undefined, undefined), undefined);
 });

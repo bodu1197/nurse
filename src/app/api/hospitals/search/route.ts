@@ -17,7 +17,7 @@ import { reserveHiraLookup } from "@/lib/collectorLog";
 //    아래 timeoutMs(12초)가 도는 동안 함수가 먼저 끊기면 빈 배열 폴백이 통째로 무력해진다.
 export const maxDuration = 30;
 
-// cl_cd_nm — 요양원·재가센터는 주소가 없어(공단 명부) 같은 이름을 종별로 가린다(HospitalPicker).
+// cl_cd_nm — 요양원·재가센터는 주소가 빈 곳이 있어(공단 명부 — 상세조회로도 못 채운 곳) 같은 이름을 종별로도 가린다(HospitalPicker).
 const SELECT = "id, name, region, address, cl_cd_nm";
 
 /**
