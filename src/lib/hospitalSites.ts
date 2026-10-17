@@ -95,17 +95,8 @@ export const SITES: readonly Site[] = [
     //    모집분야·접수기간까지만 얻을 수 있다. 끝을 안 막으면 진료과 메뉴·푸터가 통째로 딸려온다.
     detailBody: /<div class="board-view-head">([\s\S]*?)<div class="board-view-btns"/,
   },
-  {
-    key: "cmcism",
-    hospital: "가톨릭대학교인천성모병원",
-    listUrl: "https://www.cmcism.or.kr/center/recruit_list",
-    // href 끝에 `&` 가 붙어 오므로 `seq=\d+` 로 끊으면 안 된다 — 뒤를 열어 둔다.
-    linkPattern: /\/center\/recruit_view\?seq=\d+[^"']*/,
-    idParams: ["seq"],
-    // 이 사이트는 본문이 아래아한글에서 붙여넣은 인라인 스타일 덩어리라 시작점이 불분명하다.
-    // '모집부문' 표가 실제 알맹이라 그 제목부터 잡는다.
-    detailBody: /(<h2 class="wx140 noimg"[\s\S]*?)<div id="btm"/,
-  },
+  // ❌ 가톨릭대학교인천성모병원(cmcism.or.kr)은 뺐다 — 2026-10-06부터 수집기 요청을 다른 주소로 돌려보내고(302),
+  //    robots.txt 가 이름 있는 검색엔진 말고 모든 봇에 사이트 전체를 금지한다(`User-agent: *` `Disallow: /`). 다시 넣지 말 것.
   {
     key: "dsmc",
     hospital: "계명대학교동산병원",
@@ -175,8 +166,8 @@ export const SITES: readonly Site[] = [
       const [seq, sch] = id.split("_");
       return `https://recruit.amc.seoul.kr/recruit/career/view.do?seq=${seq}&scheduleno=${sch}`;
     },
-    // 제목·접수기간·첨부·본문이 한 표에 있다. 표 전체를 잡아야 접수기간까지 들어온다.
-    detailBody: /<caption>상세페이지<\/caption>([\s\S]*?)<\/table>/,
+    // 🔴 상세 본문(detailBody)은 가져오지 않는다 — robots.txt 가 모든 봇에 `/recruit/career` 를 금지한다(2026-10-17 확인).
+    //    목록("/")은 허용이라 제목·마감은 그대로 받고, 위 주소는 간호사가 눌러 여는 원문 링크로만 쓴다.
   },
   {
     key: "snuh",

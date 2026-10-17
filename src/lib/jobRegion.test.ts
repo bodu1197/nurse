@@ -1,6 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { canonicalSido, cleanAddress, isFullAddress, regionLabelOf, regionOfLocation, sameArea, streetOfLocation, workplaceOf } from "./jobRegion.ts";
+import { canonicalSido, cleanAddress, isFullAddress, regionLabelOf, regionOfLocation, roadAddressOf, sameArea, streetOfLocation, workplaceOf } from "./jobRegion.ts";
+
+test("도로명 + 건물번호까지 — 덧붙은 숫자·상세를 뗀다(좌표 없던 실제 주소), 못 읽으면 null", () => {
+  for (const [raw, road] of [
+    ["전남광주통합특별시 순천시 석현길 67 70", "전남광주통합특별시 순천시 석현길 67"],
+    ["부산광역시 부산진구 복지로 75, 진사로83번길 75, 진사로83번길 81, 1층(일부), 3층 (개금동)", "부산광역시 부산진구 복지로 75"],
+    ["부산 강서구 명지국제8로 245 (명지동) 302, 303, 304호", "부산 강서구 명지국제8로 245"],
+    ["전남광주통합특별시 무안군 삼향읍 남악로250번길 59-3 0, 이영의료재단(시그니티요양병원)", "전남광주통합특별시 무안군 삼향읍 남악로250번길 59-3"],
+    ["서울특별시 종로구 종로1길 50", "서울특별시 종로구 종로1길 50"],
+    ["서울특별시 송파구 가락로5길 3 -15 3", "서울특별시 송파구 가락로5길 3-15"],
+    ["충청남도 금산군 금성면 화엄로 173 -", "충청남도 금산군 금성면 화엄로 173"],
+  ]) assert.equal(roadAddressOf(raw), road, raw);
+  for (const none of ["경기도 성남시 수정구 산성대로 지 280", "경기도 화성시 우정읍 쌍봉리 123-4", "서울 강남구", "중앙로 12 OO병원 3층"]) {
+    assert.equal(roadAddressOf(none), null, none);
+  }
+});
 import { SIDO_SIGUNGU } from "./koreaRegions.ts";
 
 test("워크넷 region 형('경기 성남시') — 축약 시도 흡수 + 시군구", () => {

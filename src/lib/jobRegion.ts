@@ -137,6 +137,15 @@ export const cleanAddress = (s: string): string => s
   .replace(/,\s*$/, "")
   .trim();
 
+/**
+ * 주소의 "…도로명 건물번호"까지("…석현길 67 70" → "…석현길 67", 띄어 쓴 부번 "가락로5길 3 -15" → "가락로5길 3-15") —
+ * 덧붙은 숫자·상세 때문에 카카오 주소 검색이 안 될 때 다시 묻는 값. 시도로 시작하지 않으면 null — "중앙로 12"만으로는 전국의 같은 도로 중 아무 데나 찍힌다.
+ */
+export const roadAddressOf = (s: string): string | null => {
+  const m = s.match(/^.*?(?:로|길)\s*\d+(?:\s*-\s*\d+)?(?=[\s,(]|$)/)?.[0];
+  return m && regionOfLocation(m).sido ? m.replace(/\s*-\s*(?=\d+$)/, "-") : null;
+};
+
 /** 도로명(또는 번지)까지 든 주소인가 — 시도·시군구뿐인 글자("서울특별시 양천구"·"서울 양천구")나 시도를 못 읽는 글자는 아니다. */
 export const isFullAddress = (s: string | null | undefined): s is string => !!s && !!regionOfLocation(s).sido && !!streetOfLocation(s);
 

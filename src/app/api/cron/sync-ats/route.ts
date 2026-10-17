@@ -7,7 +7,7 @@ import { lookupHospitalsBestEffort, pickMatch } from "@/lib/hospitalRegistry";
 import { isFullAddress, regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
 import { recordRun } from "@/lib/collectorLog";
-import { geocodeAddress } from "@/lib/kakao";
+import { geocodeMany } from "@/lib/kakao";
 import { inBatches } from "@/lib/worknet";
 
 /**
@@ -131,14 +131,16 @@ export async function GET(request: Request) {
     //    바뀌는 순간 조용히 TypeError 가 나고 크론 전체가 502 로 죽는다. 타입이 보장하게 한다.
     // 🔴 상세의 **근무지 주소**가 명부 주소보다 앞선다 — 실제로 일하는 곳이고, 명부에 아예 없는
     //    병원(요양원·의원)도 이걸로 좌표를 얻는다. 명부 주소는 그게 없을 때의 폴백이다.
+    // 🔴 상세는 한 번만 받으므로 다시 시도하는 실행에는 없다 — 저장된 근무지(상세에서 받은 도로명 주소)로 찾는다. 아래 rows 의 loc 와 같은 순서라
+    //    좌표와 화면 글자가 같은 주소를 가리킨다(검증 지적 2026-10-17: 명부 주소로 찾거나, 명부에 없으면 영영 못 찾았다).
     const needGeo = jobs.flatMap((j) => {
-      const address = stored.get(j.id)?.geocoded_at ? null : (details.get(j.id)?.address ?? regOf(j)?.address ?? null);
-      return address ? [{ id: j.id, address }] : [];
+      const s = stored.get(j.id);
+      const address = s?.geocoded_at ? null : (details.get(j.id)?.address ?? (isFullAddress(s?.location) ? s.location : null) ?? regOf(j)?.address ?? null);
+      return address ? [{ key: j.id, address }] : [];
     });
-    const coords = new Map(
-      await inBatches(needGeo, 6, async (g) => [g.id, await geocodeAddress(g.address)] as const),
-    );
-    const geoTried = new Set(needGeo.map((g) => g.id));
+    // 카카오 장애는 시도로 치지 않는다(결과에 안 든다) — 다음 실행에 다시(장애가 '주소 없음'으로 굳지 않게, sync-worknet 과 같은 계약).
+    const coords = await geocodeMany(needGeo, 6, startedAt + 200_000);
+    const geoTried = new Set(coords.keys());
 
     const rows = jobs.map((j) => {
       const reg = regOf(j);

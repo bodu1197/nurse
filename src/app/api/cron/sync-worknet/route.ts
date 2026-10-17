@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { fetchNurseJobs, fetchDetails, inBatches } from "@/lib/worknet";
+import { fetchNurseJobs, fetchDetails } from "@/lib/worknet";
 import { regionOfLocation, workplaceOf } from "@/lib/jobRegion";
 import { departmentFromText, stillValid, NOT_CARE_OR } from "@/lib/jobTaxonomy";
-import { geocodeAddress } from "@/lib/kakao";
+import { geocodeMany } from "@/lib/kakao";
 import { lookupHospitalsBestEffort } from "@/lib/hospitalRegistry";
 import { recordRun } from "@/lib/collectorLog";
 
@@ -68,10 +68,10 @@ export async function GET(request: Request) {
     // 📍 좌표 지오코딩 — geocoded_at 마커로 미시도만 골라낸다(주소 검색 실패도 "시도했음"으로 기록해야
     //    매 6시간 같은 실패 주소를 영원히 재시도하지 않는다 — talent(geocodePendingJobs)와 동일 계약).
     const needCoords = jobs.filter((j) => !stored.get(j.authNo)?.geocoded_at && j.addr);
-    const coords = new Map(
-      await inBatches(needCoords, 8, async (j) => [j.authNo, await geocodeAddress(j.addr)] as const),
-    );
-    const attempted = new Set(needCoords.map((j) => j.authNo));
+    // 🔴 카카오 장애는 시도로 치지 않는다(geocodeMany 결과에 안 든다) — 다음 실행에 다시 한다. 종전에는 장애도 '주소 없음'으로 기록돼
+    //    그 공고는 영영 좌표 없이 「내 주변」에서 빠졌다(실측 2026-10-17: 지금 다시 물으면 찾아지는 주소가 있었다).
+    const coords = await geocodeMany(needCoords.map((j) => ({ key: j.authNo, address: j.addr })), 8, startedAt + 200_000);
+    const attempted = new Set(coords.keys());
 
     // 🏥 회사명으로 심사평가원 명부를 찾아 기관 종별을 얻는다(동명이 갈리면 안 쓴다 — lib/hospitalRegistry).
     //    실측 2026-08-11: 노출중 워크넷 공고 1,938건 중 932건(48%)이 명부와 이름이 정확히 일치한다.
@@ -202,7 +202,7 @@ export async function GET(request: Request) {
       stats: { fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, registryMatched: registry.size, detailsFetched: details.size },
     });
 
-    return NextResponse.json({ ok: true, fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, adsExpired: expiredAds?.length ?? 0, detailsFetched: details.size, enrichRemaining: enrichedRemaining, coordsGeocoded: geocoded, coordsAttempted: needCoords.length, registryMatched: registry.size });
+    return NextResponse.json({ ok: true, fetched: jobs.length, jobsUpserted: upserted, jobsClosed: closedRows?.length ?? 0, adsExpired: expiredAds?.length ?? 0, detailsFetched: details.size, enrichRemaining: enrichedRemaining, coordsGeocoded: geocoded, coordsAttempted: attempted.size, coordsRetry: needCoords.length - attempted.size, registryMatched: registry.size });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "sync failed";
     await recordRun(createAdminClient(), { collector: "worknet", ok: false, error: msg, startedAt });
