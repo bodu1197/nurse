@@ -115,6 +115,20 @@ test("명부 행 한 곳의 주소 — 도로를 모르면 noRoad, 명부 지역
   assert.deepEqual(ltcRowAddress(d("113053107018"), roads, null), { miss: "otherArea" }, "명부 지역을 모르면 싣지 않는다");
 });
 
+test("옛 시군구 번호의 도로명코드 — 뒤 7자리가 같은 도로가 명부 지역에 딱 하나면 그 도로", () => {
+  const roads = new Map([
+    ["521113266065", "전북특별자치도 전주시 완산구 전룡로"],
+    ["483102006004", "경상남도 거제시 거제대로"],
+    ["115452005010", "서울특별시 금천구 시흥대로"],
+    ["115602005010", "서울특별시 영등포구 시흥대로"],
+  ]);
+  const d = (road: string) => ({ road, main: "49", sub: "14" });
+  assert.deepEqual(ltcRowAddress(d("451113266065"), roads, "전북 전주시 완산구"), { address: "전북특별자치도 전주시 완산구 전룡로 49-14" }, "전북 45→52");
+  assert.deepEqual(ltcRowAddress(d("264702006004"), roads, "부산 연제구"), { miss: "noRoad" }, "뒤 7자리만 같은 다른 지역 도로는 안 쓴다");
+  assert.deepEqual(ltcRowAddress(d("115902005010"), roads, "서울"), { miss: "noRoad" }, "명부 지역 안에 둘 이상이면 고르지 않는다");
+  assert.deepEqual(ltcRowAddress(d(""), roads, "서울"), { miss: "noRoad" }, "도로명코드가 비면");
+});
+
 test("XML 칸 — 엔티티를 풀고, 없는 칸은 빈 글자", () => {
   assert.equal(xmlField("<adminNm>행복&amp;사랑 요양원</adminNm>", "adminNm"), "행복&사랑 요양원");
   assert.equal(xmlField("<adminNm>x</adminNm>", "roadNmCd"), "");

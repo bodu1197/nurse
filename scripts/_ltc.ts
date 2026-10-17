@@ -146,9 +146,15 @@ export function ltcRowAddress(
   roads: ReadonlyMap<string, string>,
   region: string | null,
 ): { address: string } | { miss: "noRoad" | "otherArea" } {
+  const near = (a: string) => sameArea(regionOfLocation(a), regionOfLocation(region));
   const address = ltcAddress(roads.get(d.road), d.main, d.sub);
-  if (!address) return { miss: "noRoad" };
-  return sameArea(regionOfLocation(address), regionOfLocation(region)) ? { address } : { miss: "otherArea" };
+  if (address) return near(address) ? { address } : { miss: "otherArea" };
+  // 행정구역이 바뀌면 도로명코드 앞 5자리(시군구)만 새 번호가 되고 뒤 7자리(도로)는 그대로인데, 공단은 옛 번호를 주기도 한다
+  // (실측 2026-10-18: 전북 45→52, 부천 41190→41192, 여주 41730→41670). 뒤 7자리가 같은 도로 중 명부 지역에 있는 것이 딱 하나면 쓴다.
+  // ponytail: 못 찾은 기관마다 도로 17만 개를 훑는다(하루 수십 곳이라 1초 안팎) — 많아지면 뒤 7자리 색인을 한 번 만든다.
+  const tail = d.road.length === 12 ? d.road.slice(5) : "";
+  const found = tail ? [...roads].filter(([k]) => k.endsWith(tail)).map(([, r]) => ltcAddress(r, d.main, d.sub)).filter((a) => a && near(a)) : [];
+  return found.length === 1 && found[0] ? { address: found[0] } : { miss: "noRoad" };
 }
 
 /**
