@@ -53,11 +53,24 @@ const SIGUNGU = "https://www.longtermcare.or.kr/npbs/add/selectCommonAddrSiGunGu
 const PAGE = 5000; // 공단 API 가 한 번에 주는 최대(실측 5,000 → 4초)
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** 읽기 요청 — 연결이 안 되거나 늦어 fetch 가 던지면 쉬었다가 다시(최대 4번). 시간 제한은 매번 새로 건다.
+ *  주소정보누리집은 4번에 1번꼴로 연결에만 15초가 걸려 기본 연결 제한(10초)에 끊겼다(2026-10-18 실측 — 3일차가 시작도 못 하고 멈춤). */
+async function fetchRetry(input: string, init: RequestInit = {}, ms = 60_000): Promise<Response> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetch(input, { ...init, signal: AbortSignal.timeout(ms) });
+    } catch (e) {
+      if (attempt >= 4) throw e;
+      await wait(5_000 * attempt);
+    }
+  }
+}
+
 /** 공단 홈페이지의 공개 시군구 목록 — 번호 → 이름. */
 async function sigunguNames(): Promise<Map<string, string>> {
   const m = new Map<string, string>();
   for (const sd of Object.keys(LTC_SIDO)) {
-    const r = await fetch(SIGUNGU, {
+    const r = await fetchRetry(SIGUNGU, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest", "User-Agent": "Mozilla/5.0" },
       body: `siDoCd=${sd}`,
@@ -74,9 +87,7 @@ async function sigunguNames(): Promise<Map<string, string>> {
 /** 공단 API 한 쪽. 초당 한도에 걸리면 쉬었다가 다시(최대 4번). */
 async function fetchPage(siDoCd: string, pageNo: number): Promise<{ total: number; items: LtcItem[] }> {
   for (let attempt = 1; ; attempt++) {
-    const r = await fetch(`${API}?serviceKey=${encodeURIComponent(apiKey)}&pageNo=${pageNo}&numOfRows=${PAGE}&siDoCd=${siDoCd}`, {
-      signal: AbortSignal.timeout(60_000),
-    });
+    const r = await fetchRetry(`${API}?serviceKey=${encodeURIComponent(apiKey)}&pageNo=${pageNo}&numOfRows=${PAGE}&siDoCd=${siDoCd}`);
     const t = await r.text();
     const total = t.match(/<totalCount>(\d+)<\/totalCount>/)?.[1];
     if (total !== undefined) {
@@ -110,12 +121,11 @@ type JusoFile = { crtrYm: string; fileNm: string; tmprFileNm: string; fileTypeNm
 async function roadNameFile(): Promise<string> {
   const now = new Date();
   for (const year of [now.getFullYear(), now.getFullYear() - 1]) {
-    const r = await fetch(`${JUSO}/selectAttrbDBDwldList`, {
+    const r = await fetchRetry(`${JUSO}/selectAttrbDBDwldList`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ rtlDtaDtlSn: ROAD_FILE, year: String(year), month: "12", expand: "Y" }),
-      signal: AbortSignal.timeout(30_000),
-    });
+    }, 30_000);
     if (!r.ok) throw new Error(`도로명 파일 목록 실패: HTTP ${r.status}`);
     const files = (((await r.json()) as { results?: { allMonthFileList?: JusoFile[] } }).results?.allMonthFileList ?? [])
       .filter((f) => f.isExist === "Y").sort((a, b) => a.crtrYm.localeCompare(b.crtrYm));
@@ -125,7 +135,7 @@ async function roadNameFile(): Promise<string> {
       regYmd: String(year), reqType: f.fileTypeNm, ctprvnCd: f.ctpvClsfCd, stdde: f.crtrYm,
       fileName: f.fileNm, realFileName: f.tmprFileNm, intFileNo: "0", intNum: "0",
     });
-    const res = await fetch(`${JUSO}/download?${q}`, { signal: AbortSignal.timeout(120_000) });
+    const res = await fetchRetry(`${JUSO}/download?${q}`, {}, 120_000);
     if (!res.ok) throw new Error(`도로명 파일 받기 실패(${f.fileNm}): HTTP ${res.status}`);
     const zip = Buffer.from(await res.arrayBuffer());
     if (zip.length < 4 || zip.readUInt32LE(0) !== 0x04034b50) throw new Error(`도로명 파일이 zip 이 아니다(${f.fileNm})`);
