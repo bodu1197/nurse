@@ -14,8 +14,10 @@ function sh(cmd, cwd) {
 try {
   const repoRoot = sh("git rev-parse --show-toplevel").trim();
   const head = sh("git rev-parse HEAD", repoRoot).trim();
-  const status = sh("git status --porcelain -z", repoRoot);
-  const diffTracked = sh("git diff HEAD", repoRoot);
+  // 마커 파일은 해시에서 뺀다 — 무시 목록에 없는 저장소에선 mark 가 파일을 쓰는 순간 해시가 바뀌어 게이트가 풀리지 않았다.
+  const NOT_MARK = " -- . \":(exclude).claude/.review8-hash\"";
+  const status = sh("git status --porcelain -z" + NOT_MARK, repoRoot);
+  const diffTracked = sh("git diff HEAD" + NOT_MARK, repoRoot);
   // untracked files 내용은 실질적으로 status --porcelain 으로 감지 (파일명 변경) + diff HEAD (수정된 파일)
   const hash = createHash("sha256")
     .update(`${head}\n${status}\n${diffTracked}`)

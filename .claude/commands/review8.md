@@ -155,8 +155,10 @@ INFO (개선 여지): ...
 ## Step 4. 통과 표시 (PASS 한정)
 
 ```bash
-node .claude/hooks/review8-mark.mjs
+node "$(git rev-parse --show-toplevel)/.claude/hooks/review8-mark.mjs"
 ```
+(최상위 기준 경로 — 작업 폴더가 하위 폴더여도 동작. 상대경로 `node .claude/hooks/...` 는 하위 폴더에서 MODULE_NOT_FOUND.
+다른 저장소·worktree 에서 커밋이 막혔으면 게이트 차단 메시지에 나온 명령(게이트가 검사한 저장소로 cd + 게이트와 같은 위치의 mark)을 그대로 실행)
 현재 working tree 해시를 `.claude/.review8-hash` 에 기록 → `git commit` 게이트가 열림.
 
 ---
