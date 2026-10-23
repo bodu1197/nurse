@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest, type NextFetchEvent } from "next/server";
 import { updateSession } from "@/lib/supabase/proxy";
 import { trackPageView } from "@/lib/track";
+import { canonicalPath } from "@/lib/url";
 
 /**
  * `/talent/<uuid>` — 인재 상세인가(목록·다른 화면이 아니라).
@@ -42,6 +43,15 @@ function cacheableTalentDetail(request: NextRequest): NextResponse | null {
 
 // Next.js 16 proxy (구 middleware) — 매 요청 Supabase 세션 갱신 + 접속 기록.
 export async function proxy(request: NextRequest, event: NextFetchEvent) {
+  // `/%6Aobs` 처럼 영문을 %XX 로 쓴 주소는 Next 실행기가 500 을 낸다 → 풀어 쓴 주소로 보낸다(canonicalPath 참고).
+  // 🔒 맨 앞이어야 한다 — 아래 /talent-cached 차단을 `/%74alent-cached` 로 비껴가지 못하게. 기록도 이동 뒤 한 번만.
+  const canonical = canonicalPath(request.nextUrl.pathname);
+  if (canonical !== request.nextUrl.pathname) {
+    const url = request.nextUrl.clone();
+    url.pathname = canonical;
+    return NextResponse.redirect(url, 308);
+  }
+
   // 🔒 `/talent-cached/…` 는 **내부 전용**이다. 프록시가 rewrite 로만 도달시키며, rewrite 는
   //    미들웨어를 다시 태우지 않으므로 여기 들어온 것은 전부 **밖에서 직접 친 요청**이다.
   //    막지 않으면 두 가지가 생긴다: ① 정본과 내용이 같은 주소가 색인될 수 있다
@@ -84,6 +94,7 @@ export const config = {
     // `public, max-age=31536000, immutable` 을 거는데 둘이 겹치면 (1) 공유 캐시가 남의
     // 세션 쿠키를 재사용할 여지가 생기고 (2) Set-Cookie 탓에 CDN 이 캐싱을 포기해
     // immutable 이 무력화된다.
-    "/((?!api|_next/static|_next/image|favicon.ico|fonts/|opengraph-image$|robots\\.txt$|sitemap\\.xml$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?|ttf|otf)$).*)",
+    // _vercel/ 은 Web Analytics 수집 주소(/_vercel/insights/*) — 페이지뷰 전송마다 세션 갱신이 돌 이유가 없다.
+    "/((?!api|_vercel/|_next/static|_next/image|favicon.ico|fonts/|opengraph-image$|robots\\.txt$|sitemap\\.xml$|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?|ttf|otf)$).*)",
   ],
 };

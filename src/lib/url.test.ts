@@ -1,7 +1,7 @@
 // 실행: npm test   (Node 24의 네이티브 TS 실행 — 테스트 러너 설치 불필요)
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { firstParam, pageParam, PAGE_MAX, safeNext } from "./url.ts";
+import { canonicalPath, firstParam, pageParam, PAGE_MAX, safeNext, vercelSafeUrl } from "./url.ts";
 
 test("같은 키가 배열로 와도 첫 값만 — .trim() 에서 500 이 나지 않게", () => {
   assert.equal(firstParam(["서울특별시", "x"]), "서울특별시");
@@ -44,4 +44,33 @@ test("빈 값이면 대체 경로를 준다", () => {
   assert.equal(safeNext(null), "/");
   assert.equal(safeNext(undefined, "/jobs"), "/jobs");
   assert.equal(safeNext("", "/mypage/resume?ok=1"), "/mypage/resume?ok=1");
+});
+
+test("Vercel 분석으로 나가는 주소 — 관리자·마이페이지는 안 보내고, 쿼리는 utm·ref 만, # 뒤는 지운다", () => {
+  const S = "https://nursenet.co.kr";
+  assert.equal(vercelSafeUrl(`${S}/admin/users?q=홍길동`), null);
+  assert.equal(vercelSafeUrl(`${S}/mypage`), null);
+  assert.equal(vercelSafeUrl(`${S}/mypage/jobs/ad/return?imp_uid=imp_1&merchant_uid=m_1`), null);
+  assert.equal(vercelSafeUrl(`${S}/mypageX`), `${S}/mypageX`, "접두어만 같은 경로는 막지 않는다");
+  assert.equal(vercelSafeUrl(`${S}/jobs?q=간호&lat=37.5&lng=127&utm_source=naver&ref=kakao`), `${S}/jobs?utm_source=naver&ref=kakao`);
+  assert.equal(vercelSafeUrl(`${S}/reset-password/new#access_token=abc`), `${S}/reset-password/new`);
+  assert.equal(vercelSafeUrl(`${S}/login?code=xyz`), `${S}/login`);
+  assert.equal(vercelSafeUrl("/상대주소"), null, "절대 주소가 아니면 버린다");
+});
+
+test("영문·숫자를 %XX 로 쓴 경로는 풀어 쓴다 — 한글·슬래시 같은 진짜 인코딩은 그대로", () => {
+  assert.equal(canonicalPath("/%6Aobs"), "/jobs", "500 이 나던 주소");
+  assert.equal(canonicalPath("/%61dmin/%75sers"), "/admin/users");
+  assert.equal(canonicalPath("/%74alent-cached/x"), "/talent-cached/x", "내부 전용 주소 차단을 비껴가지 못하게");
+  assert.equal(canonicalPath("/jobs/%ED%95%9C"), "/jobs/%ED%95%9C", "한글은 그대로");
+  assert.equal(canonicalPath("/a%2Fb%25%20c"), "/a%2Fb%25%20c", "/ % 공백은 그대로");
+  assert.equal(canonicalPath("/%2d%2E%5f%7E"), "/-._~", "소문자 16진수도");
+  assert.equal(canonicalPath("/jobs"), "/jobs");
+});
+
+test("풀어 쓴 결과가 외부 주소 모양(// 또는 /\\)이면 홈으로 — 오픈 리다이렉트 방지", () => {
+  assert.equal(canonicalPath("//%65vil.com"), "/", "Location: //evil.com 은 브라우저가 외부 사이트로 읽는다");
+  assert.equal(canonicalPath("/\\%65vil.com"), "/");
+  assert.equal(canonicalPath("//%65vil.com/%6Aobs"), "/");
+  assert.equal(canonicalPath("//admin"), "//admin", "풀 것이 없으면 손대지 않는다(이동 자체가 없다)");
 });

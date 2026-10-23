@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import SiteFooter from "@/components/SiteFooter";
+import VercelAnalytics from "@/components/VercelAnalytics";
 import { BRAND_COLOR, SITE_URL } from "@/lib/constants";
 import { FONT_PRELOAD_HREF } from "./fonts";
 import "./globals.css";
@@ -95,6 +96,7 @@ export default function RootLayout({
         {/* 푸터는 전 화면 공용 — 홈에만 있던 것을 여기로 올렸다. 각 페이지의 <main>이 flex-1이라
             내용이 짧아도 바닥에 붙는다. */}
         <SiteFooter />
+        <VercelAnalytics />
       </body>
     </html>
   );
