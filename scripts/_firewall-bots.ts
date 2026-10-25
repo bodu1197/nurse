@@ -15,7 +15,7 @@ export type Rule = {
 export type Change = { before?: Rule; after: Rule };
 export type Plan = { rules: Rule[]; changes: Change[]; removedFromSearchPass: string[] };
 
-/** 규칙은 이름으로 찾는다(id 는 대시보드에서 다시 만들면 바뀐다). old 는 첫 적용 전 이름 — 다시 돌릴 때는 now 로 찾는다. */
+/** 규칙은 이름으로 찾는다(id 는 적용할 때마다 Vercel 이 새로 매긴다). old 는 첫 적용 전 이름 — 다시 돌릴 때는 now 로 찾는다. */
 export const NAMES = {
   aiDeny: { old: "Block AI crawlers on resumes", now: "Block AI crawlers" },
   searchPass: { old: "Allow search and AI crawlers", now: "Allow search crawlers" },
@@ -45,7 +45,10 @@ const SERVER_ONLY = new Set(["valid", "validationErrors"]);
 const dropNull = (o: Record<string, unknown>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== null && v !== undefined));
 const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase(); // 방화벽 연산자는 대소문자를 안 가린다
 
-/** PUT 에 싣는 모양 — 서버가 매기는 valid·validationErrors 와 값이 null 인 칸만 뺀다. id·설명은 그대로 보내 지워지지 않게 한다. */
+/**
+ * PUT 에 싣는 모양 — 서버가 매기는 valid·validationErrors 와 값이 null 인 칸만 뺀다. 설명은 그대로 보내 지워지지 않게 한다.
+ * id 도 그대로 두지만 보존 효과는 없다 — Vercel 은 PUT 에 실린 id 를 쓰지 않고 새로 매겼다(2026-10-25 1회 실측: 보낸 16개 전부).
+ */
 export function sendForm(rule: Rule): Rule {
   const rest = dropNull(Object.fromEntries(Object.entries(rule).filter(([key]) => !SERVER_ONLY.has(key))));
   return {
@@ -57,7 +60,7 @@ export function sendForm(rule: Rule): Rule {
   };
 }
 
-/** 적용 뒤 대조용 — 새로 넣은 규칙은 서버가 id 를 매기므로 id 만 빼고 비교한다(손대지 않은 규칙의 id 는 따로 본다). */
+/** 적용 뒤 대조용 — Vercel 이 적용 때 규칙 id 를 새로 매기므로 id 를 빼고 비교한다(id 가 바뀐 것은 적용 뒤 참고로만 알린다). */
 export const compareForm = (rules: readonly Rule[]) =>
   rules.map((rule) => Object.fromEntries(Object.entries(sendForm(rule)).filter(([key]) => key !== "id")));
 
@@ -93,7 +96,8 @@ export function planFirewall(live: readonly Rule[], ai: readonly string[] = AI_C
   if (bad.length > 0) throw new Error(`AI 봇 목록(src/lib/aiCrawlers.ts)에 영문·숫자·하이픈 말고 다른 글자가 있다: ${bad.join(", ")}`);
   const isAi = (name: string) => ai.some((a) => sameName(a, name));
 
-  // 미리보기 통과 규칙은 빼고 다시 끼운다 — 몇 번을 돌려도 같은 자리에 하나만 있게. 전에 있던 것의 id 는 이어받는다.
+  // 미리보기 통과 규칙은 빼고 다시 끼운다 — 몇 번을 돌려도 같은 자리에 하나만 있게. 전에 있던 것의 id 는 이어받는다:
+  // 다른 규칙은 운영 id 를 그대로 들고 있으므로, 이것만 id 가 없으면 다시 돌릴 때 '이미 적용돼 있다'가 영영 안 나온다.
   const oldPreviewPass = live.find((r) => r.name === NAMES.previewPass);
   const rules = live.filter((r) => r.name !== NAMES.previewPass).map(sendForm);
   const at = (...names: string[]) => {

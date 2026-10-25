@@ -83,8 +83,9 @@ test("손대지 않는 규칙은 서버가 매긴 칸과 null 칸만 빠지고 i
 });
 
 test("다시 돌려도 같다 — 서버가 돌려준 적용 결과(새 id·null 칸)를 넣으면 '이미 적용돼 있다'가 된다", () => {
-  // 서버는 새로 넣은 규칙에 id 를 매기고 valid·validationErrors 를 붙여 돌려준다. 미리보기 통과의 id 를 이어받지 못하면 여기서 깨진다.
-  const fromServer = planFirewall(live()).rules.map((r) => ({ id: "server:new", ...r, valid: true, validationErrors: null }));
+  // 서버는 적용 때 모든 규칙의 id 를 새로 매기고 valid·validationErrors 를 붙여 돌려준다(2026-10-25 실측).
+  // 미리보기 통과가 그 새 id 를 이어받지 못하면 여기서 깨진다.
+  const fromServer = planFirewall(live()).rules.map((r, i) => ({ ...r, id: `server:${i}`, valid: true, validationErrors: null }));
   const again = planFirewall(fromServer);
   assert.equal(canon(fromServer.map(sendForm)), canon(again.rules)); // vercel-firewall-bots.ts 의 '이미 적용돼 있다' 판정과 같은 식
   assert.deepEqual(again.changes, []);
