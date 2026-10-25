@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revalidateCachedJob } from "@/lib/data/jobs";
 import { fetchCareJobs, regDtToDate } from "@/lib/worknet";
 import { regionOfLocation, workplaceOf } from "@/lib/jobRegion";
 import { geocodeAddressStrict } from "@/lib/kakao";
@@ -150,6 +151,9 @@ export async function GET(request: Request) {
         .select("id");
       if (error) throw new Error(`jobs close: ${error.message}`);
       closed = data?.length ?? 0;
+      // 닫은 공고의 비로그인 캐시본을 지운다(revalidateCachedJob). 한 번에 수백 건이지만 Next 가 모아 응답을 보낸 뒤에 보낸다 —
+      // 그쪽이 실패해도 위 마감·아래 기록은 이미 끝났고, 캐시본만 6시간 늦게 바뀐다.
+      for (const r of data ?? []) revalidateCachedJob(r.id);
     }
 
     const attempted = coords.size;

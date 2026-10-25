@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revalidateCachedJob } from "@/lib/data/jobs";
 import { fetchNurseAtsJobs, fetchAtsDescription, TENANTS } from "@/lib/recruiterAts";
 import { fetchNurseSiteJobs, fetchSiteDetail, SITES } from "@/lib/hospitalSites";
 import { fetchBoardJobs, fetchBoardDetail, BOARDS } from "@/lib/jobBoards";
@@ -219,6 +220,8 @@ export async function GET(request: Request) {
         .select("id");
       if (closeErr) return NextResponse.json({ error: `jobs close(${host}): ${closeErr.message}`, upserted }, { status: 500 });
       closed += closedRows?.length ?? 0;
+      // 닫은 공고의 비로그인 캐시본을 지운다 — 안 지우면 마감된 공고가 열린 채 보인다(revalidateCachedJob 주석).
+      for (const r of closedRows ?? []) revalidateCachedJob(r.id);
     }
 
     // 🔴 이름 개수(registry.size)가 아니라 **명부에 붙은 공고 수**를 센다 —

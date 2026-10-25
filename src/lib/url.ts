@@ -43,6 +43,36 @@ export function canonicalPath(pathname: string): string {
 }
 
 /**
+ * 비로그인 상세 요청을 보낼 **캐시본 주소** — `/talent/<uuid>` → `/talent-cached/<uuid>`, `/jobs/<uuid>` → `/jobs-cached/<uuid>`.
+ * 그 밖의 경로는 null(손대지 않는다). 로그인 쿠키·쿼리·메서드 조건은 아래 cachedDetailTarget 이 본다.
+ * 🔒 **소문자 UUID 만** 잡는다(`/i` 를 일부러 안 붙였다). 대소문자를 같이 받으면 같은 화면이 대문자·소문자 조합마다
+ *    **다른 캐시 키**를 만들어 창고가 쓸데없이 불어난다. DB 의 uuid 는 소문자로 나오므로 정상 링크는 전부 여기 걸린다.
+ */
+const CACHED_DETAIL = /^\/(talent|jobs)\/([\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12})$/;
+export function cachedDetailPath(pathname: string): string | null {
+  const m = CACHED_DETAIL.exec(pathname);
+  return m ? `/${m[1]}-cached/${m[2]}` : null;
+}
+
+/**
+ * proxy 가 이 요청을 보낼 캐시본 주소 — 보내지 않으면 null. 아래를 **전부** 만족할 때만 보낸다.
+ *   ① GET·HEAD  ② 로그인 쿠키(sb-*)가 없다  ③ 쿼리가 없다 — 단 봇이면 쿼리를 무시한다  ④ 상세 경로다(cachedDetailPath)
+ * 🔴 ③에서 봇만 쿼리를 무시하는 이유(2026-10-25): 목록 2쪽부터는 카드 링크에 ?page=N(칩을 걸면 ?fac= 등)이 붙어, 링크를 따라
+ *    도는 봇이 캐시를 거의 못 탔다(요양 목록 535쪽 중 534쪽). 쿼리가 바꾸는 것은 '목록으로' 링크와 옆 목록뿐이고 canonical 은
+ *    정본을 가리키니, 봇에게는 정본 화면이면 된다. 사람은 쿼리를 지켜야 한다 — 보던 쪽·검색 조건으로 돌아가는 길이다
+ *    (상세의 backHref 주석). 봇을 사람으로 잘못 보면 지금처럼 동적 화면을 받을 뿐이다.
+ */
+export function cachedDetailTarget(req: Readonly<{ method: string; pathname: string; search: string; cookieNames: readonly string[]; bot: boolean }>): string | null {
+  if (req.method !== "GET" && req.method !== "HEAD") return null;
+  if (req.search !== "" && !req.bot) return null;
+  if (req.cookieNames.some((n) => n.startsWith("sb-"))) return null;
+  return cachedDetailPath(req.pathname);
+}
+
+/** 캐시본 라우트(`/talent-cached…`·`/jobs-cached…`)인가 — **내부 전용**이라 밖에서 직접 친 요청은 proxy 가 404 로 막는다. */
+export const isCachedRoute = (pathname: string): boolean => /^\/(talent|jobs)-cached/.test(pathname);
+
+/**
  * Vercel Web Analytics(미국)로 보내는 주소를 고른다 — components/VercelAnalytics 의 beforeSend.
  * - `/admin`·`/mypage` 는 **아예 안 보낸다** — 결제 영수증 번호(/mypage/jobs/ad/receipt/[orderId]),
  *   결제 복귀 쿼리(imp_uid·merchant_uid), 지원자 출력 화면이 거기 있다.

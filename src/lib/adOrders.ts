@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revalidateCachedJob } from "@/lib/data/jobs";
 import { decidePayment } from "@/lib/paymentFlow";
 import { getPayment, findPaidPayment } from "@/lib/iamport";
 import { DAY_MS } from "@/lib/date";
@@ -293,7 +294,12 @@ export async function activateAdOrder(admin: ReturnType<typeof createAdminClient
   if (claimErr) return false;        // DB 오류 — 0행과 구분해야 한다(성공으로 착각하면 재시도가 끊긴다)
   if (!claimed?.length) {
     const { data: cur } = await admin.from("ad_orders").select("status").eq("id", orderId).maybeSingle();
-    if (cur?.status === "PAID") return true; // 이미 다른 경로가 활성화 완료
+    if (cur?.status === "PAID") {
+      // 이미 다른 경로가 잡았다(활성화 완료 또는 진행 중). 그게 모바일 결제 복귀 화면이면 렌더 중이라 캐시본을 못 지웠고,
+      // 주문을 PREPARE 로 읽고 들어온 웹훅은 여기서 끝나 done 분기도 안 탄다 — 그래서 여기서도 지운다(revalidateCachedJob 주석).
+      revalidateCachedJob(jobId);
+      return true;
+    }
     // 만료된 주문에 결제가 들어왔다 — 돈은 나갔는데 광고는 못 켠다. 반드시 사람이 봐야 한다.
     await appendOrderNote(admin, orderId, "결제가 확인됐지만 주문이 만료되어 광고를 켜지 못했습니다 — 수동 확인 필요");
     return false;
@@ -326,6 +332,9 @@ export async function activateAdOrder(admin: ReturnType<typeof createAdminClient
   }
   // 💰 캐시는 주문을 만들 때 이미 뺐다(prepareAdOrder 의 claim_ad_cash). 여기서 또 빼지 않는다 —
   //    그게 같은 캐시를 두 번 쓰던 원인이었다.
+  // 비로그인 캐시본을 지운다 — 결제 전에 누가 열어 404 로 굳었거나(첫 게시) 옛 마감일이 찍혀 있다(연장).
+  // 모바일 결제 복귀 화면은 렌더 중이라 못 지운다(revalidateCachedJob 주석) — 그때는 아래 웹훅의 done 이 지운다.
+  revalidateCachedJob(jobId);
   return true;
 }
 
@@ -396,7 +405,11 @@ export async function iamportWebhook(impUid: string, merchantUid: string): Promi
     order.amount,
     order.status,
   );
-  if (decision.do === "done") return "ok";
+  if (decision.do === "done") {
+    // 이미 반영된 결제다. 모바일 결제 복귀 화면이 먼저 켰다면 그 화면은 렌더 중이라 캐시본을 못 지웠다 — 여기서 지운다.
+    if (order.job_id) revalidateCachedJob(order.job_id);
+    return "ok";
+  }
   if (decision.do === "nothing") return "ignored";
   if (decision.do === "record_cancel") return appendOrderNote(admin, order.id, decision.note);
   if (decision.do === "declined") {

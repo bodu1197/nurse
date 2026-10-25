@@ -8,6 +8,7 @@ import { getMyProfile } from "@/lib/data/user";
 import { getCommunityAccess } from "@/lib/data/community";
 import { myApplication } from "@/lib/data/applications";
 import { enrichCareJob, requestIsBot } from "@/lib/data/careJobs";
+import { CARE_DETAIL_CACHED_CAP } from "@/lib/careSync";
 import { daysAgo, nowMs, listingEnd } from "@/lib/date";
 import { CARE_JOBS_MENU, socialMeta } from "@/lib/constants";
 import { isCollectedJob, isOpenToSeekers } from "@/lib/jobState";
@@ -62,12 +63,28 @@ export async function generateMetadata({ params }: Readonly<{ params: Promise<{ 
   };
 }
 
+type JobPageProps = Readonly<{
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Partial<Record<"apply" | "ok" | "q" | "l" | "sido" | "sigungu" | "spec" | "fac" | "cat" | "et" | "page" | "lat" | "lng" | "r", string | string[]>>>;
+}>;
+
 // 공고 단독 상세. 저장한 공고·지원 내역에서 오는 링크는 전부 이리로 온다.
 // 목록(/jobs)은 한 번에 20건만 가져오므로, 그 안에 없는 공고는 목록 화면으로는 절대 열 수 없다.
-export default async function JobPage({
-  params,
-  searchParams,
-}: Readonly<{ params: Promise<{ id: string }>; searchParams: Promise<Partial<Record<"apply" | "ok" | "q" | "l" | "sido" | "sigungu" | "spec" | "fac" | "cat" | "et" | "page" | "lat" | "lng" | "r", string | string[]>>> }>) {
+// 🔒 비로그인 요청은 proxy 가 캐시본(/jobs-cached/<id>)으로 보낸다(쿼리가 붙은 요청은 봇만 — lib/url cachedDetailTarget).
+//    여기는 로그인했거나, 사람이 쿼리(검색 조건·쪽·지원 결과)를 달고 연 요청만 온다.
+export default async function JobPage(props: JobPageProps) {
+  return renderJobDetail(props, { gated: true });
+}
+
+/**
+ * @param opts.gated 로그인 상태를 실제로 볼지. **false 면 세션도 요청 헤더도 안 본다**(2026-10-25) — 비로그인 캐시본(/jobs-cached)이 쓴다.
+ *
+ * 🔴 왜 필요한가: 쿠키·헤더를 읽는 순간 이 페이지는 캐시가 안 된다(사연은 app/jobs-cached/[id]/page.tsx).
+ * 🔒 화면은 지금까지의 비로그인 화면과 **같다** — 담당자·전화·이메일·접수 안내는 profile 이 없으면 가린 채 그린다(JobDetail).
+ *    즉 캐시에 굳는 HTML 에 연락처가 애초에 없다. 로그인 사용자는 proxy 가 이 동적 라우트로 보내 지금까지와 똑같이 받는다.
+ * 🔴 이 경로에 세션·개인화를 절대 넣지 마라. 넣는 순간 그 값이 CDN 에 굳어 **모두에게** 나간다.
+ */
+export async function renderJobDetail({ params, searchParams }: JobPageProps, { gated = true }: { gated?: boolean } = {}) {
   const [{ id }, sp] = await Promise.all([params, searchParams]);
   // 🔴 같은 키가 두 번 오면(?q=a&q=b) Next 는 **배열**을 준다 — 문자열로 믿고 넘기면 getJobs 의 clean() 이 터져 500 이었다
   //    (목록은 /review8 2026-10-16 에 고쳤고 상세가 남아 있었다). 목록과 같이 첫 값만 쓴다(lib/url firstParam). 빈 값은 undefined.
@@ -78,16 +95,20 @@ export default async function JobPage({
   // 시군구는 시도에 종속 — 시도 없으면 무시(목록과 같은 계약).
   const sg = sido ? sigungu : undefined;
   const now = nowMs();
-  const [found, profile] = await Promise.all([getLiveJob(id, now), getMyProfile()]);
+  const [found, profile] = await Promise.all([getLiveJob(id, now), gated ? getMyProfile() : Promise.resolve(null)]);
   // 없거나 노출이 끝난 공고는 200 안내가 아니라 404로 응답한다(안내 화면은 not-found.tsx).
   if (!found) notFound();
   // 🧓 요양·간병 공고는 목록이 /care-jobs 다 — 옆 목록·뒤로가기를 그 목록으로 맞춘다(화면은 간호 공고와 같은 이 페이지).
   const isCare = isCareCategory(found.job_category);
   // 요양·간병 **워크넷** 수집분은 본문을 열릴 때 받는다(1만 건이라 크론이 미리 받지 않는다). 봇에게는 묻지 않는다.
+  // 🔒 캐시본(gated=false)은 예외 — 요청 헤더를 읽으면 캐시가 깨져 봇인지 볼 수 없다. 그래서 누가 열었든 받되 하루 상한을 낮춘다
+  //    (CARE_DETAIL_CACHED_CAP — 간호 크론과 같이 쓰는 API 키라 하루에 실제로 받아 본 최대치 아래로 둔다, careSync 주석).
+  //    받은 본문은 저장돼 다음부터는 다시 묻지 않는다. 안 받으면 비로그인 화면 대부분이 본문 없이 굳는다 —
+  //    10,698건 중 본문이 저장된 것은 144건뿐이었다(2026-10-25).
   // 아래 조회들과 **동시에** 돌린다 — 그쪽은 id·지역만 쓰므로 본문을 기다릴 이유가 없다(첫 열람 지연 = 둘 중 긴 쪽).
   // .catch — 본문 받기는 덤이다. 무엇이 던지든 상세 페이지를 500 으로 만들지 않고 저장된 값으로 그린다.
   const jobP = isCareCopy(found) && found.source === "worknet"
-    ? requestIsBot().then((bot) => enrichCareJob(found, !bot)).catch((e: unknown) => {
+    ? (gated ? requestIsBot().then((bot) => enrichCareJob(found, !bot)) : enrichCareJob(found, true, CARE_DETAIL_CACHED_CAP)).catch((e: unknown) => {
         console.error("enrichCareJob threw:", e instanceof Error ? e.message : e);
         return found;
       })
@@ -142,6 +163,8 @@ export default async function JobPage({
     //    자기가 낸 광고를 보러 온 사람에게 자격 미달을 통보하는 꼴이다(오너 지적 2026-08-04).
     profile?.role === "hospital" ? getMyHospitalIds() : Promise.resolve([] as string[]),
   ]);
+  // 🔒 옆 목록 조회가 실패하면 캐시본도 옆 목록 없이 그려 6시간 굳힌다 — 던지지 않는다(2026-10-25 재검사). 본문은 맞으니 거짓이 아니고,
+  //    던지면 DB 가 밀릴 때(= 봇이 몰릴 때) 실패가 캐시되지 않아 봇이 칠 때마다 다시 그려 부하를 키운다. 본문 조회(getPublicJob)만 던진다.
   const isMyJob = !!job.hospital_id && myHospitalIds.includes(job.hospital_id);
   const nearby = side.jobs;
   const totalPages = Math.max(1, Math.ceil(side.total / PER_PAGE));

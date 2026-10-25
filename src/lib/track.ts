@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { isCrawlerUa } from "./careSync.ts";
 
 /**
  * 접속 기록 — (날짜, 경로) 조회수 한 칸 + (날짜, 방문자지문) 한 행.
@@ -29,13 +30,26 @@ const SKIP = [/^\/admin(\/|$)/, /^\/auth(\/|$)/, /^\/api(\/|$)/, /^\/_next(\/|$)
 const BOT =
   /bot|crawl|spider|slurp|yeti|daumoa|facebookexternalhit|embedly|preview|curl|wget|python-requests|okhttp|go-http-client|java\/|headless|lighthouse|monitor|uptime|semrush|ahrefs|mj12|dotbot|petalbot|bytespider|scrapy|phantomjs|node-fetch|axios/i;
 
+/** 사람이 아닌 요청인가(통계의 봇 칸). */
+export const isBotUa = (ua: string): boolean => ua === "" || BOT.test(ua);
+
+/**
+ * proxy 의 캐시본 판정(lib/url cachedDetailTarget)이 쓰는 '봇' — 통계 기준(isBotUa: 스크립트·미리보기까지 넓다)에 그 목록이 놓치는
+ * 다음(Daum/)·카카오 미리보기(careSync isCrawlerUa)를 더한다.
+ * 🔒 브라우저가 페이지를 열 때 보내는 `Sec-Fetch-Dest: document` 가 있으면 사람이다 — 맨 `bot` 이 기종 이름(CUBOT)에 걸리는 사람이
+ *    보던 쪽·검색 조건을 잃지 않게. 크롤러는 이 헤더를 보내지 않는다(아래 trackPageView 주석). 헤드리스 브라우저로 긁는 쪽은 사람으로
+ *    보여 지금처럼 동적 화면을 받는다.
+ */
+export const isBotRequest = (ua: string, secFetchDest: string | null): boolean =>
+  secFetchDest !== "document" && (isBotUa(ua) || isCrawlerUa(ua));
+
 export function trackPageView(request: NextRequest): Promise<unknown> | undefined {
   if (request.method !== "GET") return undefined;
   if (request.headers.get("next-router-prefetch")) return undefined;
 
   const ua = request.headers.get("user-agent") ?? "";
   // UA 가 아예 없는 요청은 사람이 아니다(브라우저는 항상 보낸다).
-  const bot = ua === "" || BOT.test(ua);
+  const bot = isBotUa(ua);
 
   // 🔴 사람은 **문서 요청만** 센다. prefetch·데이터 요청까지 세면 사람이 안 본 페이지가 조회수가 된다.
   // 🔴 봇에는 이 조건을 걸지 않는다. Sec-Fetch-* 는 브라우저 기능이라 크롤러 대부분

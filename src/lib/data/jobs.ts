@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createAnonClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -71,6 +72,22 @@ const SOURCE_LABELS: Record<string, string> = SOURCE_LABEL;
 export const sourceLabel = (source: string): string => SOURCE_LABELS[source] ?? source;
 
 const SELECT = `${JOB_FIELDS.join(",")},hospital:hospitals(name,rating_avg,rating_count)`;
+
+/**
+ * 공개 공고 읽기 전용 연결 — **쿠키를 읽지 않는다**(2026-10-25). 공고 상세의 비로그인 캐시본(/jobs-cached)이 이걸로 읽는다.
+ * 🔴 쿠키를 읽는 server 연결을 쓰면 캐시하려던 페이지가 "static → dynamic" 으로 되돌아가 **비로그인 요청이 전부 500** 이 된다
+ *    (인재 캐시본에서 실제로 겪었다 — app/not-found.tsx 주석).
+ * 🔒 로그인 여부와 결과가 같다: 노출 공고(status='open')는 RLS(jobs_select)가 누구에게나 열어 두고, 이 연결을 쓰는 조회는
+ *    전부 status='open' 을 건다. 로그인해서 더 보이는 것(관리자·내 병원의 닫힌 공고)은 그 조건에 어차피 걸러진다.
+ * ⚠️ SELECT 에 연락처 칸(manager_*·apply_email·apply_detail)이 들어 있다 — anon 이 그 칸을 읽을 수 있다는 뜻이다(화면은 가려도
+ *    API 로는 읽힌다, 2026-10-25 확인). 그 칸 권한을 anon 에서 거두려면 여기서 그 칸을 빼고 로그인 경로에서 따로 읽어야 한다.
+ */
+function publicClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anon) throw new Error("Supabase 환경변수 누락: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  return createAnonClient<Database>(url, anon, { auth: { persistSession: false } });
+}
 
 export const PER_PAGE = 20;
 
@@ -287,7 +304,7 @@ const LISTED_ORDER = ["ad_paid", "ad_live", "is_tertiary", "posted_at", "id"] as
 // city — 같은 시(市) 묶음: 시군구가 이 이름으로 시작하는 공고("성남시" → "성남시 분당구"·"성남시 수정구"). 공고 옆 '같은 지역'
 //   목록(getNearbyJobs)만 쓴다 — 지역 칩·집계 RPC 는 모르는 값이라 JobFilters 에 넣지 않는다(받고 조용히 버리지 않게).
 export async function getJobs(keyword: string, location: string, filters: JobFilters & { city?: string } = {}, page = 1, withCount = true): Promise<{ jobs: JobRow[]; total: number }> {
-  const supabase = await createClient();
+  const supabase = publicClient(); // 상세 캐시본의 옆 목록(getNearbyJobs)도 이걸 부른다 — 쿠키를 읽으면 안 된다
   const from = (Math.max(1, page) - 1) * PER_PAGE;
   // 🔴 jobs 가 아니라 jobs_listed 뷰다 — 정렬 키(LISTED_ORDER)가 뷰의 계산 컬럼이다.
   let query = supabase
@@ -751,14 +768,37 @@ export async function getSavedJobIds(jobIds: string[]): Promise<Set<string>> {
 export const getPublicJob = cache(async (id: string): Promise<JobRow | null> => {
   // uuid가 아니면 Postgres가 22P02로 거절한다 — 잘못된 링크마다 에러 로그가 쌓이므로 먼저 막는다.
   if (!UUID_RE.test(id)) return null;
-  const supabase = await createClient();
+  const supabase = publicClient(); // 상세 캐시본(/jobs-cached)도 이걸 부른다 — 쿠키를 읽으면 안 된다
   const { data, error } = await supabase.from("jobs").select(SELECT).eq("id", id).eq("status", "open").limit(1).returns<JobRow[]>();
-  if (error) {
-    console.error("getPublicJob failed:", error.message);
-    return null;
-  }
+  // 🔴 오류를 null(=없는 공고)로 돌려주지 않고 던진다(2026-10-25). null 이면 상세가 404 로 그려지는데, 캐시본에서는 그 404 가
+  //    6시간 넘게 굳는다 — DB 가 잠깐 밀린 사이 살아 있는 공고가 「마감」으로 보이고 검색봇도 404 를 받는다(봇이 몰려 DB 가
+  //    밀릴 때가 바로 그때다). 던지면 ISR 은 실패한 재생성을 버리고 직전 정상본을 계속 낸다(첫 렌더의 500 은 캐시되지 않는다).
+  //    로그인 화면에서도 DB 장애를 「마감」이라 말하지 않고 오류 화면(app/error.tsx)을 띄운다.
+  if (error) throw new Error(`getPublicJob 실패(${id}): ${error.message}`);
   return data?.[0] ?? null;
 });
+
+/**
+ * 그 공고의 **비로그인 캐시본**(/jobs-cached/<id>)을 지운다 — 공고를 고치거나·열거나·닫거나·지운 직후에 부른다.
+ * 🔴 주소(/jobs/<id>)가 아니라 캐시본 경로를 지워야 한다. `revalidatePath("/jobs/" + id)` 로는 비로그인 화면이 안 지워진다.
+ * 🔴 안 부르면: 닫거나 지운 공고가 비로그인·검색봇에게 계속 보이고(6시간, 오래 안 열린 주소는 다음 첫 요청까지 — ISR 의
+ *    stale-while-revalidate), 결제 전에 누가 한 번 연 공고는 404 로 굳어 **결제해도 404** 다(404 도 캐시된다).
+ * 🔴 그 한 장만 지운다 — 라우트 패턴으로 지우면 전 공고 캐시가 통째로 날아가 절감이 사라진다(revalidateCachedTalent 와 같은 이유).
+ * 🔒 화면을 그리는 도중에는 Next 가 무효화를 막고 던진다 — 모바일 결제 복귀 화면(/mypage/jobs/ad/return)이 결제 확인을
+ *    렌더 중에 한다. 그 때문에 결제 반영을 실패시키지 않게 삼키고 남긴다. 그 경로는 포트원 웹훅이 지운다 — 웹훅이 이미 결제된
+ *    주문을 만나는 두 갈래(done, activateAdOrder 의 선점 패배) 모두에서 지운다(lib/adOrders). 남는 틈은 복귀 화면이 주문을 잡고
+ *    공고를 열기까지의 수 밀리초뿐이다 — 그 사이 웹훅이 먼저 지우고 비로그인 요청이 끼어들면 404 가 다시 굳을 수 있다.
+ */
+export function revalidateCachedJob(id: string): void {
+  try {
+    revalidatePath(`/jobs-cached/${id}`);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // 렌더 중이라 막힌 것(결제 복귀 화면)은 예상된 일이다 — 그 밖의 실패는 원인을 봐야 하니 오류로 남긴다.
+    if (msg.includes("during render")) console.warn("revalidateCachedJob 건너뜀(렌더 중):", id);
+    else console.error("revalidateCachedJob 실패:", id, msg);
+  }
+}
 
 // 저장한 공고 목록(/mypage/saved) — 저장 순서 유지.
 // 병원이 공고를 마감하면 RLS(status='open')에 막혀 저장 목록에서 **통째로 사라진다**.

@@ -25,16 +25,17 @@ const CARE_DETAIL_TIMEOUT_MS = 5000;
 /**
  * 워크넷 요양·간병 수집 공고의 본문·연락처 — 상세(/jobs/[id])가 열릴 때 워크넷 상세 API(210D01)로 받아 jobs 에 저장한다.
  *
- * 봇(allowFetch=false)에게는 묻지 않는다 — 1만 장을 긁는 크롤러 때문에 API 1만 번을 쓸 이유가 없다(저장된 값만 그린다).
+ * allowFetch=false(동적 라우트에서 봇이 연 요청)면 묻지 않는다 — 1만 장을 긁는 크롤러 때문에 API 1만 번을 쓸 이유가 없다(저장된 값만 그린다).
+ * 비로그인 캐시본은 봇인지 볼 수 없어 묻되, 하루 상한을 낮춰 부른다(cap = CARE_DETAIL_CACHED_CAP — careSync 주석).
  * 호출 전에 세 겹으로 막는다(이 키는 간호 크론과 나눠 쓴다 — 한도를 태우면 간호 상세 보강까지 멈춘다):
  *   ① needsCareDetail — 본문이 있으면 안 묻고, 실패한 행은 하루 뒤에만(detail_fetched_at 은 **실패해도 찍는다**).
- *   ② 하루 전체 상한(CARE_DETAIL_DAILY_CAP) — 최근 24시간에 표식이 찍힌 요양·간병 행 수 = 시도한 호출 수.
+ *   ② 하루 전체 상한(cap, 기본 CARE_DETAIL_DAILY_CAP) — 최근 24시간에 표식이 찍힌 요양·간병 행 수 = 시도한 호출 수.
  *   ③ 조건부 update 로 **먼저 표식을 찍어 이 행을 잡는다** — 같은 공고를 동시에 연 요청끼리, 또 저장이 실패한 뒤 재방문이
  *      각자 또 부르지 않는다(hospitals/search 의 "먼저 적고 나서 부른다"와 같은 원칙).
  * 저장 실패·키 누락은 로그만 남기고 화면은 받은 값으로 그린다(상세 한 장 때문에 500 을 내지 않는다).
  * 제목·마감일은 덮지 않는다 — 크론(sync-care)이 매 수집마다 목록 값으로 되돌려 하루 두 번 바뀐다.
  */
-export async function enrichCareJob(job: JobRow, allowFetch: boolean): Promise<JobRow> {
+export async function enrichCareJob(job: JobRow, allowFetch: boolean, cap = CARE_DETAIL_DAILY_CAP): Promise<JobRow> {
   const authNo = job.external_id;
   if (!allowFetch || !authNo || !needsCareDetail(job, Date.now())) return job;
   const fail = (what: string, e: unknown) => console.error(`enrichCareJob ${what} failed:`, e instanceof Error ? e.message : e);
@@ -56,8 +57,8 @@ export async function enrichCareJob(job: JobRow, allowFetch: boolean): Promise<J
     .from("jobs").select("id", { count: "exact", head: true })
     .eq("source", "worknet").in("job_category", [...CARE_CATEGORIES]).gte("detail_fetched_at", since);
   if (capErr) { fail("cap", capErr.message); return job; }
-  if ((count ?? 0) >= CARE_DETAIL_DAILY_CAP) {
-    console.warn(`[care] 상세 상한 — 최근 24시간 ${count}/${CARE_DETAIL_DAILY_CAP}. 저장된 값만 그린다.`);
+  if ((count ?? 0) >= cap) {
+    console.warn(`[care] 상세 상한 — 최근 24시간 ${count}/${cap}. 저장된 값만 그린다.`);
     return job;
   }
 

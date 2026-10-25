@@ -15,6 +15,7 @@ import type { Role } from "@/lib/data/role";
 
 // 공고 상세 — 목록 옆 패널(/jobs)과 단독 상세 페이지(/jobs/[id])가 같은 화면을 쓴다.
 // 두 곳이 갈라지면 한쪽만 고쳐지는 사고가 나므로 마크업은 여기 한 곳에만 둔다.
+// 🔴 여기서 세션·요청 헤더를 읽지 마라 — 비로그인 캐시본(app/jobs-cached)도 이 화면을 그린다. 로그인 상태는 profile 로만 받는다.
 
 // 저장(북마크) 아이콘 — 저장 시 채움.
 export function SaveIcon({ filled }: Readonly<{ filled: boolean }>) {

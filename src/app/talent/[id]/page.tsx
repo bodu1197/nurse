@@ -174,7 +174,8 @@ export async function renderTalentDetail(
               <ul className="space-y-2">
                 {sidebar.map((r) => (
                   <li key={r.profile_id}>
-                    {/* 요양 쪽이면 ?tr=care 가 붙어 봇이 캐시 화면을 못 탄다 — 따라가지 않게(상세는 사이트맵으로 들어온다) */}
+                    {/* 요양 쪽이면 ?tr=care 가 붙은 주소가 정본(/talent/<id>)과 따로 늘어난다 — 따라가지 않게(상세는 사이트맵으로 들어온다).
+                        봇이 따라와도 쿼리를 버리고 캐시본을 받는다(lib/url cachedDetailTarget). */}
                     <a href={sideHref(r.profile_id)} rel={track === "care" ? "nofollow" : undefined} className="block rounded-xl border border-slate-200 bg-white p-3 transition hover:border-teal-300 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600">
                       <TalentCard t={r} contactName={contacts.get(r.profile_id)?.name} contactAvatar={contacts.get(r.profile_id)?.avatarUrl} compact />
                     </a>

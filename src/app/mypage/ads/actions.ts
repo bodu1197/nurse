@@ -9,7 +9,7 @@ import { decidePayment } from "@/lib/paymentFlow";
 import { getPayment, findPaidPayment, iamportReady } from "@/lib/iamport";
 import { todayKst, nowMs } from "@/lib/date";
 import { logAdmin } from "@/lib/data/admin";
-import { ownedJobHospital } from "@/lib/data/jobs";
+import { ownedJobHospital, revalidateCachedJob } from "@/lib/data/jobs";
 import {
   type AdPrepare, type AdVerify,
   noPaymentHeld, releaseOrderCash, reclaimStaleAdCash, reclaimStuckFailedCash,
@@ -65,6 +65,7 @@ export async function claimFreeWeek(jobId: string): Promise<{ ok: true } | { ok:
   // (logAdmin 은 관리자 콘솔 전용이라 여기 쓰면 감사로그가 손님 행동으로 오염된다).
   // 노출이 방금 시작됐다 — 목록·내 공고·상세가 옛 화면을 들고 있으면 "올렸는데 안 보인다"가 된다.
   for (const p of ["/jobs", "/mypage/jobs", `/jobs/${jobId}`, "/"]) revalidatePath(p);
+  revalidateCachedJob(jobId); // 결제 전에 누가 열어 404 로 굳은 비로그인 캐시본을 지운다
   return { ok: true };
 }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revalidateCachedJob } from "@/lib/data/jobs";
 import { fetchNurseJobs, fetchDetails } from "@/lib/worknet";
 import { regionOfLocation, workplaceOf } from "@/lib/jobRegion";
 import { departmentFromText, stillValid, NOT_CARE_OR } from "@/lib/jobTaxonomy";
@@ -179,6 +180,8 @@ export async function GET(request: Request) {
       .lt("updated_at", syncStart)
       .select("id");
     if (closeErr) return NextResponse.json({ error: `jobs close: ${closeErr.message}`, upserted }, { status: 500 });
+    // 닫은 공고의 비로그인 캐시본을 지운다 — 안 지우면 마감된 공고가 열린 채 보인다(revalidateCachedJob 주석).
+    for (const r of closedRows ?? []) revalidateCachedJob(r.id);
 
     // 🔴 끝난 광고의 표식을 지운다. 목록 정렬이 featured_until 내림차순인데(lib/data/jobs.ts)
     //    **과거 시각도 null 보다 앞선다** — 광고가 끝난 공고가 돈을 낸 적 없는 공고와 워크넷 공고

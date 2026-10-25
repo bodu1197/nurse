@@ -248,7 +248,11 @@ function parseDetail(xml: string): WorknetDetail | null {
 async function fetchDetail(authNo: string, infoSvc: string, timeoutMs = 15000): Promise<WorknetDetail | null> {
   const qs = new URLSearchParams({ authKey: authKey(), callTp: "D", returnType: "XML", wantedAuthNo: authNo, infoSvc: infoSvc || "VALIDATION" });
   try {
-    const res = await fetch(`${DETAIL}?${qs}`, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) });
+    // 🔴 `cache` 를 적지 않는다. 공고 상세 캐시본(/jobs-cached, ISR)이 그리는 도중 이 요청을 부르는데, `cache: "no-store"` 를 적으면
+    //    Next 가 그 페이지를 "static → dynamic" 으로 바꾸려다 **500** 을 낸다(2026-10-25 로컬 실측). 적지 않아도 저장은 안 한다 —
+    //    Next 기본값(auto no cache)은 응답을 캐시에 넣지 않고 ISR 도 깨지 않는다(Supabase 조회가 같은 방식이다).
+    //    크론(sync-worknet)은 force-dynamic 이라 원래대로 매번 새로 묻는다.
+    const res = await fetch(`${DETAIL}?${qs}`, { signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) return null;
     return parseDetail(await res.text());
   } catch {

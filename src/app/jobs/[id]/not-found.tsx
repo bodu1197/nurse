@@ -7,6 +7,14 @@ import { CARE_JOBS_MENU } from "@/lib/constants";
 // 헤더는 상위 layout.tsx가 그린다.
 export default async function JobNotFound() {
   const profile = await getMyProfile(); // cache() — layout이 이미 불러 쿼리는 늘지 않는다
+  return <JobGone nurse={profile?.role === "nurse"} />;
+}
+
+/**
+ * 안내 본문 — 비로그인 캐시본의 404(app/jobs-cached/[id]/not-found.tsx)도 같은 것을 쓴다.
+ * 🔴 여기서 세션을 읽지 마라 — 캐시본은 쿠키를 읽는 순간 비로그인 요청이 전부 500 이 된다(app/not-found.tsx 주석).
+ */
+export function JobGone({ nurse }: Readonly<{ nurse: boolean }>) {
   return (
     <main className="mx-auto w-full max-w-xl flex-1 px-4 py-16 text-center">
       <h1 className="text-xl font-bold text-slate-900">마감되었거나 노출 기간이 끝난 공고입니다</h1>
@@ -17,7 +25,7 @@ export default async function JobNotFound() {
         {/* 마감된 공고가 요양·간병이었을 수도 있다 — 없는 공고라 직종을 몰라 두 목록을 다 둔다(저장 목록에서 들어오는 길). */}
         <Button href={CARE_JOBS_MENU.href} variant="outline" size="md">{CARE_JOBS_MENU.label}</Button>
         {/* 간호사만 저장 목록이 있다 — 병원·비로그인에게는 로그인/마이페이지로 튕기는 링크가 된다 */}
-        {profile?.role === "nurse" && <Button href="/mypage/saved" variant="outline" size="md">저장한 공고</Button>}
+        {nurse && <Button href="/mypage/saved" variant="outline" size="md">저장한 공고</Button>}
       </div>
     </main>
   );

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { revalidateCachedJob } from "@/lib/data/jobs";
 import { fetchNursePublicJobs, hospitalOfTitle, publicJobUrl, type PublicJob } from "@/lib/alio";
 import { isFullAddress, regionOfLocation } from "@/lib/jobRegion";
 import { departmentFromText } from "@/lib/jobTaxonomy";
@@ -172,6 +173,8 @@ export async function GET(request: Request) {
       .eq("source", "public_data").eq("status", "open").lt("updated_at", syncStart)
       .select("id");
     if (closeErr) return NextResponse.json({ error: `jobs close: ${closeErr.message}`, upserted }, { status: 500 });
+    // 닫은 공고의 비로그인 캐시본을 지운다 — 안 지우면 마감된 공고가 열린 채 보인다(revalidateCachedJob 주석).
+    for (const r of closedRows ?? []) revalidateCachedJob(r.id);
 
     // 명부 보강이 조용히 죽는 것을 알아채려면 숫자가 응답에 있어야 한다(0 이면 조회가 실패했거나 이름이 안 맞은 것).
     // 🔴 이름 개수(registry.size)가 아니라 **명부에 붙은 공고 수**다 — 공고마다 이름을 셋까지 물어서 이름 수는 부풀어 보인다.

@@ -10,7 +10,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyBusiness } from "@/lib/data/nts";
 import { adProduct, AD_PRODUCTS } from "@/lib/ads";
 import { viewAsRole } from "@/lib/data/user";
-import { ownedJobHospital } from "@/lib/data/jobs";
+import { ownedJobHospital, revalidateCachedJob } from "@/lib/data/jobs";
 import { safeNext } from "@/lib/url";
 import { AVATAR_BUCKET } from "@/lib/data/avatar";
 import { AVATAR_MAX_BYTES, AVATAR_MIME } from "@/lib/avatarLimits";
@@ -399,6 +399,8 @@ export async function updateJob(formData: FormData) {
     apply_detail: s("apply_detail") || null,
   }).eq("id", jobId);
   if (error) redirect(`/mypage/jobs/${jobId}/edit?error=save`);
+  // 비로그인·검색봇이 보는 캐시본도 갈아끼운다 — 안 그러면 고친 내용(급여·마감일·연락처 유무)이 최대 6시간 늦게 나간다.
+  revalidateCachedJob(jobId);
   redirect("/mypage/jobs?ok=1");
 }
 
@@ -449,6 +451,7 @@ export async function repostJob(formData: FormData) {
     .eq("id", jobId).in("status", ["open", "closed"]);
   const { data: done, error } = await q.select("id");
   if (error || !done?.length) redirect("/mypage/jobs?error=1");
+  revalidateCachedJob(jobId); // 마감해 둔 사이 404 로 굳은 캐시본을 지운다 — 안 그러면 다시 게시해도 비로그인에게 404 다
   redirect("/mypage/jobs?ok=1");
 }
 
@@ -786,11 +789,13 @@ export async function deleteAccount(formData: FormData) {
   if (hospitalIds.length > 0) {
     // 공고 삭제가 실패했는데 계정을 지우면 owner가 null이 되어 아무도 못 지운다 → 실패면 멈춘다.
     // 그 공고에 달린 지원 내역·지원자 메모·저장한 공고는 jobs 에 cascade 로 묶여 함께 사라진다.
-    const { error: jErr } = await admin.from("jobs").delete().in("hospital_id", hospitalIds);
+    const { data: goneJobs, error: jErr } = await admin.from("jobs").delete().in("hospital_id", hospitalIds).select("id");
     if (jErr) {
       console.error("deleteAccount(delete jobs) failed:", jErr.message);
       redirect("/mypage/account?error=save");
     }
+    // 지운 공고의 비로그인 캐시본도 지운다 — 안 그러면 탈퇴한 병원의 공고가 최대 6시간 더 보인다.
+    for (const j of goneJobs ?? []) revalidateCachedJob(j.id);
     // 🔴 병원 명부(hospitals) 행 자체는 **지우지 않는다.** 심평원 공공 명부 8만곳 중 하나이고
     //    리뷰·검색·수집 공고가 그 행을 가리킨다 — 지우면 탈퇴한 계정이 아니라 **병원이 사라진다**
     //    (리뷰도 cascade 로 함께 날아간다). 탈퇴로 없어져야 하는 것은 '내가 이 병원 주인' 이라는
@@ -1121,6 +1126,8 @@ export async function setJobStatus(formData: FormData) {
   const { data, error } = await supabase
     .from("jobs").update({ status }).eq("id", id).in("status", ["open", "closed"]).select("id");
   if (error || !data?.length) redirect("/mypage/jobs?error=1");
+  // 마감한 공고가 비로그인 캐시본에 계속 떠 있지 않게(재개면 404 로 굳은 캐시본을 지운다).
+  revalidateCachedJob(id);
   redirect("/mypage/jobs?ok=1");
 }
 
@@ -1134,6 +1141,7 @@ export async function deleteJob(formData: FormData) {
     // 위와 같은 이유로 반환 행을 본다 — 남의 공고를 지우려다 RLS 에 막혀도 "삭제했습니다"가 떴다.
     const { data, error } = await supabase.from("jobs").delete().eq("id", id).select("id");
     if (error || !data?.length) redirect("/mypage/jobs?error=1");
+    revalidateCachedJob(id); // 지운 공고가 비로그인 캐시본에 최대 6시간 남지 않게
   }
   redirect("/mypage/jobs?ok=1");
 }

@@ -238,7 +238,8 @@ export default async function TalentListing({
                     // 🔴 조건을 함께 넘긴다. 이게 없어서 상세로 들어가는 순간 필터가 사라지고,
                     //    왼쪽 목록이 조건과 무관한 '같은 시도 8명' 으로 바뀌었다.
                     href={`/talent/${t.profile_id}${detailQs ? `?${detailQs}` : ""}`}
-                    // 요양·간병 목록의 카드는 ?tr=care 가 붙어 봇이 캐시 화면(talent-cached)을 못 탄다 — 따라가지 않게 한다.
+                    // 요양·간병 목록의 카드는 ?tr=care 가 붙어 정본과 따로 늘어나는 주소다 — 따라가지 않게 한다
+                    // (봇이 따라와도 쿼리를 버리고 캐시본을 받는다 — lib/url cachedDetailTarget).
                     // 상세 주소는 사이트맵(/talent/{id})으로 들어온다. 공고의 요양 목록과 같은 처리(JobsListing).
                     rel={mode === "care" ? "nofollow" : undefined}
                     aria-label={`${contacts.get(t.profile_id)?.name ?? `${talentNoun(t.job_tracks)} 회원`} · ${t.resume_title ?? `${talentNoun(t.job_tracks)} 인재`}`}

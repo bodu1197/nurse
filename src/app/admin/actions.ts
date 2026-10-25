@@ -7,6 +7,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { safeNext } from "@/lib/url";
 import { DAY_MS, nowMs } from "@/lib/date";
 import { requireAdmin, logAdmin, isHideable } from "@/lib/data/admin";
+import { revalidateCachedJob } from "@/lib/data/jobs";
 import { isSitePostKind } from "@/lib/data/adminLists";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -127,6 +128,7 @@ export async function extendAd(formData: FormData) {
     redirect(backTo(back, "error", "save"));
   }
   if (!updated?.length) redirect(backTo(back, "error", "target"));
+  revalidateCachedJob(jobId); // 비로그인 캐시본의 마감일(광고 종료일)·404 를 바로 갈아끼운다
   revalidatePath("/jobs");
   redirect(backTo(back, "ok"));
 }
@@ -174,6 +176,7 @@ export async function endAd(formData: FormData) {
     redirect(backTo(back, "error", "save"));
   }
   if (!data?.length) redirect(backTo(back, "error", "target"));
+  revalidateCachedJob(jobId); // 사고 대응으로 내린 공고가 비로그인 캐시본에 최대 6시간 남지 않게
   revalidatePath("/jobs");
   redirect(backTo(back, "ok"));
 }
@@ -359,6 +362,11 @@ export async function renameHospital(formData: FormData) {
     action: "hospital.rename", targetTable: "hospitals", targetId: id,
     reason: `${before.name} → ${name}`,
   });
+  // 공고 상세 캐시본에도 병원 이름이 찍혀 있다 — 이 병원의 노출 공고만 갈아끼운다(닫힌 공고의 캐시본은 이름 없는 404 다).
+  const { data: jobs, error: jobsErr } = await supabase.from("jobs").select("id").eq("hospital_id", id).eq("status", "open");
+  // 이름은 이미 바뀌었다 — 여기서 실패해도 되돌리지 않는다. 캐시본만 옛 이름으로 남으니(최대 6시간) 원인을 남긴다.
+  if (jobsErr) console.error("renameHospital(jobs) — 캐시본 무효화 건너뜀:", jobsErr.message);
+  for (const j of jobs ?? []) revalidateCachedJob(j.id);
   revalidatePath("/jobs");
   redirect(backTo(back, "ok"));
 }

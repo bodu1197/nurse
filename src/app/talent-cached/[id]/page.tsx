@@ -4,7 +4,8 @@ import { generateMetadata as talentMetadata, renderTalentDetail } from "@/app/ta
  * 🔒 **인재 상세의 캐시 전용 라우트**(2026-08-17). 사람이 직접 여는 주소가 아니다 —
  *    프록시(`src/proxy.ts`)가 네 조건을 **전부** 만족하는 요청만 여기로 rewrite 한다.
  *    주소창은 `/talent/<id>` 그대로다.
- *      ① GET·HEAD  ② 로그인 쿠키 없음  ③ 쿼리스트링 없음  ④ 경로가 /talent/<uuid>
+ *      ① GET·HEAD  ② 로그인 쿠키 없음  ③ 쿼리스트링 없음(봇은 쿼리를 버리고 온다 — 2026-10-25)  ④ 경로가 /talent/<uuid>
+ *    조건은 lib/url cachedDetailTarget 한 곳에 있고 테스트가 있다.
  *
  * 왜 만들었나: 이 화면이 이 사이트에서 가장 많이 열린다 — 7일 실측 **봇 1,244,902건 : 사람 1,008건
  * (961:1)**. 기존 라우트는 요청마다 `getMyProfile()` 로 쿠키를 읽어 캐시가 원리상 불가능했고,

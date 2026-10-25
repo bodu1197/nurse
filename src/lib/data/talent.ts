@@ -117,14 +117,16 @@ export const getPublicTalent = cache(async (profileId: string): Promise<PublicTa
     .not("name", "is", null).maybeSingle<PublicTalent & { name: string | null; profile: ProfileBits | null }>();
   // 🔴 오류를 삼키지 않는다. 삼키면 DB 장애·권한 변경이 **"그런 이력서 없음"(404)** 과 구분되지 않아,
   //    사이트맵에 올린 주소가 통째로 404 가 돼도 로그에 아무것도 안 남는다.
-  if (resumeErr) console.error("getPublicTalent(resume) failed:", resumeErr.message, profileId);
+  // 🔴 null 로 돌려주지 않고 **던진다**(2026-10-25). 비로그인 화면은 캐시본(/talent-cached)이라, null → 404 가 6시간 넘게 굳어
+  //    공개 이력서가 검색봇에게 통째로 404 가 된다. 던지면 ISR 은 실패한 재생성을 버리고 직전 정상본을 계속 낸다.
+  if (resumeErr) throw new Error(`getPublicTalent(resume) 실패(${profileId}): ${resumeErr.message}`);
   if (!resume) return null;
   const { data: work, error: workErr } = await admin
     .from("work_experiences").select(WORK_PUBLIC_FIELDS.join(",")).eq("resume_id", profileId)
     .order("sort_order").returns<PublicWork[]>();
-  // 경력 조회가 실패하면 경력이 **없는 것처럼** 보인다(빈 배열). 조용히 넘어가면
-  // "경력을 다 지웠나" 하는 문의로만 드러난다.
-  if (workErr) console.error("getPublicTalent(work) failed:", workErr.message, profileId);
+  // 경력 조회가 실패하면 경력이 **없는 것처럼** 보인다(빈 배열) — 캐시본에서는 그 빈 경력이 6시간 넘게 굳는다.
+  // 위와 같은 이유로 던진다(직전 정상본이 계속 나간다).
+  if (workErr) throw new Error(`getPublicTalent(work) 실패(${profileId}): ${workErr.message}`);
   // 경력도 같은 관문을 통과시킨다 — duties(담당업무)는 최대 1,000자 자유서술이고 상세가 통째로 찍는다.
   // 병원명·부서·직위도 사람이 타이핑하는 칸이라 "○○병원 010-…" 이 들어올 수 있다.
   // 🔴 여기서도 컬럼을 고르지 않는다(위 flattenProfile 과 같은 이유).
