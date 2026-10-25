@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/constants";
+import { AI_CRAWLERS } from "@/lib/aiCrawlers";
 
 /**
  * 🔴 **검색엔진 그룹(`User-agent: *`)에는 Disallow 를 늘리지 말 것.**
@@ -19,44 +20,31 @@ import { SITE_URL } from "@/lib/constants";
  */
 
 /**
- * AI 수집·학습 크롤러 — 이들에게만 `/talent` 를 닫는다(오너 확정 2026-08-06).
+ * AI 수집·학습·답변 봇(목록 src/lib/aiCrawlers.ts) — **사이트 전체**를 닫는다(오너 지시 2026-10-25: "무조건 돈이 지출 안되게 확실하게 막아줘").
  *
- * 🔴 위 "Disallow 를 늘리지 말라"와 모순이 아니다. 그 금지의 **이유는 "noindex 를 읽게 해야 한다"** 인데,
- *    이들은 애초에 noindex 를 보지 않는다 — noindex 는 *검색 색인* 지시어이고 이들은 검색 색인기가 아니다.
- *    막아도 잃을 것이 없고, 안 막으면 이력서가 학습·인용 대상이 된다.
- * 🔴 2026-08-08 에 인재정보를 **구글 검색에는 열었지만** 이 목록은 그대로 둔다. 둘은 다른 이야기다 —
- *    검색은 사람을 이 사이트로 데려오지만(광고가 팔린다), 학습 크롤러는 이력서를 퍼가고 끝난다.
- *    이 목록의 `Google-Extended` 는 Gemini *학습용* UA 라 구글 검색 색인과 무관하다.
- *    실측(2026-08-06, 봇 집계 첫날): `/talent/:id` 봇 요청 **124,069회** vs 색인 대상인 `/jobs/:id` 7,062회.
- *    공개 이력서 7,779건의 약 16배 — 전수 스윕이 돌고 있다는 뜻이다.
+ * 왜: 2026-10-17 부터 ClaudeBot 한 대(IP 하나)가 공고 상세(/jobs/:id)를 **하루 70만 번** 읽었다. 그 전엔 봇 전체가 하루 1~2만 번이었다.
+ *    공고 상세는 로그인 여부를 읽느라 캐시가 안 되는 화면이라 요청마다 함수가 돌았고, Vercel 청구가 하루 $4 → $15 로 뛰었다.
+ *    방아쇠는 10/16 에 요양·간병 공고 1만 5천 건이 같은 상세 화면으로 합류해 긁을 페이지가 10배가 된 것이다.
+ *    이 지시가 종전 결정(2026-08-06 "이력서만 닫고 공고는 AI 답변에 나오게 연다")을 대체한다 — 이제 각 AI 회사의 자체 봇은
+ *    이 사이트를 못 읽는다. 구글 AI 개요·빙 코파일럿처럼 **검색 색인**을 쓰는 답변에는 계속 나올 수 있다(검색은 막지 않는다).
  *
- * 🔴 `/` 전체가 아니라 **`/talent` 만** 막는다. 채용공고는 오히려 AI 답변에 나와야 한다 —
- *    이 사이트에서 노출이 곧 돈인 쪽은 공고다. "이력서는 감추고 공고는 연다"는 오너 결정과 같은 선이다.
+ * 🔴 **돈을 실제로 막는 것은 방화벽이다** — scripts/vercel-firewall-bots.ts 가 같은 목록으로 'Block AI crawlers' 거부 규칙을 만든다.
+ *    거부된 요청은 함수를 깨우지 않고 요금도 0 이다. 방화벽은 이들의 robots.txt 요청도 거부한다 — 해외에서 오는 봇은 어차피 국가 차단에
+ *    걸리고(오너 2026-10-25: "한국과 인도네시아, 유용한 봇은 열어 두고 나머지는 막아라"), 거부는 무료라 예외를 둘 이유가 없다.
+ *    그래서 이 줄은 **정책 선언**이다 — 방화벽 규칙이 언젠가 빠져도 "허락한 적 없다"는 근거로 남는다.
  *
- * 🔴 Allow 를 함께 적지 않는다. robots.txt 는 적히지 않은 경로가 기본 허용이라 Disallow 한 줄이면 충분하고,
- *    `Allow: /` 를 앞에 두면 "먼저 맞는 규칙을 따르는" 옛 크롤러가 /talent 까지 허용으로 읽는다.
+ * 🔴 위 "Disallow 를 늘리지 말라"와 모순이 아니다. 그 금지는 `User-agent: *`(검색엔진) 그룹 이야기다 — 거기서 막으면 noindex 를
+ *    못 읽는다. 이건 AI 봇만의 **별도 그룹**이고, 목적은 색인에서 빼는 게 아니라 아예 안 오게 하는 것이다.
+ *    구글·네이버·다음·빙 검색봇은 목록에 없다 — 검색 노출은 그대로다.
  *
- * 목록 기준: 각 업체가 공개 문서로 UA 를 밝힌 것만 적는다. 새 UA 가 생기면 여기에 추가한다.
- * (Bytespider 처럼 robots.txt 를 잘 안 지키는 것도 있다 — 선언은 "허락한 적 없다"는 근거로도 남는다.)
+ * 🔴 Allow 를 함께 적지 않는다 — `Disallow: /` 한 줄이면 된다.
  */
-const AI_CRAWLERS = [
-  "GPTBot", "OAI-SearchBot", "ChatGPT-User", // OpenAI
-  "ClaudeBot", "Claude-User", "Claude-SearchBot", "anthropic-ai", // Anthropic
-  "PerplexityBot", "Perplexity-User", // Perplexity
-  "Google-Extended", // Gemini 학습용. 🔴 구글 *검색* 색인과 무관하다 — 검색에는 영향이 없다.
-  "Applebot-Extended", // Apple Intelligence 학습용(검색용 Applebot 과 다른 UA)
-  "CCBot", // Common Crawl — 여러 LLM 학습셋의 원천이라 이것만 막아도 파급이 크다
-  // 🔴 대소문자 구분 없이 매칭된다(RFC 9309 §2.2.1) — 같은 이름을 대소문자만 바꿔 두 번 적지 말 것.
-  "Bytespider", "Amazonbot",
-  "meta-externalagent", "meta-externalfetcher", // Meta: 학습용 · 사용자 요청 시 페처
-];
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       { userAgent: "*", allow: "/" },
-      // 요양·간병 인재(/care-talent)도 같은 이력서다 — 같이 닫는다(2026-10-16).
-      { userAgent: AI_CRAWLERS, disallow: ["/talent", "/care-talent"] },
+      { userAgent: AI_CRAWLERS, disallow: "/" },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,
     // Host 지시어(얀덱스 확장)는 **스킴 없는 호스트명**을 기대한다. 구글·네이버는 무시하지만
